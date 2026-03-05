@@ -1,0 +1,37 @@
+<Solution>
+  <Folder Name="/CatalogService/">
+    <Project Path="CatalogService/CatalogService.Api/CatalogService.Api.csproj" />
+    <Project Path="CatalogService/CatalogService.Application/CatalogService.Application.csproj" />
+    <Project Path="CatalogService/CatalogService.Domain/CatalogService.Domain.csproj" />
+    <Project Path="CatalogService/CatalogService.Infrastructure/CatalogService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/NotificationService/">
+    <Project Path="NotificationService/NotificationService.Api/NotificationService.Api.csproj" />
+    <Project Path="NotificationService/NotificationService.Application/NotificationService.Application.csproj" />
+    <Project Path="NotificationService/NotificationService.Domain/NotificationService.Domain.csproj" />
+    <Project Path="NotificationService/NotificationService.Infrastructure/NotificationService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/OrderService/">
+    <Project Path="OrderService/OrderService.Api/OrderService.Api.csproj" />
+    <Project Path="OrderService/OrderService.Application/OrderService.Application.csproj" />
+    <Project Path="OrderService/OrderService.Domain/OrderService.Domain.csproj" />
+    <Project Path="OrderService/OrderService.Infrastructure/OrderService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/PaymentService/">
+    <Project Path="PaymentService/PaymentService.Api/PaymentService.Api.csproj" />
+    <Project Path="PaymentService/PaymentService.Application/PaymentService.Application.csproj" />
+    <Project Path="PaymentService/PaymentService.Domain/PaymentService.Domain.csproj" />
+    <Project Path="PaymentService/PaymentService.Infrastructure/PaymentService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/ShippingService/">
+    <Project Path="ShippingService/ShippingService.Api/ShippingService.Api.csproj" />
+    <Project Path="ShippingService/ShippingService.Application/ShippingService.Application.csproj" />
+    <Project Path="ShippingService/ShippingService.Domain/ShippingService.Domain.csproj" />
+    <Project Path="ShippingService/ShippingService.Infrastructure/ShippingService.Infrastructure.csproj" />
+  </Folder>
+  <Project Path="NovaCraft.AppHost/NovaCraft.AppHost.csproj" />
+  <Project Path="NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+  <Project Path="NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj" />
+  <Project Path="SellerPortal/SellerPortal.csproj" />
+  <Project Path="Storefront/Storefront.csproj" />
+</Solution>

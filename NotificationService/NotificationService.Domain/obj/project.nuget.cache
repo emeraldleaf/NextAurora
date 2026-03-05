@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "9mRtx8TZIgM=",
+  "success": true,
+  "projectFilePath": "/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Domain/NotificationService.Domain.csproj",
+  "expectedPackageFiles": [
+    "/Users/joshuadell/.nuget/packages/meziantou.analyzer/2.0.257/meziantou.analyzer.2.0.257.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/roslynator.analyzers/4.14.1/roslynator.analyzers.4.14.1.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/sonaranalyzer.csharp/10.16.0.128591/sonaranalyzer.csharp.10.16.0.128591.nupkg.sha512"
+  ],
+  "logs": []
+}

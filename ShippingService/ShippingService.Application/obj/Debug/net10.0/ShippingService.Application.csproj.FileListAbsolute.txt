@@ -1,0 +1,17 @@
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/ShippingService.Application.deps.json
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/ShippingService.Application.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/ShippingService.Application.pdb
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/NovaCraft.Contracts.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/ShippingService.Domain.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/ShippingService.Domain.pdb
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/NovaCraft.Contracts.pdb
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ShippingService.Application.csproj.AssemblyReference.cache
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ShippingService.Application.GeneratedMSBuildEditorConfig.editorconfig
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ShippingService.Application.AssemblyInfoInputs.cache
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ShippingService.Application.AssemblyInfo.cs
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ShippingService.Application.csproj.CoreCompileInputs.cache
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/Shipping.F80F5C1A.Up2Date
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ShippingService.Application.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/refint/ShippingService.Application.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ShippingService.Application.pdb
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ref/ShippingService.Application.dll

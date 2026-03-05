@@ -1,0 +1,11 @@
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/bin/Debug/net10.0/NovaCraft.Contracts.deps.json
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/bin/Debug/net10.0/NovaCraft.Contracts.dll
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/bin/Debug/net10.0/NovaCraft.Contracts.pdb
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/obj/Debug/net10.0/NovaCraft.Contracts.GeneratedMSBuildEditorConfig.editorconfig
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/obj/Debug/net10.0/NovaCraft.Contracts.AssemblyInfoInputs.cache
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/obj/Debug/net10.0/NovaCraft.Contracts.AssemblyInfo.cs
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/obj/Debug/net10.0/NovaCraft.Contracts.csproj.CoreCompileInputs.cache
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/obj/Debug/net10.0/NovaCraft.Contracts.dll
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/obj/Debug/net10.0/refint/NovaCraft.Contracts.dll
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/obj/Debug/net10.0/NovaCraft.Contracts.pdb
+/Users/joshuadell/NovaCraft/NovaCraft.Contracts/obj/Debug/net10.0/ref/NovaCraft.Contracts.dll

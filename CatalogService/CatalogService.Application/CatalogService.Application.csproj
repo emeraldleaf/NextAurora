@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CatalogService.Domain/CatalogService.Domain.csproj" />
+    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../NotificationService.Domain/NotificationService.Domain.csproj" />
+    <ProjectReference Include="../NotificationService.Application/NotificationService.Application.csproj" />
+    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+  </ItemGroup>
+</Project>

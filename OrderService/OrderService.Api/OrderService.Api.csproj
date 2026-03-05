@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="Grpc.Net.ClientFactory" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="../../CatalogService/CatalogService.Api/Protos/catalog.proto" GrpcServices="Client" Link="Protos/catalog.proto" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../OrderService.Application/OrderService.Application.csproj" />
+    <ProjectReference Include="../OrderService.Infrastructure/OrderService.Infrastructure.csproj" />
+    <ProjectReference Include="../../NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

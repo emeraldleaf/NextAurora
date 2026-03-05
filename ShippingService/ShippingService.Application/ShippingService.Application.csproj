@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ShippingService.Domain/ShippingService.Domain.csproj" />
+    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+  </ItemGroup>
+</Project>

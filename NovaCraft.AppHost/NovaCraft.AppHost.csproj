@@ -1,0 +1,26 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.1.0">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>c4741def-89d5-447e-af79-e43ded7574ec</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Aspire.Hosting.SqlServer" />
+    <PackageReference Include="Aspire.Hosting.Redis" />
+    <PackageReference Include="Aspire.Hosting.Azure.ServiceBus" />
+    <PackageReference Include="Aspire.Hosting.Azure.ApplicationInsights" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CatalogService/CatalogService.Api/CatalogService.Api.csproj" />
+    <ProjectReference Include="../OrderService/OrderService.Api/OrderService.Api.csproj" />
+    <ProjectReference Include="../PaymentService/PaymentService.Api/PaymentService.Api.csproj" />
+    <ProjectReference Include="../ShippingService/ShippingService.Api/ShippingService.Api.csproj" />
+    <ProjectReference Include="../NotificationService/NotificationService.Api/NotificationService.Api.csproj" />
+    <ProjectReference Include="../Storefront/Storefront.csproj" />
+    <ProjectReference Include="../SellerPortal/SellerPortal.csproj" />
+  </ItemGroup>
+
+</Project>

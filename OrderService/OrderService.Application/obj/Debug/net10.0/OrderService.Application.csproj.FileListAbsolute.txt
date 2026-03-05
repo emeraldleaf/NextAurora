@@ -1,0 +1,17 @@
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/bin/Debug/net10.0/OrderService.Application.deps.json
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/bin/Debug/net10.0/OrderService.Application.dll
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/bin/Debug/net10.0/OrderService.Application.pdb
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/bin/Debug/net10.0/NovaCraft.Contracts.dll
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/bin/Debug/net10.0/OrderService.Domain.dll
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/bin/Debug/net10.0/OrderService.Domain.pdb
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/bin/Debug/net10.0/NovaCraft.Contracts.pdb
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/OrderService.Application.csproj.AssemblyReference.cache
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/OrderService.Application.GeneratedMSBuildEditorConfig.editorconfig
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/OrderService.Application.AssemblyInfoInputs.cache
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/OrderService.Application.AssemblyInfo.cs
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/OrderService.Application.csproj.CoreCompileInputs.cache
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/OrderSer.7EAAA39B.Up2Date
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/OrderService.Application.dll
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/refint/OrderService.Application.dll
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/OrderService.Application.pdb
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/ref/OrderService.Application.dll

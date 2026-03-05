@@ -1,0 +1,11 @@
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/bin/Debug/net10.0/OrderService.Domain.deps.json
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/bin/Debug/net10.0/OrderService.Domain.dll
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/bin/Debug/net10.0/OrderService.Domain.pdb
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/obj/Debug/net10.0/OrderService.Domain.GeneratedMSBuildEditorConfig.editorconfig
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/obj/Debug/net10.0/OrderService.Domain.AssemblyInfoInputs.cache
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/obj/Debug/net10.0/OrderService.Domain.AssemblyInfo.cs
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/obj/Debug/net10.0/OrderService.Domain.csproj.CoreCompileInputs.cache
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/obj/Debug/net10.0/OrderService.Domain.dll
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/obj/Debug/net10.0/refint/OrderService.Domain.dll
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/obj/Debug/net10.0/OrderService.Domain.pdb
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Domain/obj/Debug/net10.0/ref/OrderService.Domain.dll

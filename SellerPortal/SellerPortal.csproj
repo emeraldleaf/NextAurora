@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj" />
+    <ProjectReference Include="../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

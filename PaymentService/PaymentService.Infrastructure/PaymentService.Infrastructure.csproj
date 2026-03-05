@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PaymentService.Domain/PaymentService.Domain.csproj" />
+    <ProjectReference Include="../PaymentService.Application/PaymentService.Application.csproj" />
+    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+  </ItemGroup>
+</Project>

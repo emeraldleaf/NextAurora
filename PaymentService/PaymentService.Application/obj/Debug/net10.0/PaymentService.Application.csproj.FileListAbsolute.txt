@@ -1,0 +1,17 @@
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/PaymentService.Application.deps.json
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/PaymentService.Application.dll
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/PaymentService.Application.pdb
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/NovaCraft.Contracts.dll
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/PaymentService.Domain.dll
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/PaymentService.Domain.pdb
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/NovaCraft.Contracts.pdb
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.csproj.AssemblyReference.cache
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.GeneratedMSBuildEditorConfig.editorconfig
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.AssemblyInfoInputs.cache
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.AssemblyInfo.cs
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.csproj.CoreCompileInputs.cache
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentS.03DFC2EE.Up2Date
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.dll
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/refint/PaymentService.Application.dll
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.pdb
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/ref/PaymentService.Application.dll

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="MediatR" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ShippingService.Application/ShippingService.Application.csproj" />
+    <ProjectReference Include="../ShippingService.Infrastructure/ShippingService.Infrastructure.csproj" />
+    <ProjectReference Include="../../NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+  </ItemGroup>
+</Project>

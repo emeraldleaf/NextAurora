@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CatalogService.Domain/CatalogService.Domain.csproj" />
+    <ProjectReference Include="../CatalogService.Application/CatalogService.Application.csproj" />
+  </ItemGroup>
+</Project>

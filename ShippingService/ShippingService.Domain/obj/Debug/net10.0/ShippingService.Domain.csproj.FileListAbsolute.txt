@@ -1,0 +1,11 @@
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/bin/Debug/net10.0/ShippingService.Domain.deps.json
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/bin/Debug/net10.0/ShippingService.Domain.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/bin/Debug/net10.0/ShippingService.Domain.pdb
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/ShippingService.Domain.GeneratedMSBuildEditorConfig.editorconfig
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/ShippingService.Domain.AssemblyInfoInputs.cache
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/ShippingService.Domain.AssemblyInfo.cs
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/ShippingService.Domain.csproj.CoreCompileInputs.cache
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/ShippingService.Domain.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/refint/ShippingService.Domain.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/ShippingService.Domain.pdb
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/ref/ShippingService.Domain.dll
