@@ -12,7 +12,7 @@ public record SendNotificationRequest(
     string Body,
     string Channel = "Email") : IRequest;
 
-public class SendNotificationHandler(
+public partial class SendNotificationHandler(
     INotificationSender sender,
     ILogger<SendNotificationHandler> logger) : IRequestHandler<SendNotificationRequest>
 {
@@ -26,12 +26,18 @@ public class SendNotificationHandler(
         {
             await sender.SendAsync(request.RecipientEmail, request.Subject, request.Body, request.Channel, cancellationToken);
             notification.MarkAsSent();
-            logger.LogInformation("Notification sent to {Email}: {Subject}", request.RecipientEmail, request.Subject);
+            LogNotificationSent(logger, request.RecipientEmail, request.Subject);
         }
         catch (Exception ex)
         {
             notification.MarkAsFailed();
-            logger.LogError(ex, "Failed to send notification to {Email}", request.RecipientEmail);
+            LogNotificationFailed(logger, ex, request.RecipientEmail);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Notification sent to {Email}: {Subject}")]
+    private static partial void LogNotificationSent(ILogger logger, string email, string subject);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to send notification to {Email}")]
+    private static partial void LogNotificationFailed(ILogger logger, Exception ex, string email);
 }
