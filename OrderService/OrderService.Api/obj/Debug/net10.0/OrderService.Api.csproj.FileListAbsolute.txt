@@ -117,3 +117,4 @@
 /Users/joshuadell/NovaCraft/OrderService/OrderService.Api/obj/Debug/net10.0/OrderService.Api.pdb
 /Users/joshuadell/NovaCraft/OrderService/OrderService.Api/obj/Debug/net10.0/OrderService.Api.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/OrderService/OrderService.Api/obj/Debug/net10.0/ref/OrderService.Api.dll
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Api/obj/Debug/net10.0/OrderService.Api.sourcelink.json

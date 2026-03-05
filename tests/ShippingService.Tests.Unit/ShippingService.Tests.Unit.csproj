@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="Bogus" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../ShippingService/ShippingService.Domain/ShippingService.Domain.csproj" />
+    <ProjectReference Include="../../ShippingService/ShippingService.Application/ShippingService.Application.csproj" />
+  </ItemGroup>
+
+</Project>

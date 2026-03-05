@@ -31,10 +31,6 @@
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Microsoft.VisualBasic.b99k7uyg87.wasm
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Microsoft.Win32.Primitives.vfvkvgphtd.wasm
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Microsoft.Win32.Registry.i9dc47z9na.wasm
-/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/NextAurora.Contracts.7327kqkw76.wasm
-/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/NextAurora.Contracts.bqzvnugr5c.pdb
-/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Storefront.46zo9dldf0.wasm
-/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Storefront.dan7yq9lim.pdb
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.AppContext.bkfrse7thl.wasm
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Buffers.pd2t0nt2si.wasm
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Collections.8ve53xakwt.wasm
@@ -201,7 +197,6 @@
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.cc45vjr1b8.wasm
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/WindowsBase.x4p87bcsuc.wasm
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/blazor.webassembly.66stpp682q.js
-/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/dotnet.ituzesiy7w.js
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/dotnet.js.map
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/dotnet.native.87vtjjdetb.js
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/dotnet.native.befq3iek54.wasm
@@ -223,7 +218,6 @@
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Security.Cryptography.2oinf7wns0.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Linq.Parallel.najsturrr4.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Microsoft.Extensions.Configuration.Binder.3ucxiitwm2.wasm.gz
-/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/NextAurora.Contracts.7327kqkw76.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Runtime.CompilerServices.VisualC.qpf1k0onwr.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Microsoft.Extensions.Options.ConfigurationExtensions.wtnkcgjgd7.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.ComponentModel.DataAnnotations.h7j9pa67uq.wasm.gz
@@ -277,7 +271,6 @@
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Threading.Overlapped.6mmes27wxj.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.ServiceProcess.4dp07psyti.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.IO.FileSystem.Watcher.g3q08a5r0l.wasm.gz
-/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Storefront.dan7yq9lim.pdb.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Runtime.Serialization.Primitives.6cw1urpscm.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/dotnet.native.87vtjjdetb.js.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Data.DataSetExtensions.3w2p4d06b7.wasm.gz
@@ -335,7 +328,6 @@
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.AppContext.bkfrse7thl.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Numerics.Vectors.mduomqj5ij.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Text.Json.eh7cecjlta.wasm.gz
-/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/dotnet.ituzesiy7w.js.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.ComponentModel.Annotations.oz8q74opte.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Web.ljs5h1hf84.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Diagnostics.DiagnosticSource.0aa76byztu.wasm.gz
@@ -345,7 +337,6 @@
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/mscorlib.edc53jkj5x.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Net.WebHeaderCollection.863sp2fomt.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.IO.Pipes.c4mxa3g9k3.wasm.gz
-/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/NextAurora.Contracts.bqzvnugr5c.pdb.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Security.SecureString.n949pn5bqf.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Xml.XPath.dwqeg87jk0.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/dotnet.js.map.gz
@@ -420,7 +411,6 @@
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Reflection.Primitives.5quh18s9mm.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Threading.Timer.pq3olwch7c.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Net.Security.0lza1qkjrc.wasm.gz
-/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Storefront.46zo9dldf0.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Runtime.Serialization.Json.esps13f27e.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.IO.UnmanagedMemoryStream.0q8h4ozt6q.wasm.gz
 /Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/System.Runtime.Serialization.Xml.1stmypg1wa.wasm.gz
@@ -1117,12 +1107,6 @@
 /Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/uzaciqmxpn-{0}-tjcz0u77k5-tjcz0u77k5.gz
 /Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/f57fcricky-{0}-tptq2av103-tptq2av103.gz
 /Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/hvz2xdpndw-{0}-lfu7j35m59-lfu7j35m59.gz
-/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/1wgxrlt68c-{0}-7327kqkw76-7327kqkw76.gz
-/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/mtwee7gw82-{0}-bqzvnugr5c-bqzvnugr5c.gz
-/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/zc8s0t9khk-{0}-46zo9dldf0-46zo9dldf0.gz
-/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/chwz0xjdnm-{0}-dan7yq9lim-dan7yq9lim.gz
-/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/jnmtlpl5i8-{0}-ituzesiy7w-ituzesiy7w.gz
-/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/ieniro1xwn-{0}-wuewwuon1n-wuewwuon1n.gz
 /Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/staticwebassets.build.json
 /Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/staticwebassets.build.json.cache
 /Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/staticwebassets.development.json
@@ -1133,3 +1117,20 @@
 /Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/refint/Storefront.dll
 /Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/Storefront.pdb
 /Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/ref/Storefront.dll
+/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/NextAurora.Contracts.5gpz1d11y5.pdb
+/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/NextAurora.Contracts.w4ot5acju1.wasm
+/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Storefront.0efpbjw5nl.wasm
+/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Storefront.x7vcbhdwoo.pdb
+/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/dotnet.7wd1z7latm.js
+/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/NextAurora.Contracts.w4ot5acju1.wasm.gz
+/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Storefront.x7vcbhdwoo.pdb.gz
+/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/dotnet.7wd1z7latm.js.gz
+/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/NextAurora.Contracts.5gpz1d11y5.pdb.gz
+/Users/joshuadell/NovaCraft/Storefront/bin/Debug/net10.0/wwwroot/_framework/Storefront.0efpbjw5nl.wasm.gz
+/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/Storefront.sourcelink.json
+/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/1wgxrlt68c-{0}-w4ot5acju1-w4ot5acju1.gz
+/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/mtwee7gw82-{0}-5gpz1d11y5-5gpz1d11y5.gz
+/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/zc8s0t9khk-{0}-0efpbjw5nl-0efpbjw5nl.gz
+/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/chwz0xjdnm-{0}-x7vcbhdwoo-x7vcbhdwoo.gz
+/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/jnmtlpl5i8-{0}-7wd1z7latm-7wd1z7latm.gz
+/Users/joshuadell/NovaCraft/Storefront/obj/Debug/net10.0/compressed/ieniro1xwn-{0}-d3dnqg9b2p-d3dnqg9b2p.gz

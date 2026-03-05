@@ -9,3 +9,4 @@
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/refint/ShippingService.Domain.dll
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/ShippingService.Domain.pdb
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/ref/ShippingService.Domain.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/obj/Debug/net10.0/ShippingService.Domain.sourcelink.json

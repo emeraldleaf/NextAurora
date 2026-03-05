@@ -17,3 +17,4 @@
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Infrastructure/obj/Debug/net10.0/refint/ShippingService.Infrastructure.dll
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Infrastructure/obj/Debug/net10.0/ShippingService.Infrastructure.pdb
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Infrastructure/obj/Debug/net10.0/ref/ShippingService.Infrastructure.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Infrastructure/obj/Debug/net10.0/ShippingService.Infrastructure.sourcelink.json

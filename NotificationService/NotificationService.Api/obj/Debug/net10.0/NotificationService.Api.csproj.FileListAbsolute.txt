@@ -74,3 +74,4 @@
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/obj/Debug/net10.0/NotificationService.Api.pdb
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/obj/Debug/net10.0/NotificationService.Api.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/obj/Debug/net10.0/ref/NotificationService.Api.dll
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/obj/Debug/net10.0/NotificationService.Api.sourcelink.json

@@ -61,3 +61,4 @@
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/SellerPortal.pdb
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/SellerPortal.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/ref/SellerPortal.dll
+/Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/SellerPortal.sourcelink.json

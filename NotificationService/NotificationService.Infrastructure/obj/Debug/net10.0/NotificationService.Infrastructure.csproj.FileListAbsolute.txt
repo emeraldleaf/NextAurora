@@ -17,3 +17,4 @@
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/obj/Debug/net10.0/refint/NotificationService.Infrastructure.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/obj/Debug/net10.0/NotificationService.Infrastructure.pdb
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/obj/Debug/net10.0/ref/NotificationService.Infrastructure.dll
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/obj/Debug/net10.0/NotificationService.Infrastructure.sourcelink.json

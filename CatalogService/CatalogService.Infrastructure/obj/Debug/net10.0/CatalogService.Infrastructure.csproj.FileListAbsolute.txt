@@ -17,3 +17,4 @@
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/refint/CatalogService.Infrastructure.dll
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogService.Infrastructure.pdb
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/ref/CatalogService.Infrastructure.dll
+/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogService.Infrastructure.sourcelink.json

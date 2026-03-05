@@ -163,3 +163,4 @@
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/NextAurora.AppHost.pdb
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/NextAurora.AppHost.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/ref/NextAurora.AppHost.dll
+/Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/NextAurora.AppHost.sourcelink.json

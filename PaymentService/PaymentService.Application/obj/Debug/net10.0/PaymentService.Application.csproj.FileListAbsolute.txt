@@ -15,3 +15,4 @@
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/refint/PaymentService.Application.dll
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.pdb
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/ref/PaymentService.Application.dll
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.sourcelink.json

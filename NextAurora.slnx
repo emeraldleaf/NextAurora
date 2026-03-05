@@ -34,4 +34,11 @@
   <Project Path="NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj" />
   <Project Path="SellerPortal/SellerPortal.csproj" />
   <Project Path="Storefront/Storefront.csproj" />
+  <Folder Name="/Tests/">
+    <Project Path="tests/OrderService.Tests.Unit/OrderService.Tests.Unit.csproj" />
+    <Project Path="tests/PaymentService.Tests.Unit/PaymentService.Tests.Unit.csproj" />
+    <Project Path="tests/ShippingService.Tests.Unit/ShippingService.Tests.Unit.csproj" />
+    <Project Path="tests/CatalogService.Tests.Unit/CatalogService.Tests.Unit.csproj" />
+    <Project Path="tests/NotificationService.Tests.Unit/NotificationService.Tests.Unit.csproj" />
+  </Folder>
 </Solution>

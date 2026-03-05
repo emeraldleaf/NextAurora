@@ -112,3 +112,4 @@
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Api/obj/Debug/net10.0/PaymentService.Api.pdb
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Api/obj/Debug/net10.0/PaymentService.Api.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Api/obj/Debug/net10.0/ref/PaymentService.Api.dll
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Api/obj/Debug/net10.0/PaymentService.Api.sourcelink.json

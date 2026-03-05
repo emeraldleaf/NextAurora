@@ -10,3 +10,4 @@
 /Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/refint/NextAurora.ServiceDefaults.dll
 /Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/NextAurora.ServiceDefaults.pdb
 /Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/ref/NextAurora.ServiceDefaults.dll
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/NextAurora.ServiceDefaults.sourcelink.json

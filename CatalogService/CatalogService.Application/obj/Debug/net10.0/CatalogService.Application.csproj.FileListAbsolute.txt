@@ -15,3 +15,4 @@
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Application/obj/Debug/net10.0/refint/CatalogService.Application.dll
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Application/obj/Debug/net10.0/CatalogService.Application.pdb
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Application/obj/Debug/net10.0/ref/CatalogService.Application.dll
+/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Application/obj/Debug/net10.0/CatalogService.Application.sourcelink.json

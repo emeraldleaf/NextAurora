@@ -9,3 +9,4 @@
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Domain/obj/Debug/net10.0/refint/NotificationService.Domain.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Domain/obj/Debug/net10.0/NotificationService.Domain.pdb
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Domain/obj/Debug/net10.0/ref/NotificationService.Domain.dll
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Domain/obj/Debug/net10.0/NotificationService.Domain.sourcelink.json

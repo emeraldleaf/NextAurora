@@ -15,3 +15,4 @@
 /Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/refint/OrderService.Application.dll
 /Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/OrderService.Application.pdb
 /Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/ref/OrderService.Application.dll
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/obj/Debug/net10.0/OrderService.Application.sourcelink.json
