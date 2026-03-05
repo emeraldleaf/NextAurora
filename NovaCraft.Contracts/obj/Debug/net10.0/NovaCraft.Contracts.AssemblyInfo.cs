@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NovaCraft.Contracts")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ecd48e82d3491fd22a108a912b95e020fdf83239")]
 [assembly: System.Reflection.AssemblyProductAttribute("NovaCraft.Contracts")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NovaCraft.Contracts")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
