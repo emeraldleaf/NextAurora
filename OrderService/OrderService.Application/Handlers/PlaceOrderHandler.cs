@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MediatR;
-using NovaCraft.Contracts.Events;
+using NextAurora.Contracts.Events;
 using OrderService.Application.Commands;
 using OrderService.Application.Interfaces;
 using OrderService.Domain.Entities;

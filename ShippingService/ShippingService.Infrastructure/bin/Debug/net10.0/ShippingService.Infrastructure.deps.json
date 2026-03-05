@@ -11,7 +11,7 @@
           "Azure.Messaging.ServiceBus": "7.18.4",
           "Microsoft.EntityFrameworkCore": "10.0.2",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
-          "NovaCraft.Contracts": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.0",
           "ShippingService.Application": "1.0.0",
           "ShippingService.Domain": "1.0.0"
@@ -312,9 +312,9 @@
           }
         }
       },
-      "NovaCraft.Contracts/1.0.0": {
+      "NextAurora.Contracts/1.0.0": {
         "runtime": {
-          "NovaCraft.Contracts.dll": {
+          "NextAurora.Contracts.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -323,7 +323,7 @@
       "ShippingService.Application/1.0.0": {
         "dependencies": {
           "MediatR": "12.4.1",
-          "NovaCraft.Contracts": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
           "ShippingService.Domain": "1.0.0"
         },
         "runtime": {
@@ -531,7 +531,7 @@
       "path": "system.memory.data/6.0.0",
       "hashPath": "system.memory.data.6.0.0.nupkg.sha512"
     },
-    "NovaCraft.Contracts/1.0.0": {
+    "NextAurora.Contracts/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

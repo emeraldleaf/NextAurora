@@ -9,7 +9,7 @@
       "ShippingService.Application/1.0.0": {
         "dependencies": {
           "MediatR": "12.4.1",
-          "NovaCraft.Contracts": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
           "ShippingService.Domain": "1.0.0"
         },
         "runtime": {
@@ -44,9 +44,9 @@
           }
         }
       },
-      "NovaCraft.Contracts/1.0.0": {
+      "NextAurora.Contracts/1.0.0": {
         "runtime": {
-          "NovaCraft.Contracts.dll": {
+          "NextAurora.Contracts.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -89,7 +89,7 @@
       "path": "microsoft.extensions.dependencyinjection.abstractions/8.0.0",
       "hashPath": "microsoft.extensions.dependencyinjection.abstractions.8.0.0.nupkg.sha512"
     },
-    "NovaCraft.Contracts/1.0.0": {
+    "NextAurora.Contracts/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

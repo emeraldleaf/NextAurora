@@ -9,6 +9,7 @@
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/Azure.Core.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/Azure.Core.Amqp.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/Azure.Messaging.ServiceBus.dll
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/FluentValidation.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/MediatR.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/MediatR.Contracts.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/Microsoft.AspNetCore.OpenApi.dll
@@ -32,6 +33,7 @@
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/OpenTelemetry.Exporter.OpenTelemetryProtocol.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/OpenTelemetry.Extensions.Hosting.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/OpenTelemetry.Instrumentation.AspNetCore.dll
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/OpenTelemetry.Instrumentation.GrpcNetClient.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/OpenTelemetry.Instrumentation.Http.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/OpenTelemetry.Instrumentation.Runtime.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/Polly.Core.dll
@@ -39,15 +41,15 @@
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/Polly.RateLimiting.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/System.ClientModel.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/System.Memory.Data.dll
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NextAurora.Contracts.dll
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NextAurora.ServiceDefaults.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NotificationService.Application.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NotificationService.Domain.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NotificationService.Infrastructure.dll
-/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NovaCraft.Contracts.dll
-/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NovaCraft.ServiceDefaults.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NotificationService.Application.pdb
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NotificationService.Infrastructure.pdb
-/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NovaCraft.ServiceDefaults.pdb
-/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NovaCraft.Contracts.pdb
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NextAurora.ServiceDefaults.pdb
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NextAurora.Contracts.pdb
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/NotificationService.Domain.pdb
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/obj/Debug/net10.0/NotificationService.Api.csproj.AssemblyReference.cache
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/obj/Debug/net10.0/rpswa.dswa.cache.json
@@ -72,5 +74,3 @@
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/obj/Debug/net10.0/NotificationService.Api.pdb
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/obj/Debug/net10.0/NotificationService.Api.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/obj/Debug/net10.0/ref/NotificationService.Api.dll
-/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/OpenTelemetry.Instrumentation.GrpcNetClient.dll
-/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Api/bin/Debug/net10.0/FluentValidation.dll

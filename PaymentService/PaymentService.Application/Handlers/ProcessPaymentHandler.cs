@@ -1,5 +1,5 @@
 using MediatR;
-using NovaCraft.Contracts.Events;
+using NextAurora.Contracts.Events;
 using PaymentService.Application.Commands;
 using PaymentService.Domain.Entities;
 using PaymentService.Domain.Interfaces;

@@ -12,7 +12,7 @@
           "Microsoft.EntityFrameworkCore": "10.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
-          "NovaCraft.Contracts": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
           "OrderService.Application": "1.0.0",
           "OrderService.Domain": "1.0.0"
         },
@@ -604,9 +604,9 @@
           }
         }
       },
-      "NovaCraft.Contracts/1.0.0": {
+      "NextAurora.Contracts/1.0.0": {
         "runtime": {
-          "NovaCraft.Contracts.dll": {
+          "NextAurora.Contracts.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -618,7 +618,7 @@
           "FluentValidation.DependencyInjectionExtensions": "11.11.0",
           "MediatR": "12.4.1",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
-          "NovaCraft.Contracts": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
           "OrderService.Domain": "1.0.0"
         },
         "runtime": {
@@ -959,7 +959,7 @@
       "path": "system.security.cryptography.protecteddata/9.0.4",
       "hashPath": "system.security.cryptography.protecteddata.9.0.4.nupkg.sha512"
     },
-    "NovaCraft.Contracts/1.0.0": {
+    "NextAurora.Contracts/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

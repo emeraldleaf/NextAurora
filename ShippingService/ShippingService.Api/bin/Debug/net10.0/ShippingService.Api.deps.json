@@ -10,8 +10,8 @@
         "dependencies": {
           "MediatR": "12.4.1",
           "Microsoft.AspNetCore.OpenApi": "10.0.2",
-          "NovaCraft.Contracts": "1.0.0",
-          "NovaCraft.ServiceDefaults": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
+          "NextAurora.ServiceDefaults": "1.0.0",
           "ShippingService.Application": "1.0.0",
           "ShippingService.Infrastructure": "1.0.0"
         },
@@ -429,15 +429,15 @@
           }
         }
       },
-      "NovaCraft.Contracts/1.0.0": {
+      "NextAurora.Contracts/1.0.0": {
         "runtime": {
-          "NovaCraft.Contracts.dll": {
+          "NextAurora.Contracts.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
         }
       },
-      "NovaCraft.ServiceDefaults/1.0.0": {
+      "NextAurora.ServiceDefaults/1.0.0": {
         "dependencies": {
           "FluentValidation": "11.11.0",
           "Microsoft.Extensions.Http.Resilience": "10.1.0",
@@ -450,7 +450,7 @@
           "OpenTelemetry.Instrumentation.Runtime": "1.14.0"
         },
         "runtime": {
-          "NovaCraft.ServiceDefaults.dll": {
+          "NextAurora.ServiceDefaults.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -459,7 +459,7 @@
       "ShippingService.Application/1.0.0": {
         "dependencies": {
           "MediatR": "12.4.1",
-          "NovaCraft.Contracts": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
           "ShippingService.Domain": "1.0.0"
         },
         "runtime": {
@@ -481,7 +481,7 @@
         "dependencies": {
           "Azure.Messaging.ServiceBus": "7.18.4",
           "Microsoft.EntityFrameworkCore": "10.0.2",
-          "NovaCraft.Contracts": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.0",
           "ShippingService.Application": "1.0.0",
           "ShippingService.Domain": "1.0.0"
@@ -781,12 +781,12 @@
       "path": "system.memory.data/6.0.0",
       "hashPath": "system.memory.data.6.0.0.nupkg.sha512"
     },
-    "NovaCraft.Contracts/1.0.0": {
+    "NextAurora.Contracts/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
     },
-    "NovaCraft.ServiceDefaults/1.0.0": {
+    "NextAurora.ServiceDefaults/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

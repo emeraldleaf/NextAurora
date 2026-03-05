@@ -13,8 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="../CatalogService.Application/CatalogService.Application.csproj" />
     <ProjectReference Include="../CatalogService.Infrastructure/CatalogService.Infrastructure.csproj" />
-    <ProjectReference Include="../../NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj" />
-    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+    <ProjectReference Include="../../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../NextAurora.Contracts/NextAurora.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

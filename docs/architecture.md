@@ -1,4 +1,4 @@
-# NovaCraft Architecture
+# NextAurora Architecture
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@
 
 ## System Overview
 
-NovaCraft is a distributed e-commerce platform built as a microservices architecture. Each service owns its data, communicates asynchronously via events for workflows, and uses gRPC for synchronous queries between services.
+NextAurora is a distributed e-commerce platform built as a microservices architecture. Each service owns its data, communicates asynchronously via events for workflows, and uses gRPC for synchronous queries between services.
 
 ```
                          +-------------------+     +-------------------+
@@ -224,7 +224,7 @@ Azure Service Bus
   +-- Queue: send-notification         -> NotificationService
 ```
 
-### Event Contracts (NovaCraft.Contracts)
+### Event Contracts (NextAurora.Contracts)
 
 | Event | Publisher | Subscribers | Payload |
 |-------|-----------|-------------|---------|
@@ -364,7 +364,7 @@ Storefront      -> catalog-service, order-service
 SellerPortal    -> catalog-service, order-service
 ```
 
-### Service Defaults (NovaCraft.ServiceDefaults)
+### Service Defaults (NextAurora.ServiceDefaults)
 
 All services inherit shared infrastructure configuration:
 

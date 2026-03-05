@@ -312,14 +312,24 @@
           "buildTransitive/netcoreapp3.1/_._": {}
         }
       },
+      "NextAurora.Contracts/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "compile": {
+          "bin/placeholder/NextAurora.Contracts.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/NextAurora.Contracts.dll": {}
+        }
+      },
       "NotificationService.Application/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "dependencies": {
           "MediatR": "12.4.1",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
-          "NotificationService.Domain": "1.0.0",
-          "NovaCraft.Contracts": "1.0.0"
+          "NextAurora.Contracts": "1.0.0",
+          "NotificationService.Domain": "1.0.0"
         },
         "compile": {
           "bin/placeholder/NotificationService.Application.dll": {}
@@ -336,16 +346,6 @@
         },
         "runtime": {
           "bin/placeholder/NotificationService.Domain.dll": {}
-        }
-      },
-      "NovaCraft.Contracts/1.0.0": {
-        "type": "project",
-        "framework": ".NETCoreApp,Version=v10.0",
-        "compile": {
-          "bin/placeholder/NovaCraft.Contracts.dll": {}
-        },
-        "runtime": {
-          "bin/placeholder/NovaCraft.Contracts.dll": {}
         }
       }
     }
@@ -899,6 +899,11 @@
         "useSharedDesignerContext.txt"
       ]
     },
+    "NextAurora.Contracts/1.0.0": {
+      "type": "project",
+      "path": "../../NextAurora.Contracts/NextAurora.Contracts.csproj",
+      "msbuildProject": "../../NextAurora.Contracts/NextAurora.Contracts.csproj"
+    },
     "NotificationService.Application/1.0.0": {
       "type": "project",
       "path": "../NotificationService.Application/NotificationService.Application.csproj",
@@ -908,11 +913,6 @@
       "type": "project",
       "path": "../NotificationService.Domain/NotificationService.Domain.csproj",
       "msbuildProject": "../NotificationService.Domain/NotificationService.Domain.csproj"
-    },
-    "NovaCraft.Contracts/1.0.0": {
-      "type": "project",
-      "path": "../../NovaCraft.Contracts/NovaCraft.Contracts.csproj",
-      "msbuildProject": "../../NovaCraft.Contracts/NovaCraft.Contracts.csproj"
     }
   },
   "projectFileDependencyGroups": {
@@ -920,9 +920,9 @@
       "Azure.Messaging.ServiceBus >= 7.18.4",
       "Meziantou.Analyzer >= 2.0.257",
       "Microsoft.Extensions.Hosting.Abstractions >= 10.0.2",
+      "NextAurora.Contracts >= 1.0.0",
       "NotificationService.Application >= 1.0.0",
       "NotificationService.Domain >= 1.0.0",
-      "NovaCraft.Contracts >= 1.0.0",
       "Roslynator.Analyzers >= 4.14.1",
       "SonarAnalyzer.CSharp >= 10.16.0.128591"
     ]
@@ -953,14 +953,14 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
+            "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj": {
+              "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj"
+            },
             "/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Application/NotificationService.Application.csproj": {
               "projectPath": "/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Application/NotificationService.Application.csproj"
             },
             "/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Domain/NotificationService.Domain.csproj": {
               "projectPath": "/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Domain/NotificationService.Domain.csproj"
-            },
-            "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj": {
-              "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj"
             }
           }
         }

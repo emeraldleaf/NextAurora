@@ -13,8 +13,8 @@
     <SourceRoot Include="/Users/joshuadell/.nuget/packages/" />
   </ItemGroup>
   <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
-    <Import Project="$(NuGetPackageRoot)microsoft.extensions.telemetry.abstractions/10.1.0/buildTransitive/net8.0/Microsoft.Extensions.Telemetry.Abstractions.props" Condition="Exists('$(NuGetPackageRoot)microsoft.extensions.telemetry.abstractions/10.1.0/buildTransitive/net8.0/Microsoft.Extensions.Telemetry.Abstractions.props')" />
     <Import Project="$(NuGetPackageRoot)meziantou.analyzer/2.0.257/buildTransitive/Meziantou.Analyzer.props" Condition="Exists('$(NuGetPackageRoot)meziantou.analyzer/2.0.257/buildTransitive/Meziantou.Analyzer.props')" />
+    <Import Project="$(NuGetPackageRoot)microsoft.extensions.telemetry.abstractions/10.1.0/buildTransitive/net8.0/Microsoft.Extensions.Telemetry.Abstractions.props" Condition="Exists('$(NuGetPackageRoot)microsoft.extensions.telemetry.abstractions/10.1.0/buildTransitive/net8.0/Microsoft.Extensions.Telemetry.Abstractions.props')" />
   </ImportGroup>
   <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
     <PkgSonarAnalyzer_CSharp Condition=" '$(PkgSonarAnalyzer_CSharp)' == '' ">/Users/joshuadell/.nuget/packages/sonaranalyzer.csharp/10.16.0.128591</PkgSonarAnalyzer_CSharp>

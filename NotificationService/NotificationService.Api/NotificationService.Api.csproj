@@ -6,7 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="../NotificationService.Application/NotificationService.Application.csproj" />
     <ProjectReference Include="../NotificationService.Infrastructure/NotificationService.Infrastructure.csproj" />
-    <ProjectReference Include="../../NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj" />
-    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+    <ProjectReference Include="../../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../NextAurora.Contracts/NextAurora.Contracts.csproj" />
   </ItemGroup>
 </Project>

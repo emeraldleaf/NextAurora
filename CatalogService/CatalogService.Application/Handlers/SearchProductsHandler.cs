@@ -1,6 +1,6 @@
 using CatalogService.Domain.Interfaces;
 using MediatR;
-using NovaCraft.Contracts.DTOs;
+using NextAurora.Contracts.DTOs;
 using CatalogService.Application.Queries;
 
 namespace CatalogService.Application.Handlers;

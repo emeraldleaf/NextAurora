@@ -1,0 +1,12 @@
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/bin/Debug/net10.0/NextAurora.ServiceDefaults.deps.json
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/bin/Debug/net10.0/NextAurora.ServiceDefaults.dll
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/bin/Debug/net10.0/NextAurora.ServiceDefaults.pdb
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/NextAurora.ServiceDefaults.csproj.AssemblyReference.cache
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/NextAurora.ServiceDefaults.GeneratedMSBuildEditorConfig.editorconfig
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/NextAurora.ServiceDefaults.AssemblyInfoInputs.cache
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/NextAurora.ServiceDefaults.AssemblyInfo.cs
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/NextAurora.ServiceDefaults.csproj.CoreCompileInputs.cache
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/NextAurora.ServiceDefaults.dll
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/refint/NextAurora.ServiceDefaults.dll
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/NextAurora.ServiceDefaults.pdb
+/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/Debug/net10.0/ref/NextAurora.ServiceDefaults.dll

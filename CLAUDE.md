@@ -1,8 +1,8 @@
-# NovaCraft - Claude Code Project Instructions
+# NextAurora - Claude Code Project Instructions
 
 ## Project Overview
 
-NovaCraft is a .NET 10 microservices e-commerce platform using Aspire, Azure Service Bus, gRPC, EF Core, and Blazor. It follows DDD, CQRS, and event-driven architecture.
+NextAurora is a .NET 10 microservices e-commerce platform using Aspire, Azure Service Bus, gRPC, EF Core, and Blazor. It follows DDD, CQRS, and event-driven architecture.
 
 ## Architecture Principles
 
@@ -88,5 +88,5 @@ ServiceName/
 ```bash
 dotnet restore
 dotnet build
-dotnet run --project NovaCraft.AppHost  # Starts everything via Aspire
+dotnet run --project NextAurora.AppHost  # Starts everything via Aspire
 ```

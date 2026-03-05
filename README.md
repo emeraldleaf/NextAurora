@@ -1,8 +1,8 @@
-# NovaCraft
+# NextAurora
 
 A microservices-based e-commerce platform built with .NET 10, Blazor, and .NET Aspire.
 
-NovaCraft demonstrates a production-style distributed system with event-driven architecture, CQRS, domain-driven design, and gRPC for inter-service communication.
+NextAurora demonstrates a production-style distributed system with event-driven architecture, CQRS, domain-driven design, and gRPC for inter-service communication.
 
 ## Architecture Overview
 
@@ -98,7 +98,7 @@ dotnet tool install --global aspire.cli
 
 ```bash
 git clone <repo-url>
-cd NovaCraft
+cd NextAurora
 ```
 
 2. **Restore dependencies**
@@ -110,7 +110,7 @@ dotnet restore
 3. **Run with Aspire**
 
 ```bash
-dotnet run --project NovaCraft.AppHost
+dotnet run --project NextAurora.AppHost
 ```
 
 This starts all services, databases (PostgreSQL, SQL Server), Redis, and Azure Service Bus emulator in Docker containers. The Aspire dashboard opens automatically showing all services, health status, logs, and distributed traces.
@@ -148,10 +148,10 @@ This starts all services, databases (PostgreSQL, SQL Server), Redis, and Azure S
 ## Project Structure
 
 ```
-NovaCraft/
-  NovaCraft.AppHost/          # Aspire orchestrator
-  NovaCraft.ServiceDefaults/  # Shared OpenTelemetry, health checks, resilience
-  NovaCraft.Contracts/        # Shared events, commands, DTOs
+NextAurora/
+  NextAurora.AppHost/          # Aspire orchestrator
+  NextAurora.ServiceDefaults/  # Shared OpenTelemetry, health checks, resilience
+  NextAurora.Contracts/        # Shared events, commands, DTOs
   CatalogService/
     CatalogService.Domain/        # Entities, interfaces
     CatalogService.Application/   # CQRS handlers

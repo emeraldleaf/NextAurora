@@ -1,5 +1,5 @@
 using CatalogService.Api.Grpc;
-using NovaCraft.Contracts.DTOs;
+using NextAurora.Contracts.DTOs;
 using OrderService.Application.Interfaces;
 
 namespace OrderService.Api.GrpcClients;

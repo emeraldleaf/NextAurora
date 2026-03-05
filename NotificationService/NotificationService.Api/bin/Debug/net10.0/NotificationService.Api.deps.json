@@ -10,10 +10,10 @@
         "dependencies": {
           "MediatR": "12.4.1",
           "Microsoft.AspNetCore.OpenApi": "10.0.2",
+          "NextAurora.Contracts": "1.0.0",
+          "NextAurora.ServiceDefaults": "1.0.0",
           "NotificationService.Application": "1.0.0",
-          "NotificationService.Infrastructure": "1.0.0",
-          "NovaCraft.Contracts": "1.0.0",
-          "NovaCraft.ServiceDefaults": "1.0.0"
+          "NotificationService.Infrastructure": "1.0.0"
         },
         "runtime": {
           "NotificationService.Api.dll": {}
@@ -378,11 +378,38 @@
           }
         }
       },
+      "NextAurora.Contracts/1.0.0": {
+        "runtime": {
+          "NextAurora.Contracts.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "NextAurora.ServiceDefaults/1.0.0": {
+        "dependencies": {
+          "FluentValidation": "11.11.0",
+          "Microsoft.Extensions.Http.Resilience": "10.1.0",
+          "Microsoft.Extensions.ServiceDiscovery": "10.1.0",
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.14.0",
+          "OpenTelemetry.Extensions.Hosting": "1.14.0",
+          "OpenTelemetry.Instrumentation.AspNetCore": "1.14.0",
+          "OpenTelemetry.Instrumentation.GrpcNetClient": "1.10.0-beta.1",
+          "OpenTelemetry.Instrumentation.Http": "1.14.0",
+          "OpenTelemetry.Instrumentation.Runtime": "1.14.0"
+        },
+        "runtime": {
+          "NextAurora.ServiceDefaults.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
       "NotificationService.Application/1.0.0": {
         "dependencies": {
           "MediatR": "12.4.1",
-          "NotificationService.Domain": "1.0.0",
-          "NovaCraft.Contracts": "1.0.0"
+          "NextAurora.Contracts": "1.0.0",
+          "NotificationService.Domain": "1.0.0"
         },
         "runtime": {
           "NotificationService.Application.dll": {
@@ -402,39 +429,12 @@
       "NotificationService.Infrastructure/1.0.0": {
         "dependencies": {
           "Azure.Messaging.ServiceBus": "7.18.4",
+          "NextAurora.Contracts": "1.0.0",
           "NotificationService.Application": "1.0.0",
-          "NotificationService.Domain": "1.0.0",
-          "NovaCraft.Contracts": "1.0.0"
+          "NotificationService.Domain": "1.0.0"
         },
         "runtime": {
           "NotificationService.Infrastructure.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
-          }
-        }
-      },
-      "NovaCraft.Contracts/1.0.0": {
-        "runtime": {
-          "NovaCraft.Contracts.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
-          }
-        }
-      },
-      "NovaCraft.ServiceDefaults/1.0.0": {
-        "dependencies": {
-          "FluentValidation": "11.11.0",
-          "Microsoft.Extensions.Http.Resilience": "10.1.0",
-          "Microsoft.Extensions.ServiceDiscovery": "10.1.0",
-          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.14.0",
-          "OpenTelemetry.Extensions.Hosting": "1.14.0",
-          "OpenTelemetry.Instrumentation.AspNetCore": "1.14.0",
-          "OpenTelemetry.Instrumentation.GrpcNetClient": "1.10.0-beta.1",
-          "OpenTelemetry.Instrumentation.Http": "1.14.0",
-          "OpenTelemetry.Instrumentation.Runtime": "1.14.0"
-        },
-        "runtime": {
-          "NovaCraft.ServiceDefaults.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -693,6 +693,16 @@
       "path": "system.memory.data/6.0.0",
       "hashPath": "system.memory.data.6.0.0.nupkg.sha512"
     },
+    "NextAurora.Contracts/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "NextAurora.ServiceDefaults/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
     "NotificationService.Application/1.0.0": {
       "type": "project",
       "serviceable": false,
@@ -704,16 +714,6 @@
       "sha512": ""
     },
     "NotificationService.Infrastructure/1.0.0": {
-      "type": "project",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "NovaCraft.Contracts/1.0.0": {
-      "type": "project",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "NovaCraft.ServiceDefaults/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

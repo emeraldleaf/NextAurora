@@ -4,7 +4,7 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using NovaCraft.Contracts.Events;
+using NextAurora.Contracts.Events;
 using PaymentService.Application.EventHandlers;
 
 namespace PaymentService.Infrastructure.Messaging;

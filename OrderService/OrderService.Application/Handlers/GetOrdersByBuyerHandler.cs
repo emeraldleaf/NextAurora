@@ -1,5 +1,5 @@
 using MediatR;
-using NovaCraft.Contracts.DTOs;
+using NextAurora.Contracts.DTOs;
 using OrderService.Application.Queries;
 using OrderService.Domain.Interfaces;
 

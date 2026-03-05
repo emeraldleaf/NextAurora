@@ -1,10 +1,10 @@
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/PaymentService.Application.deps.json
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/PaymentService.Application.dll
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/PaymentService.Application.pdb
-/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/NovaCraft.Contracts.dll
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/NextAurora.Contracts.dll
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/PaymentService.Domain.dll
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/PaymentService.Domain.pdb
-/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/NovaCraft.Contracts.pdb
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/bin/Debug/net10.0/NextAurora.Contracts.pdb
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.csproj.AssemblyReference.cache
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.GeneratedMSBuildEditorConfig.editorconfig
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/obj/Debug/net10.0/PaymentService.Application.AssemblyInfoInputs.cache

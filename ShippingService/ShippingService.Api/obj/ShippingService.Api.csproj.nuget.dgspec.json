@@ -4,14 +4,14 @@
     "/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Api/ShippingService.Api.csproj": {}
   },
   "projects": {
-    "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj": {
+    "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj",
-        "projectName": "NovaCraft.Contracts",
-        "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj",
+        "projectUniqueName": "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj",
+        "projectName": "NextAurora.Contracts",
+        "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj",
         "packagesPath": "/Users/joshuadell/.nuget/packages/",
-        "outputPath": "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/obj/",
+        "outputPath": "/Users/joshuadell/NovaCraft/NextAurora.Contracts/obj/",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "configFilePaths": [
@@ -397,14 +397,14 @@
         }
       }
     },
-    "/Users/joshuadell/NovaCraft/NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj": {
+    "/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/joshuadell/NovaCraft/NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj",
-        "projectName": "NovaCraft.ServiceDefaults",
-        "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj",
+        "projectUniqueName": "/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj",
+        "projectName": "NextAurora.ServiceDefaults",
+        "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj",
         "packagesPath": "/Users/joshuadell/.nuget/packages/",
-        "outputPath": "/Users/joshuadell/NovaCraft/NovaCraft.ServiceDefaults/obj/",
+        "outputPath": "/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/obj/",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "configFilePaths": [
@@ -1001,11 +1001,11 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj": {
-                "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj"
+              "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj": {
+                "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj"
               },
-              "/Users/joshuadell/NovaCraft/NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj": {
-                "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj"
+              "/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj": {
+                "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj"
               },
               "/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/ShippingService.Application.csproj": {
                 "projectPath": "/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/ShippingService.Application.csproj"
@@ -1560,8 +1560,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj": {
-                "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj"
+              "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj": {
+                "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj"
               },
               "/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/ShippingService.Domain.csproj": {
                 "projectPath": "/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Domain/ShippingService.Domain.csproj"
@@ -2358,8 +2358,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj": {
-                "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj"
+              "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj": {
+                "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj"
               },
               "/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/ShippingService.Application.csproj": {
                 "projectPath": "/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/ShippingService.Application.csproj"

@@ -1,5 +1,5 @@
 using MediatR;
-using NovaCraft.Contracts.Events;
+using NextAurora.Contracts.Events;
 using NotificationService.Application.Commands;
 
 namespace NotificationService.Application.EventHandlers;

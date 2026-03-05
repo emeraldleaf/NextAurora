@@ -7,6 +7,7 @@
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/SellerPortal.runtimeconfig.json
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/SellerPortal.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/SellerPortal.pdb
+/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/FluentValidation.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/Microsoft.AspNetCore.OpenApi.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/Microsoft.Extensions.AmbientMetadata.Application.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/Microsoft.Extensions.Compliance.Abstractions.dll
@@ -26,15 +27,16 @@
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/OpenTelemetry.Exporter.OpenTelemetryProtocol.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/OpenTelemetry.Extensions.Hosting.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/OpenTelemetry.Instrumentation.AspNetCore.dll
+/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/OpenTelemetry.Instrumentation.GrpcNetClient.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/OpenTelemetry.Instrumentation.Http.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/OpenTelemetry.Instrumentation.Runtime.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/Polly.Core.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/Polly.Extensions.dll
 /Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/Polly.RateLimiting.dll
-/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/NovaCraft.Contracts.dll
-/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/NovaCraft.ServiceDefaults.dll
-/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/NovaCraft.ServiceDefaults.pdb
-/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/NovaCraft.Contracts.pdb
+/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/NextAurora.Contracts.dll
+/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/NextAurora.ServiceDefaults.dll
+/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/NextAurora.ServiceDefaults.pdb
+/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/NextAurora.Contracts.pdb
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/SellerPortal.csproj.AssemblyReference.cache
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/rpswa.dswa.cache.json
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/SellerPortal.GeneratedMSBuildEditorConfig.editorconfig
@@ -47,7 +49,7 @@
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/rjsmrazor.dswa.cache.json
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/rjsmcshtml.dswa.cache.json
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/scopedcss/bundle/SellerPortal.styles.css
-/Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/compressed/9fllx4oekr-{0}-w1cawa0ea2-w1cawa0ea2.gz
+/Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/compressed/9fllx4oekr-{0}-w9bkrmezcs-w9bkrmezcs.gz
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/staticwebassets.build.json
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/staticwebassets.build.json.cache
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/staticwebassets.development.json
@@ -59,5 +61,3 @@
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/SellerPortal.pdb
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/SellerPortal.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/SellerPortal/obj/Debug/net10.0/ref/SellerPortal.dll
-/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/OpenTelemetry.Instrumentation.GrpcNetClient.dll
-/Users/joshuadell/NovaCraft/SellerPortal/bin/Debug/net10.0/FluentValidation.dll

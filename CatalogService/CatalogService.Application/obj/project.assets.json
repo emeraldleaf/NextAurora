@@ -103,14 +103,14 @@
           "bin/placeholder/CatalogService.Domain.dll": {}
         }
       },
-      "NovaCraft.Contracts/1.0.0": {
+      "NextAurora.Contracts/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "compile": {
-          "bin/placeholder/NovaCraft.Contracts.dll": {}
+          "bin/placeholder/NextAurora.Contracts.dll": {}
         },
         "runtime": {
-          "bin/placeholder/NovaCraft.Contracts.dll": {}
+          "bin/placeholder/NextAurora.Contracts.dll": {}
         }
       }
     }
@@ -308,10 +308,10 @@
       "path": "../CatalogService.Domain/CatalogService.Domain.csproj",
       "msbuildProject": "../CatalogService.Domain/CatalogService.Domain.csproj"
     },
-    "NovaCraft.Contracts/1.0.0": {
+    "NextAurora.Contracts/1.0.0": {
       "type": "project",
-      "path": "../../NovaCraft.Contracts/NovaCraft.Contracts.csproj",
-      "msbuildProject": "../../NovaCraft.Contracts/NovaCraft.Contracts.csproj"
+      "path": "../../NextAurora.Contracts/NextAurora.Contracts.csproj",
+      "msbuildProject": "../../NextAurora.Contracts/NextAurora.Contracts.csproj"
     }
   },
   "projectFileDependencyGroups": {
@@ -321,7 +321,7 @@
       "FluentValidation.DependencyInjectionExtensions >= 11.11.0",
       "MediatR >= 12.4.1",
       "Meziantou.Analyzer >= 2.0.257",
-      "NovaCraft.Contracts >= 1.0.0",
+      "NextAurora.Contracts >= 1.0.0",
       "Roslynator.Analyzers >= 4.14.1",
       "SonarAnalyzer.CSharp >= 10.16.0.128591"
     ]
@@ -355,8 +355,8 @@
             "/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Domain/CatalogService.Domain.csproj": {
               "projectPath": "/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Domain/CatalogService.Domain.csproj"
             },
-            "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj": {
-              "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj"
+            "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj": {
+              "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj"
             }
           }
         }

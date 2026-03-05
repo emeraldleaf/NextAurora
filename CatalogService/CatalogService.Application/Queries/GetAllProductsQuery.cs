@@ -1,5 +1,5 @@
 using MediatR;
-using NovaCraft.Contracts.DTOs;
+using NextAurora.Contracts.DTOs;
 
 namespace CatalogService.Application.Queries;
 

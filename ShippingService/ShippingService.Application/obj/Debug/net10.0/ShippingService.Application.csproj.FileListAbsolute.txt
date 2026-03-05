@@ -1,10 +1,10 @@
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/ShippingService.Application.deps.json
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/ShippingService.Application.dll
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/ShippingService.Application.pdb
-/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/NovaCraft.Contracts.dll
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/NextAurora.Contracts.dll
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/ShippingService.Domain.dll
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/ShippingService.Domain.pdb
-/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/NovaCraft.Contracts.pdb
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/bin/Debug/net10.0/NextAurora.Contracts.pdb
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ShippingService.Application.csproj.AssemblyReference.cache
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ShippingService.Application.GeneratedMSBuildEditorConfig.editorconfig
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Application/obj/Debug/net10.0/ShippingService.Application.AssemblyInfoInputs.cache

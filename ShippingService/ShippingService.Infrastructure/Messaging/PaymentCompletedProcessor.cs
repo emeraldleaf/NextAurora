@@ -4,7 +4,7 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using NovaCraft.Contracts.Events;
+using NextAurora.Contracts.Events;
 using ShippingService.Application.EventHandlers;
 
 namespace ShippingService.Infrastructure.Messaging;

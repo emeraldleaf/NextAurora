@@ -588,13 +588,47 @@
           "buildTransitive/netcoreapp3.1/_._": {}
         }
       },
+      "NextAurora.Contracts/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "compile": {
+          "bin/placeholder/NextAurora.Contracts.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/NextAurora.Contracts.dll": {}
+        }
+      },
+      "NextAurora.ServiceDefaults/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "dependencies": {
+          "FluentValidation": "11.11.0",
+          "Microsoft.Extensions.Http.Resilience": "10.1.0",
+          "Microsoft.Extensions.ServiceDiscovery": "10.1.0",
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.14.0",
+          "OpenTelemetry.Extensions.Hosting": "1.14.0",
+          "OpenTelemetry.Instrumentation.AspNetCore": "1.14.0",
+          "OpenTelemetry.Instrumentation.GrpcNetClient": "1.10.0-beta.1",
+          "OpenTelemetry.Instrumentation.Http": "1.14.0",
+          "OpenTelemetry.Instrumentation.Runtime": "1.14.0"
+        },
+        "compile": {
+          "bin/placeholder/NextAurora.ServiceDefaults.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/NextAurora.ServiceDefaults.dll": {}
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
+      },
       "NotificationService.Application/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "dependencies": {
           "MediatR": "12.4.1",
-          "NotificationService.Domain": "1.0.0",
-          "NovaCraft.Contracts": "1.0.0"
+          "NextAurora.Contracts": "1.0.0",
+          "NotificationService.Domain": "1.0.0"
         },
         "compile": {
           "bin/placeholder/NotificationService.Application.dll": {}
@@ -618,9 +652,9 @@
         "framework": ".NETCoreApp,Version=v10.0",
         "dependencies": {
           "Azure.Messaging.ServiceBus": "7.18.4",
+          "NextAurora.Contracts": "1.0.0",
           "NotificationService.Application": "1.0.0",
-          "NotificationService.Domain": "1.0.0",
-          "NovaCraft.Contracts": "1.0.0"
+          "NotificationService.Domain": "1.0.0"
         },
         "compile": {
           "bin/placeholder/NotificationService.Infrastructure.dll": {}
@@ -628,40 +662,6 @@
         "runtime": {
           "bin/placeholder/NotificationService.Infrastructure.dll": {}
         }
-      },
-      "NovaCraft.Contracts/1.0.0": {
-        "type": "project",
-        "framework": ".NETCoreApp,Version=v10.0",
-        "compile": {
-          "bin/placeholder/NovaCraft.Contracts.dll": {}
-        },
-        "runtime": {
-          "bin/placeholder/NovaCraft.Contracts.dll": {}
-        }
-      },
-      "NovaCraft.ServiceDefaults/1.0.0": {
-        "type": "project",
-        "framework": ".NETCoreApp,Version=v10.0",
-        "dependencies": {
-          "FluentValidation": "11.11.0",
-          "Microsoft.Extensions.Http.Resilience": "10.1.0",
-          "Microsoft.Extensions.ServiceDiscovery": "10.1.0",
-          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.14.0",
-          "OpenTelemetry.Extensions.Hosting": "1.14.0",
-          "OpenTelemetry.Instrumentation.AspNetCore": "1.14.0",
-          "OpenTelemetry.Instrumentation.GrpcNetClient": "1.10.0-beta.1",
-          "OpenTelemetry.Instrumentation.Http": "1.14.0",
-          "OpenTelemetry.Instrumentation.Runtime": "1.14.0"
-        },
-        "compile": {
-          "bin/placeholder/NovaCraft.ServiceDefaults.dll": {}
-        },
-        "runtime": {
-          "bin/placeholder/NovaCraft.ServiceDefaults.dll": {}
-        },
-        "frameworkReferences": [
-          "Microsoft.AspNetCore.App"
-        ]
       }
     }
   },
@@ -1576,6 +1576,16 @@
         "useSharedDesignerContext.txt"
       ]
     },
+    "NextAurora.Contracts/1.0.0": {
+      "type": "project",
+      "path": "../../NextAurora.Contracts/NextAurora.Contracts.csproj",
+      "msbuildProject": "../../NextAurora.Contracts/NextAurora.Contracts.csproj"
+    },
+    "NextAurora.ServiceDefaults/1.0.0": {
+      "type": "project",
+      "path": "../../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj",
+      "msbuildProject": "../../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj"
+    },
     "NotificationService.Application/1.0.0": {
       "type": "project",
       "path": "../NotificationService.Application/NotificationService.Application.csproj",
@@ -1590,16 +1600,6 @@
       "type": "project",
       "path": "../NotificationService.Infrastructure/NotificationService.Infrastructure.csproj",
       "msbuildProject": "../NotificationService.Infrastructure/NotificationService.Infrastructure.csproj"
-    },
-    "NovaCraft.Contracts/1.0.0": {
-      "type": "project",
-      "path": "../../NovaCraft.Contracts/NovaCraft.Contracts.csproj",
-      "msbuildProject": "../../NovaCraft.Contracts/NovaCraft.Contracts.csproj"
-    },
-    "NovaCraft.ServiceDefaults/1.0.0": {
-      "type": "project",
-      "path": "../../NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj",
-      "msbuildProject": "../../NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj"
     }
   },
   "projectFileDependencyGroups": {
@@ -1607,10 +1607,10 @@
       "MediatR >= 12.4.1",
       "Meziantou.Analyzer >= 2.0.257",
       "Microsoft.AspNetCore.OpenApi >= 10.0.2",
+      "NextAurora.Contracts >= 1.0.0",
+      "NextAurora.ServiceDefaults >= 1.0.0",
       "NotificationService.Application >= 1.0.0",
       "NotificationService.Infrastructure >= 1.0.0",
-      "NovaCraft.Contracts >= 1.0.0",
-      "NovaCraft.ServiceDefaults >= 1.0.0",
       "Roslynator.Analyzers >= 4.14.1",
       "SonarAnalyzer.CSharp >= 10.16.0.128591"
     ]
@@ -1641,17 +1641,17 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
+            "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj": {
+              "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj"
+            },
+            "/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj": {
+              "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj"
+            },
             "/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Application/NotificationService.Application.csproj": {
               "projectPath": "/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Application/NotificationService.Application.csproj"
             },
             "/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/NotificationService.Infrastructure.csproj": {
               "projectPath": "/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/NotificationService.Infrastructure.csproj"
-            },
-            "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj": {
-              "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj"
-            },
-            "/Users/joshuadell/NovaCraft/NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj": {
-              "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj"
             }
           }
         }

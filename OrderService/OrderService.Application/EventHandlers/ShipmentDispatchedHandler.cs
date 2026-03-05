@@ -1,5 +1,5 @@
 using MediatR;
-using NovaCraft.Contracts.Events;
+using NextAurora.Contracts.Events;
 using OrderService.Domain.Interfaces;
 
 namespace OrderService.Application.EventHandlers;

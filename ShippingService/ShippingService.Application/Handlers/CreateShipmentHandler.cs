@@ -1,5 +1,5 @@
 using MediatR;
-using NovaCraft.Contracts.Events;
+using NextAurora.Contracts.Events;
 using ShippingService.Application.Commands;
 using ShippingService.Domain.Entities;
 using ShippingService.Domain.Interfaces;

@@ -7,6 +7,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../OrderService.Domain/OrderService.Domain.csproj" />
-    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+    <ProjectReference Include="../../NextAurora.Contracts/NextAurora.Contracts.csproj" />
   </ItemGroup>
 </Project>

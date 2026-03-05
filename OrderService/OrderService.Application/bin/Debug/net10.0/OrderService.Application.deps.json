@@ -12,7 +12,7 @@
           "FluentValidation.DependencyInjectionExtensions": "11.11.0",
           "MediatR": "12.4.1",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
-          "NovaCraft.Contracts": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
           "OrderService.Domain": "1.0.0"
         },
         "runtime": {
@@ -78,9 +78,9 @@
           }
         }
       },
-      "NovaCraft.Contracts/1.0.0": {
+      "NextAurora.Contracts/1.0.0": {
         "runtime": {
-          "NovaCraft.Contracts.dll": {
+          "NextAurora.Contracts.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -144,7 +144,7 @@
       "path": "microsoft.extensions.logging.abstractions/10.0.2",
       "hashPath": "microsoft.extensions.logging.abstractions.10.0.2.nupkg.sha512"
     },
-    "NovaCraft.Contracts/1.0.0": {
+    "NextAurora.Contracts/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

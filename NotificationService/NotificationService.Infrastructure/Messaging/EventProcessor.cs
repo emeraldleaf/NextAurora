@@ -4,8 +4,8 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using NovaCraft.Contracts.Commands;
-using NovaCraft.Contracts.Events;
+using NextAurora.Contracts.Commands;
+using NextAurora.Contracts.Events;
 using NotificationService.Application.Commands;
 using NotificationService.Application.EventHandlers;
 

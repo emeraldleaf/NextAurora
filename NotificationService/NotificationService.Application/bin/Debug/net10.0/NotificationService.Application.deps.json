@@ -10,8 +10,8 @@
         "dependencies": {
           "MediatR": "12.4.1",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
-          "NotificationService.Domain": "1.0.0",
-          "NovaCraft.Contracts": "1.0.0"
+          "NextAurora.Contracts": "1.0.0",
+          "NotificationService.Domain": "1.0.0"
         },
         "runtime": {
           "NotificationService.Application.dll": {}
@@ -56,17 +56,17 @@
           }
         }
       },
-      "NotificationService.Domain/1.0.0": {
+      "NextAurora.Contracts/1.0.0": {
         "runtime": {
-          "NotificationService.Domain.dll": {
+          "NextAurora.Contracts.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
         }
       },
-      "NovaCraft.Contracts/1.0.0": {
+      "NotificationService.Domain/1.0.0": {
         "runtime": {
-          "NovaCraft.Contracts.dll": {
+          "NotificationService.Domain.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -108,12 +108,12 @@
       "path": "microsoft.extensions.logging.abstractions/10.0.2",
       "hashPath": "microsoft.extensions.logging.abstractions.10.0.2.nupkg.sha512"
     },
-    "NotificationService.Domain/1.0.0": {
+    "NextAurora.Contracts/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
     },
-    "NovaCraft.Contracts/1.0.0": {
+    "NotificationService.Domain/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

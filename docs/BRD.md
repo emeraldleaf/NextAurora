@@ -1,10 +1,10 @@
-# NovaCraft - Business Requirements Document (BRD)
+# NextAurora - Business Requirements Document (BRD)
 
 ## Document Information
 
 | Field | Value |
 |-------|-------|
-| Project Name | NovaCraft |
+| Project Name | NextAurora |
 | Version | 1.0 |
 | Status | In Development |
 | Last Updated | March 2026 |
@@ -13,7 +13,7 @@
 
 ## 1. Executive Summary
 
-NovaCraft is an e-commerce platform that enables customers to browse and purchase products online, and merchants to list and manage their inventory. The platform processes orders end-to-end: from product discovery through payment, shipment, and delivery notification.
+NextAurora is an e-commerce platform that enables customers to browse and purchase products online, and merchants to list and manage their inventory. The platform processes orders end-to-end: from product discovery through payment, shipment, and delivery notification.
 
 The system is built as a set of independently deployable microservices to support team scalability, independent deployment cycles, and technology flexibility.
 

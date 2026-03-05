@@ -5,6 +5,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../NotificationService.Domain/NotificationService.Domain.csproj" />
-    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+    <ProjectReference Include="../../NextAurora.Contracts/NextAurora.Contracts.csproj" />
   </ItemGroup>
 </Project>

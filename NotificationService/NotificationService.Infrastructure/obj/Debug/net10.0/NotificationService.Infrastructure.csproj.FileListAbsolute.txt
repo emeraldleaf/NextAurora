@@ -1,12 +1,12 @@
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NotificationService.Infrastructure.deps.json
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NotificationService.Infrastructure.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NotificationService.Infrastructure.pdb
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NextAurora.Contracts.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NotificationService.Application.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NotificationService.Domain.dll
-/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NovaCraft.Contracts.dll
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NotificationService.Domain.pdb
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NotificationService.Application.pdb
-/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NovaCraft.Contracts.pdb
+/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/bin/Debug/net10.0/NextAurora.Contracts.pdb
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/obj/Debug/net10.0/NotificationService.Infrastructure.csproj.AssemblyReference.cache
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/obj/Debug/net10.0/NotificationService.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
 /Users/joshuadell/NovaCraft/NotificationService/NotificationService.Infrastructure/obj/Debug/net10.0/NotificationService.Infrastructure.AssemblyInfoInputs.cache

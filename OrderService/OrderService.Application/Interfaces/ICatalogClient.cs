@@ -1,4 +1,4 @@
-using NovaCraft.Contracts.DTOs;
+using NextAurora.Contracts.DTOs;
 
 namespace OrderService.Application.Interfaces;
 

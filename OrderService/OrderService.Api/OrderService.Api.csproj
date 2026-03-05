@@ -15,8 +15,8 @@
   <ItemGroup>
     <ProjectReference Include="../OrderService.Application/OrderService.Application.csproj" />
     <ProjectReference Include="../OrderService.Infrastructure/OrderService.Infrastructure.csproj" />
-    <ProjectReference Include="../../NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj" />
-    <ProjectReference Include="../../NovaCraft.Contracts/NovaCraft.Contracts.csproj" />
+    <ProjectReference Include="../../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../NextAurora.Contracts/NextAurora.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

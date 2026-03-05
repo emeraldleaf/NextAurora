@@ -45,7 +45,7 @@ public class CatalogGrpcService(ISender sender) : CatalogGrpc.CatalogGrpcBase
         return response;
     }
 
-    private static ProductResponse MapToResponse(NovaCraft.Contracts.DTOs.ProductDto product) =>
+    private static ProductResponse MapToResponse(NextAurora.Contracts.DTOs.ProductDto product) =>
         new()
         {
             Id = product.Id.ToString(),

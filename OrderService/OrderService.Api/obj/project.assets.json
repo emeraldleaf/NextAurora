@@ -1094,17 +1094,17 @@
           "buildTransitive/net8.0/_._": {}
         }
       },
-      "NovaCraft.Contracts/1.0.0": {
+      "NextAurora.Contracts/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "compile": {
-          "bin/placeholder/NovaCraft.Contracts.dll": {}
+          "bin/placeholder/NextAurora.Contracts.dll": {}
         },
         "runtime": {
-          "bin/placeholder/NovaCraft.Contracts.dll": {}
+          "bin/placeholder/NextAurora.Contracts.dll": {}
         }
       },
-      "NovaCraft.ServiceDefaults/1.0.0": {
+      "NextAurora.ServiceDefaults/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "dependencies": {
@@ -1119,10 +1119,10 @@
           "OpenTelemetry.Instrumentation.Runtime": "1.14.0"
         },
         "compile": {
-          "bin/placeholder/NovaCraft.ServiceDefaults.dll": {}
+          "bin/placeholder/NextAurora.ServiceDefaults.dll": {}
         },
         "runtime": {
-          "bin/placeholder/NovaCraft.ServiceDefaults.dll": {}
+          "bin/placeholder/NextAurora.ServiceDefaults.dll": {}
         },
         "frameworkReferences": [
           "Microsoft.AspNetCore.App"
@@ -1135,7 +1135,7 @@
           "FluentValidation": "11.11.0",
           "FluentValidation.DependencyInjectionExtensions": "11.11.0",
           "MediatR": "12.4.1",
-          "NovaCraft.Contracts": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
           "OrderService.Domain": "1.0.0"
         },
         "compile": {
@@ -1162,7 +1162,7 @@
           "Azure.Messaging.ServiceBus": "7.18.4",
           "Microsoft.EntityFrameworkCore": "10.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
-          "NovaCraft.Contracts": "1.0.0",
+          "NextAurora.Contracts": "1.0.0",
           "OrderService.Application": "1.0.0",
           "OrderService.Domain": "1.0.0"
         },
@@ -2819,15 +2819,15 @@
         "useSharedDesignerContext.txt"
       ]
     },
-    "NovaCraft.Contracts/1.0.0": {
+    "NextAurora.Contracts/1.0.0": {
       "type": "project",
-      "path": "../../NovaCraft.Contracts/NovaCraft.Contracts.csproj",
-      "msbuildProject": "../../NovaCraft.Contracts/NovaCraft.Contracts.csproj"
+      "path": "../../NextAurora.Contracts/NextAurora.Contracts.csproj",
+      "msbuildProject": "../../NextAurora.Contracts/NextAurora.Contracts.csproj"
     },
-    "NovaCraft.ServiceDefaults/1.0.0": {
+    "NextAurora.ServiceDefaults/1.0.0": {
       "type": "project",
-      "path": "../../NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj",
-      "msbuildProject": "../../NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj"
+      "path": "../../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj",
+      "msbuildProject": "../../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj"
     },
     "OrderService.Application/1.0.0": {
       "type": "project",
@@ -2853,8 +2853,8 @@
       "MediatR >= 12.4.1",
       "Meziantou.Analyzer >= 2.0.257",
       "Microsoft.AspNetCore.OpenApi >= 10.0.2",
-      "NovaCraft.Contracts >= 1.0.0",
-      "NovaCraft.ServiceDefaults >= 1.0.0",
+      "NextAurora.Contracts >= 1.0.0",
+      "NextAurora.ServiceDefaults >= 1.0.0",
       "OrderService.Application >= 1.0.0",
       "OrderService.Infrastructure >= 1.0.0",
       "Roslynator.Analyzers >= 4.14.1",
@@ -2887,11 +2887,11 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
-            "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj": {
-              "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.Contracts/NovaCraft.Contracts.csproj"
+            "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj": {
+              "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.Contracts/NextAurora.Contracts.csproj"
             },
-            "/Users/joshuadell/NovaCraft/NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj": {
-              "projectPath": "/Users/joshuadell/NovaCraft/NovaCraft.ServiceDefaults/NovaCraft.ServiceDefaults.csproj"
+            "/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj": {
+              "projectPath": "/Users/joshuadell/NovaCraft/NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj"
             },
             "/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/OrderService.Application.csproj": {
               "projectPath": "/Users/joshuadell/NovaCraft/OrderService/OrderService.Application/OrderService.Application.csproj"
