@@ -56,7 +56,7 @@ Each backend service follows a **Clean Architecture** layered structure:
 ```
 ServiceName/
   ServiceName.Domain/          # Entities, enums, repository interfaces
-  ServiceName.Application/     # Commands, queries, handlers (MediatR)
+  ServiceName.Application/     # Commands, queries, handlers (Wolverine)
   ServiceName.Infrastructure/  # EF Core, repositories, messaging, external gateways
   ServiceName.Api/             # ASP.NET Core host, endpoints, DI composition
 ```
@@ -66,7 +66,7 @@ ServiceName/
 | Layer | Responsibility | Dependencies |
 |-------|---------------|-------------|
 | **Domain** | Entities, value objects, domain interfaces, business rules | None |
-| **Application** | CQRS commands/queries, MediatR handlers, application interfaces | Domain |
+| **Application** | CQRS commands/queries, Wolverine handler POCOs, application interfaces | Domain |
 | **Infrastructure** | EF Core DbContext, repositories, Service Bus, external gateways | Domain, Application |
 | **Api** | HTTP endpoints, gRPC services, DI registration, host configuration | All layers |
 
@@ -387,7 +387,7 @@ All services inherit shared infrastructure configuration:
 
 **Server (CatalogService):**
 - Proto file: `CatalogService.Api/Protos/catalog.proto`
-- Service: `CatalogGrpcService` wraps existing MediatR handlers
+- Service: `CatalogGrpcService` wraps existing Wolverine handler POCOs via `IMessageBus.InvokeAsync<T>()`
 - Registered via `builder.Services.AddGrpc()` and `app.MapGrpcService<CatalogGrpcService>()`
 
 **Client (OrderService):**
@@ -402,7 +402,7 @@ All services inherit shared infrastructure configuration:
 ### Observability
 - **Tracing:** OpenTelemetry distributed traces across all services (ASP.NET Core, HTTP client, gRPC client, `Azure.Messaging.ServiceBus`). Service Bus processors create consumer spans via `ActivitySource("NextAurora.Messaging")` so the full event chain is visible in the Aspire dashboard and any OTLP backend.
 - **Context Propagation:** Every HTTP request and Service Bus message carries three identifiers — `CorrelationId`, `UserId`, `SessionId` — stamped by `CorrelationIdMiddleware` (HTTP) or each processor (Service Bus) into `Activity` baggage and `logger.BeginScope()`. All log lines produced by any handler automatically include these fields. See [docs/context-propagation.md](context-propagation.md).
-- **MediatR Pipeline Logging:** `LoggingBehavior<TRequest,TResponse>` (registered in each service after `ValidationBehavior`) times every command/query handler and logs start, elapsed time, and outcome.
+- **Wolverine Pipeline Logging:** Wolverine's built-in `Policies.LogMessageStarting()` logs handler name and elapsed time. `ContextPropagationMiddleware` (in ServiceDefaults) opens a `logger.BeginScope()` so all handler log lines carry `CorrelationId`/`UserId`/`SessionId`.
 - **Metrics:** Business counters via `Meter("NextAurora")` in `NovaCraftMetrics`: `orders.placed`, `payments.processed` (tag: `outcome`), `shipments.dispatched`, `notifications.sent` (tag: `channel`), `messages.abandoned` (tags: `subject`, `service`). Exported via OTLP; visible in Aspire Metrics dashboard.
 - **Logging:** Structured logging with OpenTelemetry export
 - **Dashboard:** Aspire dashboard shows all services, traces, logs, and metrics in development
@@ -413,7 +413,7 @@ All services inherit shared infrastructure configuration:
 
 ### Input Validation
 - **FluentValidation:** All commands have corresponding validator classes (e.g., `CreateProductCommandValidator`, `PlaceOrderCommandValidator`, `ProcessPaymentCommandValidator`)
-- **MediatR Pipeline Behavior:** `ValidationBehavior<TRequest, TResponse>` runs validators before handlers, throwing `ValidationException` with structured errors on failure
+- **Input Validation:** All commands have `FluentValidation` validator classes. `opts.UseFluentValidation()` in Wolverine's pipeline runs validators before handlers, throwing `ValidationException` with structured errors on failure.
 - **Domain Guard Clauses:** Factory methods (`Create()`) and mutation methods enforce invariants with `ArgumentException`/`ArgumentOutOfRangeException`
 
 ### Error Handling
@@ -434,10 +434,10 @@ All services inherit shared infrastructure configuration:
 
 | Pattern | Implementation |
 |---------|---------------|
-| **CQRS** | Separate command and query objects via MediatR |
+| **CQRS** | Separate command and query objects; Wolverine handler POCOs discovered by convention (`Handle()` method) |
 | **Repository** | EF Core repositories behind domain interfaces |
 | **Domain-Driven Design** | Aggregates with factory methods, guard clauses, encapsulated collections (`IReadOnlyList`), no public setters |
-| **Validation Pipeline** | FluentValidation + MediatR `IPipelineBehavior` for pre-handler validation |
+| **Validation Pipeline** | FluentValidation + Wolverine `opts.UseFluentValidation()` for pre-handler validation |
 | **Event-Driven Architecture** | Azure Service Bus pub/sub with topic/subscription model |
 | **Choreography Saga** | Order lifecycle managed through event chain across services |
 | **Anti-Corruption Layer** | StripePaymentGateway isolates domain from external payment API |
@@ -449,8 +449,8 @@ All services inherit shared infrastructure configuration:
 ## Future Considerations
 
 ### Implemented
-- **Input Validation** - FluentValidation on all commands with MediatR pipeline behavior
-- **MediatR Pipeline Logging** - `LoggingBehavior` times every handler; logs correlation ID, elapsed time, and outcome
+- **Input Validation** - FluentValidation on all commands via `opts.UseFluentValidation()` in Wolverine pipeline
+- **Wolverine Pipeline Logging** - Wolverine built-in `LogMessageStarting` + `ContextPropagationMiddleware` scope covers timing, correlation ID, elapsed time, and outcome
 - **Context Propagation** - `CorrelationId`, `UserId`, `SessionId` flow through HTTP and Service Bus; see [docs/context-propagation.md](context-propagation.md)
 - **Domain Invariants** - Guard clauses in all entity factory methods
 - **Global Exception Handling** - ProblemDetails responses, no internal state leakage
