@@ -28,6 +28,8 @@ public class OrderPlacedProcessor(
             var sessionId = args.Message.ApplicationProperties.TryGetValue("X-Session-Id", out var sid)
                 ? sid?.ToString() : null;
 
+            using var processorActivity = Activity.Current is null
+                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
             if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
             if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
             if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);

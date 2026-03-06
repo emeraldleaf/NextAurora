@@ -9,7 +9,7 @@ public class ServiceBusEventPublisher(ServiceBusClient client) : IEventPublisher
 {
     public async Task PublishAsync<T>(T @event, string topicName, CancellationToken ct = default) where T : class
     {
-        var sender = client.CreateSender(topicName);
+        await using var sender = client.CreateSender(topicName);
         var body = JsonSerializer.Serialize(@event);
 
         var correlationId = Activity.Current?.GetBaggageItem("correlation.id")

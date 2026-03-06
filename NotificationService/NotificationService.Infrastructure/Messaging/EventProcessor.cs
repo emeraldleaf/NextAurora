@@ -23,7 +23,11 @@ public class EventProcessor(
         orderProcessor.ProcessMessageAsync += async args =>
         {
             var (correlationId, userId, sessionId) = ExtractContext(args.Message);
-            SetActivityBaggage(correlationId, userId, sessionId);
+            using var processorActivity = Activity.Current is null
+                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
+            if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
+            if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
+            if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
 
             using var scope = logger.BeginScope(BuildScope(correlationId, userId, sessionId, args.Message));
             try
@@ -55,7 +59,11 @@ public class EventProcessor(
         shippingProcessor.ProcessMessageAsync += async args =>
         {
             var (correlationId, userId, sessionId) = ExtractContext(args.Message);
-            SetActivityBaggage(correlationId, userId, sessionId);
+            using var processorActivity = Activity.Current is null
+                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
+            if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
+            if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
+            if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
 
             using var scope = logger.BeginScope(BuildScope(correlationId, userId, sessionId, args.Message));
             try
@@ -87,7 +95,11 @@ public class EventProcessor(
         queueProcessor.ProcessMessageAsync += async args =>
         {
             var (correlationId, userId, sessionId) = ExtractContext(args.Message);
-            SetActivityBaggage(correlationId, userId, sessionId);
+            using var processorActivity = Activity.Current is null
+                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
+            if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
+            if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
+            if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
 
             using var scope = logger.BeginScope(BuildScope(correlationId, userId, sessionId, args.Message));
             try
@@ -133,13 +145,6 @@ public class EventProcessor(
         var sessionId = message.ApplicationProperties.TryGetValue("X-Session-Id", out var sid)
             ? sid?.ToString() : null;
         return (correlationId, userId, sessionId);
-    }
-
-    private static void SetActivityBaggage(string? correlationId, string? userId, string? sessionId)
-    {
-        if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
-        if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
-        if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
     }
 
     private static Dictionary<string, object?> BuildScope(string? correlationId, string? userId, string? sessionId, ServiceBusReceivedMessage message)

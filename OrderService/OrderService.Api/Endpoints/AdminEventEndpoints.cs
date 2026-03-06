@@ -67,7 +67,7 @@ public static class AdminEventEndpoints
             message.ApplicationProperties["X-Replay"] = "true";
             message.ApplicationProperties["X-Replay-Of"] = eventId.ToString();
 
-            var sender = sbClient.CreateSender(entry.Topic);
+            await using var sender = sbClient.CreateSender(entry.Topic);
             await sender.SendMessageAsync(message);
 
             var replayEntry = EventLogAlias.CreateReplay(
@@ -104,7 +104,7 @@ public static class AdminEventEndpoints
                 message.ApplicationProperties["X-Replay"] = "true";
                 message.ApplicationProperties["X-Replay-Of"] = entry.Id.ToString();
 
-                var sender = sbClient.CreateSender(entry.Topic);
+                await using var sender = sbClient.CreateSender(entry.Topic);
                 await sender.SendMessageAsync(message);
 
                 var replayEntry = EventLogAlias.CreateReplay(
