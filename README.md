@@ -211,6 +211,28 @@ NotificationService receives ShipmentDispatchedEvent
   -> Sends "Order Shipped" notification with tracking info
 ```
 
+## Observability
+
+Every request and Service Bus message carries three identifiers through the entire chain:
+
+| Field | Source | Propagated Via |
+|-------|--------|---------------|
+| `CorrelationId` | `X-Correlation-Id` header (generated if absent) | Activity baggage → Service Bus `ApplicationProperties` |
+| `UserId` | JWT `sub` claim | Activity baggage → Service Bus `ApplicationProperties` |
+| `SessionId` | `X-Session-Id` header | Activity baggage → Service Bus `ApplicationProperties` |
+
+These appear on **every structured log line** in every service, making it possible to search for a single `CorrelationId` and see the complete transaction timeline across all five services.
+
+Key components:
+- **`CorrelationIdMiddleware`** (`ServiceDefaults`) — HTTP entry point; extracts all three IDs
+- **`LoggingBehavior`** — MediatR pipeline behavior; opens a logger scope so handler log lines inherit the IDs automatically
+- **`ServiceBusEventPublisher`** — writes IDs into outgoing message `ApplicationProperties`
+- **Service Bus processors** — read IDs from incoming messages and restore them into the logging scope
+
+Order, Payment, and Shipping services also persist every published event to an `EventLogs` table, enabling replay of historical events for debugging. Admin endpoints (protected by `X-Admin-Key`) are available at `/admin/events`.
+
+See [`docs/context-propagation.md`](docs/context-propagation.md) and [`docs/event-replay.md`](docs/event-replay.md) for full details.
+
 ## Code Quality
 
 The project enforces code quality standards from day one:
