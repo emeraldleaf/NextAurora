@@ -14,6 +14,8 @@ public class ServiceBusEventPublisher(ServiceBusClient client) : IEventPublisher
 
         var correlationId = Activity.Current?.GetBaggageItem("correlation.id")
             ?? Activity.Current?.TraceId.ToString();
+        var userId = Activity.Current?.GetBaggageItem("user.id");
+        var sessionId = Activity.Current?.GetBaggageItem("session.id");
 
         var message = new ServiceBusMessage(body)
         {
@@ -22,10 +24,9 @@ public class ServiceBusEventPublisher(ServiceBusClient client) : IEventPublisher
             CorrelationId = correlationId
         };
 
-        if (correlationId is not null)
-        {
-            message.ApplicationProperties["X-Correlation-Id"] = correlationId;
-        }
+        if (correlationId is not null) message.ApplicationProperties["X-Correlation-Id"] = correlationId;
+        if (userId is not null) message.ApplicationProperties["X-User-Id"] = userId;
+        if (sessionId is not null) message.ApplicationProperties["X-Session-Id"] = sessionId;
 
         await sender.SendMessageAsync(message, ct);
     }

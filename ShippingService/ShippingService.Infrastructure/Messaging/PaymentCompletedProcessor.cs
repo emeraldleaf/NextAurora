@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using MediatR;
@@ -21,17 +22,27 @@ public class PaymentCompletedProcessor(
         processor.ProcessMessageAsync += async args =>
         {
             var correlationId = args.Message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
-                ? cid?.ToString()
-                : args.Message.CorrelationId;
+                ? cid?.ToString() : args.Message.CorrelationId;
+            var userId = args.Message.ApplicationProperties.TryGetValue("X-User-Id", out var uid)
+                ? uid?.ToString() : null;
+            var sessionId = args.Message.ApplicationProperties.TryGetValue("X-Session-Id", out var sid)
+                ? sid?.ToString() : null;
 
-            using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
+            if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
+            if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
+            if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
+
+            var scopeState = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["CorrelationId"] = correlationId,
                 ["MessageId"] = args.Message.MessageId,
                 ["Subject"] = args.Message.Subject,
                 ["DeliveryCount"] = args.Message.DeliveryCount
-            });
+            };
+            if (userId is not null) scopeState["UserId"] = userId;
+            if (sessionId is not null) scopeState["SessionId"] = sessionId;
 
+            using var scope = logger.BeginScope(scopeState);
             try
             {
                 var @event = JsonSerializer.Deserialize<PaymentCompletedEvent>(args.Message.Body.ToString());

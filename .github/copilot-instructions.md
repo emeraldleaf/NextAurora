@@ -509,3 +509,48 @@ All error responses include `traceId`. Never expose stack traces, internal IDs, 
 * Stop and ask for clarification if any guideline is unclear.
 
 **FAILURE TO FOLLOW THIS PROCESS IS UNACCEPTABLE** - The user expects rigorous adherence to these guidelines and code standards.
+## Observability & Context Propagation
+
+### Three context identifiers
+
+| Concept | Activity Baggage Key | HTTP / SB Property | Logger Scope Key |
+|---------|--------------------|--------------------|-----------------|
+| Correlation | `correlation.id` | `X-Correlation-Id` | `CorrelationId` |
+| User | `user.id` | `X-User-Id` | `UserId` |
+| Session | `session.id` | `X-Session-Id` | `SessionId` |
+
+These are populated at two entry points:
+- **HTTP**: `CorrelationIdMiddleware` — extracts `correlation.id` from header, `user.id` from JWT `sub` claim, `session.id` from `X-Session-Id` header
+- **Service Bus**: Each processor handler — extracts all three from `ApplicationProperties`
+
+And propagated in `ServiceBusEventPublisher` from `Activity.Current?.GetBaggageItem()` into outgoing message `ApplicationProperties`.
+
+### LoggingBehavior must open BeginScope
+
+`LoggingBehavior` must call `logger.BeginScope(dict)` before `await next()` so handler log lines inherit context. The dict must use `StringComparer.Ordinal` (MA0002) and must only include keys where the value is non-null.
+
+```csharp
+var scopeState = new Dictionary<string, object?>(StringComparer.Ordinal) { ["CorrelationId"] = correlationId };
+if (userId is not null) scopeState["UserId"] = userId;
+if (sessionId is not null) scopeState["SessionId"] = sessionId;
+using (logger.BeginScope(scopeState)) { ... }
+```
+
+### LoggingEventPublisher (decorator)
+
+Each service that publishes events wraps `ServiceBusEventPublisher` with `LoggingEventPublisher`. Register as:
+```csharp
+services.AddScoped<ServiceBusEventPublisher>();
+services.AddScoped<IEventPublisher, LoggingEventPublisher>();
+```
+`LoggingEventPublisher` injects `ServiceBusEventPublisher` directly (not `IEventPublisher`) to avoid circular dependency.
+
+### Admin Event Endpoints
+
+Protected by `AdminKeyEndpointFilter` (checks `X-Admin-Key` header vs `AdminApiKey` config). Returns **403** if `AdminApiKey` is not configured, **401** if key is wrong (fail-closed).
+
+### Analyzer Rules (reminders)
+
+- **MA0002**: `new Dictionary<string, object?>(StringComparer.Ordinal)` — always pass comparer
+- **S2139**: No catch-log-rethrow; use `finally` + `bool succeeded` pattern
+- **S108**: No empty catch blocks — always put `return null;` or a log inside

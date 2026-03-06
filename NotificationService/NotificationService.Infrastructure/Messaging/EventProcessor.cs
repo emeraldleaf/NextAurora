@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using MediatR;
@@ -21,18 +22,10 @@ public class EventProcessor(
         var orderProcessor = client.CreateProcessor("order-events", "notify-sub");
         orderProcessor.ProcessMessageAsync += async args =>
         {
-            var correlationId = args.Message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
-                ? cid?.ToString()
-                : args.Message.CorrelationId;
+            var (correlationId, userId, sessionId) = ExtractContext(args.Message);
+            SetActivityBaggage(correlationId, userId, sessionId);
 
-            using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["CorrelationId"] = correlationId,
-                ["MessageId"] = args.Message.MessageId,
-                ["Subject"] = args.Message.Subject,
-                ["DeliveryCount"] = args.Message.DeliveryCount
-            });
-
+            using var scope = logger.BeginScope(BuildScope(correlationId, userId, sessionId, args.Message));
             try
             {
                 var @event = JsonSerializer.Deserialize<OrderPlacedEvent>(args.Message.Body.ToString());
@@ -61,18 +54,10 @@ public class EventProcessor(
         var shippingProcessor = client.CreateProcessor("shipping-events", "notify-sub");
         shippingProcessor.ProcessMessageAsync += async args =>
         {
-            var correlationId = args.Message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
-                ? cid?.ToString()
-                : args.Message.CorrelationId;
+            var (correlationId, userId, sessionId) = ExtractContext(args.Message);
+            SetActivityBaggage(correlationId, userId, sessionId);
 
-            using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["CorrelationId"] = correlationId,
-                ["MessageId"] = args.Message.MessageId,
-                ["Subject"] = args.Message.Subject,
-                ["DeliveryCount"] = args.Message.DeliveryCount
-            });
-
+            using var scope = logger.BeginScope(BuildScope(correlationId, userId, sessionId, args.Message));
             try
             {
                 var @event = JsonSerializer.Deserialize<ShipmentDispatchedEvent>(args.Message.Body.ToString());
@@ -101,18 +86,10 @@ public class EventProcessor(
         var queueProcessor = client.CreateProcessor("send-notification");
         queueProcessor.ProcessMessageAsync += async args =>
         {
-            var correlationId = args.Message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
-                ? cid?.ToString()
-                : args.Message.CorrelationId;
+            var (correlationId, userId, sessionId) = ExtractContext(args.Message);
+            SetActivityBaggage(correlationId, userId, sessionId);
 
-            using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["CorrelationId"] = correlationId,
-                ["MessageId"] = args.Message.MessageId,
-                ["Subject"] = args.Message.Subject,
-                ["DeliveryCount"] = args.Message.DeliveryCount
-            });
-
+            using var scope = logger.BeginScope(BuildScope(correlationId, userId, sessionId, args.Message));
             try
             {
                 var command = JsonSerializer.Deserialize<SendNotificationCommand>(args.Message.Body.ToString());
@@ -145,5 +122,37 @@ public class EventProcessor(
         await queueProcessor.StartProcessingAsync(stoppingToken);
 
         await Task.Delay(Timeout.Infinite, stoppingToken);
+    }
+
+    private static (string? correlationId, string? userId, string? sessionId) ExtractContext(ServiceBusReceivedMessage message)
+    {
+        var correlationId = message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
+            ? cid?.ToString() : message.CorrelationId;
+        var userId = message.ApplicationProperties.TryGetValue("X-User-Id", out var uid)
+            ? uid?.ToString() : null;
+        var sessionId = message.ApplicationProperties.TryGetValue("X-Session-Id", out var sid)
+            ? sid?.ToString() : null;
+        return (correlationId, userId, sessionId);
+    }
+
+    private static void SetActivityBaggage(string? correlationId, string? userId, string? sessionId)
+    {
+        if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
+        if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
+        if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
+    }
+
+    private static Dictionary<string, object?> BuildScope(string? correlationId, string? userId, string? sessionId, ServiceBusReceivedMessage message)
+    {
+        var scope = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["CorrelationId"] = correlationId,
+            ["MessageId"] = message.MessageId,
+            ["Subject"] = message.Subject,
+            ["DeliveryCount"] = message.DeliveryCount
+        };
+        if (userId is not null) scope["UserId"] = userId;
+        if (sessionId is not null) scope["SessionId"] = sessionId;
+        return scope;
     }
 }

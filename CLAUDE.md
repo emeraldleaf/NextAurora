@@ -90,3 +90,51 @@ dotnet restore
 dotnet build
 dotnet run --project NextAurora.AppHost  # Starts everything via Aspire
 ```
+
+## Observability & Context Propagation
+
+### Correlation ID, User ID, Session ID
+
+Every HTTP request and Service Bus message carries three context identifiers:
+
+| Concept | Activity Baggage Key | HTTP / SB Property | Logger Scope Key |
+|---------|--------------------|--------------------|-----------------|
+| Correlation | `correlation.id` | `X-Correlation-Id` | `CorrelationId` |
+| User | `user.id` | `X-User-Id` | `UserId` |
+| Session | `session.id` | `X-Session-Id` | `SessionId` |
+
+**Sources:**
+- `correlation.id` — from `X-Correlation-Id` request header, or generated from trace ID
+- `user.id` — from `ClaimTypes.NameIdentifier` JWT claim (`sub`); null when unauthenticated
+- `session.id` — from `X-Session-Id` request header (client-generated browser/app session UUID); null if not provided
+
+All three are set by `CorrelationIdMiddleware` (HTTP entry point) and by each Service Bus processor handler (async entry point). All three are propagated into outgoing Service Bus messages by `ServiceBusEventPublisher`.
+
+### LoggingBehavior scope
+
+`LoggingBehavior<TRequest, TResponse>` opens a `logger.BeginScope()` before invoking the handler. This means **every log line emitted anywhere in the handler** carries `CorrelationId`, `UserId`, and `SessionId` automatically in structured log output.
+
+Order in the MediatR pipeline: `ValidationBehavior` → `LoggingBehavior` → handler.
+
+### Service Bus context extraction pattern
+
+All processors extract context with null-safe checks and add to both Activity baggage and `logger.BeginScope()`:
+
+```csharp
+var correlationId = message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
+    ? cid?.ToString() : message.CorrelationId;
+var userId = message.ApplicationProperties.TryGetValue("X-User-Id", out var uid)
+    ? uid?.ToString() : null;
+var sessionId = message.ApplicationProperties.TryGetValue("X-Session-Id", out var sid)
+    ? sid?.ToString() : null;
+
+if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
+if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
+if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
+```
+
+Never add null/empty keys to logging scope dictionaries — use `if (x is not null) scope["Key"] = x`.
+
+### Event Replay
+
+Each of Order, Payment, and Shipping services logs every published event to an `EventLogs` table (see `LoggingEventPublisher`). Admin endpoints (`/admin/events`) allow querying and replaying events by correlation ID or entity ID. Protected by `X-Admin-Key` header matching `AdminApiKey` config value.

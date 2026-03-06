@@ -10,8 +10,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../OrderService/OrderService.Domain/OrderService.Domain.csproj" />
     <ProjectReference Include="../../OrderService/OrderService.Application/OrderService.Application.csproj" />
+    <ProjectReference Include="../../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>
