@@ -200,6 +200,7 @@
           "Microsoft.EntityFrameworkCore": "10.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
           "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
           "Microsoft.Extensions.Http.Resilience": "10.1.0",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.2",

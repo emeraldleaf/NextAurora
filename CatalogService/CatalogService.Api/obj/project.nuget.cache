@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "AszvpbmAmEQ=",
+  "dgSpecHash": "4Zw2q2HeYhM=",
   "success": true,
   "projectFilePath": "/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Api/CatalogService.Api.csproj",
   "expectedPackageFiles": [
@@ -22,12 +22,13 @@
     "/Users/joshuadell/.nuget/packages/microsoft.entityframeworkcore/10.0.2/microsoft.entityframeworkcore.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.entityframeworkcore.abstractions/10.0.2/microsoft.entityframeworkcore.abstractions.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.entityframeworkcore.analyzers/10.0.2/microsoft.entityframeworkcore.analyzers.10.0.2.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/microsoft.entityframeworkcore.relational/10.0.0/microsoft.entityframeworkcore.relational.10.0.0.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/microsoft.entityframeworkcore.relational/10.0.2/microsoft.entityframeworkcore.relational.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.ambientmetadata.application/10.1.0/microsoft.extensions.ambientmetadata.application.10.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.caching.stackexchangeredis/10.0.2/microsoft.extensions.caching.stackexchangeredis.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.compliance.abstractions/10.1.0/microsoft.extensions.compliance.abstractions.10.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.dependencyinjection.autoactivation/10.1.0/microsoft.extensions.dependencyinjection.autoactivation.10.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.diagnostics.exceptionsummarization/10.1.0/microsoft.extensions.diagnostics.exceptionsummarization.10.1.0.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/microsoft.extensions.diagnostics.healthchecks.entityframeworkcore/10.0.2/microsoft.extensions.diagnostics.healthchecks.entityframeworkcore.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.http.diagnostics/10.1.0/microsoft.extensions.http.diagnostics.10.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.http.resilience/10.1.0/microsoft.extensions.http.resilience.10.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.resilience/10.1.0/microsoft.extensions.resilience.10.1.0.nupkg.sha512",

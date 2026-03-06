@@ -17,6 +17,9 @@ public static class DependencyInjection
         services.AddDbContext<PaymentDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("payments-db")));
 
+        services.AddHealthChecks()
+            .AddDbContextCheck<PaymentDbContext>();
+
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IPaymentGateway, StripePaymentGateway>();
 

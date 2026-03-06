@@ -16,6 +16,9 @@ public static class DependencyInjection
         services.AddDbContext<ShippingDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("shipping-db")));
 
+        services.AddHealthChecks()
+            .AddDbContextCheck<ShippingDbContext>();
+
         services.AddScoped<IShipmentRepository, ShipmentRepository>();
 
         services.AddSingleton(_ =>

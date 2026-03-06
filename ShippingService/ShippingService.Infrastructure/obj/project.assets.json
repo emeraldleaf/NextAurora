@@ -160,13 +160,13 @@
       "Microsoft.EntityFrameworkCore.Analyzers/10.0.2": {
         "type": "package"
       },
-      "Microsoft.EntityFrameworkCore.Relational/10.0.0": {
+      "Microsoft.EntityFrameworkCore.Relational/10.0.2": {
         "type": "package",
         "dependencies": {
-          "Microsoft.EntityFrameworkCore": "10.0.0",
-          "Microsoft.Extensions.Caching.Memory": "10.0.0",
-          "Microsoft.Extensions.Configuration.Abstractions": "10.0.0",
-          "Microsoft.Extensions.Logging": "10.0.0"
+          "Microsoft.EntityFrameworkCore": "10.0.2",
+          "Microsoft.Extensions.Caching.Memory": "10.0.2",
+          "Microsoft.Extensions.Configuration.Abstractions": "10.0.2",
+          "Microsoft.Extensions.Logging": "10.0.2"
         },
         "compile": {
           "lib/net10.0/Microsoft.EntityFrameworkCore.Relational.dll": {
@@ -293,6 +293,56 @@
         },
         "build": {
           "buildTransitive/net8.0/_._": {}
+        }
+      },
+      "Microsoft.Extensions.Diagnostics.HealthChecks/10.0.2": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.2",
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
+          "Microsoft.Extensions.Options": "10.0.2"
+        },
+        "compile": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions/10.0.2": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore/10.0.2": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
+          "Microsoft.Extensions.Diagnostics.HealthChecks": "10.0.2",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.2"
+        },
+        "compile": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll": {
+            "related": ".xml"
+          }
         }
       },
       "Microsoft.Extensions.FileProviders.Abstractions/10.0.2": {
@@ -500,6 +550,7 @@
         "framework": ".NETCoreApp,Version=v10.0",
         "dependencies": {
           "MediatR": "12.4.1",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
           "NextAurora.Contracts": "1.0.0",
           "ShippingService.Domain": "1.0.0"
         },
@@ -729,10 +780,10 @@
         "microsoft.entityframeworkcore.analyzers.nuspec"
       ]
     },
-    "Microsoft.EntityFrameworkCore.Relational/10.0.0": {
-      "sha512": "A3MX1ee7RDxWCUdx/KqP+74fbksz0UIhkVZh56YHvbPkEKsffCXgHU3LGkRDwqR/MrBNWLCWC/IVX79tzM30ZA==",
+    "Microsoft.EntityFrameworkCore.Relational/10.0.2": {
+      "sha512": "1fUeyNmqDNfMogJ2ut7OKO57/WGjjkHMYeX51SpA3PwP7ftbx8g/Z3fbErD+1q14DILrqJfsszYsYhGssBRfDg==",
       "type": "package",
-      "path": "microsoft.entityframeworkcore.relational/10.0.0",
+      "path": "microsoft.entityframeworkcore.relational/10.0.2",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -740,7 +791,7 @@
         "PACKAGE.md",
         "lib/net10.0/Microsoft.EntityFrameworkCore.Relational.dll",
         "lib/net10.0/Microsoft.EntityFrameworkCore.Relational.xml",
-        "microsoft.entityframeworkcore.relational.10.0.0.nupkg.sha512",
+        "microsoft.entityframeworkcore.relational.10.0.2.nupkg.sha512",
         "microsoft.entityframeworkcore.relational.nuspec"
       ]
     },
@@ -919,6 +970,60 @@
         "microsoft.extensions.diagnostics.abstractions.10.0.2.nupkg.sha512",
         "microsoft.extensions.diagnostics.abstractions.nuspec",
         "useSharedDesignerContext.txt"
+      ]
+    },
+    "Microsoft.Extensions.Diagnostics.HealthChecks/10.0.2": {
+      "sha512": "PRqTKCjP5RVko1DdD5SJHaakVO5mljJUTIwQtDusIWlokvFFigxKOejc+vvcp+jJQgzkNJClXbgYhJCpncW60w==",
+      "type": "package",
+      "path": "microsoft.extensions.diagnostics.healthchecks/10.0.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.dll",
+        "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.xml",
+        "lib/net462/Microsoft.Extensions.Diagnostics.HealthChecks.dll",
+        "lib/net462/Microsoft.Extensions.Diagnostics.HealthChecks.xml",
+        "lib/netstandard2.0/Microsoft.Extensions.Diagnostics.HealthChecks.dll",
+        "lib/netstandard2.0/Microsoft.Extensions.Diagnostics.HealthChecks.xml",
+        "microsoft.extensions.diagnostics.healthchecks.10.0.2.nupkg.sha512",
+        "microsoft.extensions.diagnostics.healthchecks.nuspec"
+      ]
+    },
+    "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions/10.0.2": {
+      "sha512": "XSVLL4AEAwY20+nSkZqBGlO7ukJVAFbqh73VIoEbYlElTSOWGMLVXwYYdzz6kJgn8EJgGk5xH4l3eYlQlNRy9Q==",
+      "type": "package",
+      "path": "microsoft.extensions.diagnostics.healthchecks.abstractions/10.0.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll",
+        "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.xml",
+        "lib/net462/Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll",
+        "lib/net462/Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.xml",
+        "lib/netstandard2.0/Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll",
+        "lib/netstandard2.0/Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.xml",
+        "microsoft.extensions.diagnostics.healthchecks.abstractions.10.0.2.nupkg.sha512",
+        "microsoft.extensions.diagnostics.healthchecks.abstractions.nuspec"
+      ]
+    },
+    "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore/10.0.2": {
+      "sha512": "crc0DOuCBTmJxZKKFfuoiiJ6oF0hoNfM+KZR/3TLHqVEX4XHY9gji0rMGW4HY3IsDT6ugMexVdidLAX363+Qyw==",
+      "type": "package",
+      "path": "microsoft.extensions.diagnostics.healthchecks.entityframeworkcore/10.0.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll",
+        "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.xml",
+        "microsoft.extensions.diagnostics.healthchecks.entityframeworkcore.10.0.2.nupkg.sha512",
+        "microsoft.extensions.diagnostics.healthchecks.entityframeworkcore.nuspec"
       ]
     },
     "Microsoft.Extensions.FileProviders.Abstractions/10.0.2": {
@@ -1306,6 +1411,7 @@
       "Azure.Messaging.ServiceBus >= 7.18.4",
       "Meziantou.Analyzer >= 2.0.257",
       "Microsoft.EntityFrameworkCore >= 10.0.2",
+      "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore >= 10.0.2",
       "Microsoft.Extensions.Hosting.Abstractions >= 10.0.2",
       "NextAurora.Contracts >= 1.0.0",
       "Npgsql.EntityFrameworkCore.PostgreSQL >= 10.0.0",
@@ -1387,6 +1493,11 @@
             "version": "[10.0.2, )",
             "versionCentrallyManaged": true
           },
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": {
+            "target": "Package",
+            "version": "[10.0.2, )",
+            "versionCentrallyManaged": true
+          },
           "Microsoft.Extensions.Hosting.Abstractions": {
             "target": "Package",
             "version": "[10.0.2, )",
@@ -1435,6 +1546,7 @@
           "Microsoft.EntityFrameworkCore": "10.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
           "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
           "Microsoft.Extensions.Http.Resilience": "10.1.0",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.2",

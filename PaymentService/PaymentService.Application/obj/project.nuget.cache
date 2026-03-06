@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "kenu9THJ15U=",
+  "dgSpecHash": "c155WklvnWw=",
   "success": true,
   "projectFilePath": "/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Application/PaymentService.Application.csproj",
   "expectedPackageFiles": [
@@ -9,7 +9,8 @@
     "/Users/joshuadell/.nuget/packages/mediatr/12.4.1/mediatr.12.4.1.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/mediatr.contracts/2.0.1/mediatr.contracts.2.0.1.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/meziantou.analyzer/2.0.257/meziantou.analyzer.2.0.257.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/8.0.0/microsoft.extensions.dependencyinjection.abstractions.8.0.0.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/10.0.2/microsoft.extensions.dependencyinjection.abstractions.10.0.2.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/microsoft.extensions.logging.abstractions/10.0.2/microsoft.extensions.logging.abstractions.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/roslynator.analyzers/4.14.1/roslynator.analyzers.4.14.1.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/sonaranalyzer.csharp/10.16.0.128591/sonaranalyzer.csharp.10.16.0.128591.nupkg.sha512"
   ],

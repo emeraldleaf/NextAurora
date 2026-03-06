@@ -132,14 +132,14 @@
           }
         }
       },
-      "Microsoft.EntityFrameworkCore.Relational/10.0.0": {
+      "Microsoft.EntityFrameworkCore.Relational/10.0.2": {
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "10.0.2"
         },
         "runtime": {
           "lib/net10.0/Microsoft.EntityFrameworkCore.Relational.dll": {
-            "assemblyVersion": "10.0.0.0",
-            "fileVersion": "10.0.25.52411"
+            "assemblyVersion": "10.0.2.0",
+            "fileVersion": "10.0.225.61305"
           }
         }
       },
@@ -172,6 +172,17 @@
           "lib/net10.0/Microsoft.Extensions.Diagnostics.ExceptionSummarization.dll": {
             "assemblyVersion": "10.1.0.0",
             "fileVersion": "10.100.25.60801"
+          }
+        }
+      },
+      "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore/10.0.2": {
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll": {
+            "assemblyVersion": "10.0.2.0",
+            "fileVersion": "10.0.225.61305"
           }
         }
       },
@@ -274,7 +285,7 @@
       "Npgsql.EntityFrameworkCore.PostgreSQL/10.0.0": {
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "10.0.2",
-          "Microsoft.EntityFrameworkCore.Relational": "10.0.0",
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
           "Npgsql": "10.0.0"
         },
         "runtime": {
@@ -481,6 +492,7 @@
         "dependencies": {
           "Azure.Messaging.ServiceBus": "7.18.4",
           "Microsoft.EntityFrameworkCore": "10.0.2",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
           "NextAurora.Contracts": "1.0.0",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.0",
           "ShippingService.Application": "1.0.0",
@@ -578,12 +590,12 @@
       "path": "microsoft.entityframeworkcore.abstractions/10.0.2",
       "hashPath": "microsoft.entityframeworkcore.abstractions.10.0.2.nupkg.sha512"
     },
-    "Microsoft.EntityFrameworkCore.Relational/10.0.0": {
+    "Microsoft.EntityFrameworkCore.Relational/10.0.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-A3MX1ee7RDxWCUdx/KqP+74fbksz0UIhkVZh56YHvbPkEKsffCXgHU3LGkRDwqR/MrBNWLCWC/IVX79tzM30ZA==",
-      "path": "microsoft.entityframeworkcore.relational/10.0.0",
-      "hashPath": "microsoft.entityframeworkcore.relational.10.0.0.nupkg.sha512"
+      "sha512": "sha512-1fUeyNmqDNfMogJ2ut7OKO57/WGjjkHMYeX51SpA3PwP7ftbx8g/Z3fbErD+1q14DILrqJfsszYsYhGssBRfDg==",
+      "path": "microsoft.entityframeworkcore.relational/10.0.2",
+      "hashPath": "microsoft.entityframeworkcore.relational.10.0.2.nupkg.sha512"
     },
     "Microsoft.Extensions.AmbientMetadata.Application/10.1.0": {
       "type": "package",
@@ -612,6 +624,13 @@
       "sha512": "sha512-Q76peCoP6vXXf95RLFeMGzcaQs8l3lk+n/ZOTi2i+OLd3R0HzzB0Fswjua4NY1viIbA1s6l1mqRjQbxY7+Jylw==",
       "path": "microsoft.extensions.diagnostics.exceptionsummarization/10.1.0",
       "hashPath": "microsoft.extensions.diagnostics.exceptionsummarization.10.1.0.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore/10.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-crc0DOuCBTmJxZKKFfuoiiJ6oF0hoNfM+KZR/3TLHqVEX4XHY9gji0rMGW4HY3IsDT6ugMexVdidLAX363+Qyw==",
+      "path": "microsoft.extensions.diagnostics.healthchecks.entityframeworkcore/10.0.2",
+      "hashPath": "microsoft.extensions.diagnostics.healthchecks.entityframeworkcore.10.0.2.nupkg.sha512"
     },
     "Microsoft.Extensions.Http.Diagnostics/10.1.0": {
       "type": "package",

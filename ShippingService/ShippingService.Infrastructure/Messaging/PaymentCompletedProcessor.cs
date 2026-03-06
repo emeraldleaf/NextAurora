@@ -20,26 +20,41 @@ public class PaymentCompletedProcessor(
 
         processor.ProcessMessageAsync += async args =>
         {
+            var correlationId = args.Message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
+                ? cid?.ToString()
+                : args.Message.CorrelationId;
+
+            using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["CorrelationId"] = correlationId,
+                ["MessageId"] = args.Message.MessageId,
+                ["Subject"] = args.Message.Subject,
+                ["DeliveryCount"] = args.Message.DeliveryCount
+            });
+
             try
             {
                 var @event = JsonSerializer.Deserialize<PaymentCompletedEvent>(args.Message.Body.ToString());
                 if (@event is not null)
                 {
-                    using var scope = serviceProvider.CreateScope();
-                    var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                    using var serviceScope = serviceProvider.CreateScope();
+                    var mediator = serviceScope.ServiceProvider.GetRequiredService<IMediator>();
                     await mediator.Publish(new PaymentCompletedNotification(@event), stoppingToken);
                 }
                 await args.CompleteMessageAsync(args.Message, stoppingToken);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error processing PaymentCompleted event");
+                logger.LogError(ex, "Failed to process PaymentCompleted event. Abandoning for retry/DLQ");
+                await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
             }
         };
 
         processor.ProcessErrorAsync += args =>
         {
-            logger.LogError(args.Exception, "Service Bus error on payment-events/shipping-sub");
+            logger.LogError(args.Exception,
+                "Service Bus transport error on {EntityPath} (source: {ErrorSource}, namespace: {Namespace})",
+                args.EntityPath, args.ErrorSource, args.FullyQualifiedNamespace);
             return Task.CompletedTask;
         };
 

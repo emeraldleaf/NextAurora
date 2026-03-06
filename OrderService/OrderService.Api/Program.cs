@@ -15,6 +15,7 @@ builder.AddServiceDefaults();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<PlaceOrderCommand>());
 builder.Services.AddValidatorsFromAssemblyContaining<PlaceOrderCommand>();
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
 builder.Services.AddOrderInfrastructure(builder.Configuration);
 
 builder.Services.AddGrpcClient<CatalogGrpc.CatalogGrpcClient>(o =>

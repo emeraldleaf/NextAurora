@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using NotificationService.Domain.Entities;
@@ -16,6 +17,9 @@ public partial class SendNotificationHandler(
     INotificationSender sender,
     ILogger<SendNotificationHandler> logger) : IRequestHandler<SendNotificationRequest>
 {
+    private static readonly Counter<long> NotificationsSent =
+        new Meter("NextAurora").CreateCounter<long>("notifications.sent");
+
     public async Task Handle(SendNotificationRequest request, CancellationToken cancellationToken)
     {
         var notification = NotificationRequest.Create(
@@ -26,6 +30,7 @@ public partial class SendNotificationHandler(
         {
             await sender.SendAsync(request.RecipientEmail, request.Subject, request.Body, request.Channel, cancellationToken);
             notification.MarkAsSent();
+            NotificationsSent.Add(1, new KeyValuePair<string, object?>("channel", request.Channel));
             LogNotificationSent(logger, request.RecipientEmail, request.Subject);
         }
         catch (Exception ex)

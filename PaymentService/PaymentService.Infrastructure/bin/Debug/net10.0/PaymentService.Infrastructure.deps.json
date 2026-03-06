@@ -11,6 +11,7 @@
           "Azure.Messaging.ServiceBus": "7.18.4",
           "Microsoft.EntityFrameworkCore": "10.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
           "NextAurora.Contracts": "1.0.0",
           "PaymentService.Application": "1.0.0",
@@ -349,6 +350,41 @@
           }
         }
       },
+      "Microsoft.Extensions.Diagnostics.HealthChecks/10.0.2": {
+        "dependencies": {
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.2",
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
+          "Microsoft.Extensions.Options": "10.0.2"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.225.61305"
+          }
+        }
+      },
+      "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions/10.0.2": {
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.225.61305"
+          }
+        }
+      },
+      "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore/10.0.2": {
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
+          "Microsoft.Extensions.Diagnostics.HealthChecks": "10.0.2",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.2"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll": {
+            "assemblyVersion": "10.0.2.0",
+            "fileVersion": "10.0.225.61305"
+          }
+        }
+      },
       "Microsoft.Extensions.FileProviders.Abstractions/10.0.2": {
         "dependencies": {
           "Microsoft.Extensions.Primitives": "10.0.2"
@@ -617,6 +653,7 @@
           "FluentValidation": "11.11.0",
           "FluentValidation.DependencyInjectionExtensions": "11.11.0",
           "MediatR": "12.4.1",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
           "NextAurora.Contracts": "1.0.0",
           "PaymentService.Domain": "1.0.0"
         },
@@ -803,6 +840,27 @@
       "sha512": "sha512-GaiaeKUuLuUbRPkUokndDuzonhO6dk4lcfGflHsCeXiJ5JrZxcyks1KuG6eB9pON16x/+9uWfa4w9g3oP8AYvQ==",
       "path": "microsoft.extensions.diagnostics.abstractions/10.0.2",
       "hashPath": "microsoft.extensions.diagnostics.abstractions.10.0.2.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Diagnostics.HealthChecks/10.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-PRqTKCjP5RVko1DdD5SJHaakVO5mljJUTIwQtDusIWlokvFFigxKOejc+vvcp+jJQgzkNJClXbgYhJCpncW60w==",
+      "path": "microsoft.extensions.diagnostics.healthchecks/10.0.2",
+      "hashPath": "microsoft.extensions.diagnostics.healthchecks.10.0.2.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions/10.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-XSVLL4AEAwY20+nSkZqBGlO7ukJVAFbqh73VIoEbYlElTSOWGMLVXwYYdzz6kJgn8EJgGk5xH4l3eYlQlNRy9Q==",
+      "path": "microsoft.extensions.diagnostics.healthchecks.abstractions/10.0.2",
+      "hashPath": "microsoft.extensions.diagnostics.healthchecks.abstractions.10.0.2.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore/10.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-crc0DOuCBTmJxZKKFfuoiiJ6oF0hoNfM+KZR/3TLHqVEX4XHY9gji0rMGW4HY3IsDT6ugMexVdidLAX363+Qyw==",
+      "path": "microsoft.extensions.diagnostics.healthchecks.entityframeworkcore/10.0.2",
+      "hashPath": "microsoft.extensions.diagnostics.healthchecks.entityframeworkcore.10.0.2.nupkg.sha512"
     },
     "Microsoft.Extensions.FileProviders.Abstractions/10.0.2": {
       "type": "package",

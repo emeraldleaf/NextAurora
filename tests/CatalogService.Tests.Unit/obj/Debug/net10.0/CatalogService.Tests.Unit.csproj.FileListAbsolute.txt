@@ -113,3 +113,4 @@
 /Users/joshuadell/NovaCraft/tests/CatalogService.Tests.Unit/obj/Debug/net10.0/CatalogService.Tests.Unit.pdb
 /Users/joshuadell/NovaCraft/tests/CatalogService.Tests.Unit/obj/Debug/net10.0/CatalogService.Tests.Unit.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/tests/CatalogService.Tests.Unit/obj/Debug/net10.0/ref/CatalogService.Tests.Unit.dll
+/Users/joshuadell/NovaCraft/tests/CatalogService.Tests.Unit/bin/Debug/net10.0/Microsoft.Extensions.Logging.Abstractions.dll

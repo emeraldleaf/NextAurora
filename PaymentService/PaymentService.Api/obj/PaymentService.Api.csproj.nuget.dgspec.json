@@ -91,6 +91,7 @@
             "Microsoft.EntityFrameworkCore": "10.0.2",
             "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
             "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
+            "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
             "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
             "Microsoft.Extensions.Http.Resilience": "10.1.0",
             "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
@@ -535,6 +536,7 @@
             "Microsoft.EntityFrameworkCore": "10.0.2",
             "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
             "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
+            "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
             "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
             "Microsoft.Extensions.Http.Resilience": "10.1.0",
             "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
@@ -1100,6 +1102,7 @@
             "Microsoft.EntityFrameworkCore": "10.0.2",
             "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
             "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
+            "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
             "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
             "Microsoft.Extensions.Http.Resilience": "10.1.0",
             "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
@@ -1626,6 +1629,11 @@
               "version": "[2.0.257, )",
               "versionCentrallyManaged": true
             },
+            "Microsoft.Extensions.Logging.Abstractions": {
+              "target": "Package",
+              "version": "[10.0.2, )",
+              "versionCentrallyManaged": true
+            },
             "Roslynator.Analyzers": {
               "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
               "suppressParent": "All",
@@ -1664,6 +1672,7 @@
             "Microsoft.EntityFrameworkCore": "10.0.2",
             "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
             "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
+            "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
             "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
             "Microsoft.Extensions.Http.Resilience": "10.1.0",
             "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
@@ -2063,6 +2072,7 @@
             "Microsoft.EntityFrameworkCore": "10.0.2",
             "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
             "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
+            "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
             "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
             "Microsoft.Extensions.Http.Resilience": "10.1.0",
             "Microsoft.Extensions.Logging.Abstractions": "10.0.2",
@@ -2449,6 +2459,11 @@
               "version": "[10.0.2, )",
               "versionCentrallyManaged": true
             },
+            "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[10.0.2, )",
+              "versionCentrallyManaged": true
+            },
             "Microsoft.Extensions.Hosting.Abstractions": {
               "target": "Package",
               "version": "[10.0.2, )",
@@ -2492,6 +2507,7 @@
             "Microsoft.EntityFrameworkCore": "10.0.2",
             "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
             "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
+            "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
             "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
             "Microsoft.Extensions.Http.Resilience": "10.1.0",
             "Microsoft.Extensions.Logging.Abstractions": "10.0.2",

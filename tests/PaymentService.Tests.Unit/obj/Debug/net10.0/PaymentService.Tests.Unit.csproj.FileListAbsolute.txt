@@ -113,3 +113,4 @@
 /Users/joshuadell/NovaCraft/tests/PaymentService.Tests.Unit/obj/Debug/net10.0/PaymentService.Tests.Unit.pdb
 /Users/joshuadell/NovaCraft/tests/PaymentService.Tests.Unit/obj/Debug/net10.0/PaymentService.Tests.Unit.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/tests/PaymentService.Tests.Unit/obj/Debug/net10.0/ref/PaymentService.Tests.Unit.dll
+/Users/joshuadell/NovaCraft/tests/PaymentService.Tests.Unit/bin/Debug/net10.0/Microsoft.Extensions.Logging.Abstractions.dll

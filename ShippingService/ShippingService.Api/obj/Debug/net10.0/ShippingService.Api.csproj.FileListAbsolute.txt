@@ -80,3 +80,4 @@
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Api/obj/Debug/net10.0/ShippingService.Api.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Api/obj/Debug/net10.0/ref/ShippingService.Api.dll
 /Users/joshuadell/NovaCraft/ShippingService/ShippingService.Api/obj/Debug/net10.0/ShippingService.Api.sourcelink.json
+/Users/joshuadell/NovaCraft/ShippingService/ShippingService.Api/bin/Debug/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll

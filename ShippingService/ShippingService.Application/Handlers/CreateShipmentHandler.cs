@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using MediatR;
 using NextAurora.Contracts.Events;
 using ShippingService.Application.Commands;
@@ -11,6 +12,9 @@ public class CreateShipmentHandler(
     IEventPublisher eventPublisher) : IRequestHandler<CreateShipmentCommand, Guid>
 {
     private static readonly string[] Carriers = ["FedEx", "UPS", "USPS", "DHL"];
+
+    private static readonly Counter<long> ShipmentsDispatched =
+        new Meter("NextAurora").CreateCounter<long>("shipments.dispatched");
 
     public async Task<Guid> Handle(CreateShipmentCommand request, CancellationToken cancellationToken)
     {
@@ -33,6 +37,7 @@ public class CreateShipmentHandler(
             DispatchedAt = shipment.DispatchedAt!.Value
         }, "shipping-events", cancellationToken);
 
+        ShipmentsDispatched.Add(1);
         return shipment.Id;
     }
 }

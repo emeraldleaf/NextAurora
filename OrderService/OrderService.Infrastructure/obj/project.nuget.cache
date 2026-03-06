@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "Hsoh815AbbI=",
+  "dgSpecHash": "qsqjjFJhsPA=",
   "success": true,
   "projectFilePath": "/Users/joshuadell/NovaCraft/OrderService/OrderService.Infrastructure/OrderService.Infrastructure.csproj",
   "expectedPackageFiles": [
@@ -29,6 +29,9 @@
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.dependencyinjection/10.0.2/microsoft.extensions.dependencyinjection.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/10.0.2/microsoft.extensions.dependencyinjection.abstractions.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.diagnostics.abstractions/10.0.2/microsoft.extensions.diagnostics.abstractions.10.0.2.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/microsoft.extensions.diagnostics.healthchecks/10.0.2/microsoft.extensions.diagnostics.healthchecks.10.0.2.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/microsoft.extensions.diagnostics.healthchecks.abstractions/10.0.2/microsoft.extensions.diagnostics.healthchecks.abstractions.10.0.2.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/microsoft.extensions.diagnostics.healthchecks.entityframeworkcore/10.0.2/microsoft.extensions.diagnostics.healthchecks.entityframeworkcore.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.fileproviders.abstractions/10.0.2/microsoft.extensions.fileproviders.abstractions.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.hosting.abstractions/10.0.2/microsoft.extensions.hosting.abstractions.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.logging/10.0.2/microsoft.extensions.logging.10.0.2.nupkg.sha512",

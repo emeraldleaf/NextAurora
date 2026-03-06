@@ -84,3 +84,4 @@
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Api/obj/Debug/net10.0/CatalogService.Api.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Api/obj/Debug/net10.0/ref/CatalogService.Api.dll
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Api/obj/Debug/net10.0/CatalogService.Api.sourcelink.json
+/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Api/bin/Debug/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll

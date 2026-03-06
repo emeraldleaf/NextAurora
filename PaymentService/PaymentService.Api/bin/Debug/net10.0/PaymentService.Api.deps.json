@@ -311,6 +311,17 @@
           }
         }
       },
+      "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore/10.0.2": {
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll": {
+            "assemblyVersion": "10.0.2.0",
+            "fileVersion": "10.0.225.61305"
+          }
+        }
+      },
       "Microsoft.Extensions.Http.Diagnostics/10.1.0": {
         "dependencies": {
           "Microsoft.Extensions.Telemetry": "10.1.0"
@@ -725,6 +736,7 @@
           "Azure.Messaging.ServiceBus": "7.18.4",
           "Microsoft.EntityFrameworkCore": "10.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
           "NextAurora.Contracts": "1.0.0",
           "PaymentService.Application": "1.0.0",
           "PaymentService.Domain": "1.0.0"
@@ -897,6 +909,13 @@
       "sha512": "sha512-Q76peCoP6vXXf95RLFeMGzcaQs8l3lk+n/ZOTi2i+OLd3R0HzzB0Fswjua4NY1viIbA1s6l1mqRjQbxY7+Jylw==",
       "path": "microsoft.extensions.diagnostics.exceptionsummarization/10.1.0",
       "hashPath": "microsoft.extensions.diagnostics.exceptionsummarization.10.1.0.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore/10.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-crc0DOuCBTmJxZKKFfuoiiJ6oF0hoNfM+KZR/3TLHqVEX4XHY9gji0rMGW4HY3IsDT6ugMexVdidLAX363+Qyw==",
+      "path": "microsoft.extensions.diagnostics.healthchecks.entityframeworkcore/10.0.2",
+      "hashPath": "microsoft.extensions.diagnostics.healthchecks.entityframeworkcore.10.0.2.nupkg.sha512"
     },
     "Microsoft.Extensions.Http.Diagnostics/10.1.0": {
       "type": "package",

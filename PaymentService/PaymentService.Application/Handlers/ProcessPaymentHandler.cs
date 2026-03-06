@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using MediatR;
 using NextAurora.Contracts.Events;
 using PaymentService.Application.Commands;
@@ -11,6 +12,9 @@ public class ProcessPaymentHandler(
     IPaymentGateway gateway,
     IEventPublisher eventPublisher) : IRequestHandler<ProcessPaymentCommand, Guid>
 {
+    private static readonly Counter<long> PaymentsProcessed =
+        new Meter("NextAurora").CreateCounter<long>("payments.processed");
+
     public async Task<Guid> Handle(ProcessPaymentCommand request, CancellationToken cancellationToken)
     {
         var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
@@ -35,6 +39,8 @@ public class ProcessPaymentHandler(
                 Provider = payment.Provider,
                 CompletedAt = payment.CompletedAt!.Value
             }, "payment-events", cancellationToken);
+
+            PaymentsProcessed.Add(1, new KeyValuePair<string, object?>("outcome", "success"));
         }
         else
         {
@@ -48,6 +54,8 @@ public class ProcessPaymentHandler(
                 Reason = result.ErrorMessage ?? "Unknown error",
                 FailedAt = DateTime.UtcNow
             }, "payment-events", cancellationToken);
+
+            PaymentsProcessed.Add(1, new KeyValuePair<string, object?>("outcome", "failed"));
         }
 
         return payment.Id;

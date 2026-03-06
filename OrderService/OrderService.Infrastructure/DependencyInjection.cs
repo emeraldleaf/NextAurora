@@ -16,6 +16,9 @@ public static class DependencyInjection
         services.AddDbContext<OrderDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("orders-db")));
 
+        services.AddHealthChecks()
+            .AddDbContextCheck<OrderDbContext>();
+
         services.AddScoped<IOrderRepository, OrderRepository>();
 
         services.AddSingleton(_ =>

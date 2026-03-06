@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "FLMBrh3AbnM=",
+  "dgSpecHash": "nGp7e3l8Bgg=",
   "success": true,
   "projectFilePath": "/Users/joshuadell/NovaCraft/OrderService/OrderService.Api/OrderService.Api.csproj",
   "expectedPackageFiles": [
@@ -34,6 +34,7 @@
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.compliance.abstractions/10.1.0/microsoft.extensions.compliance.abstractions.10.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.dependencyinjection.autoactivation/10.1.0/microsoft.extensions.dependencyinjection.autoactivation.10.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.diagnostics.exceptionsummarization/10.1.0/microsoft.extensions.diagnostics.exceptionsummarization.10.1.0.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/microsoft.extensions.diagnostics.healthchecks.entityframeworkcore/10.0.2/microsoft.extensions.diagnostics.healthchecks.entityframeworkcore.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.http.diagnostics/10.1.0/microsoft.extensions.http.diagnostics.10.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.http.resilience/10.1.0/microsoft.extensions.http.resilience.10.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.resilience/10.1.0/microsoft.extensions.resilience.10.1.0.nupkg.sha512",

@@ -12,6 +12,7 @@ builder.AddServiceDefaults();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<ProcessPaymentCommand>());
 builder.Services.AddValidatorsFromAssemblyContaining<ProcessPaymentCommand>();
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
 builder.Services.AddPaymentInfrastructure(builder.Configuration);
 
 builder.Services.AddOpenApi();

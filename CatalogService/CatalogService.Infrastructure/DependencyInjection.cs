@@ -14,6 +14,9 @@ public static class DependencyInjection
         services.AddDbContext<CatalogDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("catalog-db")));
 
+        services.AddHealthChecks()
+            .AddDbContextCheck<CatalogDbContext>();
+
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
 

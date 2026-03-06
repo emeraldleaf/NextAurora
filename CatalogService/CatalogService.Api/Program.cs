@@ -13,6 +13,7 @@ builder.AddServiceDefaults();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<GetAllProductsQuery>());
 builder.Services.AddValidatorsFromAssemblyContaining<GetAllProductsQuery>();
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
 builder.Services.AddCatalogInfrastructure(builder.Configuration);
 
 builder.Services.AddStackExchangeRedisCache(options =>

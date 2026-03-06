@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NextAurora.Contracts")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fc5d2b39e4366b5e4887bc52d736d186b7169f47")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4e803993a017a5b4da44a958bdb27a95df56487d")]
 [assembly: System.Reflection.AssemblyProductAttribute("NextAurora.Contracts")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NextAurora.Contracts")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
