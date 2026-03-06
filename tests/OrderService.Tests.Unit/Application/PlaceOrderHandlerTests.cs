@@ -61,7 +61,7 @@ public class PlaceOrderHandlerTests
         // Assert
         result.Should().NotBeEmpty();
         await _orderRepository.Received(1).AddAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
-        await _eventPublisher.Received(1).PublishAsync(Arg.Any<OrderPlacedEvent>(), "order-events", Arg.Any<CancellationToken>());
+        await _eventPublisher.Received(1).PublishAsync(Arg.Any<OrderPlacedEvent>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public class PlaceOrderHandlerTests
         _orderRepository.AddAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask)
             .AndDoes(_ => callOrder.Add("save"));
-        _eventPublisher.PublishAsync(Arg.Any<OrderPlacedEvent>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _eventPublisher.PublishAsync(Arg.Any<OrderPlacedEvent>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask)
             .AndDoes(_ => callOrder.Add("publish"));
 
@@ -201,7 +201,6 @@ public class PlaceOrderHandlerTests
                 e.Currency == "USD" &&
                 e.TotalAmount == 60m &&
                 e.Lines.Count == 1),
-            "order-events",
             Arg.Any<CancellationToken>());
     }
 }

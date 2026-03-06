@@ -1,10 +1,9 @@
 using CatalogService.Domain.Interfaces;
-using MediatR;
 using CatalogService.Application.Commands;
 
 namespace CatalogService.Application.Handlers;
 
-public class UpdateProductHandler(IProductRepository repository) : IRequestHandler<UpdateProductCommand>
+public class UpdateProductHandler(IProductRepository repository)
 {
     public async Task Handle(UpdateProductCommand request, CancellationToken cancellationToken)
     {

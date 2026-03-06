@@ -4,7 +4,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PaymentService.Domain.Interfaces;
 using PaymentService.Infrastructure.Data;
-using PaymentService.Infrastructure.EventLog;
 using PaymentService.Infrastructure.Gateway;
 using PaymentService.Infrastructure.Messaging;
 using PaymentService.Infrastructure.Repositories;
@@ -24,12 +23,11 @@ public static class DependencyInjection
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IPaymentGateway, StripePaymentGateway>();
 
+        // ServiceBusClient is kept for AdminEventEndpoints replay functionality.
         services.AddSingleton(_ =>
             new ServiceBusClient(configuration.GetConnectionString("messaging")));
 
-        services.AddScoped<ServiceBusEventPublisher>();
-        services.AddScoped<IEventPublisher, LoggingEventPublisher>();
-        services.AddHostedService<OrderPlacedProcessor>();
+        services.AddScoped<IEventPublisher, WolverineEventPublisher>();
 
         return services;
     }

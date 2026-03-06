@@ -1,18 +1,36 @@
 using FluentValidation;
-using MediatR;
+using Microsoft.Extensions.Logging;
+using NextAurora.Contracts.Events;
 using PaymentService.Api.Endpoints;
-using PaymentService.Application.Behaviors;
 using PaymentService.Application.Commands;
 using PaymentService.Infrastructure;
+using Wolverine;
+using Wolverine.AzureServiceBus;
+using Wolverine.FluentValidation;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<ProcessPaymentCommand>());
+builder.Host.UseWolverine(opts =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("messaging")!;
+    opts.UseAzureServiceBus(connectionString)
+        .AutoProvision();
+
+    // Publish outgoing events to their topics
+    opts.PublishMessage<PaymentCompletedEvent>().ToAzureServiceBusTopic("payment-events");
+    opts.PublishMessage<PaymentFailedEvent>().ToAzureServiceBusTopic("payment-events");
+
+    // Listen to incoming events from other services
+    opts.ListenToAzureServiceBusSubscription("order-events/payment-sub");
+
+    opts.Discovery.IncludeAssembly(typeof(ProcessPaymentCommand).Assembly);
+    opts.UseFluentValidation();
+    opts.Policies.LogMessageStarting(LogLevel.Information);
+    opts.AddNextAuroraContextPropagation();
+});
 builder.Services.AddValidatorsFromAssemblyContaining<ProcessPaymentCommand>();
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
 builder.Services.AddPaymentInfrastructure(builder.Configuration);
 
 builder.Services.AddOpenApi();

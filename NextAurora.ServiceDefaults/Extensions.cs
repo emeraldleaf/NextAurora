@@ -4,11 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ServiceDiscovery;
+using NextAurora.ServiceDefaults.Messaging;
 using NextAurora.ServiceDefaults.Metrics;
 using NextAurora.ServiceDefaults.Middleware;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Wolverine;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -133,5 +135,18 @@ public static class Extensions
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// Registers Wolverine context propagation middleware for incoming messages (restores
+    /// CorrelationId, UserId, SessionId from envelope headers into Activity baggage and logger scope)
+    /// and outgoing messages (stamps X-User-Id and X-Session-Id from Activity baggage).
+    /// Call this inside UseWolverine() in every service.
+    /// </summary>
+    public static WolverineOptions AddNextAuroraContextPropagation(this WolverineOptions opts)
+    {
+        opts.Policies.AddMiddleware<ContextPropagationMiddleware>();
+        opts.Policies.AddMiddleware<OutgoingContextMiddleware>();
+        return opts;
     }
 }

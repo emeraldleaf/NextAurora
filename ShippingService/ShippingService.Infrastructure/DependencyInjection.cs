@@ -4,7 +4,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ShippingService.Domain.Interfaces;
 using ShippingService.Infrastructure.Data;
-using ShippingService.Infrastructure.EventLog;
 using ShippingService.Infrastructure.Messaging;
 using ShippingService.Infrastructure.Repositories;
 
@@ -22,12 +21,11 @@ public static class DependencyInjection
 
         services.AddScoped<IShipmentRepository, ShipmentRepository>();
 
+        // ServiceBusClient is kept for AdminEventEndpoints replay functionality.
         services.AddSingleton(_ =>
             new ServiceBusClient(configuration.GetConnectionString("messaging")));
 
-        services.AddScoped<ServiceBusEventPublisher>();
-        services.AddScoped<IEventPublisher, LoggingEventPublisher>();
-        services.AddHostedService<PaymentCompletedProcessor>();
+        services.AddScoped<IEventPublisher, WolverineEventPublisher>();
 
         return services;
     }

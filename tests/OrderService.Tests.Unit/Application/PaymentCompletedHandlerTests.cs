@@ -21,22 +21,19 @@ public class PaymentCompletedHandlerTests
     [Fact]
     public async Task Handle_WhenOrderExists_MarksOrderAsPaid()
     {
-        // Arrange
         var order = OrderBuilder.Default().Build();
-        var notification = new PaymentCompletedNotification(new PaymentCompletedEvent
+        var @event = new PaymentCompletedEvent
         {
             OrderId = order.Id,
             PaymentId = Guid.NewGuid(),
             Amount = 10m,
             Provider = "Stripe",
             CompletedAt = DateTime.UtcNow
-        });
+        };
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
-        // Act
-        await _sut.Handle(notification, CancellationToken.None);
+        await _sut.Handle(@event, CancellationToken.None);
 
-        // Assert
         order.Status.Should().Be(OrderStatus.Paid);
         await _repository.Received(1).UpdateAsync(order, Arg.Any<CancellationToken>());
     }
@@ -44,21 +41,18 @@ public class PaymentCompletedHandlerTests
     [Fact]
     public async Task Handle_WhenOrderNotFound_ReturnsWithoutError()
     {
-        // Arrange
-        var notification = new PaymentCompletedNotification(new PaymentCompletedEvent
+        var @event = new PaymentCompletedEvent
         {
             OrderId = Guid.NewGuid(),
             PaymentId = Guid.NewGuid(),
             Amount = 10m,
             Provider = "Stripe",
             CompletedAt = DateTime.UtcNow
-        });
+        };
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Order?)null);
 
-        // Act
-        var act = () => _sut.Handle(notification, CancellationToken.None);
+        var act = () => _sut.Handle(@event, CancellationToken.None);
 
-        // Assert
         await act.Should().NotThrowAsync();
         await _repository.DidNotReceive().UpdateAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }
@@ -66,24 +60,22 @@ public class PaymentCompletedHandlerTests
     [Fact]
     public async Task Handle_WhenOrderAlreadyPaid_IsIdempotent()
     {
-        // Arrange
         var order = OrderBuilder.Default().Build();
         order.MarkAsPaid();
-        var notification = new PaymentCompletedNotification(new PaymentCompletedEvent
+        var @event = new PaymentCompletedEvent
         {
             OrderId = order.Id,
             PaymentId = Guid.NewGuid(),
             Amount = 10m,
             Provider = "Stripe",
             CompletedAt = DateTime.UtcNow
-        });
+        };
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
-        // Act
-        var act = () => _sut.Handle(notification, CancellationToken.None);
+        var act = () => _sut.Handle(@event, CancellationToken.None);
 
-        // Assert
         await act.Should().NotThrowAsync();
         await _repository.DidNotReceive().UpdateAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }
 }
+

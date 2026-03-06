@@ -1,15 +1,14 @@
-using MediatR;
 using NextAurora.Contracts.Events;
 using OrderService.Domain.Entities;
 using OrderService.Domain.Interfaces;
 
 namespace OrderService.Application.EventHandlers;
 
-public class ShipmentDispatchedHandler(IOrderRepository repository) : INotificationHandler<ShipmentDispatchedNotification>
+public class ShipmentDispatchedHandler(IOrderRepository repository)
 {
-    public async Task Handle(ShipmentDispatchedNotification notification, CancellationToken cancellationToken)
+    public async Task Handle(ShipmentDispatchedEvent @event, CancellationToken cancellationToken)
     {
-        var order = await repository.GetByIdAsync(notification.Event.OrderId, cancellationToken);
+        var order = await repository.GetByIdAsync(@event.OrderId, cancellationToken);
         if (order is null) return;
 
         if (order.Status != OrderStatus.Paid) return;
@@ -18,5 +17,3 @@ public class ShipmentDispatchedHandler(IOrderRepository repository) : INotificat
         await repository.UpdateAsync(order, cancellationToken);
     }
 }
-
-public record ShipmentDispatchedNotification(ShipmentDispatchedEvent Event) : INotification;

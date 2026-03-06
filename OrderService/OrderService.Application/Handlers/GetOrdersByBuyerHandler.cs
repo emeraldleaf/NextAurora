@@ -1,4 +1,3 @@
-using MediatR;
 using NextAurora.Contracts.DTOs;
 using OrderService.Application.Queries;
 using OrderService.Domain.Interfaces;
@@ -6,7 +5,6 @@ using OrderService.Domain.Interfaces;
 namespace OrderService.Application.Handlers;
 
 public class GetOrdersByBuyerHandler(IOrderRepository repository)
-    : IRequestHandler<GetOrdersByBuyerQuery, IReadOnlyList<OrderSummaryDto>>
 {
     public async Task<IReadOnlyList<OrderSummaryDto>> Handle(GetOrdersByBuyerQuery request, CancellationToken cancellationToken)
     {

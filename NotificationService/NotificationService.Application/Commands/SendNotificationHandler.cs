@@ -1,5 +1,4 @@
 using System.Diagnostics.Metrics;
-using MediatR;
 using Microsoft.Extensions.Logging;
 using NotificationService.Domain.Entities;
 using NotificationService.Domain.Interfaces;
@@ -11,11 +10,11 @@ public record SendNotificationRequest(
     string RecipientEmail,
     string Subject,
     string Body,
-    string Channel = "Email") : IRequest;
+    string Channel = "Email");
 
 public partial class SendNotificationHandler(
     INotificationSender sender,
-    ILogger<SendNotificationHandler> logger) : IRequestHandler<SendNotificationRequest>
+    ILogger<SendNotificationHandler> logger)
 {
     private static readonly Counter<long> NotificationsSent =
         new Meter("NextAurora").CreateCounter<long>("notifications.sent");

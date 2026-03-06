@@ -1,11 +1,10 @@
 using CatalogService.Domain.Entities;
 using CatalogService.Domain.Interfaces;
-using MediatR;
 using CatalogService.Application.Commands;
 
 namespace CatalogService.Application.Handlers;
 
-public class CreateProductHandler(IProductRepository repository) : IRequestHandler<CreateProductCommand, Guid>
+public class CreateProductHandler(IProductRepository repository)
 {
     public async Task<Guid> Handle(CreateProductCommand request, CancellationToken cancellationToken)
     {

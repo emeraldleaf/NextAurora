@@ -1,5 +1,4 @@
 using FluentAssertions;
-using MediatR;
 using NSubstitute;
 using NextAurora.Contracts.Events;
 using NotificationService.Application.Commands;
@@ -10,21 +9,19 @@ namespace NotificationService.Tests.Unit.Application;
 
 public class OrderPlacedNotificationHandlerTests
 {
-    private readonly IMediator _mediator = Substitute.For<IMediator>();
     private readonly IRecipientResolver _recipientResolver = Substitute.For<IRecipientResolver>();
     private readonly OrderPlacedNotificationHandler _sut;
 
     public OrderPlacedNotificationHandlerTests()
     {
-        _sut = new OrderPlacedNotificationHandler(_mediator, _recipientResolver);
+        _sut = new OrderPlacedNotificationHandler(_recipientResolver);
     }
 
     [Fact]
-    public async Task Handle_SendsNotificationWithValidEmail()
+    public async Task Handle_WhenRecipientResolved_ReturnsSendNotificationRequestWithEmail()
     {
-        // Arrange
         var buyerId = Guid.NewGuid();
-        var notification = new OrderPlacedNotification(new OrderPlacedEvent
+        var @event = new OrderPlacedEvent
         {
             OrderId = Guid.NewGuid(),
             BuyerId = buyerId,
@@ -32,26 +29,22 @@ public class OrderPlacedNotificationHandlerTests
             TotalAmount = 100m,
             Currency = "USD",
             Lines = []
-        });
+        };
         _recipientResolver.ResolveByBuyerIdAsync(buyerId, Arg.Any<CancellationToken>())
             .Returns(new RecipientInfo(buyerId, "buyer@test.com"));
 
-        // Act
-        await _sut.Handle(notification, CancellationToken.None);
+        var result = await _sut.Handle(@event, CancellationToken.None);
 
-        // Assert
-        await _mediator.Received(1).Send(
-            Arg.Is<SendNotificationRequest>(r => !string.IsNullOrEmpty(r.RecipientEmail)),
-            Arg.Any<CancellationToken>());
+        result.Should().NotBeNull();
+        result!.RecipientEmail.Should().Be("buyer@test.com");
     }
 
     [Fact]
-    public async Task Handle_SendsNotificationForOrderPlaced()
+    public async Task Handle_WhenRecipientResolved_ReturnsSendNotificationRequestWithOrderReceivedSubject()
     {
-        // Arrange
         var buyerId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var notification = new OrderPlacedNotification(new OrderPlacedEvent
+        var @event = new OrderPlacedEvent
         {
             OrderId = orderId,
             BuyerId = buyerId,
@@ -59,25 +52,21 @@ public class OrderPlacedNotificationHandlerTests
             TotalAmount = 100m,
             Currency = "USD",
             Lines = []
-        });
+        };
         _recipientResolver.ResolveByBuyerIdAsync(buyerId, Arg.Any<CancellationToken>())
             .Returns(new RecipientInfo(buyerId, "buyer@test.com"));
 
-        // Act
-        await _sut.Handle(notification, CancellationToken.None);
+        var result = await _sut.Handle(@event, CancellationToken.None);
 
-        // Assert
-        await _mediator.Received(1).Send(
-            Arg.Is<SendNotificationRequest>(r => r.Subject == "Order Received"),
-            Arg.Any<CancellationToken>());
+        result.Should().NotBeNull();
+        result!.Subject.Should().Be("Order Received");
     }
 
     [Fact]
-    public async Task Handle_WhenRecipientNotResolved_DoesNotSendNotification()
+    public async Task Handle_WhenRecipientNotResolved_ReturnsNull()
     {
-        // Arrange
         var buyerId = Guid.NewGuid();
-        var notification = new OrderPlacedNotification(new OrderPlacedEvent
+        var @event = new OrderPlacedEvent
         {
             OrderId = Guid.NewGuid(),
             BuyerId = buyerId,
@@ -85,14 +74,13 @@ public class OrderPlacedNotificationHandlerTests
             TotalAmount = 100m,
             Currency = "USD",
             Lines = []
-        });
+        };
         _recipientResolver.ResolveByBuyerIdAsync(buyerId, Arg.Any<CancellationToken>())
             .Returns((RecipientInfo?)null);
 
-        // Act
-        await _sut.Handle(notification, CancellationToken.None);
+        var result = await _sut.Handle(@event, CancellationToken.None);
 
-        // Assert
-        await _mediator.DidNotReceive().Send(Arg.Any<SendNotificationRequest>(), Arg.Any<CancellationToken>());
+        result.Should().BeNull();
     }
 }
+

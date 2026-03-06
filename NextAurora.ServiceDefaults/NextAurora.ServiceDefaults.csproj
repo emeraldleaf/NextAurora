@@ -16,6 +16,7 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
     <PackageReference Include="OpenTelemetry.Instrumentation.GrpcNetClient" />
     <PackageReference Include="FluentValidation" />
+    <PackageReference Include="WolverineFx" />
   </ItemGroup>
 
 </Project>

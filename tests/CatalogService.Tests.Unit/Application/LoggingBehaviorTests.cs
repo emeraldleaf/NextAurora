@@ -1,69 +1,87 @@
 using System.Diagnostics;
 using FluentAssertions;
-using MediatR;
 using Microsoft.Extensions.Logging;
+using NextAurora.ServiceDefaults.Messaging;
 using NSubstitute;
-using CatalogService.Application.Behaviors;
+using Wolverine;
 
 namespace CatalogService.Tests.Unit.Application;
 
-public class LoggingBehaviorTests
+public class ContextPropagationMiddlewareTests
 {
-    private readonly ILogger<LoggingBehavior<LoggingBehaviorTestRequest, string>> _logger =
-        Substitute.For<ILogger<LoggingBehavior<LoggingBehaviorTestRequest, string>>>();
+    private readonly ILogger<ContextPropagationMiddleware> _logger =
+        Substitute.For<ILogger<ContextPropagationMiddleware>>();
 
     [Fact]
-    public async Task Handle_WhenActivityBaggageContainsUserAndSession_ScopeIncludesBothFields()
+    public void Before_WhenEnvelopeHasAllHeaders_RestoresAllContextToActivityBaggage()
     {
-        Dictionary<string, object?>? capturedScope = null;
-        _logger.BeginScope(Arg.Do<Dictionary<string, object?>>(d => capturedScope = d))
-               .Returns(Substitute.For<IDisposable>());
+        var envelope = new Envelope();
+        envelope.Headers["X-Correlation-Id"] = "corr-123";
+        envelope.Headers["X-User-Id"] = "user-456";
+        envelope.Headers["X-Session-Id"] = "sess-789";
 
         var activity = new Activity("test");
         activity.Start();
         using (activity)
         {
-            activity.SetBaggage("correlation.id", "corr-123");
-            activity.SetBaggage("user.id", "user-456");
-            activity.SetBaggage("session.id", "sess-789");
+            var sut = new ContextPropagationMiddleware(_logger);
+            sut.Before(envelope);
 
-            var sut = new LoggingBehavior<LoggingBehaviorTestRequest, string>(_logger);
-            await sut.Handle(new LoggingBehaviorTestRequest(), () => Task.FromResult("ok"), CancellationToken.None);
+            Activity.Current?.GetBaggageItem("user.id").Should().Be("user-456");
+            Activity.Current?.GetBaggageItem("session.id").Should().Be("sess-789");
+            Activity.Current?.GetBaggageItem("correlation.id").Should().Be("corr-123");
         }
+    }
+
+    [Fact]
+    public void Before_WhenEnvelopeHasNoUserOrSession_ScopeContainsOnlyCorrelationId()
+    {
+        Dictionary<string, object?>? capturedScope = null;
+        _logger.BeginScope(Arg.Do<Dictionary<string, object?>>(d => capturedScope = d))
+               .Returns(Substitute.For<IDisposable>());
+
+        var envelope = new Envelope();
+        envelope.Headers["X-Correlation-Id"] = "corr-only";
+
+        var sut = new ContextPropagationMiddleware(_logger);
+        sut.Before(envelope);
+
+        capturedScope.Should().ContainKey("CorrelationId");
+        capturedScope.Should().NotContainKey("UserId");
+        capturedScope.Should().NotContainKey("SessionId");
+    }
+
+    [Fact]
+    public void Before_WhenEnvelopeHasUserAndSession_ScopeIncludesBothFields()
+    {
+        Dictionary<string, object?>? capturedScope = null;
+        _logger.BeginScope(Arg.Do<Dictionary<string, object?>>(d => capturedScope = d))
+               .Returns(Substitute.For<IDisposable>());
+
+        var envelope = new Envelope();
+        envelope.Headers["X-User-Id"] = "user-456";
+        envelope.Headers["X-Session-Id"] = "sess-789";
+
+        var sut = new ContextPropagationMiddleware(_logger);
+        sut.Before(envelope);
 
         capturedScope.Should().ContainKey("UserId").WhoseValue.Should().Be("user-456");
         capturedScope.Should().ContainKey("SessionId").WhoseValue.Should().Be("sess-789");
     }
 
     [Fact]
-    public async Task Handle_WhenNoBaggageSet_ScopeOmitsUserAndSessionKeys()
+    public void Finally_DisposesScope()
     {
-        Dictionary<string, object?>? capturedScope = null;
-        _logger.BeginScope(Arg.Do<Dictionary<string, object?>>(d => capturedScope = d))
-               .Returns(Substitute.For<IDisposable>());
+        var scope = Substitute.For<IDisposable>();
+        _logger.BeginScope(Arg.Any<Dictionary<string, object?>>()).Returns(scope);
 
-        var activity = new Activity("test");
-        activity.Start();
-        using (activity)
-        {
-            var sut = new LoggingBehavior<LoggingBehaviorTestRequest, string>(_logger);
-            await sut.Handle(new LoggingBehaviorTestRequest(), () => Task.FromResult("ok"), CancellationToken.None);
-        }
+        var envelope = new Envelope();
 
-        capturedScope.Should().NotContainKey("UserId");
-        capturedScope.Should().NotContainKey("SessionId");
-    }
+        var sut = new ContextPropagationMiddleware(_logger);
+        sut.Before(envelope);
+        sut.Finally();
 
-    [Fact]
-    public async Task Handle_AlwaysInvokesDelegateAndReturnsResult()
-    {
-        _logger.BeginScope(Arg.Any<Dictionary<string, object?>>()).Returns(Substitute.For<IDisposable>());
-
-        var sut = new LoggingBehavior<LoggingBehaviorTestRequest, string>(_logger);
-        var result = await sut.Handle(new LoggingBehaviorTestRequest(), () => Task.FromResult("expected"), CancellationToken.None);
-
-        result.Should().Be("expected");
+        scope.Received(1).Dispose();
     }
 }
 
-public sealed record LoggingBehaviorTestRequest : IRequest<string>;

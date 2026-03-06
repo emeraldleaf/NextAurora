@@ -1,15 +1,14 @@
-using MediatR;
 using NextAurora.Contracts.Events;
 using ShippingService.Application.Commands;
 
 namespace ShippingService.Application.EventHandlers;
 
-public class PaymentCompletedHandler(IMediator mediator) : INotificationHandler<PaymentCompletedNotification>
+/// <summary>
+/// Handles the PaymentCompletedEvent by cascading a CreateShipmentCommand.
+/// Wolverine automatically dispatches the returned command to CreateShipmentHandler.
+/// </summary>
+public static class PaymentCompletedHandler
 {
-    public async Task Handle(PaymentCompletedNotification notification, CancellationToken cancellationToken)
-    {
-        await mediator.Send(new CreateShipmentCommand(notification.Event.OrderId), cancellationToken);
-    }
+    public static CreateShipmentCommand Handle(PaymentCompletedEvent @event)
+        => new(@event.OrderId);
 }
-
-public record PaymentCompletedNotification(PaymentCompletedEvent Event) : INotification;

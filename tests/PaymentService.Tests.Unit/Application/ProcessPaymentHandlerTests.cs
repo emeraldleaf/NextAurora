@@ -38,7 +38,7 @@ public class ProcessPaymentHandlerTests
         result.Should().NotBeEmpty();
         await _repository.Received(1).AddAsync(Arg.Any<Payment>(), Arg.Any<CancellationToken>());
         await _repository.Received(1).UpdateAsync(Arg.Is<Payment>(p => p.Status == PaymentStatus.Completed), Arg.Any<CancellationToken>());
-        await _eventPublisher.Received(1).PublishAsync(Arg.Any<PaymentCompletedEvent>(), "payment-events", Arg.Any<CancellationToken>());
+        await _eventPublisher.Received(1).PublishAsync(Arg.Any<PaymentCompletedEvent>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class ProcessPaymentHandlerTests
         // Assert
         result.Should().NotBeEmpty();
         await _repository.Received(1).UpdateAsync(Arg.Is<Payment>(p => p.Status == PaymentStatus.Failed), Arg.Any<CancellationToken>());
-        await _eventPublisher.Received(1).PublishAsync(Arg.Any<PaymentFailedEvent>(), "payment-events", Arg.Any<CancellationToken>());
+        await _eventPublisher.Received(1).PublishAsync(Arg.Any<PaymentFailedEvent>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -110,7 +110,6 @@ public class ProcessPaymentHandlerTests
                 e.OrderId == command.OrderId &&
                 e.Amount == command.Amount &&
                 e.Provider == "Stripe"),
-            "payment-events",
             Arg.Any<CancellationToken>());
     }
 

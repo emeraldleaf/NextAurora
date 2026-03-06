@@ -48,7 +48,6 @@ public class CreateShipmentHandlerTests
         // Assert
         await _eventPublisher.Received(1).PublishAsync(
             Arg.Is<ShipmentDispatchedEvent>(e => e.OrderId == orderId),
-            "shipping-events",
             Arg.Any<CancellationToken>());
     }
 
@@ -64,7 +63,6 @@ public class CreateShipmentHandlerTests
         // Assert
         await _eventPublisher.Received(1).PublishAsync(
             Arg.Is<ShipmentDispatchedEvent>(e => e.TrackingNumber.StartsWith("NVC-", StringComparison.Ordinal)),
-            "shipping-events",
             Arg.Any<CancellationToken>());
     }
 
@@ -83,6 +81,6 @@ public class CreateShipmentHandlerTests
         // Assert
         result.Should().Be(existingShipment.Id);
         await _repository.DidNotReceive().AddAsync(Arg.Any<Shipment>(), Arg.Any<CancellationToken>());
-        await _eventPublisher.DidNotReceive().PublishAsync(Arg.Any<ShipmentDispatchedEvent>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _eventPublisher.DidNotReceive().PublishAsync(Arg.Any<ShipmentDispatchedEvent>(), Arg.Any<CancellationToken>());
     }
 }

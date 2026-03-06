@@ -1,6 +1,5 @@
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
-using MediatR;
 using NextAurora.Contracts.Events;
 using OrderService.Application.Commands;
 using OrderService.Application.Interfaces;
@@ -14,7 +13,6 @@ public class PlaceOrderHandler(
     IEventPublisher eventPublisher,
     ICatalogClient catalogClient,
     ILogger<PlaceOrderHandler> logger)
-    : IRequestHandler<PlaceOrderCommand, Guid>
 {
     private static readonly Counter<long> OrdersPlaced =
         new Meter("NextAurora").CreateCounter<long>("orders.placed");
@@ -75,7 +73,7 @@ public class PlaceOrderHandler(
             }).ToList()
         };
 
-        await eventPublisher.PublishAsync(@event, "order-events", cancellationToken);
+        await eventPublisher.PublishAsync(@event, cancellationToken);
         OrdersPlaced.Add(1);
         return order.Id;
     }

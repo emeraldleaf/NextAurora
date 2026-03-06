@@ -1,10 +1,9 @@
 using CatalogService.Application.Commands;
 using CatalogService.Domain.Interfaces;
-using MediatR;
 
 namespace CatalogService.Application.Handlers;
 
-public class ReserveStockHandler(IProductRepository repository) : IRequestHandler<ReserveStockCommand, bool>
+public class ReserveStockHandler(IProductRepository repository)
 {
     public async Task<bool> Handle(ReserveStockCommand request, CancellationToken cancellationToken)
     {

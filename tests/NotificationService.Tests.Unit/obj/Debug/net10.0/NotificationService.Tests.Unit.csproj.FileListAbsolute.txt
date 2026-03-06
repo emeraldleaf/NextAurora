@@ -14,8 +14,6 @@
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/Bogus.dll
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/Castle.Core.dll
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/FluentAssertions.dll
-/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/MediatR.dll
-/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/MediatR.Contracts.dll
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/Microsoft.VisualStudio.CodeCoverage.Shim.dll
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/Microsoft.Extensions.Logging.Abstractions.dll

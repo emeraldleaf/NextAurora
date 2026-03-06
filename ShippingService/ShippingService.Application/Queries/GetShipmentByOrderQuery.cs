@@ -1,8 +1,6 @@
-using MediatR;
-
 namespace ShippingService.Application.Queries;
 
-public record GetShipmentByOrderQuery(Guid OrderId) : IRequest<ShipmentDto?>;
+public record GetShipmentByOrderQuery(Guid OrderId);
 
 public record ShipmentDto(
     Guid Id,

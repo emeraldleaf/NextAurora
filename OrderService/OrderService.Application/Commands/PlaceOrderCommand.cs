@@ -1,11 +1,9 @@
-using MediatR;
-
 namespace OrderService.Application.Commands;
 
 public record PlaceOrderCommand(
     Guid BuyerId,
     string Currency,
-    List<PlaceOrderLineItem> Lines) : IRequest<Guid>;
+    List<PlaceOrderLineItem> Lines);
 
 public record PlaceOrderLineItem(
     Guid ProductId,

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
-    <PackageReference Include="MediatR" />
+    <PackageReference Include="WolverineFx" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../NotificationService.Application/NotificationService.Application.csproj" />

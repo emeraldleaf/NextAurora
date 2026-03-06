@@ -1,4 +1,3 @@
-using MediatR;
 using NextAurora.Contracts.Events;
 using NotificationService.Application.Commands;
 using NotificationService.Application.Interfaces;
@@ -7,44 +6,27 @@ namespace NotificationService.Application.EventHandlers;
 
 /// <summary>
 /// Handles the PaymentFailedEvent published by PaymentService when a payment gateway
-/// call fails.  Sends the buyer an email (or other configured channel) explaining that
-/// their payment could not be processed and they should retry.
+/// call fails.  Returns a SendNotificationRequest which Wolverine automatically cascades
+/// to SendNotificationHandler.
 ///
-/// IRecipientResolver looks up the buyer's contact details (email, push token, etc.)
-/// from an external identity or user-profile service.  If the buyer cannot be resolved
-/// (e.g. test data, deleted account) the handler returns silently — no notification is
-/// sent and the event is still completed (not abandoned) to avoid infinite retries.
-///
-/// The SendNotificationRequest dispatches to SendNotificationHandler which selects the
-/// right delivery channel (Email, Push, SMS) and records the notification in the database.
+/// If the buyer cannot be resolved the handler returns null — Wolverine ignores null returns,
+/// so no notification is sent without infinite retries.
 /// </summary>
-public class PaymentFailedNotificationHandler(IMediator mediator, IRecipientResolver recipientResolver)
-    : INotificationHandler<PaymentFailedNotification>
+public class PaymentFailedNotificationHandler(IRecipientResolver recipientResolver)
 {
-    public async Task Handle(PaymentFailedNotification notification, CancellationToken cancellationToken)
+    public async Task<SendNotificationRequest?> Handle(PaymentFailedEvent @event, CancellationToken cancellationToken)
     {
-        // Resolve contact details for the buyer using the BuyerId from the event.
-        // PaymentService includes BuyerId in PaymentFailedEvent so NotificationService
-        // does not need to call back to OrderService to find out who placed the order.
-        var recipient = await recipientResolver.ResolveByBuyerIdAsync(notification.Event.BuyerId, cancellationToken);
-        if (recipient is null) return;
+        var recipient = await recipientResolver.ResolveByBuyerIdAsync(@event.BuyerId, cancellationToken);
+        if (recipient is null) return null;
 
-        // Build a concise, actionable message.  The Reason field comes directly from the
-        // payment gateway (e.g. "insufficient_funds") and is displayed to the user.
-        var body = $"Your payment for order {notification.Event.OrderId} could not be processed. " +
-                   $"Reason: {notification.Event.Reason}. Please update your payment method and try again.";
+        var body = $"Your payment for order {@event.OrderId} could not be processed. " +
+                   $"Reason: {@event.Reason}. Please update your payment method and try again.";
 
-        await mediator.Send(new SendNotificationRequest(
+        return new SendNotificationRequest(
             recipient.BuyerId,
             recipient.Email,
             "Payment Failed",
             body,
-            "Email"), cancellationToken);
+            "Email");
     }
 }
-
-/// <summary>
-/// MediatR notification wrapper carrying a <see cref="PaymentFailedEvent"/> for dispatch
-/// within NotificationService's pipeline.
-/// </summary>
-public record PaymentFailedNotification(PaymentFailedEvent Event) : INotification;

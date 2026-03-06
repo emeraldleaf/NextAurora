@@ -1,19 +1,24 @@
 using CatalogService.Api.Endpoints;
 using CatalogService.Api.Services;
-using CatalogService.Application.Behaviors;
-using CatalogService.Application.Queries;
+using CatalogService.Application.Commands;
 using CatalogService.Infrastructure;
 using FluentValidation;
-using MediatR;
+using Microsoft.Extensions.Logging;
+using Wolverine;
+using Wolverine.FluentValidation;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<GetAllProductsQuery>());
-builder.Services.AddValidatorsFromAssemblyContaining<GetAllProductsQuery>();
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
+builder.Host.UseWolverine(opts =>
+{
+    opts.Discovery.IncludeAssembly(typeof(CreateProductCommand).Assembly);
+    opts.UseFluentValidation();
+    opts.Policies.LogMessageStarting(LogLevel.Information);
+    opts.AddNextAuroraContextPropagation();
+});
+builder.Services.AddValidatorsFromAssemblyContaining<CreateProductCommand>();
 builder.Services.AddCatalogInfrastructure(builder.Configuration);
 
 builder.Services.AddStackExchangeRedisCache(options =>

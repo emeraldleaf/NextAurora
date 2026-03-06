@@ -1,11 +1,10 @@
 using CatalogService.Domain.Interfaces;
-using MediatR;
 using NextAurora.Contracts.DTOs;
 using CatalogService.Application.Queries;
 
 namespace CatalogService.Application.Handlers;
 
-public class GetAllProductsHandler(IProductRepository repository) : IRequestHandler<GetAllProductsQuery, IReadOnlyList<ProductDto>>
+public class GetAllProductsHandler(IProductRepository repository)
 {
     public async Task<IReadOnlyList<ProductDto>> Handle(GetAllProductsQuery request, CancellationToken cancellationToken)
     {

@@ -2,11 +2,11 @@ using CatalogService.Api.Grpc;
 using CatalogService.Application.Commands;
 using CatalogService.Application.Queries;
 using Grpc.Core;
-using MediatR;
+using Wolverine;
 
 namespace CatalogService.Api.Services;
 
-public class CatalogGrpcService(ISender sender) : CatalogGrpc.CatalogGrpcBase
+public class CatalogGrpcService(IMessageBus bus) : CatalogGrpc.CatalogGrpcBase
 {
     public override async Task<ProductResponse> GetProduct(GetProductRequest request, ServerCallContext context)
     {
@@ -15,7 +15,7 @@ public class CatalogGrpcService(ISender sender) : CatalogGrpc.CatalogGrpcBase
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid product ID format"));
         }
 
-        var product = await sender.Send(new GetProductByIdQuery(productId), context.CancellationToken);
+        var product = await bus.InvokeAsync<NextAurora.Contracts.DTOs.ProductDto?>(new GetProductByIdQuery(productId), context.CancellationToken);
 
         if (product is null)
         {
@@ -36,7 +36,7 @@ public class CatalogGrpcService(ISender sender) : CatalogGrpc.CatalogGrpcBase
                 continue;
             }
 
-            var product = await sender.Send(new GetProductByIdQuery(productId), context.CancellationToken);
+            var product = await bus.InvokeAsync<NextAurora.Contracts.DTOs.ProductDto?>(new GetProductByIdQuery(productId), context.CancellationToken);
             if (product is not null)
             {
                 response.Products.Add(MapToResponse(product));
@@ -53,7 +53,7 @@ public class CatalogGrpcService(ISender sender) : CatalogGrpc.CatalogGrpcBase
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid product ID format"));
         }
 
-        var success = await sender.Send(new ReserveStockCommand(productId, request.Quantity), context.CancellationToken);
+        var success = await bus.InvokeAsync<bool>(new ReserveStockCommand(productId, request.Quantity), context.CancellationToken);
         return new ReserveStockResponse { Success = success };
     }
 

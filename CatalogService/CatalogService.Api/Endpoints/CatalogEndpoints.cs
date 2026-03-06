@@ -1,6 +1,6 @@
 using CatalogService.Application.Commands;
 using CatalogService.Application.Queries;
-using MediatR;
+using Wolverine;
 
 namespace CatalogService.Api.Endpoints;
 
@@ -10,34 +10,34 @@ public static class CatalogEndpoints
     {
         var group = app.MapGroup("/api/products").WithTags("Catalog");
 
-        group.MapGet("/", async (IMediator mediator) =>
+        group.MapGet("/", async (IMessageBus bus) =>
         {
-            var products = await mediator.Send(new GetAllProductsQuery());
+            var products = await bus.InvokeAsync<IReadOnlyList<NextAurora.Contracts.DTOs.ProductDto>>(new GetAllProductsQuery());
             return Results.Ok(products);
         });
 
-        group.MapGet("/{id:guid}", async (Guid id, IMediator mediator) =>
+        group.MapGet("/{id:guid}", async (Guid id, IMessageBus bus) =>
         {
-            var product = await mediator.Send(new GetProductByIdQuery(id));
+            var product = await bus.InvokeAsync<NextAurora.Contracts.DTOs.ProductDto?>(new GetProductByIdQuery(id));
             return product is not null ? Results.Ok(product) : Results.NotFound();
         });
 
-        group.MapGet("/search", async (string query, IMediator mediator) =>
+        group.MapGet("/search", async (string query, IMessageBus bus) =>
         {
-            var products = await mediator.Send(new SearchProductsQuery(query));
+            var products = await bus.InvokeAsync<IReadOnlyList<NextAurora.Contracts.DTOs.ProductDto>>(new SearchProductsQuery(query));
             return Results.Ok(products);
         });
 
-        group.MapPost("/", async (CreateProductCommand command, IMediator mediator) =>
+        group.MapPost("/", async (CreateProductCommand command, IMessageBus bus) =>
         {
-            var productId = await mediator.Send(command);
+            var productId = await bus.InvokeAsync<Guid>(command);
             return Results.Created($"/api/products/{productId}", new { Id = productId });
         });
 
-        group.MapPut("/{id:guid}", async (Guid id, UpdateProductCommand command, IMediator mediator) =>
+        group.MapPut("/{id:guid}", async (Guid id, UpdateProductCommand command, IMessageBus bus) =>
         {
             if (id != command.ProductId) return Results.BadRequest();
-            await mediator.Send(command);
+            await bus.InvokeAsync(command);
             return Results.NoContent();
         });
     }

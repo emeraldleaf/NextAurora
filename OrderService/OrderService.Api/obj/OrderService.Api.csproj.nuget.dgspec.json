@@ -74,7 +74,7 @@
             "Aspire.Hosting.PostgreSQL": "9.3.0",
             "Aspire.Hosting.Redis": "9.3.0",
             "Aspire.Hosting.SqlServer": "9.3.0",
-            "Azure.Messaging.ServiceBus": "7.18.4",
+            "Azure.Messaging.ServiceBus": "7.20.1",
             "Bogus": "35.6.1",
             "FluentAssertions": "8.0.1",
             "FluentValidation": "11.11.0",
@@ -83,7 +83,6 @@
             "Grpc.AspNetCore": "2.71.0",
             "Grpc.Net.ClientFactory": "2.71.0",
             "Grpc.Tools": "2.71.0",
-            "MediatR": "12.4.1",
             "Meziantou.Analyzer": "2.0.257",
             "Microsoft.AspNetCore.Components.WebAssembly": "10.0.2",
             "Microsoft.AspNetCore.Components.WebAssembly.DevServer": "10.0.2",
@@ -108,6 +107,10 @@
             "OpenTelemetry.Instrumentation.Runtime": "1.14.0",
             "Roslynator.Analyzers": "4.14.1",
             "SonarAnalyzer.CSharp": "10.16.0.128591",
+            "WolverineFx": "5.17.0",
+            "WolverineFx.AzureServiceBus": "5.17.0",
+            "WolverineFx.EntityFrameworkCore": "5.17.0",
+            "WolverineFx.FluentValidation": "5.17.0",
             "xunit": "2.9.3",
             "xunit.runner.visualstudio": "3.0.2"
           },
@@ -512,6 +515,11 @@
               "target": "Package",
               "version": "[10.16.0.128591, )",
               "versionCentrallyManaged": true
+            },
+            "WolverineFx": {
+              "target": "Package",
+              "version": "[5.17.0, )",
+              "versionCentrallyManaged": true
             }
           },
           "centralPackageVersions": {
@@ -520,7 +528,7 @@
             "Aspire.Hosting.PostgreSQL": "9.3.0",
             "Aspire.Hosting.Redis": "9.3.0",
             "Aspire.Hosting.SqlServer": "9.3.0",
-            "Azure.Messaging.ServiceBus": "7.18.4",
+            "Azure.Messaging.ServiceBus": "7.20.1",
             "Bogus": "35.6.1",
             "FluentAssertions": "8.0.1",
             "FluentValidation": "11.11.0",
@@ -529,7 +537,6 @@
             "Grpc.AspNetCore": "2.71.0",
             "Grpc.Net.ClientFactory": "2.71.0",
             "Grpc.Tools": "2.71.0",
-            "MediatR": "12.4.1",
             "Meziantou.Analyzer": "2.0.257",
             "Microsoft.AspNetCore.Components.WebAssembly": "10.0.2",
             "Microsoft.AspNetCore.Components.WebAssembly.DevServer": "10.0.2",
@@ -554,6 +561,10 @@
             "OpenTelemetry.Instrumentation.Runtime": "1.14.0",
             "Roslynator.Analyzers": "4.14.1",
             "SonarAnalyzer.CSharp": "10.16.0.128591",
+            "WolverineFx": "5.17.0",
+            "WolverineFx.AzureServiceBus": "5.17.0",
+            "WolverineFx.EntityFrameworkCore": "5.17.0",
+            "WolverineFx.FluentValidation": "5.17.0",
             "xunit": "2.9.3",
             "xunit.runner.visualstudio": "3.0.2"
           },
@@ -1049,6 +1060,11 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "dependencies": {
+            "FluentValidation.DependencyInjectionExtensions": {
+              "target": "Package",
+              "version": "[11.11.0, )",
+              "versionCentrallyManaged": true
+            },
             "Google.Protobuf": {
               "target": "Package",
               "version": "[3.29.3, )",
@@ -1063,11 +1079,6 @@
               "suppressParent": "All",
               "target": "Package",
               "version": "[2.71.0, )",
-              "versionCentrallyManaged": true
-            },
-            "MediatR": {
-              "target": "Package",
-              "version": "[12.4.1, )",
               "versionCentrallyManaged": true
             },
             "Meziantou.Analyzer": {
@@ -1095,6 +1106,16 @@
               "target": "Package",
               "version": "[10.16.0.128591, )",
               "versionCentrallyManaged": true
+            },
+            "WolverineFx": {
+              "target": "Package",
+              "version": "[5.17.0, )",
+              "versionCentrallyManaged": true
+            },
+            "WolverineFx.FluentValidation": {
+              "target": "Package",
+              "version": "[5.17.0, )",
+              "versionCentrallyManaged": true
             }
           },
           "centralPackageVersions": {
@@ -1103,7 +1124,7 @@
             "Aspire.Hosting.PostgreSQL": "9.3.0",
             "Aspire.Hosting.Redis": "9.3.0",
             "Aspire.Hosting.SqlServer": "9.3.0",
-            "Azure.Messaging.ServiceBus": "7.18.4",
+            "Azure.Messaging.ServiceBus": "7.20.1",
             "Bogus": "35.6.1",
             "FluentAssertions": "8.0.1",
             "FluentValidation": "11.11.0",
@@ -1112,7 +1133,6 @@
             "Grpc.AspNetCore": "2.71.0",
             "Grpc.Net.ClientFactory": "2.71.0",
             "Grpc.Tools": "2.71.0",
-            "MediatR": "12.4.1",
             "Meziantou.Analyzer": "2.0.257",
             "Microsoft.AspNetCore.Components.WebAssembly": "10.0.2",
             "Microsoft.AspNetCore.Components.WebAssembly.DevServer": "10.0.2",
@@ -1137,6 +1157,10 @@
             "OpenTelemetry.Instrumentation.Runtime": "1.14.0",
             "Roslynator.Analyzers": "4.14.1",
             "SonarAnalyzer.CSharp": "10.16.0.128591",
+            "WolverineFx": "5.17.0",
+            "WolverineFx.AzureServiceBus": "5.17.0",
+            "WolverineFx.EntityFrameworkCore": "5.17.0",
+            "WolverineFx.FluentValidation": "5.17.0",
             "xunit": "2.9.3",
             "xunit.runner.visualstudio": "3.0.2"
           },
@@ -1631,16 +1655,6 @@
               "version": "[11.11.0, )",
               "versionCentrallyManaged": true
             },
-            "FluentValidation.DependencyInjectionExtensions": {
-              "target": "Package",
-              "version": "[11.11.0, )",
-              "versionCentrallyManaged": true
-            },
-            "MediatR": {
-              "target": "Package",
-              "version": "[12.4.1, )",
-              "versionCentrallyManaged": true
-            },
             "Meziantou.Analyzer": {
               "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
               "suppressParent": "All",
@@ -1674,7 +1688,7 @@
             "Aspire.Hosting.PostgreSQL": "9.3.0",
             "Aspire.Hosting.Redis": "9.3.0",
             "Aspire.Hosting.SqlServer": "9.3.0",
-            "Azure.Messaging.ServiceBus": "7.18.4",
+            "Azure.Messaging.ServiceBus": "7.20.1",
             "Bogus": "35.6.1",
             "FluentAssertions": "8.0.1",
             "FluentValidation": "11.11.0",
@@ -1683,7 +1697,6 @@
             "Grpc.AspNetCore": "2.71.0",
             "Grpc.Net.ClientFactory": "2.71.0",
             "Grpc.Tools": "2.71.0",
-            "MediatR": "12.4.1",
             "Meziantou.Analyzer": "2.0.257",
             "Microsoft.AspNetCore.Components.WebAssembly": "10.0.2",
             "Microsoft.AspNetCore.Components.WebAssembly.DevServer": "10.0.2",
@@ -1708,6 +1721,10 @@
             "OpenTelemetry.Instrumentation.Runtime": "1.14.0",
             "Roslynator.Analyzers": "4.14.1",
             "SonarAnalyzer.CSharp": "10.16.0.128591",
+            "WolverineFx": "5.17.0",
+            "WolverineFx.AzureServiceBus": "5.17.0",
+            "WolverineFx.EntityFrameworkCore": "5.17.0",
+            "WolverineFx.FluentValidation": "5.17.0",
             "xunit": "2.9.3",
             "xunit.runner.visualstudio": "3.0.2"
           },
@@ -2075,7 +2092,7 @@
             "Aspire.Hosting.PostgreSQL": "9.3.0",
             "Aspire.Hosting.Redis": "9.3.0",
             "Aspire.Hosting.SqlServer": "9.3.0",
-            "Azure.Messaging.ServiceBus": "7.18.4",
+            "Azure.Messaging.ServiceBus": "7.20.1",
             "Bogus": "35.6.1",
             "FluentAssertions": "8.0.1",
             "FluentValidation": "11.11.0",
@@ -2084,7 +2101,6 @@
             "Grpc.AspNetCore": "2.71.0",
             "Grpc.Net.ClientFactory": "2.71.0",
             "Grpc.Tools": "2.71.0",
-            "MediatR": "12.4.1",
             "Meziantou.Analyzer": "2.0.257",
             "Microsoft.AspNetCore.Components.WebAssembly": "10.0.2",
             "Microsoft.AspNetCore.Components.WebAssembly.DevServer": "10.0.2",
@@ -2109,6 +2125,10 @@
             "OpenTelemetry.Instrumentation.Runtime": "1.14.0",
             "Roslynator.Analyzers": "4.14.1",
             "SonarAnalyzer.CSharp": "10.16.0.128591",
+            "WolverineFx": "5.17.0",
+            "WolverineFx.AzureServiceBus": "5.17.0",
+            "WolverineFx.EntityFrameworkCore": "5.17.0",
+            "WolverineFx.FluentValidation": "5.17.0",
             "xunit": "2.9.3",
             "xunit.runner.visualstudio": "3.0.2"
           },
@@ -2460,7 +2480,7 @@
           "dependencies": {
             "Azure.Messaging.ServiceBus": {
               "target": "Package",
-              "version": "[7.18.4, )",
+              "version": "[7.20.1, )",
               "versionCentrallyManaged": true
             },
             "Meziantou.Analyzer": {
@@ -2510,6 +2530,16 @@
               "target": "Package",
               "version": "[10.16.0.128591, )",
               "versionCentrallyManaged": true
+            },
+            "WolverineFx.AzureServiceBus": {
+              "target": "Package",
+              "version": "[5.17.0, )",
+              "versionCentrallyManaged": true
+            },
+            "WolverineFx.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[5.17.0, )",
+              "versionCentrallyManaged": true
             }
           },
           "centralPackageVersions": {
@@ -2518,7 +2548,7 @@
             "Aspire.Hosting.PostgreSQL": "9.3.0",
             "Aspire.Hosting.Redis": "9.3.0",
             "Aspire.Hosting.SqlServer": "9.3.0",
-            "Azure.Messaging.ServiceBus": "7.18.4",
+            "Azure.Messaging.ServiceBus": "7.20.1",
             "Bogus": "35.6.1",
             "FluentAssertions": "8.0.1",
             "FluentValidation": "11.11.0",
@@ -2527,7 +2557,6 @@
             "Grpc.AspNetCore": "2.71.0",
             "Grpc.Net.ClientFactory": "2.71.0",
             "Grpc.Tools": "2.71.0",
-            "MediatR": "12.4.1",
             "Meziantou.Analyzer": "2.0.257",
             "Microsoft.AspNetCore.Components.WebAssembly": "10.0.2",
             "Microsoft.AspNetCore.Components.WebAssembly.DevServer": "10.0.2",
@@ -2552,6 +2581,10 @@
             "OpenTelemetry.Instrumentation.Runtime": "1.14.0",
             "Roslynator.Analyzers": "4.14.1",
             "SonarAnalyzer.CSharp": "10.16.0.128591",
+            "WolverineFx": "5.17.0",
+            "WolverineFx.AzureServiceBus": "5.17.0",
+            "WolverineFx.EntityFrameworkCore": "5.17.0",
+            "WolverineFx.FluentValidation": "5.17.0",
             "xunit": "2.9.3",
             "xunit.runner.visualstudio": "3.0.2"
           },

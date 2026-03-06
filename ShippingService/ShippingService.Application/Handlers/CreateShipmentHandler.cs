@@ -1,5 +1,4 @@
 using System.Diagnostics.Metrics;
-using MediatR;
 using NextAurora.Contracts.Events;
 using ShippingService.Application.Commands;
 using ShippingService.Domain.Entities;
@@ -9,7 +8,7 @@ namespace ShippingService.Application.Handlers;
 
 public class CreateShipmentHandler(
     IShipmentRepository repository,
-    IEventPublisher eventPublisher) : IRequestHandler<CreateShipmentCommand, Guid>
+    IEventPublisher eventPublisher)
 {
     private static readonly string[] Carriers = ["FedEx", "UPS", "USPS", "DHL"];
 
@@ -35,7 +34,7 @@ public class CreateShipmentHandler(
             Carrier = shipment.Carrier,
             TrackingNumber = shipment.TrackingNumber,
             DispatchedAt = shipment.DispatchedAt!.Value
-        }, "shipping-events", cancellationToken);
+        }, cancellationToken);
 
         ShipmentsDispatched.Add(1);
         return shipment.Id;

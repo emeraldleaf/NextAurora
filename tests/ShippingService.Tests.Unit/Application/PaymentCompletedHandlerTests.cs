@@ -1,6 +1,4 @@
 using FluentAssertions;
-using MediatR;
-using NSubstitute;
 using NextAurora.Contracts.Events;
 using ShippingService.Application.Commands;
 using ShippingService.Application.EventHandlers;
@@ -9,54 +7,42 @@ namespace ShippingService.Tests.Unit.Application;
 
 public class PaymentCompletedHandlerTests
 {
-    private readonly IMediator _mediator = Substitute.For<IMediator>();
-    private readonly PaymentCompletedHandler _sut;
-
-    public PaymentCompletedHandlerTests()
-    {
-        _sut = new PaymentCompletedHandler(_mediator);
-    }
-
     [Fact]
-    public async Task Handle_SendsCreateShipmentCommand()
+    public void Handle_ReturnsCreateShipmentCommandWithCorrectOrderId()
     {
-        // Arrange
-        var notification = new PaymentCompletedNotification(new PaymentCompletedEvent
-        {
-            OrderId = Guid.NewGuid(),
-            PaymentId = Guid.NewGuid(),
-            Amount = 100m,
-            Provider = "Stripe",
-            CompletedAt = DateTime.UtcNow
-        });
-
-        // Act
-        await _sut.Handle(notification, CancellationToken.None);
-
-        // Assert
-        await _mediator.Received(1).Send(Arg.Any<CreateShipmentCommand>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Handle_CommandContainsCorrectOrderId()
-    {
-        // Arrange
         var orderId = Guid.NewGuid();
-        var notification = new PaymentCompletedNotification(new PaymentCompletedEvent
+        var @event = new PaymentCompletedEvent
         {
             OrderId = orderId,
             PaymentId = Guid.NewGuid(),
             Amount = 100m,
             Provider = "Stripe",
             CompletedAt = DateTime.UtcNow
-        });
+        };
 
-        // Act
-        await _sut.Handle(notification, CancellationToken.None);
+        var result = PaymentCompletedHandler.Handle(@event);
 
-        // Assert
-        await _mediator.Received(1).Send(
-            Arg.Is<CreateShipmentCommand>(c => c.OrderId == orderId),
-            Arg.Any<CancellationToken>());
+        result.Should().BeOfType<CreateShipmentCommand>();
+        result.OrderId.Should().Be(orderId);
+    }
+
+    [Fact]
+    public void Handle_AlwaysReturnsNewCommand()
+    {
+        var orderId = Guid.NewGuid();
+        var @event = new PaymentCompletedEvent
+        {
+            OrderId = orderId,
+            PaymentId = Guid.NewGuid(),
+            Amount = 50m,
+            Provider = "Stripe",
+            CompletedAt = DateTime.UtcNow
+        };
+
+        var result = PaymentCompletedHandler.Handle(@event);
+
+        result.Should().NotBeNull();
+        result.OrderId.Should().Be(orderId);
     }
 }
+

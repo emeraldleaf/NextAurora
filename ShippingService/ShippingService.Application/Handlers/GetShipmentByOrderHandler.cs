@@ -1,11 +1,9 @@
-using MediatR;
 using ShippingService.Application.Queries;
 using ShippingService.Domain.Interfaces;
 
 namespace ShippingService.Application.Handlers;
 
 public class GetShipmentByOrderHandler(IShipmentRepository repository)
-    : IRequestHandler<GetShipmentByOrderQuery, ShipmentDto?>
 {
     public async Task<ShipmentDto?> Handle(GetShipmentByOrderQuery request, CancellationToken cancellationToken)
     {

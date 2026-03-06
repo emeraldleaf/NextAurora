@@ -1,11 +1,10 @@
-using MediatR;
 using NextAurora.Contracts.DTOs;
 using OrderService.Application.Queries;
 using OrderService.Domain.Interfaces;
 
 namespace OrderService.Application.Handlers;
 
-public class GetOrderByIdHandler(IOrderRepository repository) : IRequestHandler<GetOrderByIdQuery, OrderSummaryDto?>
+public class GetOrderByIdHandler(IOrderRepository repository)
 {
     public async Task<OrderSummaryDto?> Handle(GetOrderByIdQuery request, CancellationToken cancellationToken)
     {

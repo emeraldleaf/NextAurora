@@ -1,19 +1,14 @@
-using MediatR;
 using NextAurora.Contracts.Events;
 using PaymentService.Application.Commands;
 
 namespace PaymentService.Application.EventHandlers;
 
-public class OrderPlacedHandler(IMediator mediator) : INotificationHandler<OrderPlacedNotification>
+/// <summary>
+/// Handles the OrderPlacedEvent by cascading a ProcessPaymentCommand.
+/// Wolverine automatically dispatches the returned command to ProcessPaymentHandler.
+/// </summary>
+public static class OrderPlacedHandler
 {
-    public async Task Handle(OrderPlacedNotification notification, CancellationToken cancellationToken)
-    {
-        await mediator.Send(new ProcessPaymentCommand(
-            notification.Event.OrderId,
-            notification.Event.TotalAmount,
-            notification.Event.Currency,
-            notification.Event.BuyerId), cancellationToken);
-    }
+    public static ProcessPaymentCommand Handle(OrderPlacedEvent @event)
+        => new(@event.OrderId, @event.TotalAmount, @event.Currency, @event.BuyerId);
 }
-
-public record OrderPlacedNotification(OrderPlacedEvent Event) : INotification;

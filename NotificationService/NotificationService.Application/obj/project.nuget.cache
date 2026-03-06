@@ -1,11 +1,9 @@
 {
   "version": 2,
-  "dgSpecHash": "7XDJnV7R1l0=",
+  "dgSpecHash": "UEBFX0BDiAk=",
   "success": true,
   "projectFilePath": "/Users/joshuadell/NovaCraft/NotificationService/NotificationService.Application/NotificationService.Application.csproj",
   "expectedPackageFiles": [
-    "/Users/joshuadell/.nuget/packages/mediatr/12.4.1/mediatr.12.4.1.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/mediatr.contracts/2.0.1/mediatr.contracts.2.0.1.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/meziantou.analyzer/2.0.257/meziantou.analyzer.2.0.257.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/10.0.2/microsoft.extensions.dependencyinjection.abstractions.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.logging.abstractions/10.0.2/microsoft.extensions.logging.abstractions.10.0.2.nupkg.sha512",
