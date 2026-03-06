@@ -11,7 +11,7 @@ public class OrderRepository(OrderDbContext context) : IOrderRepository
         => await context.Orders.Include(o => o.Lines).FirstOrDefaultAsync(o => o.Id == id, ct);
 
     public async Task<IReadOnlyList<Order>> GetByBuyerIdAsync(Guid buyerId, CancellationToken ct = default)
-        => await context.Orders.Include(o => o.Lines).Where(o => o.BuyerId == buyerId).ToListAsync(ct);
+        => await context.Orders.AsNoTracking().Include(o => o.Lines).Where(o => o.BuyerId == buyerId).ToListAsync(ct);
 
     public async Task AddAsync(Order order, CancellationToken ct = default)
     {

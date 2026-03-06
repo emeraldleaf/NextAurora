@@ -430,6 +430,47 @@ All services inherit shared infrastructure configuration:
 
 ---
 
+## CQRS & Data Access
+
+NextAurora implements CQRS at the application layer. Commands and queries are separate record types with dedicated Wolverine handler POCOs. Query handlers return DTOs and never modify state. Command handlers mutate domain entities and publish events. See [docs/cqrs-data-access.md](cqrs-data-access.md) for the full handler inventory and data access analysis.
+
+### Query Path
+
+```
+HTTP Request → Endpoint → IMessageBus.InvokeAsync<TResult>(query)
+  → QueryHandler.Handle() → Repository (read-only) → Domain Entity → DTO
+```
+
+Query handlers (6 total across Catalog, Order, and Shipping) map domain entities to DTOs before returning. They never call `SaveChangesAsync()`, publish events, or modify entity state.
+
+### Command Path
+
+```
+HTTP Request or Service Bus Message → IMessageBus.InvokeAsync<TResult>(command)
+  → CommandHandler.Handle() → Repository (read + write) → Domain Entity → Event Published
+```
+
+Command handlers create or mutate entities, persist changes, and publish domain events. Event handlers follow the same pattern — they read an entity, mutate its state via domain methods, and save.
+
+### EF Core Change Tracking Strategy
+
+Read and write paths share the same repository interfaces. Some `GetByIdAsync` methods are called by both query handlers (read-only) and command/event handlers (need tracking for subsequent updates). `AsNoTracking()` is applied selectively:
+
+**Read-only methods** (`AsNoTracking` applied) — exclusively called from query handlers:
+- `ProductRepository`: `GetAllAsync`, `GetByCategoryAsync`, `SearchAsync`
+- `CategoryRepository`: `GetByIdAsync`, `GetAllAsync`
+- `OrderRepository`: `GetByBuyerIdAsync`
+
+**Shared methods** (tracking preserved) — called by command or event handlers that mutate and save:
+- `ProductRepository.GetByIdAsync` — `UpdateProductHandler`, `ReserveStockHandler`
+- `OrderRepository.GetByIdAsync` — `PaymentCompletedHandler`, `PaymentFailedHandler`, `ShipmentDispatchedHandler`
+- `PaymentRepository.GetByOrderIdAsync` — `ProcessPaymentHandler`
+- `ShipmentRepository.GetByOrderIdAsync` — `CreateShipmentHandler`
+
+Adding `AsNoTracking()` to shared methods would break the read-then-mutate-then-save pattern because EF Core wouldn't detect changes on untracked entities. Full read/write repository separation (Interface Segregation) is a future consideration.
+
+---
+
 ## Design Patterns
 
 | Pattern | Implementation |

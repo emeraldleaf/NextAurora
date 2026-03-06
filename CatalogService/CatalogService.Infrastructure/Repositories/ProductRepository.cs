@@ -11,13 +11,13 @@ public class ProductRepository(CatalogDbContext context) : IProductRepository
         => await context.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id, ct);
 
     public async Task<IReadOnlyList<Product>> GetAllAsync(CancellationToken ct = default)
-        => await context.Products.Include(p => p.Category).ToListAsync(ct);
+        => await context.Products.AsNoTracking().Include(p => p.Category).ToListAsync(ct);
 
     public async Task<IReadOnlyList<Product>> GetByCategoryAsync(Guid categoryId, CancellationToken ct = default)
-        => await context.Products.Include(p => p.Category).Where(p => p.CategoryId == categoryId).ToListAsync(ct);
+        => await context.Products.AsNoTracking().Include(p => p.Category).Where(p => p.CategoryId == categoryId).ToListAsync(ct);
 
     public async Task<IReadOnlyList<Product>> SearchAsync(string query, CancellationToken ct = default)
-        => await context.Products.Include(p => p.Category)
+        => await context.Products.AsNoTracking().Include(p => p.Category)
             .Where(p => p.Name.Contains(query) || p.Description.Contains(query))
             .ToListAsync(ct);
 
