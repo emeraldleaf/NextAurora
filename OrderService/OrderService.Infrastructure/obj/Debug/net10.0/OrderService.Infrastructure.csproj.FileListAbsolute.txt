@@ -18,3 +18,5 @@
 /Users/joshuadell/NovaCraft/OrderService/OrderService.Infrastructure/obj/Debug/net10.0/OrderService.Infrastructure.pdb
 /Users/joshuadell/NovaCraft/OrderService/OrderService.Infrastructure/obj/Debug/net10.0/ref/OrderService.Infrastructure.dll
 /Users/joshuadell/NovaCraft/OrderService/OrderService.Infrastructure/obj/Debug/net10.0/OrderService.Infrastructure.sourcelink.json
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Infrastructure/bin/Debug/net10.0/OrderService.Infrastructure.runtimeconfig.json
+/Users/joshuadell/NovaCraft/OrderService/OrderService.Infrastructure/obj/Debug/net10.0/OrderService.Infrastructure.genruntimeconfig.cache

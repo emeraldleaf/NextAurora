@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OrderService.Domain.Interfaces;
 using OrderService.Infrastructure.Data;
+using OrderService.Infrastructure.EventLog;
 using OrderService.Infrastructure.Messaging;
 using OrderService.Infrastructure.Repositories;
 
@@ -24,7 +25,8 @@ public static class DependencyInjection
         services.AddSingleton(_ =>
             new ServiceBusClient(configuration.GetConnectionString("messaging")));
 
-        services.AddScoped<IEventPublisher, ServiceBusEventPublisher>();
+        services.AddScoped<ServiceBusEventPublisher>();
+        services.AddScoped<IEventPublisher, LoggingEventPublisher>();
         services.AddHostedService<ServiceBusEventProcessor>();
 
         return services;

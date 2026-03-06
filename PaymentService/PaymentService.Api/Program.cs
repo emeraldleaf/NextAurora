@@ -32,4 +32,5 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapPaymentEndpoints();
+app.MapAdminEventEndpoints();
 app.Run();

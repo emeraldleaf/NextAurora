@@ -41,4 +41,5 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapOrderEndpoints();
+app.MapAdminEventEndpoints();
 app.Run();

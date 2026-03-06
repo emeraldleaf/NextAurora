@@ -5,7 +5,7 @@ var e=!1;const t=async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,
   "mainAssemblyName": "Storefront",
   "applicationEnvironment": "Development",
   "resources": {
-    "hash": "sha256-nR2kTXCQYLU2EgZi64f1qJFSx3H0APcq0N0o0BbfLg8=",
+    "hash": "sha256-inYwky+3JB4JJMWL/AHynSDZnQXnGTcVTR2/c/iBjlw=",
     "jsModuleNative": [
       {
         "name": "dotnet.native.87vtjjdetb.js"
@@ -1242,28 +1242,28 @@ var e=!1;const t=async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,
       },
       {
         "virtualPath": "NextAurora.Contracts.wasm",
-        "name": "NextAurora.Contracts.eszrb4ybgo.wasm",
-        "integrity": "sha256-EreKPPCyz1LD+75Jb6gsAFZR1BVlqga0BKHTzkEElho=",
+        "name": "NextAurora.Contracts.7efuq77q48.wasm",
+        "integrity": "sha256-kZD19/zm3eTftaahi8Jsus86YNyKtZkXZR15J5uTXGQ=",
         "cache": "force-cache"
       },
       {
         "virtualPath": "Storefront.wasm",
-        "name": "Storefront.x4eifz19z7.wasm",
-        "integrity": "sha256-77zfR4nq9Uel0jqJAwdivVB7q1rst/JzNK4mzC/aGEc=",
+        "name": "Storefront.hpmaw29lsx.wasm",
+        "integrity": "sha256-izaseCYP6dTPbWkLqz/lprDVOw/1pUsEU1+T44SBTxc=",
         "cache": "force-cache"
       }
     ],
     "pdb": [
       {
         "virtualPath": "NextAurora.Contracts.pdb",
-        "name": "NextAurora.Contracts.04lcvitn8i.pdb",
-        "integrity": "sha256-IHMAq+1BRxC/04eJ4HJbheJ8aNcQiw7xYMU7hssDpU0=",
+        "name": "NextAurora.Contracts.y74p8tewbz.pdb",
+        "integrity": "sha256-nl2lhSysuDcU0dJ3BmZ1DOe4cHOD0TwqA0RF8VJq8yg=",
         "cache": "force-cache"
       },
       {
         "virtualPath": "Storefront.pdb",
-        "name": "Storefront.qfrnpipr4v.pdb",
-        "integrity": "sha256-WoSlupg7sXjTd81r4eYdQxLQGLimxu4KiXGCLCOaA4Q=",
+        "name": "Storefront.1ogxk2eybp.pdb",
+        "integrity": "sha256-oQ5Ez/d3nMN/gJN4yvcWQ6/MYNV10NeiH/ELXj1lO4I=",
         "cache": "force-cache"
       }
     ],

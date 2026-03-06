@@ -29,4 +29,5 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapShippingEndpoints();
+app.MapAdminEventEndpoints();
 app.Run();

@@ -18,3 +18,5 @@
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Infrastructure/obj/Debug/net10.0/PaymentService.Infrastructure.pdb
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Infrastructure/obj/Debug/net10.0/ref/PaymentService.Infrastructure.dll
 /Users/joshuadell/NovaCraft/PaymentService/PaymentService.Infrastructure/obj/Debug/net10.0/PaymentService.Infrastructure.sourcelink.json
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Infrastructure/bin/Debug/net10.0/PaymentService.Infrastructure.runtimeconfig.json
+/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Infrastructure/obj/Debug/net10.0/PaymentService.Infrastructure.genruntimeconfig.cache
