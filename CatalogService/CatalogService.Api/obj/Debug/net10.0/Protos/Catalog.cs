@@ -32,18 +32,24 @@ namespace CatalogService.Api.Grpc {
             "cnkYBiABKAkSEQoJc2VsbGVyX2lkGAcgASgJEhYKDnN0b2NrX3F1YW50aXR5",
             "GAggASgFEhQKDGlzX2F2YWlsYWJsZRgJIAEoCCJBChNQcm9kdWN0TGlzdFJl",
             "c3BvbnNlEioKCHByb2R1Y3RzGAEgAygLMhguY2F0YWxvZy5Qcm9kdWN0UmVz",
-            "cG9uc2UymwEKC0NhdGFsb2dHcnBjEkIKCkdldFByb2R1Y3QSGi5jYXRhbG9n",
-            "LkdldFByb2R1Y3RSZXF1ZXN0GhguY2F0YWxvZy5Qcm9kdWN0UmVzcG9uc2US",
-            "SAoLR2V0UHJvZHVjdHMSGy5jYXRhbG9nLkdldFByb2R1Y3RzUmVxdWVzdBoc",
-            "LmNhdGFsb2cuUHJvZHVjdExpc3RSZXNwb25zZUIaqgIXQ2F0YWxvZ1NlcnZp",
-            "Y2UuQXBpLkdycGNiBnByb3RvMw=="));
+            "cG9uc2UiOwoTUmVzZXJ2ZVN0b2NrUmVxdWVzdBISCgpwcm9kdWN0X2lkGAEg",
+            "ASgJEhAKCHF1YW50aXR5GAIgASgFIicKFFJlc2VydmVTdG9ja1Jlc3BvbnNl",
+            "Eg8KB3N1Y2Nlc3MYASABKAgy6AEKC0NhdGFsb2dHcnBjEkIKCkdldFByb2R1",
+            "Y3QSGi5jYXRhbG9nLkdldFByb2R1Y3RSZXF1ZXN0GhguY2F0YWxvZy5Qcm9k",
+            "dWN0UmVzcG9uc2USSAoLR2V0UHJvZHVjdHMSGy5jYXRhbG9nLkdldFByb2R1",
+            "Y3RzUmVxdWVzdBocLmNhdGFsb2cuUHJvZHVjdExpc3RSZXNwb25zZRJLCgxS",
+            "ZXNlcnZlU3RvY2sSHC5jYXRhbG9nLlJlc2VydmVTdG9ja1JlcXVlc3QaHS5j",
+            "YXRhbG9nLlJlc2VydmVTdG9ja1Jlc3BvbnNlQhqqAhdDYXRhbG9nU2Vydmlj",
+            "ZS5BcGkuR3JwY2IGcHJvdG8z"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::CatalogService.Api.Grpc.GetProductRequest), global::CatalogService.Api.Grpc.GetProductRequest.Parser, new[]{ "ProductId" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::CatalogService.Api.Grpc.GetProductsRequest), global::CatalogService.Api.Grpc.GetProductsRequest.Parser, new[]{ "ProductIds" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::CatalogService.Api.Grpc.ProductResponse), global::CatalogService.Api.Grpc.ProductResponse.Parser, new[]{ "Id", "Name", "Description", "Price", "Currency", "Category", "SellerId", "StockQuantity", "IsAvailable" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::CatalogService.Api.Grpc.ProductListResponse), global::CatalogService.Api.Grpc.ProductListResponse.Parser, new[]{ "Products" }, null, null, null, null)
+            new pbr::GeneratedClrTypeInfo(typeof(global::CatalogService.Api.Grpc.ProductListResponse), global::CatalogService.Api.Grpc.ProductListResponse.Parser, new[]{ "Products" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::CatalogService.Api.Grpc.ReserveStockRequest), global::CatalogService.Api.Grpc.ReserveStockRequest.Parser, new[]{ "ProductId", "Quantity" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::CatalogService.Api.Grpc.ReserveStockResponse), global::CatalogService.Api.Grpc.ReserveStockResponse.Parser, new[]{ "Success" }, null, null, null, null)
           }));
     }
     #endregion
@@ -1107,6 +1113,439 @@ namespace CatalogService.Api.Grpc {
             break;
           case 10: {
             products_.AddEntriesFrom(ref input, _repeated_products_codec);
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class ReserveStockRequest : pb::IMessage<ReserveStockRequest>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<ReserveStockRequest> _parser = new pb::MessageParser<ReserveStockRequest>(() => new ReserveStockRequest());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<ReserveStockRequest> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::CatalogService.Api.Grpc.CatalogReflection.Descriptor.MessageTypes[4]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReserveStockRequest() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReserveStockRequest(ReserveStockRequest other) : this() {
+      productId_ = other.productId_;
+      quantity_ = other.quantity_;
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReserveStockRequest Clone() {
+      return new ReserveStockRequest(this);
+    }
+
+    /// <summary>Field number for the "product_id" field.</summary>
+    public const int ProductIdFieldNumber = 1;
+    private string productId_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string ProductId {
+      get { return productId_; }
+      set {
+        productId_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "quantity" field.</summary>
+    public const int QuantityFieldNumber = 2;
+    private int quantity_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int Quantity {
+      get { return quantity_; }
+      set {
+        quantity_ = value;
+      }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as ReserveStockRequest);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(ReserveStockRequest other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (ProductId != other.ProductId) return false;
+      if (Quantity != other.Quantity) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (ProductId.Length != 0) hash ^= ProductId.GetHashCode();
+      if (Quantity != 0) hash ^= Quantity.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (ProductId.Length != 0) {
+        output.WriteRawTag(10);
+        output.WriteString(ProductId);
+      }
+      if (Quantity != 0) {
+        output.WriteRawTag(16);
+        output.WriteInt32(Quantity);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (ProductId.Length != 0) {
+        output.WriteRawTag(10);
+        output.WriteString(ProductId);
+      }
+      if (Quantity != 0) {
+        output.WriteRawTag(16);
+        output.WriteInt32(Quantity);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (ProductId.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(ProductId);
+      }
+      if (Quantity != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(Quantity);
+      }
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(ReserveStockRequest other) {
+      if (other == null) {
+        return;
+      }
+      if (other.ProductId.Length != 0) {
+        ProductId = other.ProductId;
+      }
+      if (other.Quantity != 0) {
+        Quantity = other.Quantity;
+      }
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 10: {
+            ProductId = input.ReadString();
+            break;
+          }
+          case 16: {
+            Quantity = input.ReadInt32();
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 10: {
+            ProductId = input.ReadString();
+            break;
+          }
+          case 16: {
+            Quantity = input.ReadInt32();
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class ReserveStockResponse : pb::IMessage<ReserveStockResponse>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<ReserveStockResponse> _parser = new pb::MessageParser<ReserveStockResponse>(() => new ReserveStockResponse());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<ReserveStockResponse> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::CatalogService.Api.Grpc.CatalogReflection.Descriptor.MessageTypes[5]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReserveStockResponse() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReserveStockResponse(ReserveStockResponse other) : this() {
+      success_ = other.success_;
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReserveStockResponse Clone() {
+      return new ReserveStockResponse(this);
+    }
+
+    /// <summary>Field number for the "success" field.</summary>
+    public const int SuccessFieldNumber = 1;
+    private bool success_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Success {
+      get { return success_; }
+      set {
+        success_ = value;
+      }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as ReserveStockResponse);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(ReserveStockResponse other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (Success != other.Success) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (Success != false) hash ^= Success.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (Success != false) {
+        output.WriteRawTag(8);
+        output.WriteBool(Success);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (Success != false) {
+        output.WriteRawTag(8);
+        output.WriteBool(Success);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (Success != false) {
+        size += 1 + 1;
+      }
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(ReserveStockResponse other) {
+      if (other == null) {
+        return;
+      }
+      if (other.Success != false) {
+        Success = other.Success;
+      }
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 8: {
+            Success = input.ReadBool();
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 8: {
+            Success = input.ReadBool();
             break;
           }
         }

@@ -21,11 +21,14 @@ public class SendNotificationHandlerTests
     [Fact]
     public async Task Handle_WhenSenderSucceeds_CompletesWithoutError()
     {
+        // Arrange
         var request = new SendNotificationRequest(
             Guid.NewGuid(), "user@test.com", "Subject", "Body", "Email");
 
+        // Act
         var act = () => _sut.Handle(request, CancellationToken.None);
 
+        // Assert
         await act.Should().NotThrowAsync();
         await _sender.Received(1).SendAsync("user@test.com", "Subject", "Body", "Email", Arg.Any<CancellationToken>());
     }
@@ -33,13 +36,16 @@ public class SendNotificationHandlerTests
     [Fact]
     public async Task Handle_WhenSenderThrows_DoesNotRethrow()
     {
+        // Arrange
         var request = new SendNotificationRequest(
             Guid.NewGuid(), "user@test.com", "Subject", "Body", "Email");
         _sender.SendAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("SMTP error"));
 
+        // Act
         var act = () => _sut.Handle(request, CancellationToken.None);
 
+        // Assert
         await act.Should().NotThrowAsync();
     }
 }

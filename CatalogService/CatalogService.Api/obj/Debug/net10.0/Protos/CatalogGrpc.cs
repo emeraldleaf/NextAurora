@@ -53,6 +53,10 @@ namespace CatalogService.Api.Grpc {
     static readonly grpc::Marshaller<global::CatalogService.Api.Grpc.GetProductsRequest> __Marshaller_catalog_GetProductsRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::CatalogService.Api.Grpc.GetProductsRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::CatalogService.Api.Grpc.ProductListResponse> __Marshaller_catalog_ProductListResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::CatalogService.Api.Grpc.ProductListResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::CatalogService.Api.Grpc.ReserveStockRequest> __Marshaller_catalog_ReserveStockRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::CatalogService.Api.Grpc.ReserveStockRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::CatalogService.Api.Grpc.ReserveStockResponse> __Marshaller_catalog_ReserveStockResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::CatalogService.Api.Grpc.ReserveStockResponse.Parser));
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::CatalogService.Api.Grpc.GetProductRequest, global::CatalogService.Api.Grpc.ProductResponse> __Method_GetProduct = new grpc::Method<global::CatalogService.Api.Grpc.GetProductRequest, global::CatalogService.Api.Grpc.ProductResponse>(
@@ -69,6 +73,14 @@ namespace CatalogService.Api.Grpc {
         "GetProducts",
         __Marshaller_catalog_GetProductsRequest,
         __Marshaller_catalog_ProductListResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::CatalogService.Api.Grpc.ReserveStockRequest, global::CatalogService.Api.Grpc.ReserveStockResponse> __Method_ReserveStock = new grpc::Method<global::CatalogService.Api.Grpc.ReserveStockRequest, global::CatalogService.Api.Grpc.ReserveStockResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "ReserveStock",
+        __Marshaller_catalog_ReserveStockRequest,
+        __Marshaller_catalog_ReserveStockResponse);
 
     /// <summary>Service descriptor</summary>
     public static global::Google.Protobuf.Reflection.ServiceDescriptor Descriptor
@@ -92,6 +104,12 @@ namespace CatalogService.Api.Grpc {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
 
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::CatalogService.Api.Grpc.ReserveStockResponse> ReserveStock(global::CatalogService.Api.Grpc.ReserveStockRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
     }
 
     /// <summary>Creates service definition that can be registered with a server</summary>
@@ -101,7 +119,8 @@ namespace CatalogService.Api.Grpc {
     {
       return grpc::ServerServiceDefinition.CreateBuilder()
           .AddMethod(__Method_GetProduct, serviceImpl.GetProduct)
-          .AddMethod(__Method_GetProducts, serviceImpl.GetProducts).Build();
+          .AddMethod(__Method_GetProducts, serviceImpl.GetProducts)
+          .AddMethod(__Method_ReserveStock, serviceImpl.ReserveStock).Build();
     }
 
     /// <summary>Register service method with a service binder with or without implementation. Useful when customizing the service binding logic.
@@ -113,6 +132,7 @@ namespace CatalogService.Api.Grpc {
     {
       serviceBinder.AddMethod(__Method_GetProduct, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::CatalogService.Api.Grpc.GetProductRequest, global::CatalogService.Api.Grpc.ProductResponse>(serviceImpl.GetProduct));
       serviceBinder.AddMethod(__Method_GetProducts, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::CatalogService.Api.Grpc.GetProductsRequest, global::CatalogService.Api.Grpc.ProductListResponse>(serviceImpl.GetProducts));
+      serviceBinder.AddMethod(__Method_ReserveStock, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::CatalogService.Api.Grpc.ReserveStockRequest, global::CatalogService.Api.Grpc.ReserveStockResponse>(serviceImpl.ReserveStock));
     }
 
   }

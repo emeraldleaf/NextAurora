@@ -20,10 +20,13 @@ public class CreateProductHandlerTests
     [Fact]
     public async Task Handle_WithValidCommand_CreatesProductAndReturnsId()
     {
+        // Arrange
         var command = new CreateProductCommand("Widget", "A widget", 19.99m, "USD", Guid.NewGuid(), "seller-1", 10);
 
+        // Act
         var result = await _sut.Handle(command, CancellationToken.None);
 
+        // Assert
         result.Should().NotBeEmpty();
         await _repository.Received(1).AddAsync(Arg.Any<Product>(), Arg.Any<CancellationToken>());
     }

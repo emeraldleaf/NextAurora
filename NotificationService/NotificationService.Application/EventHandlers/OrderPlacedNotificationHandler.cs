@@ -1,16 +1,21 @@
 using MediatR;
 using NextAurora.Contracts.Events;
 using NotificationService.Application.Commands;
+using NotificationService.Application.Interfaces;
 
 namespace NotificationService.Application.EventHandlers;
 
-public class OrderPlacedNotificationHandler(IMediator mediator) : INotificationHandler<OrderPlacedNotification>
+public class OrderPlacedNotificationHandler(IMediator mediator, IRecipientResolver recipientResolver)
+    : INotificationHandler<OrderPlacedNotification>
 {
     public async Task Handle(OrderPlacedNotification notification, CancellationToken cancellationToken)
     {
+        var recipient = await recipientResolver.ResolveByBuyerIdAsync(notification.Event.BuyerId, cancellationToken);
+        if (recipient is null) return;
+
         await mediator.Send(new SendNotificationRequest(
-            notification.Event.BuyerId,
-            "", // Email would be resolved from Identity service in production
+            recipient.BuyerId,
+            recipient.Email,
             "Order Received",
             $"Your order {notification.Event.OrderId} has been received. Total: {notification.Event.TotalAmount:C}",
             "Email"), cancellationToken);

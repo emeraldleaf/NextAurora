@@ -13,6 +13,10 @@ public class ProcessPaymentHandler(
 {
     public async Task<Guid> Handle(ProcessPaymentCommand request, CancellationToken cancellationToken)
     {
+        var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
+        if (existing is not null)
+            return existing.Id;
+
         var payment = Payment.Create(request.OrderId, request.Amount, request.Currency, "Stripe");
         await repository.AddAsync(payment, cancellationToken);
 

@@ -13,6 +13,12 @@ public class Refund
 
     public static Refund Create(Guid paymentId, decimal amount, string reason)
     {
+        if (paymentId == Guid.Empty)
+            throw new ArgumentException("Payment ID must not be empty.", nameof(paymentId));
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+
         return new Refund
         {
             Id = Guid.NewGuid(),
@@ -24,6 +30,17 @@ public class Refund
         };
     }
 
-    public void MarkAsProcessed() => Status = RefundStatus.Processed;
-    public void MarkAsFailed() => Status = RefundStatus.Failed;
+    public void MarkAsProcessed()
+    {
+        if (Status != RefundStatus.Pending)
+            throw new InvalidOperationException("Cannot mark refund as processed in the current status.");
+        Status = RefundStatus.Processed;
+    }
+
+    public void MarkAsFailed()
+    {
+        if (Status != RefundStatus.Pending)
+            throw new InvalidOperationException("Cannot mark refund as failed in the current status.");
+        Status = RefundStatus.Failed;
+    }
 }

@@ -16,6 +16,11 @@ public class Shipment
 
     public static Shipment Create(Guid orderId, string carrier)
     {
+        if (orderId == Guid.Empty)
+            throw new ArgumentException("Order ID must not be empty.", nameof(orderId));
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(carrier);
+
         var trackingNumber = $"NVC-{Guid.NewGuid().ToString("N")[..12].ToUpper(System.Globalization.CultureInfo.InvariantCulture)}";
         return new Shipment
         {
@@ -30,6 +35,8 @@ public class Shipment
 
     public void Dispatch()
     {
+        if (Status != ShipmentStatus.Created)
+            throw new InvalidOperationException("Cannot dispatch shipment in the current status.");
         Status = ShipmentStatus.Dispatched;
         DispatchedAt = DateTime.UtcNow;
         AddTrackingEvent("Package dispatched");
@@ -37,12 +44,16 @@ public class Shipment
 
     public void MarkInTransit()
     {
+        if (Status != ShipmentStatus.Dispatched)
+            throw new InvalidOperationException("Cannot mark shipment as in transit in the current status.");
         Status = ShipmentStatus.InTransit;
         AddTrackingEvent("Package in transit");
     }
 
     public void MarkDelivered()
     {
+        if (Status != ShipmentStatus.InTransit)
+            throw new InvalidOperationException("Cannot mark shipment as delivered in the current status.");
         Status = ShipmentStatus.Delivered;
         DeliveredAt = DateTime.UtcNow;
         AddTrackingEvent("Package delivered");

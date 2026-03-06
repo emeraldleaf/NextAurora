@@ -32,4 +32,12 @@ public class GrpcCatalogClient(CatalogGrpc.CatalogGrpcClient client) : ICatalogC
             return null;
         }
     }
+
+    public async Task<bool> ReserveStockAsync(Guid productId, int quantity, CancellationToken ct = default)
+    {
+        var response = await client.ReserveStockAsync(
+            new ReserveStockRequest { ProductId = productId.ToString(), Quantity = quantity },
+            cancellationToken: ct);
+        return response.Success;
+    }
 }

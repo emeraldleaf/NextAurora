@@ -16,6 +16,14 @@ public class NotificationRequest
 
     public static NotificationRequest Create(Guid recipientId, string recipientEmail, string channel, string subject, string body)
     {
+        if (recipientId == Guid.Empty)
+            throw new ArgumentException("Recipient ID must not be empty.", nameof(recipientId));
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(recipientEmail);
+        ArgumentException.ThrowIfNullOrWhiteSpace(channel);
+        ArgumentException.ThrowIfNullOrWhiteSpace(subject);
+        ArgumentException.ThrowIfNullOrWhiteSpace(body);
+
         return new NotificationRequest
         {
             Id = Guid.NewGuid(),
@@ -31,9 +39,16 @@ public class NotificationRequest
 
     public void MarkAsSent()
     {
+        if (Status != NotificationStatus.Pending)
+            throw new InvalidOperationException("Cannot mark notification as sent in the current status.");
         Status = NotificationStatus.Sent;
         SentAt = DateTime.UtcNow;
     }
 
-    public void MarkAsFailed() => Status = NotificationStatus.Failed;
+    public void MarkAsFailed()
+    {
+        if (Status != NotificationStatus.Pending)
+            throw new InvalidOperationException("Cannot mark notification as failed in the current status.");
+        Status = NotificationStatus.Failed;
+    }
 }

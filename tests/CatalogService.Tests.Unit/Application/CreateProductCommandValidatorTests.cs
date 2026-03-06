@@ -14,14 +14,26 @@ public class CreateProductCommandValidatorTests
     [Fact]
     public void Validate_WithValidCommand_ReturnsNoErrors()
     {
-        var result = _sut.Validate(ValidCommand());
+        // Arrange
+        var command = ValidCommand();
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
         result.IsValid.Should().BeTrue();
     }
 
     [Fact]
     public void Validate_WithEmptyName_ReturnsError()
     {
-        var result = _sut.Validate(ValidCommand() with { Name = "" });
+        // Arrange
+        var command = ValidCommand() with { Name = "" };
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == "Name");
     }

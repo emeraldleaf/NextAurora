@@ -9,8 +9,10 @@ public class OrderLineTests
     [Fact]
     public void Create_WithValidInputs_ReturnsOrderLine()
     {
+        // Act
         var line = OrderLineBuilder.Default().Build();
 
+        // Assert
         line.Id.Should().NotBeEmpty();
         line.ProductId.Should().NotBeEmpty();
         line.Quantity.Should().BeGreaterThan(0);
@@ -19,32 +21,40 @@ public class OrderLineTests
     [Fact]
     public void Create_WithEmptyProductId_ThrowsArgumentException()
     {
+        // Act
         var act = () => OrderLineBuilder.Default().WithProductId(Guid.Empty).Build();
 
+        // Assert
         act.Should().Throw<ArgumentException>().WithParameterName("productId");
     }
 
     [Fact]
     public void Create_WithZeroQuantity_ThrowsArgumentOutOfRangeException()
     {
+        // Act
         var act = () => OrderLineBuilder.Default().WithQuantity(0).Build();
 
+        // Assert
         act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("quantity");
     }
 
     [Fact]
     public void Create_WithNegativeQuantity_ThrowsArgumentOutOfRangeException()
     {
+        // Act
         var act = () => OrderLineBuilder.Default().WithQuantity(-1).Build();
 
+        // Assert
         act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("quantity");
     }
 
     [Fact]
     public void Create_WithNegativePrice_ThrowsArgumentOutOfRangeException()
     {
+        // Act
         var act = () => OrderLineBuilder.Default().WithUnitPrice(-1m).Build();
 
+        // Assert
         act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("unitPrice");
     }
 
@@ -53,8 +63,11 @@ public class OrderLineTests
     {
         // NOTE: Zero price is allowed by ThrowIfNegative (not ThrowIfNegativeOrZero).
         // This may be intentional (free items) or a bug — documenting current behavior.
+
+        // Act
         var line = OrderLineBuilder.Default().WithUnitPrice(0m).Build();
 
+        // Assert
         line.UnitPrice.Should().Be(0m);
     }
 }

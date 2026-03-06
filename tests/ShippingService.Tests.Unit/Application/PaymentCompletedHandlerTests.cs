@@ -20,6 +20,7 @@ public class PaymentCompletedHandlerTests
     [Fact]
     public async Task Handle_SendsCreateShipmentCommand()
     {
+        // Arrange
         var notification = new PaymentCompletedNotification(new PaymentCompletedEvent
         {
             OrderId = Guid.NewGuid(),
@@ -29,14 +30,17 @@ public class PaymentCompletedHandlerTests
             CompletedAt = DateTime.UtcNow
         });
 
+        // Act
         await _sut.Handle(notification, CancellationToken.None);
 
+        // Assert
         await _mediator.Received(1).Send(Arg.Any<CreateShipmentCommand>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_CommandContainsCorrectOrderId()
     {
+        // Arrange
         var orderId = Guid.NewGuid();
         var notification = new PaymentCompletedNotification(new PaymentCompletedEvent
         {
@@ -47,8 +51,10 @@ public class PaymentCompletedHandlerTests
             CompletedAt = DateTime.UtcNow
         });
 
+        // Act
         await _sut.Handle(notification, CancellationToken.None);
 
+        // Assert
         await _mediator.Received(1).Send(
             Arg.Is<CreateShipmentCommand>(c => c.OrderId == orderId),
             Arg.Any<CancellationToken>());

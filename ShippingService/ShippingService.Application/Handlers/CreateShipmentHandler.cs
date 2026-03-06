@@ -14,6 +14,10 @@ public class CreateShipmentHandler(
 
     public async Task<Guid> Handle(CreateShipmentCommand request, CancellationToken cancellationToken)
     {
+        var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
+        if (existing is not null)
+            return existing.Id;
+
         var carrier = Carriers[Random.Shared.Next(Carriers.Length)];
         var shipment = Shipment.Create(request.OrderId, carrier);
         shipment.Dispatch();

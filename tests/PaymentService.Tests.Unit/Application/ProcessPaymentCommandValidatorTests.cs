@@ -11,21 +11,39 @@ public class ProcessPaymentCommandValidatorTests
     [Fact]
     public void Validate_WithValidCommand_ReturnsNoErrors()
     {
-        var result = _sut.Validate(new ProcessPaymentCommand(Guid.NewGuid(), 50m, "USD"));
+        // Arrange
+        var command = new ProcessPaymentCommand(Guid.NewGuid(), 50m, "USD");
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
         result.IsValid.Should().BeTrue();
     }
 
     [Fact]
     public void Validate_WithEmptyOrderId_ReturnsError()
     {
-        var result = _sut.Validate(new ProcessPaymentCommand(Guid.Empty, 50m, "USD"));
+        // Arrange
+        var command = new ProcessPaymentCommand(Guid.Empty, 50m, "USD");
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
         result.IsValid.Should().BeFalse();
     }
 
     [Fact]
     public void Validate_WithZeroAmount_ReturnsError()
     {
-        var result = _sut.Validate(new ProcessPaymentCommand(Guid.NewGuid(), 0m, "USD"));
+        // Arrange
+        var command = new ProcessPaymentCommand(Guid.NewGuid(), 0m, "USD");
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
         result.IsValid.Should().BeFalse();
     }
 }

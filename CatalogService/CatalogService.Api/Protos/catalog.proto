@@ -7,6 +7,7 @@ package catalog;
 service CatalogGrpc {
   rpc GetProduct (GetProductRequest) returns (ProductResponse);
   rpc GetProducts (GetProductsRequest) returns (ProductListResponse);
+  rpc ReserveStock (ReserveStockRequest) returns (ReserveStockResponse);
 }
 
 message GetProductRequest {
@@ -31,4 +32,13 @@ message ProductResponse {
 
 message ProductListResponse {
   repeated ProductResponse products = 1;
+}
+
+message ReserveStockRequest {
+  string product_id = 1;
+  int32 quantity = 2;
+}
+
+message ReserveStockResponse {
+  bool success = 1;
 }

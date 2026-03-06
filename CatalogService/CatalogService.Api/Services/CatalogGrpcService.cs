@@ -1,4 +1,5 @@
 using CatalogService.Api.Grpc;
+using CatalogService.Application.Commands;
 using CatalogService.Application.Queries;
 using Grpc.Core;
 using MediatR;
@@ -43,6 +44,17 @@ public class CatalogGrpcService(ISender sender) : CatalogGrpc.CatalogGrpcBase
         }
 
         return response;
+    }
+
+    public override async Task<ReserveStockResponse> ReserveStock(ReserveStockRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.ProductId, out var productId))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid product ID format"));
+        }
+
+        var success = await sender.Send(new ReserveStockCommand(productId, request.Quantity), context.CancellationToken);
+        return new ReserveStockResponse { Success = success };
     }
 
     private static ProductResponse MapToResponse(NextAurora.Contracts.DTOs.ProductDto product) =>

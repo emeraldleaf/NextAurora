@@ -21,11 +21,14 @@ public class GetProductByIdHandlerTests
     [Fact]
     public async Task Handle_WhenProductExists_ReturnsMappedDto()
     {
+        // Arrange
         var product = ProductBuilder.Default().Build();
         _repository.GetByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
 
+        // Act
         var result = await _sut.Handle(new GetProductByIdQuery(product.Id), CancellationToken.None);
 
+        // Assert
         result.Should().NotBeNull();
         result!.Id.Should().Be(product.Id);
         result.Name.Should().Be(product.Name);
@@ -35,10 +38,13 @@ public class GetProductByIdHandlerTests
     [Fact]
     public async Task Handle_WhenProductNotFound_ReturnsNull()
     {
+        // Arrange
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Product?)null);
 
+        // Act
         var result = await _sut.Handle(new GetProductByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
+        // Assert
         result.Should().BeNull();
     }
 }

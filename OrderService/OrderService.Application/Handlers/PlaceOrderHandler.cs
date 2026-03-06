@@ -42,6 +42,13 @@ public class PlaceOrderHandler(
                 throw new InvalidOperationException("Insufficient stock for one or more requested products.");
             }
 
+            var reserved = await catalogClient.ReserveStockAsync(lineItem.ProductId, lineItem.Quantity, cancellationToken);
+            if (!reserved)
+            {
+                logger.LogWarning("Failed to reserve stock for product {ProductId}", lineItem.ProductId);
+                throw new InvalidOperationException("Failed to reserve stock for one or more requested products.");
+            }
+
             lines.Add(OrderLine.Create(product.Id, product.Name, lineItem.Quantity, product.Price));
         }
 

@@ -53,6 +53,10 @@ namespace CatalogService.Api.Grpc {
     static readonly grpc::Marshaller<global::CatalogService.Api.Grpc.GetProductsRequest> __Marshaller_catalog_GetProductsRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::CatalogService.Api.Grpc.GetProductsRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::CatalogService.Api.Grpc.ProductListResponse> __Marshaller_catalog_ProductListResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::CatalogService.Api.Grpc.ProductListResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::CatalogService.Api.Grpc.ReserveStockRequest> __Marshaller_catalog_ReserveStockRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::CatalogService.Api.Grpc.ReserveStockRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::CatalogService.Api.Grpc.ReserveStockResponse> __Marshaller_catalog_ReserveStockResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::CatalogService.Api.Grpc.ReserveStockResponse.Parser));
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::CatalogService.Api.Grpc.GetProductRequest, global::CatalogService.Api.Grpc.ProductResponse> __Method_GetProduct = new grpc::Method<global::CatalogService.Api.Grpc.GetProductRequest, global::CatalogService.Api.Grpc.ProductResponse>(
@@ -69,6 +73,14 @@ namespace CatalogService.Api.Grpc {
         "GetProducts",
         __Marshaller_catalog_GetProductsRequest,
         __Marshaller_catalog_ProductListResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::CatalogService.Api.Grpc.ReserveStockRequest, global::CatalogService.Api.Grpc.ReserveStockResponse> __Method_ReserveStock = new grpc::Method<global::CatalogService.Api.Grpc.ReserveStockRequest, global::CatalogService.Api.Grpc.ReserveStockResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "ReserveStock",
+        __Marshaller_catalog_ReserveStockRequest,
+        __Marshaller_catalog_ReserveStockResponse);
 
     /// <summary>Service descriptor</summary>
     public static global::Google.Protobuf.Reflection.ServiceDescriptor Descriptor
@@ -142,6 +154,26 @@ namespace CatalogService.Api.Grpc {
       public virtual grpc::AsyncUnaryCall<global::CatalogService.Api.Grpc.ProductListResponse> GetProductsAsync(global::CatalogService.Api.Grpc.GetProductsRequest request, grpc::CallOptions options)
       {
         return CallInvoker.AsyncUnaryCall(__Method_GetProducts, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::CatalogService.Api.Grpc.ReserveStockResponse ReserveStock(global::CatalogService.Api.Grpc.ReserveStockRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return ReserveStock(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::CatalogService.Api.Grpc.ReserveStockResponse ReserveStock(global::CatalogService.Api.Grpc.ReserveStockRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_ReserveStock, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::CatalogService.Api.Grpc.ReserveStockResponse> ReserveStockAsync(global::CatalogService.Api.Grpc.ReserveStockRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return ReserveStockAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::CatalogService.Api.Grpc.ReserveStockResponse> ReserveStockAsync(global::CatalogService.Api.Grpc.ReserveStockRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_ReserveStock, null, options, request);
       }
       /// <summary>Creates a new instance of client from given <c>ClientBaseConfiguration</c>.</summary>
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]

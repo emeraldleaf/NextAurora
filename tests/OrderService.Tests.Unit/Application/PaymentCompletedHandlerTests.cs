@@ -21,6 +21,7 @@ public class PaymentCompletedHandlerTests
     [Fact]
     public async Task Handle_WhenOrderExists_MarksOrderAsPaid()
     {
+        // Arrange
         var order = OrderBuilder.Default().Build();
         var notification = new PaymentCompletedNotification(new PaymentCompletedEvent
         {
@@ -32,8 +33,10 @@ public class PaymentCompletedHandlerTests
         });
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
+        // Act
         await _sut.Handle(notification, CancellationToken.None);
 
+        // Assert
         order.Status.Should().Be(OrderStatus.Paid);
         await _repository.Received(1).UpdateAsync(order, Arg.Any<CancellationToken>());
     }
@@ -41,6 +44,7 @@ public class PaymentCompletedHandlerTests
     [Fact]
     public async Task Handle_WhenOrderNotFound_ReturnsWithoutError()
     {
+        // Arrange
         var notification = new PaymentCompletedNotification(new PaymentCompletedEvent
         {
             OrderId = Guid.NewGuid(),
@@ -51,16 +55,18 @@ public class PaymentCompletedHandlerTests
         });
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Order?)null);
 
+        // Act
         var act = () => _sut.Handle(notification, CancellationToken.None);
 
+        // Assert
         await act.Should().NotThrowAsync();
         await _repository.DidNotReceive().UpdateAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_WhenOrderAlreadyPaid_ThrowsInvalidOperationException()
+    public async Task Handle_WhenOrderAlreadyPaid_IsIdempotent()
     {
-        // Documents idempotency gap: receiving PaymentCompleted twice throws
+        // Arrange
         var order = OrderBuilder.Default().Build();
         order.MarkAsPaid();
         var notification = new PaymentCompletedNotification(new PaymentCompletedEvent
@@ -73,8 +79,11 @@ public class PaymentCompletedHandlerTests
         });
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
+        // Act
         var act = () => _sut.Handle(notification, CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // Assert
+        await act.Should().NotThrowAsync();
+        await _repository.DidNotReceive().UpdateAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }
 }
