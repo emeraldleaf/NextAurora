@@ -162,7 +162,7 @@ The system is built as a set of independently deployable microservices to suppor
 |----|-------------|----------|--------|
 | SEC-01 | API authentication (JWT/OAuth2) | High | Not implemented |
 | SEC-02 | Service-to-service authentication | High | Not implemented |
-| SEC-03 | Input validation on all endpoints | High | Implemented (FluentValidation + MediatR pipeline + domain guard clauses) |
+| SEC-03 | Input validation on all endpoints | High | Implemented (FluentValidation + Wolverine pipeline + domain guard clauses) |
 | SEC-04 | Secrets management | Medium | Aspire User Secrets (dev) |
 | SEC-05 | HTTPS enforcement | Medium | Implemented (production redirection) |
 | SEC-06 | Global exception handling (no internal state leakage) | High | Implemented (ProblemDetails + trace IDs) |

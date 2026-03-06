@@ -6,7 +6,7 @@ This document describes the observability features added to NextAurora, how they
 
 ## Overview
 
-Every request or event in NextAurora now carries a **Correlation ID** that flows from the initial HTTP call through every Service Bus message and log line across all services. Combined with OpenTelemetry distributed tracing, structured logging, MediatR pipeline telemetry, business metrics, and Dead Letter Queue (DLQ) handling, this gives you a complete picture of any transaction — even when it spans five microservices.
+Every request or event in NextAurora now carries a **Correlation ID** that flows from the initial HTTP call through every Service Bus message and log line across all services. Combined with OpenTelemetry distributed tracing, structured logging, Wolverine pipeline telemetry, business metrics, and Dead Letter Queue (DLQ) handling, this gives you a complete picture of any transaction — even when it spans five microservices.
 
 ---
 
@@ -52,7 +52,7 @@ Given a correlation ID (from a client error report or response header), you can 
 CorrelationId = "a3f1b2c4..."
 ```
 
-This returns every log line — HTTP request, MediatR handler, Service Bus publish, Service Bus receive, and notification send — for that single transaction.
+This returns every log line — HTTP request, Wolverine handler, Service Bus publish, Service Bus receive, and notification send — for that single transaction.
 
 For the full three-identifier guide (UserId, SessionId, new-service checklist, common pitfalls), see **[docs/context-propagation.md](context-propagation.md)**.
 
@@ -94,27 +94,30 @@ A single trace for an order placement will show spans across:
 
 ---
 
-## MediatR Pipeline Logging
+## Wolverine Pipeline Logging
 
-Every command and query in Order, Payment, Catalog, and Shipping services is wrapped by `LoggingBehavior<TRequest, TResponse>`, which runs in the MediatR pipeline after `ValidationBehavior`.
+Every command and query in Order, Payment, Catalog, and Shipping services passes through the Wolverine middleware pipeline. Two components handle observability:
+
+- **`Policies.LogMessageStarting(LogLevel.Information)`** — Wolverine built-in; logs handler name and elapsed time automatically.
+- **`ContextPropagationMiddleware`** (in `ServiceDefaults`) — runs before every handler; reads the three IDs from `Activity.Current` baggage and opens a `logger.BeginScope()` for the duration of the handler.
 
 For each handler execution it logs:
 
-- **Start**: handler name + correlation ID
-- **End** (`finally` block): handler name, elapsed milliseconds, outcome (success / warning on failure)
+- **Start**: handler name + elapsed (Wolverine built-in)
+- **Scope**: every log line inside the handler automatically carries `CorrelationId`, `UserId`, `SessionId`
 
 Example log output:
 
 ```
 [INF] Handling PlaceOrderCommand (CorrelationId: a3f1b2c4...)
-[INF] Handled PlaceOrderCommand in 142ms (CorrelationId: a3f1b2c4...)
+[INF] Handled PlaceOrderCommand in 142ms
 ```
 
 On failure:
 
 ```
 [INF] Handling PlaceOrderCommand (CorrelationId: a3f1b2c4...)
-[WRN] Failed PlaceOrderCommand after 38ms (CorrelationId: a3f1b2c4...)
+[WRN] Failed PlaceOrderCommand after 38ms
 ```
 
 The exception itself is handled and logged by `GlobalExceptionHandler` in `ServiceDefaults`, which formats it as a `ProblemDetails` response including the trace ID.
@@ -213,10 +216,7 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 |------|---------|
 | `NextAurora.ServiceDefaults/Middleware/CorrelationIdMiddleware.cs` | HTTP correlation ID propagation |
 | `NextAurora.ServiceDefaults/Metrics/NovaCraftMetrics.cs` | Business metrics counters |
-| `OrderService.Application/Behaviors/LoggingBehavior.cs` | MediatR pipeline logging |
-| `PaymentService.Application/Behaviors/LoggingBehavior.cs` | MediatR pipeline logging |
-| `CatalogService.Application/Behaviors/LoggingBehavior.cs` | MediatR pipeline logging |
-| `ShippingService.Application/Behaviors/LoggingBehavior.cs` | MediatR pipeline logging |
+| `NextAurora.ServiceDefaults/Messaging/ContextPropagationMiddleware.cs` | Wolverine middleware — opens `BeginScope` with CorrelationId/UserId/SessionId for every handler |
 
 ### Modified Files
 
@@ -224,15 +224,12 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 |------|--------|
 | `NextAurora.ServiceDefaults/Extensions.cs` | Register middleware; add Azure SB + NextAurora meter sources; enable health checks in all environments |
 | `Directory.Packages.props` | Added `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore 10.0.2` |
-| `{Order,Payment,Shipping}Service.Infrastructure/Messaging/ServiceBusEventPublisher.cs` | Inject correlation ID into outbound messages |
-| `OrderService.Infrastructure/Messaging/ServiceBusEventProcessor.cs` | Structured logging scope + AbandonMessageAsync on failure |
-| `PaymentService.Infrastructure/Messaging/OrderPlacedProcessor.cs` | Structured logging scope + AbandonMessageAsync on failure |
-| `ShippingService.Infrastructure/Messaging/PaymentCompletedProcessor.cs` | Structured logging scope + AbandonMessageAsync on failure |
-| `NotificationService.Infrastructure/Messaging/EventProcessor.cs` | Structured logging scope + AbandonMessageAsync on failure |
+| `{Order,Payment,Shipping}Service.Infrastructure/Messaging/WolverineEventPublisher.cs` | Context propagation via `OutgoingContextMiddleware`; Wolverine EF Core outbox for delivery guarantees |
+| `{Order,Payment,Shipping,Notification}Service` (Wolverine handlers) | Context extraction + structured logging scope via `ContextPropagationMiddleware`; `AbandonMessageAsync` on failure handled by Wolverine dead-letter config |
 | `{Order,Payment,Catalog,Shipping}Service.Infrastructure/DependencyInjection.cs` | Added `AddDbContextCheck<T>()` |
 | `{Order,Payment,Catalog,Shipping}Service.Infrastructure/*.csproj` | Added EF Core health checks package reference |
 | `{Payment,Catalog,Shipping}Service.Application/*.csproj` | Added `Microsoft.Extensions.Logging.Abstractions` |
-| `{Order,Payment,Catalog,Shipping}Service.Api/Program.cs` | Registered `LoggingBehavior` in MediatR pipeline |
+| `{Order,Payment,Catalog,Shipping}Service.Api/Program.cs` | Registered `ContextPropagationMiddleware` + `Policies.LogMessageStarting()` in Wolverine pipeline |
 | `OrderService.Application/Handlers/PlaceOrderHandler.cs` | Increments `orders.placed` counter |
 | `PaymentService.Application/Handlers/ProcessPaymentHandler.cs` | Increments `payments.processed` counter with outcome tag |
 | `ShippingService.Application/Handlers/CreateShipmentHandler.cs` | Increments `shipments.dispatched` counter |
@@ -242,6 +239,8 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 
 ## Event Replay
 
-Every published event is persisted to an `EventLogs` table before it is sent to Service Bus. Admin endpoints allow querying history and replaying events by ID or correlation ID.
+The `EventLog` table in each service (Order, Payment, Shipping) provides an admin audit trail and replay capability. Admin endpoints allow querying history and replaying events by ID or correlation ID.
 
-See **[docs/event-replay.md](event-replay.md)** for the full guide: schema, `LoggingEventPublisher` decorator, endpoint reference, configuration, and migration commands.
+> **Current state:** `WolverineEventPublisher` does not auto-populate `EventLog` on every publish — Wolverine's built-in EF Core outbox handles delivery guarantees instead. Explicit EventLog writes are planned as a follow-up. The admin query/replay endpoints remain fully functional for any rows present.
+
+See **[docs/event-replay.md](event-replay.md)** for the full guide: schema, endpoint reference, configuration, and migration commands.

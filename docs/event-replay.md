@@ -53,53 +53,30 @@ Without event replay, you would:
 
 ## 3. How the System Works
 
-### The Happy Path
+### The Publishing Path
 
-Every time a service publishes an event to Service Bus, the following steps happen automatically:
+When a handler publishes an event, `WolverineEventPublisher` delegates to `IMessageBus.PublishAsync()`. Wolverine's EF Core outbox (`WolverineFx.EntityFrameworkCore`) guarantees at-least-once delivery by persisting the outgoing envelope in the same database transaction as the domain change.
 
 ```
-Handler calls IEventPublisher.PublishAsync(event, topic)
+Handler calls IEventPublisher.PublishAsync(event)
          │
          ▼
 ┌─────────────────────────────────┐
-│      LoggingEventPublisher      │  ← Decorator (new)
+│      WolverineEventPublisher    │
 │                                 │
-│  1. Serialize event to JSON     │
-│  2. Extract EntityId from JSON  │
-│  3. Save EventLogEntry to DB    │  ← PublishedAt = null (not yet published)
-│     (Id, EventType, Topic,      │
-│      Payload, CorrelationId,    │
-│      EntityId, OccurredAt)      │
+│  bus.PublishAsync(@event)       │  ← queued in Wolverine EF Core outbox
 │                                 │
-│  4. Call ServiceBusEventPublisher│  ← Actually sends the message
-│                                 │
-│  5. Set PublishedAt = now       │  ← Mark as successfully published
-│  6. Save again                  │
 └─────────────────────────────────┘
          │
-         ▼
+         ▼  (Wolverine background sender picks up from outbox)
    Message arrives at consuming service
 ```
 
-### The Failure Path
+### The EventLog Table (Audit / Replay)
 
-If step 4 (sending to Service Bus) throws an exception:
+The `EventLogs` table exists in Order, Payment, and Shipping services for **admin audit and replay** purposes. It is separate from Wolverine's delivery outbox. Currently, entries must be written explicitly — `WolverineEventPublisher` does not auto-populate `EventLog` on every publish. The admin `/admin/events` endpoints query and replay from this table.
 
-```
-LoggingEventPublisher
-│
-│  1-3: EventLogEntry saved with PublishedAt = null ✓
-│
-│  4: ServiceBus.SendMessageAsync(...) throws! ✗
-│     ↓
-│  finally block runs:
-│     - Logs "Failed to publish OrderPlacedEvent to order-events. EventLogId=abc-123..."
-│     - PublishedAt stays null in the DB
-│
-│  5-6: Skipped (exception propagated to caller)
-```
-
-The event log row with `PublishedAt = null` tells you: "this event was created but never delivered." You can then use the replay endpoint to re-send it.
+> **Note:** Automatically populating EventLog on every publish (as `LoggingEventPublisher` previously did) is planned as a follow-up. For now, EventLog rows are written only when explicitly created (e.g. by admin tooling or future interceptor middleware).
 
 ---
 
@@ -370,36 +347,27 @@ dotnet ef database update \
 
 ---
 
-## 9. Code Architecture — The Decorator Pattern
+## 9. Code Architecture — WolverineEventPublisher
 
-If you look at the source, you might be confused: there are now **two** event publisher classes in each service. Here's how they relate:
+Each event-publishing service has a `WolverineEventPublisher` that bridges `IEventPublisher` (domain interface) to Wolverine's `IMessageBus`:
 
 ```
 IEventPublisher  (interface — Domain layer, no dependencies)
       │
-      ├── ServiceBusEventPublisher  ← the "real" publisher — just sends to Service Bus
-      │
-      └── LoggingEventPublisher     ← the "decorator" — wraps ServiceBusEventPublisher
-                                       adds DB logging before/after
+      └── WolverineEventPublisher  ← bridges to IMessageBus.PublishAsync()
+                                      topic routing configured in UseWolverine()
+                                      in Program.cs — not at the call site
 ```
 
-**The Decorator Pattern** means: one class wraps another and adds behaviour around it without the caller knowing. The application code (handlers) still only knows about `IEventPublisher`. They have no idea whether logging happens.
-
-This is how DI is wired up in `DependencyInjection.cs`:
+This is how DI is wired in `DependencyInjection.cs`:
 
 ```csharp
-// Register the real publisher as a concrete type (not as IEventPublisher)
-services.AddScoped<ServiceBusEventPublisher>();
-
-// Register the decorator as IEventPublisher — this is what handlers receive
-services.AddScoped<IEventPublisher, LoggingEventPublisher>();
+services.AddScoped<IEventPublisher, WolverineEventPublisher>();
 ```
 
-When a handler asks for `IEventPublisher`, it gets `LoggingEventPublisher`. That class has `ServiceBusEventPublisher` injected into it directly (by concrete type, not by interface — this avoids infinite recursion).
+Delivery guarantees are provided by **Wolverine's EF Core outbox** (`WolverineFx.EntityFrameworkCore`) — it persists outgoing envelopes in the same database transaction as the aggregate change, then a background sender delivers them. This replaces the old three-phase `LoggingEventPublisher` pattern.
 
-**Why not put the logging logic directly in `ServiceBusEventPublisher`?**
-
-Single Responsibility Principle (SOLID): `ServiceBusEventPublisher` should only know how to send a message. Knowing about databases or log tables is a separate concern. Keeping them separate also makes it easy to unit-test each in isolation.
+The `EventLog` table remains for admin audit/replay queries. Unlike the old decorator, writes to `EventLog` are not automatic — they must be wired up explicitly if event-level audit logging is required.
 
 ---
 

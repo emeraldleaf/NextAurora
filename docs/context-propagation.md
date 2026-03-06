@@ -67,13 +67,13 @@ Browser / App Client
       │  - Stores all three in Activity baggage
       │
       ▼
-   MediatR Handler (via LoggingBehavior)
+   Wolverine Handler (via ContextPropagationMiddleware)
       │
-      │  LoggingBehavior reads baggage, opens logger scope
+      │  ContextPropagationMiddleware reads baggage, opens logger scope
       │  → Every log line in the handler now carries all three IDs
       │
       ▼
-   ServiceBusEventPublisher (outgoing async message)
+   WolverineEventPublisher (outgoing async message)
       │
       │  Reads baggage, writes to message ApplicationProperties:
       │    X-Correlation-Id, X-User-Id, X-Session-Id
@@ -120,33 +120,32 @@ if (sessionId is not null) Activity.Current?.SetBaggage("session.id",  sessionId
 
 ---
 
-### 2. `LoggingBehavior` — Enriches Every Handler Log Line
+### 2. `ContextPropagationMiddleware` — Enriches Every Handler Log Line
 
-**Files:** `{Service}.Application/Behaviors/LoggingBehavior.cs` (one per service)
+**File:** `NextAurora.ServiceDefaults/Messaging/ContextPropagationMiddleware.cs`
 
-MediatR pipelines let you wrap every command and query handler with cross-cutting behaviour. `LoggingBehavior` sits in that pipeline and:
+Wolverine's middleware pipeline lets you run cross-cutting code around every command and query handler. `ContextPropagationMiddleware` sits in that pipeline and:
 
 1. Reads the three IDs from `Activity.Current` baggage.
 2. Opens a `logger.BeginScope()` for the duration of the handler.
-3. Logs "Handling {RequestName}" at the start and elapsed time at the end.
 
 Because of the `BeginScope`, **every single log line** produced anywhere inside the handler — including lines from repositories, domain services, or anything else called transitively — automatically carries `CorrelationId`, `UserId`, and `SessionId` without those classes needing to know about them.
 
 ```
 Request arrives
-    └── ValidationBehavior (validates the command)
-            └── LoggingBehavior (opens scope with CorrelationId/UserId/SessionId)
+    └── FluentValidation (validates the command)
+            └── ContextPropagationMiddleware (opens scope with CorrelationId/UserId/SessionId)
                     └── YourHandler.Handle()         ← all logs here carry the IDs
                             └── Repository.SaveAsync()  ← and here too
 ```
 
 ---
 
-### 3. `ServiceBusEventPublisher` — Carries Context to the Next Service
+### 3. `WolverineEventPublisher` — Carries Context to the Next Service
 
-**Files:** `{Service}.Infrastructure/Messaging/ServiceBusEventPublisher.cs`
+**Files:** `{Service}.Infrastructure/Messaging/WolverineEventPublisher.cs`
 
-When a service publishes an event to Azure Service Bus, context would normally be lost — the message is fire-and-forget, with no HTTP connection to carry headers. The publisher prevents this by reading the baggage and copying it into the message's `ApplicationProperties`:
+When a service publishes an event, context would normally be lost — the message is fire-and-forget. `OutgoingContextMiddleware` (also in `ServiceDefaults`) runs on every outgoing Wolverine envelope and copies the baggage into the envelope's `ApplicationProperties`:
 
 ```csharp
 // Written onto every outgoing Service Bus message
@@ -159,15 +158,11 @@ These properties ride along with the message body and are available to the recei
 
 ---
 
-### 4. Service Bus Processors — The Entry Point for Async Messages
+### 4. Wolverine Message Handlers — The Entry Point for Async Messages
 
-**Files:**
-- `OrderService.Infrastructure/Messaging/ServiceBusEventProcessor.cs`
-- `PaymentService.Infrastructure/Messaging/OrderPlacedProcessor.cs`
-- `ShippingService.Infrastructure/Messaging/PaymentCompletedProcessor.cs`
-- `NotificationService.Infrastructure/Messaging/EventProcessor.cs`
+Wolverine discovers and invokes handler methods (`Handle(TEvent e)`) automatically for every incoming Service Bus message. `ContextPropagationMiddleware` runs before each handler, mirroring what `CorrelationIdMiddleware` does for HTTP — it reads `ApplicationProperties` from the Wolverine `Envelope` and restores all three IDs into Activity baggage and a logger scope.
 
-When a background processor picks up a message, it mirrors what `CorrelationIdMiddleware` does for HTTP:
+The properties extracted from each message:
 
 ```csharp
 // Extracted from the message, not an HTTP request
@@ -180,17 +175,11 @@ Activity.Current?.SetBaggage("correlation.id", correlationId);
 if (userId    is not null) Activity.Current?.SetBaggage("user.id",    userId);
 if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
 
-// Open scope so all log lines in this message handler carry the IDs
-using var scope = logger.BeginScope(BuildScope(correlationId, userId, sessionId, message));
+// The middleware handles this automatically — no per-handler boilerplate needed
+// ContextPropagationMiddleware.Before() runs before every Wolverine handler
 ```
 
-Each processor uses three private static helpers to keep the code clean and consistent across handlers in the same class:
-
-| Helper | What It Does |
-|--------|-------------|
-| `ExtractContext(message)` | Reads the three properties; returns a value tuple |
-| `SetActivityBaggage(...)` | Writes to `Activity.Current` baggage (null-safe) |
-| `BuildScope(...)` | Builds the scope dictionary, including optional fields |
+All three IDs are available in Activity baggage for the duration of the handler chain.
 
 ---
 
@@ -215,16 +204,16 @@ These names are the contract. Use them exactly — casing matters.
 If you add a fifth or sixth service, here is the checklist:
 
 **HTTP entry point:**
-- Register `CorrelationIdMiddleware` in `Program.cs` — it's in `ServiceDefaults` so just call `app.UseCorrelationId()` (or `app.UseMiddleware<CorrelationIdMiddleware>()`).
+- `CorrelationIdMiddleware` runs automatically via `app.MapDefaultEndpoints()` — no extra registration needed per service.
 
-**MediatR pipeline:**
-- Register `LoggingBehavior` in your Application `DependencyInjection.cs`.
+**Wolverine pipeline:**
+- Call `opts.AddNextAuroraContextPropagation()` inside `UseWolverine()` — it's in `ServiceDefaults` and registers both `ContextPropagationMiddleware` and `OutgoingContextMiddleware`.
 
 **Outgoing events:**
-- Use `ServiceBusEventPublisher` (it already handles baggage injection). Wrap it with `LoggingEventPublisher` for event log persistence.
+- Register `WolverineEventPublisher` as `IEventPublisher` in Infrastructure DI. `OutgoingContextMiddleware` stamps the three IDs onto every outgoing envelope automatically.
 
 **Incoming Service Bus messages:**
-- In each message handler, call `ExtractContext` → `SetActivityBaggage` → `BuildScope` → `BeginScope` before doing any work. Copy the pattern from any existing processor.
+- Wolverine + `ContextPropagationMiddleware` handles context extraction for all async message handlers automatically. No per-handler boilerplate needed.
 
 ---
 

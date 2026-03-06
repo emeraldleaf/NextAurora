@@ -27,7 +27,7 @@ Every request, message, and log line carries three identifiers that link the ent
 | User ID | `X-User-Id` | `X-User-Id` | `UserId` |
 | Session ID | `X-Session-Id` | `X-Session-Id` | `SessionId` |
 
-`CorrelationIdMiddleware` → `LoggingBehavior` → `ServiceBusEventPublisher` → each processor restores all three from `ApplicationProperties` into `Activity` baggage and a `logger.BeginScope()`. See **[docs/context-propagation.md](context-propagation.md)** for the full developer guide (per-component breakdown, new-service checklist, pitfalls) and **[docs/observability.md](observability.md)** for the technical reference and code patterns.
+`CorrelationIdMiddleware` → `ContextPropagationMiddleware` → `WolverineEventPublisher` → each handler restores all three from `ApplicationProperties` into `Activity` baggage and a `logger.BeginScope()`. See **[docs/context-propagation.md](context-propagation.md)** for the full developer guide (per-component breakdown, new-service checklist, pitfalls) and **[docs/observability.md](observability.md)** for the technical reference and code patterns.
 
 ---
 
@@ -92,22 +92,18 @@ Both handlers are **idempotent** — they check current order status before appl
 
 ## Event Replay
 
-The `LoggingEventPublisher` decorator persists every outbound event to an `EventLog` table before publishing (two-phase save):
+The `EventLog` table in each service (Order, Payment, Shipping) provides an admin audit trail and replay capability. Wolverine's EF Core outbox handles delivery guarantees separately.
 
-1. Save `EventLogEntry` with `PublishedAt = null`
-2. Publish to Service Bus
-3. Stamp `PublishedAt` on success
-
-A row with `PublishedAt = null` means a crash occurred between save and publish — the event can be safely replayed.
+> **Current state:** `WolverineEventPublisher` does not auto-populate `EventLog` on publish — explicit writes are planned as a follow-up. Admin query/replay endpoints remain functional for any rows present.
 
 Admin replay endpoints are exposed on each service:
 
 ```
-GET  /admin/events          — list unpublished or all events
-POST /admin/events/replay/{eventId}   — replay a specific event
+GET  /admin/events                     — list events (filter by correlationId, entityId, etc.)
+POST /admin/events/replay/{eventId}    — replay a specific event
 ```
 
-For the full replay guide including local reproduction steps, see **[docs/event-replay.md](event-replay.md)**.
+For the full replay guide, see **[docs/event-replay.md](event-replay.md)**.
 
 ---
 

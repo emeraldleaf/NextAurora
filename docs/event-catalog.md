@@ -119,7 +119,7 @@ All messages carry these `ApplicationProperties` on every Service Bus message:
 | `X-User-Id` | Authenticated user who initiated the chain (null for system events) |
 | `X-Session-Id` | Browser/app session ID (null for system events) |
 
-These are stamped by `ServiceBusEventPublisher` and restored by each processor. See `docs/context-propagation.md` for the full propagation guide.
+These are stamped by `OutgoingContextMiddleware` (in `ServiceDefaults`) onto every outgoing Wolverine envelope, and restored by `ContextPropagationMiddleware` in each receiving handler. See `docs/context-propagation.md` for the full propagation guide.
 
 ---
 
