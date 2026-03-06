@@ -20,8 +20,8 @@ namespace NextAurora.ServiceDefaults.Middleware;
 ///                   in X-Session-Id. Lets you correlate all actions from one browsing session.
 ///
 /// All three values are stored in two places:
-///   1. Activity.Current baggage  — accessed by ServiceBusEventPublisher when building outgoing
-///      messages, and by LoggingBehavior when enriching MediatR handler logs.
+///   1. Activity.Current baggage  — accessed by OutgoingContextMiddleware when stamping outgoing
+///      Service Bus messages, and by ContextPropagationMiddleware when enriching handler logs.
 ///   2. logger.BeginScope()       — automatically prepended to every log line written during
 ///      this request, including deep inside handlers and repositories.
 ///
