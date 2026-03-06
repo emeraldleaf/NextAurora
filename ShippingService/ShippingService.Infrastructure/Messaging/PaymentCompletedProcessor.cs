@@ -10,6 +10,29 @@ using ShippingService.Application.EventHandlers;
 
 namespace ShippingService.Infrastructure.Messaging;
 
+/// <summary>
+/// Background service that subscribes to the "payment-events" topic and creates a shipment
+/// whenever a PaymentCompletedEvent arrives.
+///
+/// Subscription: payment-events / shipping-sub
+///   Shipping and OrderService each have their own subscription on payment-events.
+///   Both receive the same message independently; completing or failing in one subscription
+///   has no effect on the other.
+///
+/// Idempotency:
+///   Service Bus guarantees at-least-once delivery — the same message may arrive more than once
+///   (e.g. after a network interruption between CompleteMessageAsync and the broker's ACK).
+///   Shipment creation handlers should check whether a shipment for the given order already
+///   exists before creating a new one to prevent duplicate shipments.
+///
+/// Context propagation:
+///   CorrelationId, UserId, and SessionId are extracted from ApplicationProperties and restored
+///   into Activity baggage and logger scope.  See docs/context-propagation.md for the full flow.
+///
+/// Scoped services:
+///   BackgroundService is singleton; DbContext (PostgreSQL via EF Core) is scoped.
+///   A new DI scope is created per message to give each handler its own DbContext instance.
+/// </summary>
 public class PaymentCompletedProcessor(
     ServiceBusClient client,
     IServiceProvider serviceProvider,
@@ -21,6 +44,7 @@ public class PaymentCompletedProcessor(
 
         processor.ProcessMessageAsync += async args =>
         {
+            // Extract observability context stamped by ServiceBusEventPublisher in PaymentService.
             var correlationId = args.Message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
                 ? cid?.ToString() : args.Message.CorrelationId;
             var userId = args.Message.ApplicationProperties.TryGetValue("X-User-Id", out var uid)
@@ -28,12 +52,15 @@ public class PaymentCompletedProcessor(
             var sessionId = args.Message.ApplicationProperties.TryGetValue("X-Session-Id", out var sid)
                 ? sid?.ToString() : null;
 
+            // Guard against null Activity (emulator / test environment).
+            // 'using' disposes the activity (if we created one) when the handler exits.
             using var processorActivity = Activity.Current is null
                 ? new Activity("ServiceBus.ProcessMessage").Start() : null;
             if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
             if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
             if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
 
+            // Structured log scope — all log lines inside this block carry these fields.
             var scopeState = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["CorrelationId"] = correlationId,

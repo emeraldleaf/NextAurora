@@ -12,6 +12,26 @@ using NotificationService.Application.EventHandlers;
 
 namespace NotificationService.Infrastructure.Messaging;
 
+/// <summary>
+/// Background service that drives all of NotificationService's inbound message processing.
+/// It subscribes to three sources simultaneously:
+///
+///   order-events / notify-sub    — OrderPlacedEvent  → "Order Received" email/push
+///   shipping-events / notify-sub — ShipmentDispatchedEvent → "Order Shipped" email/push
+///   send-notification (queue)    — SendNotificationCommand → direct notification request
+///                                  (other services can enqueue a notification without knowing
+///                                   the notification channel or template details)
+///
+/// Topics vs Queues:
+///   Topics (order-events, shipping-events) support multiple subscriptions — many services
+///   receive the same message independently.  A Queue (send-notification) is point-to-point:
+///   only one consumer receives each message, and there are no subscriptions.
+///
+/// All three processors start concurrently and run in parallel for the lifetime of the host.
+///
+/// Context propagation, DI scoping, and complete/abandon semantics follow the same pattern
+/// as the other service processors.  See docs/context-propagation.md for the full picture.
+/// </summary>
 public class EventProcessor(
     ServiceBusClient client,
     IServiceProvider serviceProvider,
@@ -19,10 +39,15 @@ public class EventProcessor(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // ── order-events / notify-sub ────────────────────────────────────────────────────────
         var orderProcessor = client.CreateProcessor("order-events", "notify-sub");
         orderProcessor.ProcessMessageAsync += async args =>
         {
+            // Restore the three observability IDs from the message ApplicationProperties.
+            // These were stamped by ServiceBusEventPublisher in OrderService.
             var (correlationId, userId, sessionId) = ExtractContext(args.Message);
+
+            // Ensure an Activity exists so baggage writes below don't silently no-op.
             using var processorActivity = Activity.Current is null
                 ? new Activity("ServiceBus.ProcessMessage").Start() : null;
             if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
@@ -55,6 +80,7 @@ public class EventProcessor(
             return Task.CompletedTask;
         };
 
+        // ── shipping-events / notify-sub ─────────────────────────────────────────────────────
         var shippingProcessor = client.CreateProcessor("shipping-events", "notify-sub");
         shippingProcessor.ProcessMessageAsync += async args =>
         {
@@ -91,6 +117,10 @@ public class EventProcessor(
             return Task.CompletedTask;
         };
 
+        // ── send-notification queue ───────────────────────────────────────────────────────────
+        // This is a direct command queue, not a topic subscription.
+        // Any service can enqueue a SendNotificationCommand without knowing which channel
+        // (email, push, SMS) will be used — that decision lives inside NotificationService.
         var queueProcessor = client.CreateProcessor("send-notification");
         queueProcessor.ProcessMessageAsync += async args =>
         {
@@ -129,13 +159,21 @@ public class EventProcessor(
             return Task.CompletedTask;
         };
 
+        // Start all three processors concurrently.  Each runs on the Service Bus SDK's
+        // thread pool independently — a slow notification does not delay an order event.
         await orderProcessor.StartProcessingAsync(stoppingToken);
         await shippingProcessor.StartProcessingAsync(stoppingToken);
         await queueProcessor.StartProcessingAsync(stoppingToken);
 
+        // Keep ExecuteAsync alive until the host shuts down.
         await Task.Delay(Timeout.Infinite, stoppingToken);
     }
 
+    /// <summary>
+    /// Reads CorrelationId, UserId, and SessionId from the message's ApplicationProperties.
+    /// Falls back to the SDK-level CorrelationId field for the correlation ID in case the
+    /// publisher only set that (rather than the custom X-Correlation-Id property).
+    /// </summary>
     private static (string? correlationId, string? userId, string? sessionId) ExtractContext(ServiceBusReceivedMessage message)
     {
         var correlationId = message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
@@ -147,6 +185,12 @@ public class EventProcessor(
         return (correlationId, userId, sessionId);
     }
 
+    /// <summary>
+    /// Builds the logger scope dictionary.  All fields in this dictionary are automatically
+    /// appended to every structured log line written while the scope is open.
+    /// DeliveryCount is particularly useful — a value above 1 means this message has been
+    /// retried, which can indicate a bug in the handler or a transient infrastructure issue.
+    /// </summary>
     private static Dictionary<string, object?> BuildScope(string? correlationId, string? userId, string? sessionId, ServiceBusReceivedMessage message)
     {
         var scope = new Dictionary<string, object?>(StringComparer.Ordinal)
