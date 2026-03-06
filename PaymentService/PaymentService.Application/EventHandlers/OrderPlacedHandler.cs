@@ -11,7 +11,8 @@ public class OrderPlacedHandler(IMediator mediator) : INotificationHandler<Order
         await mediator.Send(new ProcessPaymentCommand(
             notification.Event.OrderId,
             notification.Event.TotalAmount,
-            notification.Event.Currency), cancellationToken);
+            notification.Event.Currency,
+            notification.Event.BuyerId), cancellationToken);
     }
 }
 

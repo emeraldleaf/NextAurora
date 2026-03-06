@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using MediatR;
@@ -41,6 +42,22 @@ public class OrderPlacedProcessor(
     IServiceProvider serviceProvider,
     ILogger<OrderPlacedProcessor> logger) : BackgroundService
 {
+    /// <summary>
+    /// Named ActivitySource for Service Bus consumer spans — creates real OTel spans
+    /// when "NextAurora.Messaging" is registered with AddSource() in Extensions.cs.
+    /// </summary>
+    private static readonly ActivitySource _activitySource = new("NextAurora.Messaging");
+
+    /// <summary>
+    /// Counter incremented whenever a message is abandoned. Tagged with Subject so
+    /// dashboards can identify which event type is consistently failing.
+    /// Configure an alert on this metric rising to detect DLQ pile-ups early.
+    /// </summary>
+    private static readonly Counter<long> _messagesAbandoned =
+        new Meter("NextAurora").CreateCounter<long>(
+            "messages.abandoned",
+            description: "Messages abandoned for retry or dead-letter queue");
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var processor = client.CreateProcessor("order-events", "payment-sub");
@@ -56,12 +73,11 @@ public class OrderPlacedProcessor(
             var sessionId = args.Message.ApplicationProperties.TryGetValue("X-Session-Id", out var sid)
                 ? sid?.ToString() : null;
 
-            // Ensure an Activity exists before setting baggage.
-            // The Azure SDK creates one automatically when OTel is configured.
-            // In other environments (emulator, tests) Activity.Current is null — we create a
-            // short-lived one so baggage calls below don't silently no-op.
-            using var processorActivity = Activity.Current is null
-                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
+            // _activitySource.StartActivity creates a proper OTel span when OTel is listening.
+            // Falls back to a plain Activity when not configured (emulator, tests) to ensure
+            // Activity.Current is non-null so baggage writes below have somewhere to go.
+            using var processorActivity = _activitySource.StartActivity("ServiceBus.ProcessMessage", ActivityKind.Consumer)
+                ?? (Activity.Current is null ? new Activity("ServiceBus.ProcessMessage").Start() : null);
             if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
             if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
             if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
@@ -97,7 +113,10 @@ public class OrderPlacedProcessor(
             {
                 // Abandon for retry.  The broker will redeliver after a configurable delay.
                 // If MaxDeliveryCount is reached the message moves to the Dead Letter Queue.
-                logger.LogError(ex, "Failed to process OrderPlaced event. Abandoning for retry/DLQ");
+                _messagesAbandoned.Add(1,
+                    new KeyValuePair<string, object?>("subject", args.Message.Subject),
+                    new KeyValuePair<string, object?>("service", "PaymentService"));
+                logger.LogError(ex, "Failed to process OrderPlaced event after {DeliveryCount} attempt(s). Abandoning for retry/DLQ", args.Message.DeliveryCount);
                 await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
             }
         };

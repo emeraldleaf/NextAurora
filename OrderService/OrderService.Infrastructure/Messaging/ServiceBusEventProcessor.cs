@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using MediatR;
@@ -14,8 +15,11 @@ namespace OrderService.Infrastructure.Messaging;
 /// Background service that subscribes to two Service Bus topics and drives OrderService's
 /// reaction to events published by other services:
 ///
-///   payment-events / order-sub   — receives PaymentCompletedEvent (or PaymentFailedEvent)
-///                                  and updates the order's payment status.
+///   payment-events / order-sub   — receives PaymentCompletedEvent and PaymentFailedEvent,
+///                                  dispatching each to the appropriate MediatR handler.
+///                                  Dispatching is done by message Subject (the event type
+///                                  name, e.g. "PaymentCompletedEvent") so new event types
+///                                  can be added without changing deserialization logic.
 ///   shipping-events / order-sub  — receives ShipmentDispatchedEvent and marks the order
 ///                                  as shipped.
 ///
@@ -44,6 +48,24 @@ public class ServiceBusEventProcessor(
     IServiceProvider serviceProvider,
     ILogger<ServiceBusEventProcessor> logger) : BackgroundService
 {
+    /// <summary>
+    /// Named ActivitySource for Service Bus consumer spans.
+    /// When OpenTelemetry is configured (Extensions.cs registers "NextAurora.Messaging"),
+    /// StartActivity creates a proper OTel span that appears in the Aspire dashboard, Jaeger,
+    /// or Zipkin — connecting inbound message processing to the upstream publisher's trace.
+    /// </summary>
+    private static readonly ActivitySource _activitySource = new("NextAurora.Messaging");
+
+    /// <summary>
+    /// Counter incremented whenever a message is abandoned (routed back for retry or DLQ).
+    /// Tagged with the message Subject so dashboards can show which event type is failing.
+    /// Alert on this metric rising to detect DLQ pile-ups before they become incidents.
+    /// </summary>
+    private static readonly Counter<long> _messagesAbandoned =
+        new Meter("NextAurora").CreateCounter<long>(
+            "messages.abandoned",
+            description: "Messages abandoned for retry or dead-letter queue");
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // CreateProcessor attaches to a subscription on a topic.
@@ -56,13 +78,12 @@ public class ServiceBusEventProcessor(
             //          by the publishing service's ServiceBusEventPublisher.
             var (correlationId, userId, sessionId) = ExtractContext(args.Message);
 
-            // Step 2 — ensure an Activity exists before setting baggage.
-            //          The Azure SDK creates an Activity automatically when OpenTelemetry is
-            //          configured (production).  In other environments (Service Bus emulator,
-            //          unit tests) Activity.Current is null, so we create a short-lived one.
-            //          'using' ensures it is disposed when this handler completes.
-            using var processorActivity = Activity.Current is null
-                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
+            // Step 2 — open an OTel span for this message.  _activitySource.StartActivity returns
+            //          a real span when OTel is listening; null when it is not (tests/emulator).
+            //          The fallback ensures Activity.Current is non-null so baggage writes below
+            //          have somewhere to go even without OTel.
+            using var processorActivity = _activitySource.StartActivity("ServiceBus.ProcessMessage", ActivityKind.Consumer)
+                ?? (Activity.Current is null ? new Activity("ServiceBus.ProcessMessage").Start() : null);
 
             // Step 3 — write the IDs into Activity baggage so that any code called from here
             //          (e.g. LoggingBehavior inside MediatR) can read them without being passed
@@ -75,29 +96,61 @@ public class ServiceBusEventProcessor(
             //          (and all code it calls) automatically includes CorrelationId, MessageId,
             //          Subject, DeliveryCount, UserId, and SessionId.
             using var scope = logger.BeginScope(BuildScope(correlationId, userId, sessionId, args.Message));
+            bool succeeded = false;
             try
             {
-                var @event = JsonSerializer.Deserialize<PaymentCompletedEvent>(args.Message.Body.ToString());
-                if (@event is not null)
+                // Dispatch by Subject (the event type name set by ServiceBusEventPublisher).
+                // This pattern is Open/Closed — adding a new event type means adding a new
+                // else-if branch without touching any existing deserialization logic.
+                var subject = args.Message.Subject;
+                if (string.Equals(subject, nameof(PaymentCompletedEvent), StringComparison.Ordinal))
                 {
-                    // Create a DI scope per message so scoped services (DbContext etc.) are
-                    // correctly lifetime-managed and not shared between concurrent messages.
-                    using var serviceScope = serviceProvider.CreateScope();
-                    var mediator = serviceScope.ServiceProvider.GetRequiredService<IMediator>();
-                    await mediator.Publish(new PaymentCompletedNotification(@event), stoppingToken);
+                    var @event = JsonSerializer.Deserialize<PaymentCompletedEvent>(args.Message.Body.ToString());
+                    if (@event is not null)
+                    {
+                        // Create a DI scope per message so scoped services (DbContext etc.) are
+                        // correctly lifetime-managed and not shared between concurrent messages.
+                        using var serviceScope = serviceProvider.CreateScope();
+                        var mediator = serviceScope.ServiceProvider.GetRequiredService<IMediator>();
+                        await mediator.Publish(new PaymentCompletedNotification(@event), stoppingToken);
+                    }
                 }
+                else if (string.Equals(subject, nameof(PaymentFailedEvent), StringComparison.Ordinal))
+                {
+                    var @event = JsonSerializer.Deserialize<PaymentFailedEvent>(args.Message.Body.ToString());
+                    if (@event is not null)
+                    {
+                        using var serviceScope = serviceProvider.CreateScope();
+                        var mediator = serviceScope.ServiceProvider.GetRequiredService<IMediator>();
+                        await mediator.Publish(new PaymentFailedNotification(@event), stoppingToken);
+                    }
+                }
+                else
+                {
+                    // Unknown subject — log and complete rather than abandon, to avoid infinite
+                    // DLQ retries for messages that can never be processed by this subscription.
+                    logger.LogWarning("Received unrecognised message subject '{Subject}' on payment-events. Completing without processing.", subject);
+                }
+
                 // Completing the message removes it from the subscription.
                 // Only call this after all work is done — if we complete early and then throw,
                 // the order update is silently lost.
+                succeeded = true;
                 await args.CompleteMessageAsync(args.Message, stoppingToken);
             }
             catch (Exception ex)
             {
-                // Abandoning returns the message to the subscription for retry.
-                // The SDK increments DeliveryCount each time.  When DeliveryCount exceeds the
-                // subscription's MaxDeliveryCount the broker moves it to the Dead Letter Queue.
-                logger.LogError(ex, "Failed to process PaymentCompleted event. Abandoning for retry/DLQ");
-                await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
+                if (!succeeded)
+                {
+                    // Abandoning returns the message to the subscription for retry.
+                    // The SDK increments DeliveryCount each time.  When DeliveryCount exceeds the
+                    // subscription's MaxDeliveryCount the broker moves it to the Dead Letter Queue.
+                    _messagesAbandoned.Add(1,
+                        new KeyValuePair<string, object?>("subject", args.Message.Subject),
+                        new KeyValuePair<string, object?>("service", "OrderService"));
+                    logger.LogError(ex, "Failed to process payment event after {DeliveryCount} attempt(s). Abandoning for retry/DLQ", args.Message.DeliveryCount);
+                    await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
+                }
             }
         };
 
@@ -116,13 +169,14 @@ public class ServiceBusEventProcessor(
         shippingProcessor.ProcessMessageAsync += async args =>
         {
             var (correlationId, userId, sessionId) = ExtractContext(args.Message);
-            using var processorActivity = Activity.Current is null
-                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
+            using var processorActivity = _activitySource.StartActivity("ServiceBus.ProcessMessage", ActivityKind.Consumer)
+                ?? (Activity.Current is null ? new Activity("ServiceBus.ProcessMessage").Start() : null);
             if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
             if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
             if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
 
             using var scope = logger.BeginScope(BuildScope(correlationId, userId, sessionId, args.Message));
+            bool succeeded = false;
             try
             {
                 var @event = JsonSerializer.Deserialize<ShipmentDispatchedEvent>(args.Message.Body.ToString());
@@ -132,12 +186,19 @@ public class ServiceBusEventProcessor(
                     var mediator = serviceScope.ServiceProvider.GetRequiredService<IMediator>();
                     await mediator.Publish(new ShipmentDispatchedNotification(@event), stoppingToken);
                 }
+                succeeded = true;
                 await args.CompleteMessageAsync(args.Message, stoppingToken);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to process ShipmentDispatched event. Abandoning for retry/DLQ");
-                await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
+                if (!succeeded)
+                {
+                    _messagesAbandoned.Add(1,
+                        new KeyValuePair<string, object?>("subject", args.Message.Subject),
+                        new KeyValuePair<string, object?>("service", "OrderService"));
+                    logger.LogError(ex, "Failed to process ShipmentDispatched event after {DeliveryCount} attempt(s). Abandoning for retry/DLQ", args.Message.DeliveryCount);
+                    await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
+                }
             }
         };
         shippingProcessor.ProcessErrorAsync += args =>

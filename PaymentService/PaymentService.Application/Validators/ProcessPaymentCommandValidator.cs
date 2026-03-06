@@ -16,5 +16,8 @@ public class ProcessPaymentCommandValidator : AbstractValidator<ProcessPaymentCo
         RuleFor(x => x.Currency)
             .NotEmpty()
             .Length(3);
+
+        RuleFor(x => x.BuyerId)
+            .NotEmpty();
     }
 }

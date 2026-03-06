@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using MediatR;
@@ -38,6 +39,13 @@ public class PaymentCompletedProcessor(
     IServiceProvider serviceProvider,
     ILogger<PaymentCompletedProcessor> logger) : BackgroundService
 {
+    private static readonly ActivitySource _activitySource = new("NextAurora.Messaging");
+
+    private static readonly Counter<long> _messagesAbandoned =
+        new Meter("NextAurora").CreateCounter<long>(
+            "messages.abandoned",
+            description: "Messages abandoned for retry or dead-letter queue");
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var processor = client.CreateProcessor("payment-events", "shipping-sub");
@@ -52,10 +60,10 @@ public class PaymentCompletedProcessor(
             var sessionId = args.Message.ApplicationProperties.TryGetValue("X-Session-Id", out var sid)
                 ? sid?.ToString() : null;
 
-            // Guard against null Activity (emulator / test environment).
-            // 'using' disposes the activity (if we created one) when the handler exits.
-            using var processorActivity = Activity.Current is null
-                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
+            // _activitySource.StartActivity creates an OTel span when "NextAurora.Messaging"
+            // is registered; falls back to a plain Activity in test environments.
+            using var processorActivity = _activitySource.StartActivity("ServiceBus.ProcessMessage", ActivityKind.Consumer)
+                ?? (Activity.Current is null ? new Activity("ServiceBus.ProcessMessage").Start() : null);
             if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
             if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
             if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
@@ -85,7 +93,10 @@ public class PaymentCompletedProcessor(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to process PaymentCompleted event. Abandoning for retry/DLQ");
+                _messagesAbandoned.Add(1,
+                    new KeyValuePair<string, object?>("subject", args.Message.Subject),
+                    new KeyValuePair<string, object?>("service", "ShippingService"));
+                logger.LogError(ex, "Failed to process PaymentCompleted event after {DeliveryCount} attempt(s). Abandoning for retry/DLQ", args.Message.DeliveryCount);
                 await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
             }
         };

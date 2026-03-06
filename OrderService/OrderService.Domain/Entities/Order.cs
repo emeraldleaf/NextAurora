@@ -56,6 +56,16 @@ public class Order
         ShippedAt = DateTime.UtcNow;
     }
 
+    public void MarkAsPaymentFailed()
+    {
+        // Payment can only fail while the order is still awaiting payment.
+        // If the order already moved to Paid (e.g. a duplicate PaymentFailedEvent from a DLQ
+        // replay), we silently ignore — the handler checks status before calling this.
+        if (Status != OrderStatus.Placed)
+            throw new InvalidOperationException("Cannot mark payment as failed in the current status.");
+        Status = OrderStatus.PaymentFailed;
+    }
+
     public void Cancel()
     {
         if (Status is OrderStatus.Shipped or OrderStatus.Delivered)

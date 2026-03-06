@@ -71,6 +71,10 @@ public static class Extensions
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
                     .AddSource("Azure.Messaging.ServiceBus")
+                    // "NextAurora.Messaging" is the ActivitySource used by all Service Bus
+                    // processors. Registering it here causes consumer spans to appear in the
+                    // Aspire dashboard and any connected distributed tracing backend.
+                    .AddSource("NextAurora.Messaging")
                     .AddAspNetCoreInstrumentation(tracing =>
                         // Exclude health check requests from tracing
                         tracing.Filter = context =>

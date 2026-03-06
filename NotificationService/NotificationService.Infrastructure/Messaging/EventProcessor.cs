@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using MediatR;
@@ -37,6 +38,12 @@ public class EventProcessor(
     IServiceProvider serviceProvider,
     ILogger<EventProcessor> logger) : BackgroundService
 {
+    private static readonly ActivitySource _activitySource = new("NextAurora.Messaging");
+
+    private static readonly Counter<long> _messagesAbandoned =
+        new Meter("NextAurora").CreateCounter<long>(
+            "messages.abandoned",
+            description: "Messages abandoned for retry or dead-letter queue");
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // ── order-events / notify-sub ────────────────────────────────────────────────────────
@@ -48,8 +55,8 @@ public class EventProcessor(
             var (correlationId, userId, sessionId) = ExtractContext(args.Message);
 
             // Ensure an Activity exists so baggage writes below don't silently no-op.
-            using var processorActivity = Activity.Current is null
-                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
+            using var processorActivity = _activitySource.StartActivity("ServiceBus.ProcessMessage", ActivityKind.Consumer)
+                ?? (Activity.Current is null ? new Activity("ServiceBus.ProcessMessage").Start() : null);
             if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
             if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
             if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
@@ -68,7 +75,10 @@ public class EventProcessor(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to process OrderPlaced event for notification. Abandoning for retry/DLQ");
+                _messagesAbandoned.Add(1,
+                    new KeyValuePair<string, object?>("subject", args.Message.Subject),
+                    new KeyValuePair<string, object?>("service", "NotificationService"));
+                logger.LogError(ex, "Failed to process OrderPlaced event for notification after {DeliveryCount} attempt(s). Abandoning for retry/DLQ", args.Message.DeliveryCount);
                 await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
             }
         };
@@ -85,8 +95,8 @@ public class EventProcessor(
         shippingProcessor.ProcessMessageAsync += async args =>
         {
             var (correlationId, userId, sessionId) = ExtractContext(args.Message);
-            using var processorActivity = Activity.Current is null
-                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
+            using var processorActivity = _activitySource.StartActivity("ServiceBus.ProcessMessage", ActivityKind.Consumer)
+                ?? (Activity.Current is null ? new Activity("ServiceBus.ProcessMessage").Start() : null);
             if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
             if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
             if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
@@ -105,7 +115,10 @@ public class EventProcessor(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to process ShipmentDispatched event for notification. Abandoning for retry/DLQ");
+                _messagesAbandoned.Add(1,
+                    new KeyValuePair<string, object?>("subject", args.Message.Subject),
+                    new KeyValuePair<string, object?>("service", "NotificationService"));
+                logger.LogError(ex, "Failed to process ShipmentDispatched event for notification after {DeliveryCount} attempt(s). Abandoning for retry/DLQ", args.Message.DeliveryCount);
                 await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
             }
         };
@@ -125,8 +138,8 @@ public class EventProcessor(
         queueProcessor.ProcessMessageAsync += async args =>
         {
             var (correlationId, userId, sessionId) = ExtractContext(args.Message);
-            using var processorActivity = Activity.Current is null
-                ? new Activity("ServiceBus.ProcessMessage").Start() : null;
+            using var processorActivity = _activitySource.StartActivity("ServiceBus.ProcessMessage", ActivityKind.Consumer)
+                ?? (Activity.Current is null ? new Activity("ServiceBus.ProcessMessage").Start() : null);
             if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
             if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
             if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
@@ -147,7 +160,10 @@ public class EventProcessor(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to process send-notification command. Abandoning for retry/DLQ");
+                _messagesAbandoned.Add(1,
+                    new KeyValuePair<string, object?>("subject", args.Message.Subject),
+                    new KeyValuePair<string, object?>("service", "NotificationService"));
+                logger.LogError(ex, "Failed to process send-notification command after {DeliveryCount} attempt(s). Abandoning for retry/DLQ", args.Message.DeliveryCount);
                 await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
             }
         };
@@ -164,6 +180,55 @@ public class EventProcessor(
         await orderProcessor.StartProcessingAsync(stoppingToken);
         await shippingProcessor.StartProcessingAsync(stoppingToken);
         await queueProcessor.StartProcessingAsync(stoppingToken);
+
+        // ── payment-events / notify-sub ──────────────────────────────────────────────────────
+        // Subscribes to payment results so we can send "Payment Failed" emails.
+        // The subscription "notify-sub" on payment-events must be provisioned in Azure
+        // alongside the "order-sub" and "shipping-sub" subscriptions on the same topic.
+        var paymentProcessor = client.CreateProcessor("payment-events", "notify-sub");
+        paymentProcessor.ProcessMessageAsync += async args =>
+        {
+            var (correlationId, userId, sessionId) = ExtractContext(args.Message);
+            using var processorActivity = _activitySource.StartActivity("ServiceBus.ProcessMessage", ActivityKind.Consumer)
+                ?? (Activity.Current is null ? new Activity("ServiceBus.ProcessMessage").Start() : null);
+            if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
+            if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
+            if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
+
+            using var scope = logger.BeginScope(BuildScope(correlationId, userId, sessionId, args.Message));
+            try
+            {
+                // Only PaymentFailedEvent warrants a notification; PaymentCompletedEvent is
+                // handled by the shipping flow which eventually triggers a "shipped" email.
+                if (string.Equals(args.Message.Subject, nameof(PaymentFailedEvent), StringComparison.Ordinal))
+                {
+                    var @event = JsonSerializer.Deserialize<PaymentFailedEvent>(args.Message.Body.ToString());
+                    if (@event is not null)
+                    {
+                        using var serviceScope = serviceProvider.CreateScope();
+                        var mediator = serviceScope.ServiceProvider.GetRequiredService<IMediator>();
+                        await mediator.Publish(new PaymentFailedNotification(@event), stoppingToken);
+                    }
+                }
+                await args.CompleteMessageAsync(args.Message, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _messagesAbandoned.Add(1,
+                    new KeyValuePair<string, object?>("subject", args.Message.Subject),
+                    new KeyValuePair<string, object?>("service", "NotificationService"));
+                logger.LogError(ex, "Failed to process payment event for notification after {DeliveryCount} attempt(s). Abandoning for retry/DLQ", args.Message.DeliveryCount);
+                await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
+            }
+        };
+        paymentProcessor.ProcessErrorAsync += args =>
+        {
+            logger.LogError(args.Exception,
+                "Service Bus transport error on {EntityPath} (source: {ErrorSource}, namespace: {Namespace})",
+                args.EntityPath, args.ErrorSource, args.FullyQualifiedNamespace);
+            return Task.CompletedTask;
+        };
+        await paymentProcessor.StartProcessingAsync(stoppingToken);
 
         // Keep ExecuteAsync alive until the host shuts down.
         await Task.Delay(Timeout.Infinite, stoppingToken);

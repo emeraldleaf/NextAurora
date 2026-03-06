@@ -12,7 +12,7 @@ public class ProcessPaymentCommandValidatorTests
     public void Validate_WithValidCommand_ReturnsNoErrors()
     {
         // Arrange
-        var command = new ProcessPaymentCommand(Guid.NewGuid(), 50m, "USD");
+        var command = new ProcessPaymentCommand(Guid.NewGuid(), 50m, "USD", Guid.NewGuid());
 
         // Act
         var result = _sut.Validate(command);
@@ -25,7 +25,7 @@ public class ProcessPaymentCommandValidatorTests
     public void Validate_WithEmptyOrderId_ReturnsError()
     {
         // Arrange
-        var command = new ProcessPaymentCommand(Guid.Empty, 50m, "USD");
+        var command = new ProcessPaymentCommand(Guid.Empty, 50m, "USD", Guid.NewGuid());
 
         // Act
         var result = _sut.Validate(command);
@@ -38,7 +38,7 @@ public class ProcessPaymentCommandValidatorTests
     public void Validate_WithZeroAmount_ReturnsError()
     {
         // Arrange
-        var command = new ProcessPaymentCommand(Guid.NewGuid(), 0m, "USD");
+        var command = new ProcessPaymentCommand(Guid.NewGuid(), 0m, "USD", Guid.NewGuid());
 
         // Act
         var result = _sut.Validate(command);

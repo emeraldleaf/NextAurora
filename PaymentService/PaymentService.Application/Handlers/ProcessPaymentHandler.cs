@@ -51,6 +51,7 @@ public class ProcessPaymentHandler(
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
+                BuyerId = request.BuyerId,
                 Reason = result.ErrorMessage ?? "Unknown error",
                 FailedAt = DateTime.UtcNow
             }, "payment-events", cancellationToken);

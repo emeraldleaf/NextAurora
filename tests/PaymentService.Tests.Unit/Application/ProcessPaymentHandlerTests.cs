@@ -21,7 +21,7 @@ public class ProcessPaymentHandlerTests
     }
 
     private static ProcessPaymentCommand ValidCommand() =>
-        new(Guid.NewGuid(), 99.99m, "USD");
+        new(Guid.NewGuid(), 99.99m, "USD", Guid.NewGuid());
 
     [Fact]
     public async Task Handle_WhenGatewaySucceeds_CompletesPaymentAndPublishesEvent()
