@@ -25,7 +25,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NextAurora.AppHost")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8ca07ff5c656c53fb89697ec394d5b6715e7834e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+23b3dcc37214ff35c89af5c02d062388054d7cdb")]
 [assembly: System.Reflection.AssemblyProductAttribute("NextAurora.AppHost")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NextAurora.AppHost")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -54,6 +54,8 @@ CorrelationId = "a3f1b2c4..."
 
 This returns every log line — HTTP request, MediatR handler, Service Bus publish, Service Bus receive, and notification send — for that single transaction.
 
+For the full three-identifier guide (UserId, SessionId, new-service checklist, common pitfalls), see **[docs/context-propagation.md](context-propagation.md)**.
+
 ---
 
 ## Distributed Tracing (OpenTelemetry)
@@ -177,6 +179,7 @@ A `Meter("NextAurora")` is registered in `ServiceDefaults` and collected by the 
 | `payments.processed` | `ProcessPaymentHandler` | `outcome=success\|failed` |
 | `shipments.dispatched` | `CreateShipmentHandler` | — |
 | `notifications.sent` | `SendNotificationHandler` | `channel=Email\|…` |
+| `messages.abandoned` | All service processors | `subject=<EventType>`, `service=<ServiceName>` |
 
 These are available in the Aspire dashboard under **Metrics** in development. In production, they are exported via OTLP to your metrics backend (Prometheus, Azure Monitor, etc.).
 
@@ -239,131 +242,6 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 
 ## Event Replay
 
-### Overview
+Every published event is persisted to an `EventLogs` table before it is sent to Service Bus. Admin endpoints allow querying history and replaying events by ID or correlation ID.
 
-Every published event (Order, Payment, Shipping services) is persisted to an `EventLogs` table in the service's own database. This allows engineers to:
-
-- **Query** the full event history for a correlation ID, entity, or time window
-- **Replay** a single failed/missed event
-- **Replay a chain** — all events for a given correlation ID in occurrence order
-
-### EventLog Schema
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `Id` | Guid PK | Unique event log entry ID |
-| `EventType` | string(256) | e.g. `OrderPlacedEvent` |
-| `Topic` | string(256) | Service Bus topic name |
-| `Payload` | text/nvarchar(max) | Full JSON payload |
-| `CorrelationId` | string(256)? | From W3C trace baggage |
-| `EntityId` | string(256)? | Extracted aggregate root ID |
-| `OccurredAt` | DateTimeOffset | When the handler triggered the publish |
-| `PublishedAt` | DateTimeOffset? | Set after SB publish succeeds; `null` = SB failed |
-| `IsReplay` | bool | `true` when created by a replay request |
-| `OriginalEventId` | Guid? | For replays: points to the source EventLog row |
-
-### How It Works
-
-`LoggingEventPublisher` wraps `ServiceBusEventPublisher` in a decorator pattern:
-
-1. Serialize the event and extract correlation + entity IDs
-2. Save `EventLogEntry` row to the DB (with `PublishedAt = null`)
-3. Publish to Service Bus via the inner `ServiceBusEventPublisher`
-4. On success: call `entry.SetPublished()` and save again
-5. On failure: `PublishedAt` stays `null` — log the failure for investigation
-
-> **Note:** The event log save and domain entity save are separate transactions. This is intentional — the event log is an infrastructure concern. A full transactional Outbox (atomic with the domain save) would require a Unit-of-Work refactor.
-
-### Admin Endpoints
-
-All endpoints require an `X-Admin-Key` header matching the `AdminApiKey` configuration value. If the key is not configured, all requests return `403`.
-
-#### Query Event Log
-
-```http
-GET /admin/events
-    ?correlationId=<string>   filter by correlation ID
-    ?eventType=<string>       filter by event type name (e.g. OrderPlacedEvent)
-    ?entityId=<string>        filter by aggregate root ID
-    ?from=<ISO8601>           OccurredAt >=
-    ?to=<ISO8601>             OccurredAt <=
-    ?page=1&pageSize=50       pagination (max 100 per page)
-```
-
-**Example — find all events for an order:**
-```bash
-curl -H "X-Admin-Key: $ADMIN_KEY" \
-  "https://order-service/admin/events?entityId=<orderId>"
-```
-
-#### Replay a Single Event
-
-```http
-POST /admin/events/{eventId}/replay
-```
-
-Re-publishes the stored JSON payload to the original Service Bus topic with:
-- `X-Replay: "true"` application property
-- `X-Replay-Of: <eventId>` application property
-
-Consumers that want to detect replays can check `ApplicationProperties["X-Replay"]`. A new `EventLogEntry` row is written with `IsReplay=true` and `OriginalEventId` pointing to the source.
-
-Returns `202 Accepted` with `{ "replayEventLogId": "<newId>" }`.
-
-#### Replay a Full Transaction Chain
-
-```http
-POST /admin/events/replay-chain?correlationId=<string>
-```
-
-Replays all non-replay events for the given correlation ID in `OccurredAt` order. Returns `202 Accepted` with `{ "replayedCount": N }`.
-
-### Database Migration
-
-After pulling these changes, run EF Core migrations for each service that has a database:
-
-```bash
-# Install EF tools (if not installed)
-dotnet tool install --global dotnet-ef
-
-# OrderService (SQL Server)
-dotnet ef migrations add AddEventLog \
-  --project OrderService/OrderService.Infrastructure \
-  --startup-project OrderService/OrderService.Api
-
-# PaymentService (SQL Server)
-dotnet ef migrations add AddEventLog \
-  --project PaymentService/PaymentService.Infrastructure \
-  --startup-project PaymentService/PaymentService.Api
-
-# ShippingService (PostgreSQL)
-dotnet ef migrations add AddEventLog \
-  --project ShippingService/ShippingService.Infrastructure \
-  --startup-project ShippingService/ShippingService.Api
-```
-
-### Configuration
-
-Add the admin key to each service's configuration (do not commit this value):
-
-```json
-{
-  "AdminApiKey": "<secure-random-value>"
-}
-```
-
-Or via environment variable / Aspire secrets: `AdminApiKey=<value>`.
-
-### Files Added/Modified
-
-| File | Change |
-|------|--------|
-| `{Order,Payment,Shipping}Service.Infrastructure/EventLog/EventLog.cs` | New — `EventLogEntry` POCO |
-| `{Order,Payment,Shipping}Service.Infrastructure/EventLog/LoggingEventPublisher.cs` | New — decorator wrapping `ServiceBusEventPublisher` |
-| `NextAurora.ServiceDefaults/Filters/AdminKeyEndpointFilter.cs` | New — `IEndpointFilter` for admin key auth |
-| `{Order,Payment,Shipping}Service.Api/Endpoints/AdminEventEndpoints.cs` | New — query + replay endpoints |
-| `{Order,Payment,Shipping}Service.Infrastructure/Data/*DbContext.cs` | Added `DbSet<EventLogEntry>` + `OnModelCreating` config |
-| `{Order,Payment,Shipping}Service.Infrastructure/DependencyInjection.cs` | Register `ServiceBusEventPublisher` (concrete) + `LoggingEventPublisher` as `IEventPublisher` |
-| `{Order,Payment,Shipping}Service.Api/Program.cs` | Added `app.MapAdminEventEndpoints()` |
-| `Directory.Packages.props` | Added `Microsoft.EntityFrameworkCore.Design 10.0.2` |
-| `{Order,Payment,Shipping}Service.Infrastructure/*.csproj` | Added `Microsoft.EntityFrameworkCore.Design` (tools-only, PrivateAssets=all) |
+See **[docs/event-replay.md](event-replay.md)** for the full guide: schema, `LoggingEventPublisher` decorator, endpoint reference, configuration, and migration commands.

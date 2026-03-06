@@ -226,10 +226,10 @@ The system is built as a set of independently deployable microservices to suppor
 
 ```
 1. Steps 1-7 from happy path
-2. PaymentService payment fails
-3. PaymentService publishes PaymentFailedEvent
-4. OrderService receives event (no status change currently)
-5. Future: Implement retry or cancellation logic
+2. PaymentService payment fails (gateway rejects)
+3. PaymentService publishes PaymentFailedEvent (includes BuyerId)
+4. OrderService receives event → marks order status as PaymentFailed
+5. NotificationService receives event → sends "Payment Failed" email to buyer
 ```
 
 ### 6.3 Product Management (Seller)

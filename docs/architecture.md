@@ -150,6 +150,7 @@ Used for frontend-to-service communication. ASP.NET Core Minimal APIs with OpenA
 | OrderService | PaymentService | **Service Bus** | OrderPlacedEvent triggers payment |
 | PaymentService | OrderService | **Service Bus** | PaymentCompletedEvent updates order |
 | PaymentService | ShippingService | **Service Bus** | PaymentCompletedEvent triggers shipment |
+| PaymentService | NotificationService | **Service Bus** | PaymentFailedEvent triggers buyer notification |
 | ShippingService | OrderService | **Service Bus** | ShipmentDispatchedEvent updates order |
 | OrderService | NotificationService | **Service Bus** | OrderPlacedEvent triggers notification |
 | ShippingService | NotificationService | **Service Bus** | ShipmentDispatchedEvent triggers notification |
@@ -185,6 +186,7 @@ Each service owns its database. No service accesses another service's database d
 |-------|---------|
 | **Orders** | Id, BuyerId, Status, TotalAmount, Currency, PlacedAt, PaidAt, ShippedAt |
 | **OrderLines** | Id, OrderId (FK), ProductId, ProductName, Quantity, UnitPrice |
+| **EventLogs** | Id, EventType, Payload, CorrelationId, EntityId, CreatedAt, PublishedAt (null = unpublished) |
 
 #### payments-db (SQL Server)
 
@@ -192,6 +194,7 @@ Each service owns its database. No service accesses another service's database d
 |-------|---------|
 | **Payments** | Id, OrderId, Amount, Currency, Status, Provider, ExternalTransactionId, CreatedAt, CompletedAt, FailureReason |
 | **Refunds** | Id, PaymentId, Amount, Reason, Status, CreatedAt |
+| **EventLogs** | Id, EventType, Payload, CorrelationId, EntityId, CreatedAt, PublishedAt (null = unpublished) |
 
 #### shipping-db (PostgreSQL)
 
@@ -199,6 +202,7 @@ Each service owns its database. No service accesses another service's database d
 |-------|---------|
 | **Shipments** | Id, OrderId, Carrier, TrackingNumber, Status, CreatedAt, DispatchedAt, DeliveredAt |
 | **TrackingEvents** | Id, ShipmentId (FK), Description, Status, OccurredAt |
+| **EventLogs** | Id, EventType, Payload, CorrelationId, EntityId, CreatedAt, PublishedAt (null = unpublished) |
 
 ---
 
@@ -216,6 +220,7 @@ Azure Service Bus
   +-- Topic: payment-events
   |     +-- Subscription: order-sub    -> OrderService
   |     +-- Subscription: shipping-sub -> ShippingService
+  |     +-- Subscription: notify-sub   -> NotificationService
   |
   +-- Topic: shipping-events
   |     +-- Subscription: order-sub    -> OrderService
@@ -230,7 +235,7 @@ Azure Service Bus
 |-------|-----------|-------------|---------|
 | **OrderPlacedEvent** | OrderService | PaymentService, NotificationService | OrderId, BuyerId, TotalAmount, Currency, Lines[] |
 | **PaymentCompletedEvent** | PaymentService | OrderService, ShippingService | PaymentId, OrderId, Amount, Provider, CompletedAt |
-| **PaymentFailedEvent** | PaymentService | OrderService | PaymentId, OrderId, Reason, FailedAt |
+| **PaymentFailedEvent** | PaymentService | OrderService, NotificationService | PaymentId, OrderId, BuyerId, Reason, FailedAt |
 | **ShipmentDispatchedEvent** | ShippingService | OrderService, NotificationService | ShipmentId, OrderId, Carrier, TrackingNumber, DispatchedAt |
 | **SendNotificationCommand** | Any service | NotificationService | RecipientId, Email, Subject, Body, Channel |
 
@@ -239,9 +244,11 @@ Azure Service Bus
 ```
   [Placed] ---OrderPlacedEvent---> PaymentService processes payment
       |
-      |  <---PaymentCompletedEvent---
-      v
-  [Paid] ---PaymentCompletedEvent---> ShippingService creates shipment
+      |  <---PaymentCompletedEvent---          <---PaymentFailedEvent---
+      v                                                    v
+  [Paid]                                          [PaymentFailed] (terminal)
+      |
+      | ---PaymentCompletedEvent---> ShippingService creates shipment
       |
       |  <---ShipmentDispatchedEvent---
       v
@@ -263,7 +270,7 @@ This is a **choreography-based saga** — each service reacts to events independ
 Order (Aggregate Root)
   - Id: Guid
   - BuyerId: Guid (must not be empty)
-  - Status: OrderStatus [Placed | Paid | Shipped | Delivered | Cancelled]
+  - Status: OrderStatus [Placed | Paid | Shipped | Delivered | Cancelled | PaymentFailed]
   - TotalAmount: decimal (calculated from lines)
   - Currency: string (required, 3 chars)
   - PlacedAt, PaidAt, ShippedAt: DateTime
@@ -276,6 +283,7 @@ Order (Aggregate Root)
 
   Business Rules:
   - Can only mark as Paid if status is Placed
+  - Can only mark as PaymentFailed if status is Placed (terminal state)
   - Can only mark as Shipped if status is Paid
   - Cannot cancel if Shipped or Delivered
   - Error messages do not expose internal state
@@ -392,10 +400,12 @@ All services inherit shared infrastructure configuration:
 ## Cross-Cutting Concerns
 
 ### Observability
-- **Tracing:** OpenTelemetry distributed traces across all services (ASP.NET Core, HTTP client, gRPC client)
-- **Metrics:** Runtime, HTTP, and ASP.NET Core instrumentation
+- **Tracing:** OpenTelemetry distributed traces across all services (ASP.NET Core, HTTP client, gRPC client, `Azure.Messaging.ServiceBus`). Service Bus processors create consumer spans via `ActivitySource("NextAurora.Messaging")` so the full event chain is visible in the Aspire dashboard and any OTLP backend.
+- **Context Propagation:** Every HTTP request and Service Bus message carries three identifiers — `CorrelationId`, `UserId`, `SessionId` — stamped by `CorrelationIdMiddleware` (HTTP) or each processor (Service Bus) into `Activity` baggage and `logger.BeginScope()`. All log lines produced by any handler automatically include these fields. See [docs/context-propagation.md](context-propagation.md).
+- **MediatR Pipeline Logging:** `LoggingBehavior<TRequest,TResponse>` (registered in each service after `ValidationBehavior`) times every command/query handler and logs start, elapsed time, and outcome.
+- **Metrics:** Business counters via `Meter("NextAurora")` in `NovaCraftMetrics`: `orders.placed`, `payments.processed` (tag: `outcome`), `shipments.dispatched`, `notifications.sent` (tag: `channel`), `messages.abandoned` (tags: `subject`, `service`). Exported via OTLP; visible in Aspire Metrics dashboard.
 - **Logging:** Structured logging with OpenTelemetry export
-- **Dashboard:** Aspire dashboard shows all services, traces, and logs in development
+- **Dashboard:** Aspire dashboard shows all services, traces, logs, and metrics in development
 
 ### Resilience
 - Standard resilience handler on all HTTP clients (retries, circuit breaker, timeout, rate limiting)
@@ -440,17 +450,19 @@ All services inherit shared infrastructure configuration:
 
 ### Implemented
 - **Input Validation** - FluentValidation on all commands with MediatR pipeline behavior
+- **MediatR Pipeline Logging** - `LoggingBehavior` times every handler; logs correlation ID, elapsed time, and outcome
+- **Context Propagation** - `CorrelationId`, `UserId`, `SessionId` flow through HTTP and Service Bus; see [docs/context-propagation.md](context-propagation.md)
 - **Domain Invariants** - Guard clauses in all entity factory methods
 - **Global Exception Handling** - ProblemDetails responses, no internal state leakage
 - **Encapsulated Aggregates** - `IReadOnlyList` collections, private backing fields
 - **HTTPS Redirection** - Enforced in production
+- **Idempotent Event Handling** - Status guards in all event handlers; GetByOrderId checks prevent duplicate processing
+- **Dead Letter Queue Processing** - `messages.abandoned` metric counter on all processors; admin replay endpoints at `/admin/events/replay/{id}`
 
 ### Not Yet Implemented
 - **Authentication & Authorization** - JWT/OAuth2 for API security
 - **API Gateway** - Centralized routing, rate limiting, auth
 - **Saga Compensation** - Rollback logic for failed payments/shipments
-- **Idempotent Event Handling** - Deduplicate event processing
-- **Dead Letter Queue Processing** - Handle poison messages
 - **Distributed Caching** - Redis caching strategy for CatalogService
 - **Frontend Implementation** - Storefront and SellerPortal business logic
 - **Database Migrations** - EF Core migration pipeline

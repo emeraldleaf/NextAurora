@@ -19,90 +19,27 @@ The features below give every team member a clear view of what happened, when, a
 
 ## Context Propagation
 
-### The Three Identifiers
+Every request, message, and log line carries three identifiers that link the entire transaction chain:
 
-Every request, message, and log line in NextAurora carries three identifiers:
+| Identifier | HTTP Header | Service Bus Property | Logger Scope Key |
+|---|---|---|---|
+| Correlation ID | `X-Correlation-Id` | `X-Correlation-Id` | `CorrelationId` |
+| User ID | `X-User-Id` | `X-User-Id` | `UserId` |
+| Session ID | `X-Session-Id` | `X-Session-Id` | `SessionId` |
 
-| Identifier | Purpose | HTTP Header | Service Bus Property | Logger Scope Key |
-|---|---|---|---|---|
-| Correlation ID | Links all events in one user transaction | `X-Correlation-Id` | `X-Correlation-Id` | `CorrelationId` |
-| User ID | The authenticated user who triggered the chain | `X-User-Id` | `X-User-Id` | `UserId` |
-| Session ID | Browser/app session for cross-request grouping | `X-Session-Id` | `X-Session-Id` | `SessionId` |
-
-### How They Flow
-
-```
-Browser Request
-  → CorrelationIdMiddleware (NextAurora.ServiceDefaults)
-      generates CorrelationId, reads UserId/SessionId from JWT/headers
-      writes all three into Activity baggage
-      → HTTP Handler
-          → LoggingBehavior (MediatR pipeline)
-              reads from Activity baggage → opens logger.BeginScope()
-              all log lines in this handler carry the three IDs
-              → ServiceBusEventPublisher
-                  stamps all three as ApplicationProperties on outgoing message
-                  → [Service Bus Topic]
-                      → Receiving Processor (another service)
-                          reads from ApplicationProperties
-                          restores into Activity baggage + logger.BeginScope()
-                          → MediatR handler (same IDs now in every log line)
-```
-
-### Where It's Implemented
-
-- **`NextAurora.ServiceDefaults/Middleware/CorrelationIdMiddleware.cs`** — HTTP entry point; generates or reads the Correlation ID, reads User ID and Session ID from the authenticated identity, writes all three into `Activity.Current` baggage.
-- **`{Service}.Application/Behaviors/LoggingBehavior.cs`** (×4) — MediatR pipeline behavior that reads the three IDs from baggage and opens `logger.BeginScope()` so every handler log line carries them automatically.
-- **`{Service}.Infrastructure/Messaging/ServiceBusEventPublisher.cs`** (×3) — stamps the three IDs as `ApplicationProperties` on every outgoing Service Bus message.
-- **Each service processor** — reads `ApplicationProperties`, restores IDs into `Activity` baggage and a new `logger.BeginScope()` for the message handler.
-
-For the full deep-dive including log search queries and a new-service checklist, see **[docs/context-propagation.md](context-propagation.md)**.
+`CorrelationIdMiddleware` → `LoggingBehavior` → `ServiceBusEventPublisher` → each processor restores all three from `ApplicationProperties` into `Activity` baggage and a `logger.BeginScope()`. See **[docs/context-propagation.md](context-propagation.md)** for the full developer guide (per-component breakdown, new-service checklist, pitfalls) and **[docs/observability.md](observability.md)** for the technical reference and code patterns.
 
 ---
 
 ## Distributed Tracing
 
-### ActivitySource for Consumer Spans
-
-All Service Bus message processors create consumer spans using a named `ActivitySource`:
-
-```csharp
-private static readonly ActivitySource _activitySource = new("NextAurora.Messaging");
-
-using var processorActivity = _activitySource.StartActivity("ServiceBus.ProcessMessage", ActivityKind.Consumer)
-    ?? (Activity.Current is null ? new Activity("ServiceBus.ProcessMessage").Start() : null);
-```
-
-The `"NextAurora.Messaging"` source is registered in `Extensions.cs`:
-
-```csharp
-tracing.AddSource(builder.Environment.ApplicationName)
-       .AddSource("Azure.Messaging.ServiceBus")
-       .AddSource("NextAurora.Messaging")
-```
-
-**Result:** The Aspire dashboard (and any OTLP-compatible backend — Jaeger, Tempo, Azure Monitor) shows a complete trace from the initial HTTP request through every downstream message, with latency for each hop visible.
-
-### Structured Log Scope
-
-Every processor opens a `logger.BeginScope()` with:
-- `CorrelationId`, `UserId`, `SessionId`
-- `MessageId` — the Service Bus message GUID (unique per message)
-- `Subject` — the event type name (e.g. `"PaymentCompletedEvent"`)
-- `DeliveryCount` — how many times this message has been attempted
-
-`DeliveryCount > 1` in your log query means the message was retried — useful for identifying retry storms before they fill the Dead Letter Queue.
+All Service Bus processors create consumer spans via `ActivitySource("NextAurora.Messaging")`, registered in `Extensions.cs` alongside `"Azure.Messaging.ServiceBus"`. Combined with the `logger.BeginScope()` that every processor opens (carrying `CorrelationId`, `UserId`, `SessionId`, `MessageId`, `Subject`, and `DeliveryCount`), every handler log line carries full context automatically. `DeliveryCount > 1` signals a retry. See **[docs/observability.md](observability.md)** for the full OTel configuration, registered sources, and trace span diagram.
 
 ---
 
 ## Dead Letter Queue (DLQ) Alerting
 
-### Retry Lifecycle
-
-1. Handler throws an exception → `AbandonMessageAsync` is called.
-2. Service Bus increments `DeliveryCount` and requeues the message after a backoff delay.
-3. When `DeliveryCount` exceeds `MaxDeliveryCount`, the broker moves the message to the Dead Letter Queue — a separate sub-queue at `{topic}/{subscription}/$deadletterqueue`.
-4. DLQ messages stay there until replayed or discarded.
+When a message handler throws, the processor calls `AbandonMessageAsync`, incrementing the message's `DeliveryCount`. Once that exceeds `MaxDeliveryCount`, Service Bus moves the message to the Dead Letter Queue. See **[docs/observability.md#dead-letter-queue-dlq-handling](observability.md)** for the full DLQ path table, investigation steps, and transport error logging.
 
 ### The `messages.abandoned` Metric
 
@@ -195,21 +132,4 @@ All event handlers guard against duplicate delivery (retries, replays):
 
 ## Log Search Reference
 
-All log lines carry structured fields. Use these queries in your log aggregation tool:
-
-```
-# All events in a single transaction
-CorrelationId = "a1b2c3d4-..."
-
-# All actions by a specific user
-UserId = "user_987"
-
-# All retried messages (potential issues)
-DeliveryCount > 1
-
-# All DLQ-bound messages (delivery at or near limit)
-DeliveryCount >= 5
-
-# Failed payment events specifically
-Subject = "PaymentFailedEvent" AND Level = "Error"
-```
+See **[docs/context-propagation.md#searching-logs-in-practice](context-propagation.md#searching-logs-in-practice)** for the full log query reference — searching by `CorrelationId`, `UserId`, `SessionId`, `DeliveryCount`, `Subject`, and more.
