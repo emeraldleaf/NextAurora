@@ -4,12 +4,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Aspire Hosting -->
-    <PackageVersion Include="Aspire.Hosting.Azure.ApplicationInsights" Version="9.3.0" />
-    <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="9.3.0" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="9.3.0" />
-    <PackageVersion Include="Aspire.Hosting.Redis" Version="9.3.0" />
-    <PackageVersion Include="Aspire.Hosting.SqlServer" Version="9.3.0" />
+    <!-- Aspire Hosting (must match SDK major in NextAurora.AppHost.csproj — currently 13.x) -->
+    <PackageVersion Include="Aspire.Hosting.Azure.ApplicationInsights" Version="13.2.4" />
+    <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="13.2.4" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.2.4" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.2.4" />
+    <PackageVersion Include="Aspire.Hosting.SqlServer" Version="13.2.4" />
 
     <!-- Web -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
@@ -64,7 +64,7 @@
 
     <!-- Identity -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
-    <PackageVersion Include="Keycloak.AuthServices.Aspire.Hosting" Version="0.2.0" />
+    <PackageVersion Include="Keycloak.AuthServices.Aspire.Hosting" Version="0.3.0" />
 
     <!-- Code Analysis -->
     <PackageVersion Include="Meziantou.Analyzer" Version="2.0.257" />
