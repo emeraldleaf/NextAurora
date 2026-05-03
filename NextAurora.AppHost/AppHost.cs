@@ -36,17 +36,23 @@ var serviceBus = builder.AddAzureServiceBus("messaging");
 
 // Topic / subscription topology. Each service that publishes events owns a topic; subscribers
 // get their own subscription per topic so they can be scaled and dead-lettered independently.
+//
+// Subscription naming: `{consumer}-{source-events}-sub`. Aspire 13 requires subscription names
+// to be globally unique within the bus namespace (not scoped per topic), hence the source
+// suffix. The strings here must match the `ListenToAzureServiceBusSubscription("{topic}/{sub}")`
+// calls in each service's Program.cs.
 var orderEventsTopic = serviceBus.AddServiceBusTopic("order-events");
-orderEventsTopic.AddServiceBusSubscription("payment-sub");
-orderEventsTopic.AddServiceBusSubscription("notify-sub");
+orderEventsTopic.AddServiceBusSubscription("payment-orders-sub");      // PaymentService consumes
+orderEventsTopic.AddServiceBusSubscription("notify-orders-sub");       // NotificationService consumes
 
 var paymentEventsTopic = serviceBus.AddServiceBusTopic("payment-events");
-paymentEventsTopic.AddServiceBusSubscription("order-sub");
-paymentEventsTopic.AddServiceBusSubscription("shipping-sub");
+paymentEventsTopic.AddServiceBusSubscription("order-payments-sub");    // OrderService consumes
+paymentEventsTopic.AddServiceBusSubscription("shipping-payments-sub"); // ShippingService consumes
+paymentEventsTopic.AddServiceBusSubscription("notify-payments-sub");   // NotificationService consumes (failure notifications)
 
 var shippingEventsTopic = serviceBus.AddServiceBusTopic("shipping-events");
-shippingEventsTopic.AddServiceBusSubscription("order-sub");
-shippingEventsTopic.AddServiceBusSubscription("notify-sub");
+shippingEventsTopic.AddServiceBusSubscription("order-shipping-sub");   // OrderService consumes
+shippingEventsTopic.AddServiceBusSubscription("notify-shipping-sub");  // NotificationService consumes
 
 // Direct queue (not topic) for "send a notification right now" requests — single consumer,
 // fan-in only. NotificationService listens here in addition to the topic subscriptions.

@@ -24,7 +24,7 @@ builder.Host.UseWolverine(opts =>
     opts.PublishMessage<ShipmentDispatchedEvent>().ToAzureServiceBusTopic("shipping-events");
 
     // Listen to incoming events from other services
-    opts.ListenToAzureServiceBusSubscription("payment-events/shipping-sub");
+    opts.ListenToAzureServiceBusSubscription("payment-events/shipping-payments-sub");
 
     // Transactional outbox: persist outgoing messages to Postgres in the same
     // transaction as the entity write, then dispatch via background flush.

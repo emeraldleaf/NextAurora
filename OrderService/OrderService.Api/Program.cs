@@ -29,8 +29,8 @@ builder.Host.UseWolverine(opts =>
     opts.PublishMessage<OrderPlacedEvent>().ToAzureServiceBusTopic("order-events");
 
     // Listen to incoming events from other services
-    opts.ListenToAzureServiceBusSubscription("payment-events/order-sub");
-    opts.ListenToAzureServiceBusSubscription("shipping-events/order-sub");
+    opts.ListenToAzureServiceBusSubscription("payment-events/order-payments-sub");
+    opts.ListenToAzureServiceBusSubscription("shipping-events/order-shipping-sub");
 
     // Transactional outbox: persist outgoing messages to SQL Server in the same
     // transaction as the entity write, then dispatch via background flush.

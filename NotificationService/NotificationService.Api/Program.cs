@@ -17,9 +17,9 @@ builder.Host.UseWolverine(opts =>
         .AutoProvision();
 
     // Listen to events from other services
-    opts.ListenToAzureServiceBusSubscription("order-events/notify-sub");
-    opts.ListenToAzureServiceBusSubscription("payment-events/notify-sub");
-    opts.ListenToAzureServiceBusSubscription("shipping-events/notify-sub");
+    opts.ListenToAzureServiceBusSubscription("order-events/notify-orders-sub");
+    opts.ListenToAzureServiceBusSubscription("payment-events/notify-payments-sub");
+    opts.ListenToAzureServiceBusSubscription("shipping-events/notify-shipping-sub");
 
     // Listen to direct command queue
     opts.ListenToAzureServiceBusQueue("send-notification");

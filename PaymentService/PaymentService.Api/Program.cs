@@ -40,7 +40,7 @@ builder.Host.UseWolverine(opts =>
     opts.PublishMessage<PaymentFailedEvent>().ToAzureServiceBusTopic("payment-events");
 
     // Listen to incoming events from other services
-    opts.ListenToAzureServiceBusSubscription("order-events/payment-sub");
+    opts.ListenToAzureServiceBusSubscription("order-events/payment-orders-sub");
 
     // Transactional outbox: persist outgoing messages to SQL Server in the same
     // transaction as the entity write, then dispatch via background flush.
