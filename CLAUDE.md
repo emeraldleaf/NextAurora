@@ -66,6 +66,18 @@ Two tiers:
 
 The original "default to no comments" guidance still applies when *adding new code that doesn't fit tier 1* — don't sprinkle WHAT-comments across plumbing, never leave PR-relative comments ("added for X", "fixes #123"), never comment around well-named identifiers. The tier-1 carve-out is about *teaching the architecture*, not narrating every method.
 
+## Debugging Discipline
+
+When a debugging session surfaces a non-obvious failure mode — framework version traps, configuration silently overriding another, an ordering gotcha, an API behavior that contradicts the docs, a backwards-incompatible change between major versions — capture the lesson **before moving on**:
+
+1. **CLAUDE.md** gets a one-liner under the most relevant section (Package Management for version traps, Communication Patterns for messaging gotchas, Performance Rules for runtime traps, etc.) so future code generation doesn't reintroduce the same mistake.
+2. **The most relevant doc** ([architecture.md](docs/architecture.md), [performance-and-data-correctness.md](docs/performance-and-data-correctness.md), etc.) gets the *why* — the rationale or convention behind the rule.
+3. **[STATUS.md](docs/STATUS.md) "Open issues"** captures anything that's deferred rather than fully resolved.
+
+The bar isn't "document every bug fix." It's: **if the failure mode would surprise the next person who hits it, the surprise belongs in writing.** Trivial typos and one-off mistakes don't qualify; framework migration gotchas, undocumented constraints, and rules-discovered-the-hard-way always do.
+
+This rule is for everyone working in this repo (humans, AI assistants, future-you). Don't wait to be asked.
+
 ## Package Management
 
 - Central Package Management via `Directory.Packages.props` - all versions defined there
