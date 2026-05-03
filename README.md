@@ -88,11 +88,14 @@ Orchestrated by .NET Aspire (service discovery, health checks, OpenTelemetry)
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — running, not just installed (Aspire spins up Postgres/SQL Server/Service Bus emulator/Keycloak/Redis as containers)
 - [Aspire CLI](https://learn.microsoft.com/en-us/dotnet/aspire/)
+- **ASP.NET Core dev certificate** — required by the Aspire dashboard's HTTPS endpoint. One-time per machine:
 
 ```bash
 dotnet tool install --global aspire.cli
+dotnet dev-certs https
+dotnet dev-certs https --trust   # prompts for keychain password on macOS
 ```
 
 ## Getting Started
