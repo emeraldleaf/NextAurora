@@ -213,20 +213,22 @@ Each service owns its database. No service accesses another service's database d
 Azure Service Bus
   |
   +-- Topic: order-events
-  |     +-- Subscription: payment-sub  -> PaymentService
-  |     +-- Subscription: notify-sub   -> NotificationService
+  |     +-- Subscription: payment-orders-sub      -> PaymentService
+  |     +-- Subscription: notify-orders-sub       -> NotificationService
   |
   +-- Topic: payment-events
-  |     +-- Subscription: order-sub    -> OrderService
-  |     +-- Subscription: shipping-sub -> ShippingService
-  |     +-- Subscription: notify-sub   -> NotificationService
+  |     +-- Subscription: order-payments-sub      -> OrderService
+  |     +-- Subscription: shipping-payments-sub   -> ShippingService
+  |     +-- Subscription: notify-payments-sub     -> NotificationService
   |
   +-- Topic: shipping-events
-  |     +-- Subscription: order-sub    -> OrderService
-  |     +-- Subscription: notify-sub   -> NotificationService
+  |     +-- Subscription: order-shipping-sub      -> OrderService
+  |     +-- Subscription: notify-shipping-sub     -> NotificationService
   |
-  +-- Queue: send-notification         -> NotificationService
+  +-- Queue: send-notification                    -> NotificationService
 ```
+
+**Subscription naming convention: `{consumer}-{source-events}-sub`.** Aspire 13 enforces globally unique subscription names within a bus namespace (the per-topic scoping behavior of Aspire 9 was dropped). Including the source-events suffix in the name keeps it readable and unique. The strings here must match the `ListenToAzureServiceBusSubscription("{topic}/{sub}")` calls in each service's `Program.cs`.
 
 ### Event Contracts (NextAurora.Contracts)
 

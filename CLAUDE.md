@@ -72,6 +72,7 @@ The original "default to no comments" guidance still applies when *adding new co
 - Individual `.csproj` files reference packages WITHOUT version attributes
 - Shared build settings in `Directory.Build.props`
 - **Aspire SDK and runtime packages must share a major version.** The `Aspire.AppHost.Sdk/X.Y.Z` declared in `NextAurora.AppHost.csproj` and the `Aspire.Hosting.*` package versions in `Directory.Packages.props` need to match on the major (X). A mismatch surfaces at startup as `TypeLoadException` for internal types like `PublishingContext`. Bump them together.
+- **Service Bus subscription names are globally unique within the namespace** (Aspire 13+). Don't reuse the same subscription name on different topics — `DistributedApplicationException` at AppHost startup. Convention: `{consumer}-{source-events}-sub` (e.g. `notify-orders-sub`, `notify-payments-sub`). When adding a new subscription in `AppHost.cs`, also update the matching `ListenToAzureServiceBusSubscription("{topic}/{sub}")` string in the consuming service's `Program.cs`.
 
 ## Communication Patterns
 
