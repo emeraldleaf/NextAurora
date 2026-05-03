@@ -98,6 +98,8 @@ dotnet dev-certs https
 dotnet dev-certs https --trust   # prompts for keychain password on macOS
 ```
 
+> **Gotcha:** if `dotnet dev-certs` prints *"HTTPS development certificate operations are disabled in this environment. Your application will run on HTTP for local development."*, the env var `DOTNET_GENERATE_ASPNET_CERTIFICATE=false` is set somewhere in your shell init (commonly `~/.zshrc`). Find and remove it: `grep -rn "DOTNET_GENERATE_ASPNET_CERTIFICATE" ~/.zshrc ~/.zprofile ~/.zshenv ~/.bashrc ~/.bash_profile ~/.profile`, delete the matching line, open a fresh terminal, then re-run the dev-certs commands.
+
 ## Getting Started
 
 1. **Clone the repository**
