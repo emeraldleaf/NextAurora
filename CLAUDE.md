@@ -1,5 +1,7 @@
 # NextAurora - Claude Code Project Instructions
 
+> **New session?** Read [docs/STATUS.md](docs/STATUS.md) first — it's the cross-session entry point: where the project is, what to do next, and links into the deeper docs.
+
 ## Project Overview
 
 NextAurora is a .NET 10 microservices e-commerce platform using Aspire, Azure Service Bus, gRPC, EF Core, and Blazor. It follows DDD, CQRS, and event-driven architecture.
