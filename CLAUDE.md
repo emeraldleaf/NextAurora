@@ -71,6 +71,7 @@ The original "default to no comments" guidance still applies when *adding new co
 - Central Package Management via `Directory.Packages.props` - all versions defined there
 - Individual `.csproj` files reference packages WITHOUT version attributes
 - Shared build settings in `Directory.Build.props`
+- **Aspire SDK and runtime packages must share a major version.** The `Aspire.AppHost.Sdk/X.Y.Z` declared in `NextAurora.AppHost.csproj` and the `Aspire.Hosting.*` package versions in `Directory.Packages.props` need to match on the major (X). A mismatch surfaces at startup as `TypeLoadException` for internal types like `PublishingContext`. Bump them together.
 
 ## Communication Patterns
 
