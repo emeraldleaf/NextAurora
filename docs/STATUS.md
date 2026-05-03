@@ -36,20 +36,29 @@ These two commits collectively add:
 
 ## Next
 
-**Active item:** smoke-run the system end-to-end. Run the Aspire AppHost and walk through the saga in the dashboard. Highest-ROI step before adding more code.
+**Active item:** smoke-run the system end-to-end.
 
-### Smoke-test checklist
+### How to run
+
+1. **Start AppHost:** `dotnet run --project NextAurora.AppHost` (Docker must be running). Wait for the Aspire dashboard to open and all resources to reach Running.
+2. **Set URLs:** copy `KEYCLOAK_URL`, `CATALOG_URL`, `ORDER_URL` from the dashboard's Resources tab into `.env.smoke` (template at [.env.smoke.example](../.env.smoke.example)). The `.env.smoke` file is gitignored — URLs are dynamic per Aspire run.
+3. **Run the automated checks:** `./scripts/smoke-test.sh` — see [scripts/smoke-test.sh](../scripts/smoke-test.sh).
+
+The script verifies:
+- Service liveness (`/alive` endpoints)
+- Versioning enforcement (`/api/products` → 400, `/api/v1/products` → 200)
+- Auth flow (Keycloak password grant for buyer1/seller1, JWT decode + sub claim extraction)
+- Auth gate enforcement (protected endpoint → 401 without token)
+- Order placement (saga entry — only if `PRODUCT_ID` env var is set)
+
+### Manual checks the script can't fully automate
+
 ```
-□ dotnet run --project NextAurora.AppHost — Aspire dashboard opens
-□ All services show "Running" (no startup crashes)
-□ Each DB-using service logs successful migration apply (or "no pending migrations")
+□ Each DB-using service logs successful migration apply (check service logs in dashboard)
 □ Wolverine logs envelope dispatcher start; `wolverine` schema visible in each service DB
-□ POST /api/v1/products with seller token → 201
-□ GET /api/products → 400 (version required, our policy)
-□ GET /api/v1/products?page=1&pageSize=10 → 200, ≤10 items
-□ POST /api/v1/orders with buyer token → 202
-□ Aspire dashboard trace: Order → Payment → Shipping → Notification spans, all share one CorrelationId
-□ Mid-saga: rows in `wolverine.outgoing_envelopes` with PublishedAt set after dispatch
+□ POST /api/v1/products with seller token → 201   (need a CategoryId; pick one from DB or seed)
+□ Aspire dashboard Traces tab: Order → Payment → Shipping → Notification spans, one CorrelationId
+□ Mid-saga, query: SELECT TOP 5 * FROM wolverine.outgoing_envelopes ORDER BY received_at DESC
 ```
 
 ### After the smoke run

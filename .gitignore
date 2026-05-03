@@ -2,3 +2,6 @@
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
+
+# Local smoke-test env (URLs are dynamic per Aspire run; .env.smoke.example is checked in)
+.env.smoke
