@@ -33,27 +33,38 @@ serviceBus.AddServiceBusQueue("send-notification");
 
 var appInsights = builder.AddAzureApplicationInsights("insights");
 
+var keycloak = builder.AddKeycloakContainer("keycloak")
+    .WithImport("./realms/nextaurora-realm.json");
+
+var realm = keycloak.AddRealm("nextaurora-realm", "nextaurora");
+
+const string keycloakConfigPrefix = "Keycloak";
+
 // --- Services ---
 var catalogService = builder.AddProject<Projects.CatalogService_Api>("catalog-service")
     .WithReference(catalogDb)
     .WithReference(redis)
-    .WithReference(appInsights);
+    .WithReference(appInsights)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
 var orderService = builder.AddProject<Projects.OrderService_Api>("order-service")
     .WithReference(ordersDb)
     .WithReference(serviceBus)
     .WithReference(catalogService)
-    .WithReference(appInsights);
+    .WithReference(appInsights)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
 builder.AddProject<Projects.PaymentService_Api>("payment-service")
     .WithReference(paymentsDb)
     .WithReference(serviceBus)
-    .WithReference(appInsights);
+    .WithReference(appInsights)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
 builder.AddProject<Projects.ShippingService_Api>("shipping-service")
     .WithReference(shippingDb)
     .WithReference(serviceBus)
-    .WithReference(appInsights);
+    .WithReference(appInsights)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
 builder.AddProject<Projects.NotificationService_Api>("notification-service")
     .WithReference(serviceBus)
@@ -63,11 +74,13 @@ builder.AddProject<Projects.NotificationService_Api>("notification-service")
 builder.AddProject<Projects.Storefront>("storefront")
     .WithExternalHttpEndpoints()
     .WithReference(catalogService)
-    .WithReference(orderService);
+    .WithReference(orderService)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
 builder.AddProject<Projects.SellerPortal>("seller-portal")
     .WithExternalHttpEndpoints()
     .WithReference(catalogService)
-    .WithReference(orderService);
+    .WithReference(orderService)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
 builder.Build().Run();

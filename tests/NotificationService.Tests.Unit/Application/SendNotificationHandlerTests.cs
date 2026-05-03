@@ -34,7 +34,7 @@ public class SendNotificationHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenSenderThrows_DoesNotRethrow()
+    public async Task Handle_WhenSenderThrows_RethrowsForRetry()
     {
         // Arrange
         var request = new SendNotificationRequest(
@@ -45,7 +45,8 @@ public class SendNotificationHandlerTests
         // Act
         var act = () => _sut.Handle(request, CancellationToken.None);
 
-        // Assert
-        await act.Should().NotThrowAsync();
+        // Assert — exceptions must propagate so Wolverine can retry or dead-letter
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("SMTP error");
     }
 }

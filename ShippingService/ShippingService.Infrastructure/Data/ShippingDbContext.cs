@@ -19,7 +19,7 @@ public class ShippingDbContext(DbContextOptions<ShippingDbContext> options) : Db
             entity.Property(e => e.TrackingNumber).HasMaxLength(50);
             entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
             entity.HasMany(e => e.TrackingEvents).WithOne().HasForeignKey(t => t.ShipmentId);
-            entity.HasIndex(e => e.OrderId);
+            entity.HasIndex(e => e.OrderId).IsUnique();
         });
 
         modelBuilder.Entity<TrackingEvent>(entity =>

@@ -1,0 +1,86 @@
+{
+  "realm": "nextaurora",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "buyer", "description": "Can browse products, place orders, and view own orders" },
+      { "name": "seller", "description": "Can manage products in the catalog" },
+      { "name": "admin", "description": "Full access to all endpoints" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "storefront",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:*/*", "https://localhost:*/*"],
+      "webOrigins": ["http://localhost:*", "https://localhost:*"],
+      "defaultClientScopes": ["openid", "profile", "email"],
+      "protocolMappers": [
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "realm_access.roles",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "seller-portal",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:*/*", "https://localhost:*/*"],
+      "webOrigins": ["http://localhost:*", "https://localhost:*"],
+      "defaultClientScopes": ["openid", "profile", "email"]
+    },
+    {
+      "clientId": "nextaurora-api",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false,
+      "secret": "dev-secret-change-in-production",
+      "defaultClientScopes": ["openid", "profile", "email"]
+    }
+  ],
+  "users": [
+    {
+      "username": "buyer1",
+      "enabled": true,
+      "email": "buyer1@test.local",
+      "firstName": "Test",
+      "lastName": "Buyer",
+      "credentials": [{ "type": "password", "value": "buyer1", "temporary": false }],
+      "realmRoles": ["buyer"]
+    },
+    {
+      "username": "seller1",
+      "enabled": true,
+      "email": "seller1@test.local",
+      "firstName": "Test",
+      "lastName": "Seller",
+      "credentials": [{ "type": "password", "value": "seller1", "temporary": false }],
+      "realmRoles": ["seller"]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@test.local",
+      "firstName": "Admin",
+      "lastName": "User",
+      "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
+      "realmRoles": ["admin", "buyer", "seller"]
+    }
+  ]
+}

@@ -13,6 +13,6 @@ public static class PaymentEndpoints
         {
             var paymentId = await bus.InvokeAsync<Guid>(command);
             return Results.Accepted($"/api/payments/{paymentId}", new { Id = paymentId });
-        });
+        }).RequireRateLimiting("payments").RequireAuthorization();
     }
 }

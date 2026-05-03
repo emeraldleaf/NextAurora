@@ -13,7 +13,8 @@
           "Aspire.Hosting.Azure.ServiceBus": "9.3.0",
           "Aspire.Hosting.PostgreSQL": "9.3.0",
           "Aspire.Hosting.Redis": "9.3.0",
-          "Aspire.Hosting.SqlServer": "9.3.0"
+          "Aspire.Hosting.SqlServer": "9.3.0",
+          "Keycloak.AuthServices.Aspire.Hosting": "0.2.0"
         },
         "runtime": {
           "NextAurora.AppHost.dll": {}
@@ -617,6 +618,17 @@
           "lib/net9.0/JsonPointer.Net.dll": {
             "assemblyVersion": "5.0.0.0",
             "fileVersion": "5.2.0.0"
+          }
+        }
+      },
+      "Keycloak.AuthServices.Aspire.Hosting/0.2.0": {
+        "dependencies": {
+          "Aspire.Hosting": "13.1.0"
+        },
+        "runtime": {
+          "lib/net8.0/Keycloak.AuthServices.Aspire.Hosting.dll": {
+            "assemblyVersion": "0.2.0.0",
+            "fileVersion": "0.2.0.0"
           }
         }
       },
@@ -1432,6 +1444,13 @@
       "sha512": "sha512-qe1F7Tr/p4mgwLPU9P60MbYkp+xnL2uCPnWXGgzfR/AZCunAZIC0RZ32dLGJJEhSuLEfm0YF/1R3u5C7mEVq+w==",
       "path": "jsonpointer.net/5.2.0",
       "hashPath": "jsonpointer.net.5.2.0.nupkg.sha512"
+    },
+    "Keycloak.AuthServices.Aspire.Hosting/0.2.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-ZLJbZI9dlqzBCTDjRhHUgDTDWLebJF1Vu97BiuBJMblTuZXD0Jq+urZbWk3XD/17HBUraIWAcT78NENdtSVNug==",
+      "path": "keycloak.authservices.aspire.hosting/0.2.0",
+      "hashPath": "keycloak.authservices.aspire.hosting.0.2.0.nupkg.sha512"
     },
     "KubernetesClient/18.0.5": {
       "type": "package",

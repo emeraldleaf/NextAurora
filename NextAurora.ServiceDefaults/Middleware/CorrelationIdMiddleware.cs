@@ -48,6 +48,8 @@ public sealed class CorrelationIdMiddleware(RequestDelegate next, ILogger<Correl
         // X-Session-Id is client-generated (a UUID the browser/app creates once and reuses).
         // It is not authenticated, but is useful for grouping log lines within a single session.
         var sessionId = context.Request.Headers[SessionIdHeader].FirstOrDefault();
+        if (sessionId is not null && sessionId.Length > 128)
+            sessionId = null;
 
         // Activity baggage travels with the current distributed trace.
         // ServiceBusEventPublisher reads these keys when building outgoing messages so the IDs

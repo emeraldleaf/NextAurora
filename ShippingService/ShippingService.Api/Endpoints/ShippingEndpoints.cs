@@ -7,7 +7,9 @@ public static class ShippingEndpoints
 {
     public static void MapShippingEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/shipments").WithTags("Shipping");
+        var group = app.MapGroup("/api/shipments")
+            .WithTags("Shipping")
+            .RequireAuthorization();
 
         group.MapGet("/order/{orderId:guid}", async (Guid orderId, IMessageBus bus) =>
         {

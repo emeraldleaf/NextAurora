@@ -24,21 +24,24 @@ public static class CatalogEndpoints
 
         group.MapGet("/search", async (string query, IMessageBus bus) =>
         {
+            if (query.Length > 200)
+                return Results.BadRequest("Search query must not exceed 200 characters.");
+
             var products = await bus.InvokeAsync<IReadOnlyList<NextAurora.Contracts.DTOs.ProductDto>>(new SearchProductsQuery(query));
             return Results.Ok(products);
-        });
+        }).RequireRateLimiting("search");
 
         group.MapPost("/", async (CreateProductCommand command, IMessageBus bus) =>
         {
             var productId = await bus.InvokeAsync<Guid>(command);
             return Results.Created($"/api/products/{productId}", new { Id = productId });
-        });
+        }).RequireAuthorization();
 
         group.MapPut("/{id:guid}", async (Guid id, UpdateProductCommand command, IMessageBus bus) =>
         {
             if (id != command.ProductId) return Results.BadRequest();
             await bus.InvokeAsync(command);
             return Results.NoContent();
-        });
+        }).RequireAuthorization();
     }
 }

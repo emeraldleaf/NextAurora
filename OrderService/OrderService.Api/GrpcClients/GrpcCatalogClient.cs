@@ -12,6 +12,7 @@ public class GrpcCatalogClient(CatalogGrpc.CatalogGrpcClient client) : ICatalogC
         {
             var response = await client.GetProductAsync(
                 new GetProductRequest { ProductId = productId.ToString() },
+                deadline: DateTime.UtcNow.AddSeconds(5),
                 cancellationToken: ct);
 
             return new ProductDto
@@ -35,9 +36,17 @@ public class GrpcCatalogClient(CatalogGrpc.CatalogGrpcClient client) : ICatalogC
 
     public async Task<bool> ReserveStockAsync(Guid productId, int quantity, CancellationToken ct = default)
     {
-        var response = await client.ReserveStockAsync(
-            new ReserveStockRequest { ProductId = productId.ToString(), Quantity = quantity },
-            cancellationToken: ct);
-        return response.Success;
+        try
+        {
+            var response = await client.ReserveStockAsync(
+                new ReserveStockRequest { ProductId = productId.ToString(), Quantity = quantity },
+                deadline: DateTime.UtcNow.AddSeconds(5),
+                cancellationToken: ct);
+            return response.Success;
+        }
+        catch (Grpc.Core.RpcException)
+        {
+            return false;
+        }
     }
 }

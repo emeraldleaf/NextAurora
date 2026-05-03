@@ -949,6 +949,22 @@
           }
         }
       },
+      "Keycloak.AuthServices.Aspire.Hosting/0.2.0": {
+        "type": "package",
+        "dependencies": {
+          "Aspire.Hosting": "9.4.2"
+        },
+        "compile": {
+          "lib/net8.0/Keycloak.AuthServices.Aspire.Hosting.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/Keycloak.AuthServices.Aspire.Hosting.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
       "KubernetesClient/18.0.5": {
         "type": "package",
         "dependencies": {
@@ -3371,6 +3387,22 @@
         "lib/netstandard2.0/JsonPointer.Net.xml"
       ]
     },
+    "Keycloak.AuthServices.Aspire.Hosting/0.2.0": {
+      "sha512": "ZLJbZI9dlqzBCTDjRhHUgDTDWLebJF1Vu97BiuBJMblTuZXD0Jq+urZbWk3XD/17HBUraIWAcT78NENdtSVNug==",
+      "type": "package",
+      "path": "keycloak.authservices.aspire.hosting/0.2.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "icon.png",
+        "keycloak.authservices.aspire.hosting.0.2.0.nupkg.sha512",
+        "keycloak.authservices.aspire.hosting.nuspec",
+        "lib/net8.0/Keycloak.AuthServices.Aspire.Hosting.dll",
+        "lib/net8.0/Keycloak.AuthServices.Aspire.Hosting.pdb",
+        "lib/net8.0/Keycloak.AuthServices.Aspire.Hosting.xml"
+      ]
+    },
     "KubernetesClient/18.0.5": {
       "sha512": "xkttIbnGNibYwAyZ0sqeQle2w90bfaJrkF8BaURWHfSMKPbHwys9t/wq1XmT64eA4WRVXLENYlXtqmWlEstG6A==",
       "type": "package",
@@ -5462,6 +5494,7 @@
       "Aspire.Hosting.PostgreSQL >= 9.3.0",
       "Aspire.Hosting.Redis >= 9.3.0",
       "Aspire.Hosting.SqlServer >= 9.3.0",
+      "Keycloak.AuthServices.Aspire.Hosting >= 0.2.0",
       "Meziantou.Analyzer >= 2.0.257",
       "Roslynator.Analyzers >= 4.14.1",
       "SonarAnalyzer.CSharp >= 10.16.0.128591"
@@ -5552,6 +5585,11 @@
             "version": "[9.3.0, )",
             "versionCentrallyManaged": true
           },
+          "Keycloak.AuthServices.Aspire.Hosting": {
+            "target": "Package",
+            "version": "[0.2.0, )",
+            "versionCentrallyManaged": true
+          },
           "Meziantou.Analyzer": {
             "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
             "suppressParent": "All",
@@ -5589,7 +5627,9 @@
           "Grpc.AspNetCore": "2.71.0",
           "Grpc.Net.ClientFactory": "2.71.0",
           "Grpc.Tools": "2.71.0",
+          "Keycloak.AuthServices.Aspire.Hosting": "0.2.0",
           "Meziantou.Analyzer": "2.0.257",
+          "Microsoft.AspNetCore.Authentication.JwtBearer": "10.0.2",
           "Microsoft.AspNetCore.Components.WebAssembly": "10.0.2",
           "Microsoft.AspNetCore.Components.WebAssembly.DevServer": "10.0.2",
           "Microsoft.AspNetCore.OpenApi": "10.0.2",

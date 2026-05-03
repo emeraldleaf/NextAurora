@@ -19,7 +19,7 @@ public class CatalogGrpcService(IMessageBus bus) : CatalogGrpc.CatalogGrpcBase
 
         if (product is null)
         {
-            throw new RpcException(new Status(StatusCode.NotFound, $"Product {request.ProductId} not found"));
+            throw new RpcException(new Status(StatusCode.NotFound, "The requested product was not found"));
         }
 
         return MapToResponse(product);

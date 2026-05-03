@@ -20,6 +20,8 @@ public class NotificationRequest
             throw new ArgumentException("Recipient ID must not be empty.", nameof(recipientId));
 
         ArgumentException.ThrowIfNullOrWhiteSpace(recipientEmail);
+        if (!recipientEmail.Contains('@', StringComparison.Ordinal) || recipientEmail.Length > 254)
+            throw new ArgumentException("Invalid email address format.", nameof(recipientEmail));
         ArgumentException.ThrowIfNullOrWhiteSpace(channel);
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(body);

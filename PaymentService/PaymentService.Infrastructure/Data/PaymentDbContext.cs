@@ -21,7 +21,7 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options) : DbCo
             entity.Property(e => e.Provider).HasMaxLength(50);
             entity.Property(e => e.ExternalTransactionId).HasMaxLength(200);
             entity.Property(e => e.FailureReason).HasMaxLength(500);
-            entity.HasIndex(e => e.OrderId);
+            entity.HasIndex(e => e.OrderId).IsUnique();
         });
 
         modelBuilder.Entity<Refund>(entity =>

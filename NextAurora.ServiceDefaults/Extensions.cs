@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -34,6 +36,8 @@ public static class Extensions
         builder.Services.AddSingleton<NovaCraftMetrics>();
 
         builder.Services.AddServiceDiscovery();
+
+        builder.AddDefaultAuthentication();
 
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
@@ -124,6 +128,8 @@ public static class Extensions
     {
         app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseExceptionHandler();
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         // All health checks must pass for app to be considered ready to accept traffic after starting
         app.MapHealthChecks(HealthEndpointPath);
@@ -135,6 +141,41 @@ public static class Extensions
         });
 
         return app;
+    }
+
+    private static TBuilder AddDefaultAuthentication<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    {
+        var authority = builder.Configuration["Authentication:Authority"]
+            ?? builder.Configuration["Keycloak:Url"];
+
+        if (string.IsNullOrEmpty(authority))
+        {
+            // No identity provider configured — register auth services with no-op defaults
+            // so UseAuthentication/UseAuthorization don't throw, but no tokens are validated.
+            builder.Services.AddAuthentication();
+            builder.Services.AddAuthorization();
+            return builder;
+        }
+
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.Authority = authority;
+                options.Audience = builder.Configuration["Authentication:Audience"] ?? "nextaurora-api";
+                options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+                options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                {
+                    ValidateAudience = true,
+                    ValidateIssuer = true,
+                    ValidateLifetime = true,
+                    NameClaimType = "preferred_username",
+                    RoleClaimType = "realm_access.roles",
+                };
+            });
+
+        builder.Services.AddAuthorization();
+
+        return builder;
     }
 
     /// <summary>

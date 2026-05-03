@@ -92,6 +92,8 @@ public static class AdminEventEndpoints
 
             if (events.Count == 0) return Results.NotFound();
 
+            await using var transaction = await db.Database.BeginTransactionAsync();
+
             foreach (var entry in events)
             {
                 var message = new ServiceBusMessage(entry.Payload)
@@ -115,6 +117,7 @@ public static class AdminEventEndpoints
             }
 
             await db.SaveChangesAsync();
+            await transaction.CommitAsync();
             return Results.Accepted(null as string, new { ReplayedCount = events.Count });
         });
     }

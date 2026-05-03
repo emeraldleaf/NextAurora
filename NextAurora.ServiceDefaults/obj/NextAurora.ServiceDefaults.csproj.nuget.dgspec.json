@@ -58,6 +58,11 @@
               "version": "[2.0.257, )",
               "versionCentrallyManaged": true
             },
+            "Microsoft.AspNetCore.Authentication.JwtBearer": {
+              "target": "Package",
+              "version": "[10.0.2, )",
+              "versionCentrallyManaged": true
+            },
             "Microsoft.Extensions.Http.Resilience": {
               "target": "Package",
               "version": "[10.1.0, )",
@@ -133,7 +138,9 @@
             "Grpc.AspNetCore": "2.71.0",
             "Grpc.Net.ClientFactory": "2.71.0",
             "Grpc.Tools": "2.71.0",
+            "Keycloak.AuthServices.Aspire.Hosting": "0.2.0",
             "Meziantou.Analyzer": "2.0.257",
+            "Microsoft.AspNetCore.Authentication.JwtBearer": "10.0.2",
             "Microsoft.AspNetCore.Components.WebAssembly": "10.0.2",
             "Microsoft.AspNetCore.Components.WebAssembly.DevServer": "10.0.2",
             "Microsoft.AspNetCore.OpenApi": "10.0.2",

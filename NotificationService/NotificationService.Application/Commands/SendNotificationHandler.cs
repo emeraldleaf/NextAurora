@@ -36,6 +36,7 @@ public partial class SendNotificationHandler(
         {
             notification.MarkAsFailed();
             LogNotificationFailed(logger, ex, request.RecipientEmail);
+            throw;
         }
     }
 

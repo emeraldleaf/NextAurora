@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "QEqnkMvByvw=",
+  "dgSpecHash": "sciMjeBnoPk=",
   "success": true,
   "projectFilePath": "/Users/joshuadell/NovaCraft/NextAurora.AppHost/NextAurora.AppHost.csproj",
   "expectedPackageFiles": [
@@ -45,6 +45,7 @@
     "/Users/joshuadell/.nuget/packages/json.more.net/2.1.0/json.more.net.2.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/jsonpatch.net/3.3.0/jsonpatch.net.3.3.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/jsonpointer.net/5.2.0/jsonpointer.net.5.2.0.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/keycloak.authservices.aspire.hosting/0.2.0/keycloak.authservices.aspire.hosting.0.2.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/kubernetesclient/18.0.5/kubernetesclient.18.0.5.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/messagepack/2.5.192/messagepack.2.5.192.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/messagepack.annotations/2.5.192/messagepack.annotations.2.5.192.nupkg.sha512",
