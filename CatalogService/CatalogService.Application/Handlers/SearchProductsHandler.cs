@@ -8,7 +8,7 @@ public class SearchProductsHandler(IProductRepository repository)
 {
     public async Task<IReadOnlyList<ProductDto>> Handle(SearchProductsQuery request, CancellationToken cancellationToken)
     {
-        var products = await repository.SearchAsync(request.Query, cancellationToken);
+        var products = await repository.SearchAsync(request.Query, request.Page, request.PageSize, cancellationToken);
         return products.Select(p => new ProductDto
         {
             Id = p.Id,

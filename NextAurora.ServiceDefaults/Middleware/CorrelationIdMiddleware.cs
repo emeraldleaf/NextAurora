@@ -52,8 +52,8 @@ public sealed class CorrelationIdMiddleware(RequestDelegate next, ILogger<Correl
             sessionId = null;
 
         // Activity baggage travels with the current distributed trace.
-        // ServiceBusEventPublisher reads these keys when building outgoing messages so the IDs
-        // survive the hop across the message bus to the next service.
+        // OutgoingContextMiddleware (Wolverine) reads these keys when building outgoing
+        // envelopes so the IDs survive the hop across the message bus to the next service.
         // Dot-separated lowercase keys follow the W3C baggage / OpenTelemetry convention.
         Activity.Current?.SetBaggage("correlation.id", correlationId);
         if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);

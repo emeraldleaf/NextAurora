@@ -1,4 +1,3 @@
-using Azure.Messaging.ServiceBus;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +9,11 @@ using PaymentService.Infrastructure.Repositories;
 
 namespace PaymentService.Infrastructure;
 
+/// <summary>
+/// Composition root for PaymentService's Infrastructure layer. Three concrete adapters are
+/// registered against domain abstractions: the EF repository, the Stripe gateway (anti-corruption
+/// layer — see <see cref="StripePaymentGateway"/>), and the Wolverine event publisher.
+/// </summary>
 public static class DependencyInjection
 {
     public static IServiceCollection AddPaymentInfrastructure(this IServiceCollection services, IConfiguration configuration)
@@ -21,12 +25,11 @@ public static class DependencyInjection
             .AddDbContextCheck<PaymentDbContext>();
 
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+
+        // IPaymentGateway is the domain abstraction; StripePaymentGateway is the current
+        // implementation. Swapping providers (Adyen, PayPal) means registering a different
+        // implementation here — handlers don't change.
         services.AddScoped<IPaymentGateway, StripePaymentGateway>();
-
-        // ServiceBusClient is kept for AdminEventEndpoints replay functionality.
-        services.AddSingleton(_ =>
-            new ServiceBusClient(configuration.GetConnectionString("messaging")));
-
         services.AddScoped<IEventPublisher, WolverineEventPublisher>();
 
         return services;

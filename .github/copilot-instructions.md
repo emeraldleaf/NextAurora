@@ -267,290 +267,39 @@ public void MethodName_Condition_ExpectedResult()
 
 ---
 
-## NextAurora Platform — Specific Rules & Conventions
+## NextAurora Platform — Specific Rules
 
-These rules are derived from the actual codebase and must be followed for all changes to this solution.
+The single source of truth for NextAurora-specific conventions is **[CLAUDE.md](../CLAUDE.md)** at the repository root. It supersedes any prior project-specific content that lived in this file.
 
-### Project Structure
+When generating code for NextAurora, follow CLAUDE.md for:
 
-Every service uses Clean Architecture with four layers:
+- **Project structure** — Clean Architecture layers, dependency rules, file-scoped namespaces
+- **Coding standards** — `.NET 10` / C# 13, `_` field prefix, `Async` suffix, `I` interface prefix, `var` when type is apparent, `TreatWarningsAsErrors`
+- **Central Package Management** — `Directory.Packages.props` declares versions; `<PackageReference>` in csproj never includes `Version=`
+- **Static analyzer compliance** — Meziantou, SonarAnalyzer, Roslynator at error severity (notably MA0002: `Dictionary<string,T>` requires `StringComparer.Ordinal`)
+- **Performance Rules** — `AsNoTracking()` + projection on reads, no N+1, async + `CancellationToken` everywhere, pagination caps, bulk ops via `ExecuteUpdateAsync`, optimistic concurrency tokens, **Wolverine transactional outbox** semantics, `DbContext` thread-safety, structured logging templates, no logging in tight loops, brief DB connection holds, cache invalidation in the write path, immutable migrations, measure before optimizing
+- **Observability & context propagation** — `CorrelationId`/`UserId`/`SessionId` flow via `CorrelationIdMiddleware` (HTTP) and `ContextPropagationMiddleware` (Wolverine). Never extract context manually inside handlers — the middleware handles it
+- **Authentication** — JWT Bearer + Keycloak realm wired in `NextAurora.ServiceDefaults`; selective `.RequireAuthorization()`; buyer-scope checks on order endpoints
+- **Error handling** — `GlobalExceptionHandler` returns RFC 7807 ProblemDetails; never expose internal state, IDs, or stack traces to clients
+
+### Deeper references (when CLAUDE.md isn't enough)
+
+- **[docs/performance-and-data-correctness.md](../docs/performance-and-data-correctness.md)** — the *why* behind every CLAUDE.md performance rule, the outbox decision, the concurrency-token decision, and the migration tooling.
+- **[docs/architecture.md](../docs/architecture.md)** — service topology, communication patterns, domain model, polyglot persistence rationale.
+- **[docs/cqrs-data-access.md](../docs/cqrs-data-access.md)** — handler inventory and the selective `AsNoTracking` strategy (with the rationale for why shared repository methods preserve tracking).
+- **[docs/context-propagation.md](../docs/context-propagation.md)** — how the three IDs flow through HTTP and Wolverine.
+- **[.claude/skills/dotnet-performance/SKILL.md](../.claude/skills/dotnet-performance/SKILL.md)** — deep `.NET` / EF Core perf guidance (modern EF features, transactions, plumbing, migrations, benchmarking).
+
+### What changed (so prior guidance doesn't mislead)
+
+The platform migrated to Wolverine for command/query dispatch and event publishing. Anything you may have read about MediatR `IPipelineBehavior`, `LoggingBehavior`, `ValidationBehavior`, hand-rolled `ServiceBusEventPublisher`/`LoggingEventPublisher`, or `EventLogs`/`/admin/events` replay endpoints is **historical** — those are gone. The current pipeline is:
 
 ```
-ServiceName.Domain/          # Entities, value objects, interfaces — no dependencies
-ServiceName.Application/     # Commands, queries, handlers, validators, behaviors
-ServiceName.Infrastructure/  # EF Core, repositories, Service Bus, messaging
-ServiceName.Api/             # Endpoints, middleware, DI composition root
+FluentValidation policy (opts.UseFluentValidation)
+  → ContextPropagationMiddleware (logger scope, baggage restore)
+    → handler
 ```
 
-Layer dependency rule: **Domain → nothing. Application → Domain only. Infrastructure → Domain + Application. Api → all layers.**
+Outgoing events go through `WolverineEventPublisher` → `IMessageBus.PublishAsync` → Wolverine transactional outbox (`wolverine` schema in each service's database) → background dispatcher to Azure Service Bus.
 
-### ServiceDefaults
-
-`NextAurora.ServiceDefaults` is the cross-cutting shared library for all services. All shared middleware, telemetry configuration, health checks, and exception handling live here.
-
-- Every service calls `builder.AddServiceDefaults()` and `app.MapDefaultEndpoints()` — never bypass these.
-- `MapDefaultEndpoints()` registers `CorrelationIdMiddleware`, the global exception handler, and health check endpoints.
-- Health check endpoints (`/health`, `/alive`) are active in **all environments**, not just development.
-
-### Package Management
-
-This solution uses **Central Package Management**. All package versions are declared in `Directory.Packages.props`. Individual `.csproj` files reference packages **without version attributes**. Never add a `Version=` attribute to a `<PackageReference>`.
-
-```xml
-<!-- Directory.Packages.props -->
-<PackageVersion Include="MediatR" Version="12.4.1" />
-
-<!-- ServiceName.Application.csproj -->
-<PackageReference Include="MediatR" />              <!-- ✅ correct -->
-<PackageReference Include="MediatR" Version="12.4.1" />  <!-- ❌ wrong -->
-```
-
-### C# / .NET Coding Standards
-
-- Target: **.NET 10 / C# 13**
-- Use **file-scoped namespaces** (`namespace Foo.Bar;`)
-- Private fields prefixed with `_`
-- Async methods suffixed with `Async`
-- Interfaces prefixed with `I`
-- Use `var` when the type is apparent from the right-hand side
-- **`TreatWarningsAsErrors` is enabled** — the build fails on any warning; zero warnings are acceptable
-
-### Static Analyzer Compliance (MANDATORY)
-
-Three analyzers run at error severity: **Meziantou**, **SonarAnalyzer**, and **Roslynator**.
-
-Key rules to know:
-
-| Rule | Description | Fix |
-|------|-------------|-----|
-| MA0002 | `Dictionary<string,T>` created without `IEqualityComparer` | Always pass `StringComparer.Ordinal` |
-| S2139 | Exception logged then rethrown bare | Use a `finally` block for timing; never catch-log-rethrow |
-
-**MA0002 pattern (logging scopes):**
-```csharp
-using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
-{
-    ["CorrelationId"] = correlationId,
-    ["MessageId"]     = args.Message.MessageId
-});
-```
-
-**S2139 pattern (pipeline behaviors — never catch+log+rethrow):**
-```csharp
-var succeeded = false;
-try
-{
-    var response = await next();
-    succeeded = true;
-    return response;
-}
-finally
-{
-    sw.Stop();
-    if (succeeded) logger.LogInformation("Handled {Name} in {Ms}ms", ...);
-    else           logger.LogWarning("Failed {Name} after {Ms}ms", ...);
-}
-```
-
-### MediatR Pipeline Order
-
-Register pipeline behaviors in this order in each service's `Program.cs`:
-
-```csharp
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
-```
-
-`ValidationBehavior` runs first (rejects invalid commands before handlers run). `LoggingBehavior` times handler execution and logs correlation ID. Each service Application project must include `Microsoft.Extensions.Logging.Abstractions` for `ILogger` in behaviors.
-
-### Observability Rules
-
-#### Correlation ID
-
-Every HTTP request gets an `X-Correlation-Id` (generated if absent) via `CorrelationIdMiddleware`. The ID propagates through distributed traces via `Activity` baggage.
-
-Read the correlation ID in any handler or behavior:
-```csharp
-var correlationId = Activity.Current?.GetBaggageItem("correlation.id")
-                 ?? Activity.Current?.TraceId.ToString();
-```
-
-#### Service Bus Publishing
-
-All publishers must inject the correlation ID into outbound messages:
-```csharp
-var correlationId = Activity.Current?.GetBaggageItem("correlation.id")
-    ?? Activity.Current?.TraceId.ToString();
-
-var message = new ServiceBusMessage(body)
-{
-    CorrelationId = correlationId
-};
-if (correlationId is not null)
-    message.ApplicationProperties["X-Correlation-Id"] = correlationId;
-```
-
-#### Service Bus Consuming — Required Pattern
-
-Every processor message handler **must**:
-
-1. Extract correlation ID from `ApplicationProperties["X-Correlation-Id"]`
-2. Open a structured logging scope before dispatching
-3. Call `AbandonMessageAsync` on failure — **never silently swallow exceptions**
-4. Log `EntityPath`, `ErrorSource`, `FullyQualifiedNamespace` in `ProcessErrorAsync`
-
-```csharp
-processor.ProcessMessageAsync += async args =>
-{
-    var correlationId = args.Message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
-        ? cid?.ToString() : args.Message.CorrelationId;
-
-    using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
-    {
-        ["CorrelationId"] = correlationId,
-        ["MessageId"]     = args.Message.MessageId,
-        ["Subject"]       = args.Message.Subject,
-        ["DeliveryCount"] = args.Message.DeliveryCount
-    });
-
-    try
-    {
-        // deserialize → dispatch via mediator
-        await args.CompleteMessageAsync(args.Message, stoppingToken);
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Failed to process {Subject}. Abandoning for retry/DLQ", args.Message.Subject);
-        await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
-    }
-};
-
-processor.ProcessErrorAsync += args =>
-{
-    logger.LogError(args.Exception,
-        "Service Bus transport error on {EntityPath} (source: {ErrorSource}, namespace: {Namespace})",
-        args.EntityPath, args.ErrorSource, args.FullyQualifiedNamespace);
-    return Task.CompletedTask;
-};
-```
-
-#### OpenTelemetry
-
-`ServiceDefaults` registers these sources — do not re-register them:
-- `{ApplicationName}` (per-service custom spans)
-- `Azure.Messaging.ServiceBus` (Azure SDK spans, automatic)
-- Meter name: `"NextAurora"`
-
-### Business Metrics
-
-Use the `System.Diagnostics.Metrics` BCL directly in Application handlers. Do **not** reference `NovaCraftMetrics` from `ServiceDefaults` in the Application layer (that would violate the layer dependency rule).
-
-```csharp
-// Static readonly field in the handler class
-private static readonly Counter<long> OrdersPlaced =
-    new Meter("NextAurora").CreateCounter<long>("orders.placed");
-
-// After the domain action succeeds
-OrdersPlaced.Add(1);
-// With tags when relevant:
-PaymentsProcessed.Add(1, new KeyValuePair<string, object?>("outcome", "success"));
-```
-
-Defined counters: `orders.placed`, `payments.processed` (tag: `outcome`), `shipments.dispatched`, `notifications.sent` (tag: `channel`).
-
-### Database Health Checks
-
-Every service with a `DbContext` must register a health check in its Infrastructure `DependencyInjection.cs`:
-
-```csharp
-services.AddDbContext<OrderDbContext>(...);
-services.AddHealthChecks()
-    .AddDbContextCheck<OrderDbContext>();
-```
-
-The `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore` package must be referenced (without version) in the Infrastructure `.csproj`.
-
-### Exception Handling
-
-`GlobalExceptionHandler` (in `ServiceDefaults`) maps exceptions to `ProblemDetails`:
-
-| Exception | HTTP Status |
-|-----------|-------------|
-| `FluentValidation.ValidationException` | 400 — includes per-field errors |
-| `ArgumentException` | 400 |
-| `InvalidOperationException` | 409 |
-| Anything else | 500 |
-
-All error responses include `traceId`. Never expose stack traces, internal IDs, or connection strings in API responses.
-
-### Commands & Queries
-
-- Commands return `Guid` (the created entity's ID)
-- Queries return DTOs — never domain entities
-- Every command must have a `FluentValidation` validator in the Application layer
-
-### Domain Entities
-
-- Use static `Create()` factory methods with validation — no public constructors
-- All state changes through domain methods — no public property setters
-- Aggregate roots control access to child collections — expose `Add*()`/`Remove*()` methods, never raw `List<T>`
-
----
-
-## CRITICAL REMINDERS
-
-**YOU MUST ALWAYS:**
-
-* Show your thinking process before implementing.
-* Explicitly validate against these guidelines.
-* Use the mandatory verification statements.
-* Follow the `MethodName_Condition_ExpectedResult()` test naming pattern.
-* Confirm financial domain considerations are addressed.
-* Stop and ask for clarification if any guideline is unclear.
-
-**FAILURE TO FOLLOW THIS PROCESS IS UNACCEPTABLE** - The user expects rigorous adherence to these guidelines and code standards.
-## Observability & Context Propagation
-
-### Three context identifiers
-
-| Concept | Activity Baggage Key | HTTP / SB Property | Logger Scope Key |
-|---------|--------------------|--------------------|-----------------|
-| Correlation | `correlation.id` | `X-Correlation-Id` | `CorrelationId` |
-| User | `user.id` | `X-User-Id` | `UserId` |
-| Session | `session.id` | `X-Session-Id` | `SessionId` |
-
-These are populated at two entry points:
-- **HTTP**: `CorrelationIdMiddleware` — extracts `correlation.id` from header, `user.id` from JWT `sub` claim, `session.id` from `X-Session-Id` header
-- **Service Bus**: Each processor handler — extracts all three from `ApplicationProperties`
-
-And propagated in `ServiceBusEventPublisher` from `Activity.Current?.GetBaggageItem()` into outgoing message `ApplicationProperties`.
-
-### LoggingBehavior must open BeginScope
-
-`LoggingBehavior` must call `logger.BeginScope(dict)` before `await next()` so handler log lines inherit context. The dict must use `StringComparer.Ordinal` (MA0002) and must only include keys where the value is non-null.
-
-```csharp
-var scopeState = new Dictionary<string, object?>(StringComparer.Ordinal) { ["CorrelationId"] = correlationId };
-if (userId is not null) scopeState["UserId"] = userId;
-if (sessionId is not null) scopeState["SessionId"] = sessionId;
-using (logger.BeginScope(scopeState)) { ... }
-```
-
-### LoggingEventPublisher (decorator)
-
-Each service that publishes events wraps `ServiceBusEventPublisher` with `LoggingEventPublisher`. Register as:
-```csharp
-services.AddScoped<ServiceBusEventPublisher>();
-services.AddScoped<IEventPublisher, LoggingEventPublisher>();
-```
-`LoggingEventPublisher` injects `ServiceBusEventPublisher` directly (not `IEventPublisher`) to avoid circular dependency.
-
-### Admin Event Endpoints
-
-Protected by `AdminKeyEndpointFilter` (checks `X-Admin-Key` header vs `AdminApiKey` config). Returns **403** if `AdminApiKey` is not configured, **401** if key is wrong (fail-closed).
-
-### Analyzer Rules (reminders)
-
-- **MA0002**: `new Dictionary<string, object?>(StringComparer.Ordinal)` — always pass comparer
-- **S2139**: No catch-log-rethrow; use `finally` + `bool succeeded` pattern
-- **S108**: No empty catch blocks — always put `return null;` or a log inside
+If your suggestion would reintroduce any of the removed concepts above, stop and check CLAUDE.md and the perf guide first.

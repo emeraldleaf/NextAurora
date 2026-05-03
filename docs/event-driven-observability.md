@@ -92,18 +92,7 @@ Both handlers are **idempotent** — they check current order status before appl
 
 ## Event Replay
 
-The `EventLog` table in each service (Order, Payment, Shipping) provides an admin audit trail and replay capability. Wolverine's EF Core outbox handles delivery guarantees separately.
-
-> **Current state:** `WolverineEventPublisher` does not auto-populate `EventLog` on publish — explicit writes are planned as a follow-up. Admin query/replay endpoints remain functional for any rows present.
-
-Admin replay endpoints are exposed on each service:
-
-```
-GET  /admin/events                     — list events (filter by correlationId, entityId, etc.)
-POST /admin/events/replay/{eventId}    — replay a specific event
-```
-
-For the full replay guide, see **[docs/event-replay.md](event-replay.md)**.
+Replay is handled through Wolverine's transactional outbox infrastructure (the `wolverine` schema in each service's database) and its `IMessageStore` API. The previous hand-rolled `EventLog` table and `/admin/events/...` endpoints were deleted as dead code post-Wolverine — see [docs/event-replay.md](event-replay.md) for the short summary and [docs/performance-and-data-correctness.md](performance-and-data-correctness.md) for the full rationale.
 
 ---
 

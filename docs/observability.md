@@ -239,8 +239,4 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 
 ## Event Replay
 
-The `EventLog` table in each service (Order, Payment, Shipping) provides an admin audit trail and replay capability. Admin endpoints allow querying history and replaying events by ID or correlation ID.
-
-> **Current state:** `WolverineEventPublisher` does not auto-populate `EventLog` on every publish — Wolverine's built-in EF Core outbox handles delivery guarantees instead. Explicit EventLog writes are planned as a follow-up. The admin query/replay endpoints remain fully functional for any rows present.
-
-See **[docs/event-replay.md](event-replay.md)** for the full guide: schema, endpoint reference, configuration, and migration commands.
+Replay is handled through Wolverine's transactional outbox (`wolverine` schema in each service's database) and its `IMessageStore` API. The previous hand-rolled `EventLog` table and `/admin/events/...` endpoints were deleted as dead code post-Wolverine. See [docs/event-replay.md](event-replay.md) for context.

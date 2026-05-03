@@ -13,7 +13,7 @@
           "NextAurora.Contracts": "1.0.0",
           "NotificationService.Application": "1.0.0",
           "NotificationService.Domain": "1.0.0",
-          "WolverineFx.AzureServiceBus": "5.17.0"
+          "WolverineFx.AzureServiceBus": "5.36.2"
         },
         "runtime": {
           "NotificationService.Infrastructure.dll": {}
@@ -86,37 +86,38 @@
           }
         }
       },
-      "JasperFx/1.20.0": {
+      "JasperFx/1.28.2": {
         "dependencies": {
           "FastExpressionCompiler": "5.3.0",
           "Microsoft.Bcl.TimeProvider": "10.0.0",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.2",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.0",
           "Microsoft.Extensions.Hosting": "10.0.0",
           "Microsoft.Extensions.ObjectPool": "10.0.2",
           "Polly.Core": "8.6.5",
-          "Spectre.Console": "0.53.0"
+          "Spectre.Console": "0.55.0"
         },
         "runtime": {
           "lib/net10.0/JasperFx.dll": {
-            "assemblyVersion": "1.20.0.0",
-            "fileVersion": "1.20.0.0"
+            "assemblyVersion": "1.28.2.0",
+            "fileVersion": "1.28.2.0"
           }
         }
       },
-      "JasperFx.Events/1.22.0": {
+      "JasperFx.Events/1.31.1": {
         "dependencies": {
-          "JasperFx": "1.20.0"
+          "JasperFx": "1.28.2"
         },
         "runtime": {
           "lib/net10.0/JasperFx.Events.dll": {
-            "assemblyVersion": "1.22.0.0",
-            "fileVersion": "1.22.0.0"
+            "assemblyVersion": "1.31.1.0",
+            "fileVersion": "1.31.1.0"
           }
         }
       },
-      "JasperFx.RuntimeCompiler/4.4.0": {
+      "JasperFx.RuntimeCompiler/4.5.0": {
         "dependencies": {
-          "JasperFx": "1.20.0",
+          "JasperFx": "1.28.2",
           "Microsoft.CodeAnalysis": "5.0.0",
           "Microsoft.CodeAnalysis.CSharp": "5.0.0",
           "Microsoft.CodeAnalysis.Scripting": "5.0.0",
@@ -124,8 +125,8 @@
         },
         "runtime": {
           "lib/net10.0/JasperFx.RuntimeCompiler.dll": {
-            "assemblyVersion": "4.4.0.0",
-            "fileVersion": "4.4.0.0"
+            "assemblyVersion": "4.5.0.0",
+            "fileVersion": "4.5.0.0"
           }
         }
       },
@@ -764,6 +765,14 @@
           }
         }
       },
+      "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions/10.0.0": {
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.25.52411"
+          }
+        }
+      },
       "Microsoft.Extensions.FileProviders.Abstractions/10.0.2": {
         "dependencies": {
           "Microsoft.Extensions.Primitives": "10.0.2"
@@ -1041,11 +1050,22 @@
           }
         }
       },
-      "Spectre.Console/0.53.0": {
+      "Spectre.Console/0.55.0": {
+        "dependencies": {
+          "Spectre.Console.Ansi": "0.55.0"
+        },
         "runtime": {
-          "lib/net9.0/Spectre.Console.dll": {
+          "lib/net10.0/Spectre.Console.dll": {
             "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.53.0.0"
+            "fileVersion": "0.55.0.0"
+          }
+        }
+      },
+      "Spectre.Console.Ansi/0.55.0": {
+        "runtime": {
+          "lib/net10.0/Spectre.Console.Ansi.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.55.0.0"
           }
         }
       },
@@ -1167,16 +1187,17 @@
           }
         }
       },
-      "WolverineFx/5.17.0": {
+      "WolverineFx/5.36.2": {
         "dependencies": {
-          "JasperFx": "1.20.0",
-          "JasperFx.Events": "1.22.0",
-          "JasperFx.RuntimeCompiler": "4.4.0",
+          "JasperFx": "1.28.2",
+          "JasperFx.Events": "1.31.1",
+          "JasperFx.RuntimeCompiler": "4.5.0",
           "Microsoft.Extensions.Caching.Memory": "10.0.0",
           "Microsoft.Extensions.Configuration": "10.0.0",
           "Microsoft.Extensions.Configuration.Abstractions": "10.0.2",
           "Microsoft.Extensions.Configuration.Binder": "10.0.0",
           "Microsoft.Extensions.Configuration.Json": "10.0.0",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.0",
           "Microsoft.Extensions.Hosting": "10.0.0",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.2",
           "Microsoft.Extensions.ObjectPool": "10.0.2",
@@ -1185,21 +1206,21 @@
         },
         "runtime": {
           "lib/net10.0/Wolverine.dll": {
-            "assemblyVersion": "5.17.0.0",
-            "fileVersion": "5.17.0.0"
+            "assemblyVersion": "5.36.2.0",
+            "fileVersion": "5.36.2.0"
           }
         }
       },
-      "WolverineFx.AzureServiceBus/5.17.0": {
+      "WolverineFx.AzureServiceBus/5.36.2": {
         "dependencies": {
           "Azure.Identity": "1.17.0",
           "Azure.Messaging.ServiceBus": "7.20.1",
-          "WolverineFx": "5.17.0"
+          "WolverineFx": "5.36.2"
         },
         "runtime": {
           "lib/net10.0/Wolverine.AzureServiceBus.dll": {
-            "assemblyVersion": "5.17.0.0",
-            "fileVersion": "5.17.0.0"
+            "assemblyVersion": "5.36.2.0",
+            "fileVersion": "5.36.2.0"
           }
         }
       },
@@ -1282,26 +1303,26 @@
       "path": "humanizer.core/2.14.1",
       "hashPath": "humanizer.core.2.14.1.nupkg.sha512"
     },
-    "JasperFx/1.20.0": {
+    "JasperFx/1.28.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-ymb6lJnPITfnnw2IO2Ddtu4weXDcA5L80rXYKhF7H8IIsFCiTPQ1DAeGtNvsF22N3JBKNyKjAtg+fuTxgRMj3g==",
-      "path": "jasperfx/1.20.0",
-      "hashPath": "jasperfx.1.20.0.nupkg.sha512"
+      "sha512": "sha512-PqiJQrZ02ytH+BBNkKm2mc+CD5OSIcx8HIElQuI8KNkqHgBQ3LRQ07wmeniHvOVkXmiEIH2CAhksA3wj0n+aeQ==",
+      "path": "jasperfx/1.28.2",
+      "hashPath": "jasperfx.1.28.2.nupkg.sha512"
     },
-    "JasperFx.Events/1.22.0": {
+    "JasperFx.Events/1.31.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-QD01W8GFqHcMLYpqF4G5adkEHFexCntWSIWejvccVxmw8TTMmGf+EH8EoQI8EitdCc0XZ/ocGog2TQTRkqxG4A==",
-      "path": "jasperfx.events/1.22.0",
-      "hashPath": "jasperfx.events.1.22.0.nupkg.sha512"
+      "sha512": "sha512-VTiVkFYgQFixA1KupIcOCAQUxfczhPrYLB6Qi9KKsdygfk4yEGyK+qQN81uoARz8TSOrEgjpCz9dx1wnQVUYHQ==",
+      "path": "jasperfx.events/1.31.1",
+      "hashPath": "jasperfx.events.1.31.1.nupkg.sha512"
     },
-    "JasperFx.RuntimeCompiler/4.4.0": {
+    "JasperFx.RuntimeCompiler/4.5.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-n5dOtQlytGsCfpRyOGDw/qHaqPDd2GcR7pgO53bQto1T82/VZjQdzkfuLQt8vUMY6D+m1TgqUjqedNFDT1+rEQ==",
-      "path": "jasperfx.runtimecompiler/4.4.0",
-      "hashPath": "jasperfx.runtimecompiler.4.4.0.nupkg.sha512"
+      "sha512": "sha512-SGJlU1kD8lX8A5p0hBWTPDV7dvPzoUB37IZjprWgA+L5yZZNyBElpn6UPNo7ZuXLKKwlSSt8BWTr99vxpxT3JA==",
+      "path": "jasperfx.runtimecompiler/4.5.0",
+      "hashPath": "jasperfx.runtimecompiler.4.5.0.nupkg.sha512"
     },
     "Microsoft.Azure.Amqp/2.7.0": {
       "type": "package",
@@ -1492,6 +1513,13 @@
       "path": "microsoft.extensions.diagnostics.abstractions/10.0.2",
       "hashPath": "microsoft.extensions.diagnostics.abstractions.10.0.2.nupkg.sha512"
     },
+    "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions/10.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-jAhZbzDa117otUBMuQQ6JzSfuDbBBrfOs5jw5l7l9hKpzt+LjYKVjSauXG2yV9u7BqUSLUtKLwcerDQDeQ+0Xw==",
+      "path": "microsoft.extensions.diagnostics.healthchecks.abstractions/10.0.0",
+      "hashPath": "microsoft.extensions.diagnostics.healthchecks.abstractions.10.0.0.nupkg.sha512"
+    },
     "Microsoft.Extensions.FileProviders.Abstractions/10.0.2": {
       "type": "package",
       "serviceable": true,
@@ -1646,12 +1674,19 @@
       "path": "polly.core/8.6.5",
       "hashPath": "polly.core.8.6.5.nupkg.sha512"
     },
-    "Spectre.Console/0.53.0": {
+    "Spectre.Console/0.55.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-m2iv8Egfywp7FaNLKCmCFHbSf36D4ctzZKvlAK9NXMyGLh6L+CnrZWK8o+LOYsoAS1jtoHn0W1BT0W8vuq/FUw==",
-      "path": "spectre.console/0.53.0",
-      "hashPath": "spectre.console.0.53.0.nupkg.sha512"
+      "sha512": "sha512-2TVhUHFsDux0Z+y2Hv4bFsOMuON4SuotEEKkMparFkp5Rm259naaaEQrN4Sv6C1cbsiGKPjfkJDGgUp+hZPjTw==",
+      "path": "spectre.console/0.55.0",
+      "hashPath": "spectre.console.0.55.0.nupkg.sha512"
+    },
+    "Spectre.Console.Ansi/0.55.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-GIfgOvuF8MpU52bprhwtDEtx0gmVIGOepM8bw0lH/TSMD0rg1Xp+5Y53kPG8rFVdcpbNANlhDQ5mEVVPO3/2Tg==",
+      "path": "spectre.console.ansi/0.55.0",
+      "hashPath": "spectre.console.ansi.0.55.0.nupkg.sha512"
     },
     "System.ClientModel/1.7.0": {
       "type": "package",
@@ -1723,19 +1758,19 @@
       "path": "system.security.cryptography.protecteddata/4.5.0",
       "hashPath": "system.security.cryptography.protecteddata.4.5.0.nupkg.sha512"
     },
-    "WolverineFx/5.17.0": {
+    "WolverineFx/5.36.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-B7EWuzVBuyJaYoAsTEnKBKMjR+1DhjleopbHF9S2jzj0G7T3s/movynOgtq2CqlVi2EMRIyOrPhAlSm9wSPrtA==",
-      "path": "wolverinefx/5.17.0",
-      "hashPath": "wolverinefx.5.17.0.nupkg.sha512"
+      "sha512": "sha512-UA4I0qZiLqeqItf+J/hyqdyRq8JngEPMIvhNB79RDwp7rVfU6P4XdlvRfa9IvhVs3p+z4fkI3nzzmPGMn2/h7w==",
+      "path": "wolverinefx/5.36.2",
+      "hashPath": "wolverinefx.5.36.2.nupkg.sha512"
     },
-    "WolverineFx.AzureServiceBus/5.17.0": {
+    "WolverineFx.AzureServiceBus/5.36.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-oj7+g8RCNxqchsg9cCW6Ih1K4ldJNmWPHas0JRtlZhjDae0ZHwbBOQZ/M2Cw3ueIqeJTiYIN2QTIme0GsCeSLA==",
-      "path": "wolverinefx.azureservicebus/5.17.0",
-      "hashPath": "wolverinefx.azureservicebus.5.17.0.nupkg.sha512"
+      "sha512": "sha512-s9M0zTMEj6GLk06pGLuxaQVIc8y3qsE1+cMqS1C78n8Sbp9n201724fKOCLaqo5lGrufxUYyUVqzV1i7IsA7vg==",
+      "path": "wolverinefx.azureservicebus/5.36.2",
+      "hashPath": "wolverinefx.azureservicebus.5.36.2.nupkg.sha512"
     },
     "NextAurora.Contracts/1.0.0": {
       "type": "project",

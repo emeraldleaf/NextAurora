@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(/.claude/skills/dotnet-performance/**)",
+      "Bash(grep -r \"\\\\.Result\\\\|\\\\.Wait\\(\\)\\\\|\\\\.GetAwaiter\\(\\)\\\\.GetResult\\(\\)\" /Users/joshuadell/NovaCraft --include=\"*.cs\" ! -path \"*/bin/*\" ! -path \"*/obj/*\")",
+      "Read(//Users/joshuadell/.nuget/packages/npgsql.entityframeworkcore.postgresql/10.0.0/lib/**)",
+      "Bash(dotnet tool *)",
+      "Bash(dotnet script *)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet ef *)"
+    ],
+    "additionalDirectories": [
+      "/Users/joshuadell/NovaCraft/.claude/skills"
+    ]
+  }
+}

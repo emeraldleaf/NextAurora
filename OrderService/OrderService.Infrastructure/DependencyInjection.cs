@@ -1,4 +1,3 @@
-using Azure.Messaging.ServiceBus;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,6 +8,17 @@ using OrderService.Infrastructure.Repositories;
 
 namespace OrderService.Infrastructure;
 
+/// <summary>
+/// Composition root for OrderService's Infrastructure layer. Wires up SQL Server (orders-db),
+/// the EF repository, and the Wolverine-backed event publisher.
+///
+/// <para>
+/// Same scoped-lifetime story as the other services: one DbContext per request/message dispatch,
+/// repositories share that scope, event publisher is also scoped so it can participate in the
+/// same transaction as the repo's <c>SaveChanges</c> when Wolverine's transactional outbox
+/// wraps the handler.
+/// </para>
+/// </summary>
 public static class DependencyInjection
 {
     public static IServiceCollection AddOrderInfrastructure(this IServiceCollection services, IConfiguration configuration)
@@ -21,10 +31,8 @@ public static class DependencyInjection
 
         services.AddScoped<IOrderRepository, OrderRepository>();
 
-        // ServiceBusClient is kept for AdminEventEndpoints replay functionality.
-        services.AddSingleton(_ =>
-            new ServiceBusClient(configuration.GetConnectionString("messaging")));
-
+        // IEventPublisher is the domain abstraction; WolverineEventPublisher is the
+        // Wolverine-backed implementation. Application handlers depend on the abstraction.
         services.AddScoped<IEventPublisher, WolverineEventPublisher>();
 
         return services;

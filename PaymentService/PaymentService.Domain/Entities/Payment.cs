@@ -1,5 +1,19 @@
 namespace PaymentService.Domain.Entities;
 
+/// <summary>
+/// The Payment aggregate root: one Payment per Order (enforced by a unique index in
+/// <c>PaymentDbContext</c>). State machine is <c>Pending → Completed</c> or <c>Pending → Failed</c>;
+/// both are terminal. <see cref="ExternalTransactionId"/> records the provider's transaction ID
+/// (e.g. the Stripe charge ID) so we can reconcile against their dashboard.
+///
+/// <para>
+/// <b>Idempotency under saga retries:</b> the <c>OrderPlacedHandler</c> in this service first
+/// checks if a Payment already exists for the order before creating one, and the status guards
+/// in <see cref="MarkAsCompleted"/> / <see cref="MarkAsFailed"/> prevent double-processing if
+/// the Service Bus redelivers a message. Combined with the <c>OrderId</c> unique index, we get
+/// "exactly-once outcome" even with at-least-once delivery.
+/// </para>
+/// </summary>
 public class Payment
 {
     public Guid Id { get; private set; }
@@ -8,7 +22,11 @@ public class Payment
     public string Currency { get; private set; } = "USD";
     public PaymentStatus Status { get; private set; }
     public string Provider { get; private set; } = "";
+
+    // The provider's identifier for the actual money movement — e.g. Stripe's <c>ch_...</c>.
+    // Stored so we can map back to their records during disputes or reconciliation.
     public string? ExternalTransactionId { get; private set; }
+
     public DateTime CreatedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
     public string? FailureReason { get; private set; }
@@ -36,6 +54,10 @@ public class Payment
         };
     }
 
+    /// <summary>
+    /// Called after the gateway confirms the charge. Status guard ensures we don't double-complete
+    /// on a redelivered event.
+    /// </summary>
     public void MarkAsCompleted(string externalTransactionId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(externalTransactionId);
@@ -48,6 +70,11 @@ public class Payment
         CompletedAt = DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// Called when the gateway rejects the charge. <see cref="FailureReason"/> is stored for
+    /// debugging and audit but is never returned in API responses verbatim — it can contain
+    /// provider error codes that aren't safe to expose to end users.
+    /// </summary>
     public void MarkAsFailed(string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);

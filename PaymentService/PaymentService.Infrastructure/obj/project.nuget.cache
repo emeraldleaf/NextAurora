@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "RhGnb91JXME=",
+  "dgSpecHash": "vpbO9RNzyok=",
   "success": true,
   "projectFilePath": "/Users/joshuadell/NovaCraft/PaymentService/PaymentService.Infrastructure/PaymentService.Infrastructure.csproj",
   "expectedPackageFiles": [
@@ -12,9 +12,10 @@
     "/Users/joshuadell/.nuget/packages/fluentvalidation/11.11.0/fluentvalidation.11.11.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/humanizer.core/2.14.1/humanizer.core.2.14.1.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/imtools/4.0.0/imtools.4.0.0.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/jasperfx/1.20.0/jasperfx.1.20.0.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/jasperfx.events/1.22.0/jasperfx.events.1.22.0.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/jasperfx.runtimecompiler/4.4.0/jasperfx.runtimecompiler.4.4.0.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/jasperfx/1.28.2/jasperfx.1.28.2.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/jasperfx.events/1.31.1/jasperfx.events.1.31.1.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/jasperfx.runtimecompiler/4.5.0/jasperfx.runtimecompiler.4.5.0.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/jasperfx.sourcegeneration/1.1.0/jasperfx.sourcegeneration.1.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/meziantou.analyzer/2.0.257/meziantou.analyzer.2.0.257.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.azure.amqp/2.7.0/microsoft.azure.amqp.2.7.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.bcl.asyncinterfaces/9.0.0/microsoft.bcl.asyncinterfaces.9.0.0.nupkg.sha512",
@@ -91,7 +92,8 @@
     "/Users/joshuadell/.nuget/packages/polly.core/8.6.5/polly.core.8.6.5.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/roslynator.analyzers/4.14.1/roslynator.analyzers.4.14.1.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/sonaranalyzer.csharp/10.16.0.128591/sonaranalyzer.csharp.10.16.0.128591.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/spectre.console/0.53.0/spectre.console.0.53.0.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/spectre.console/0.55.0/spectre.console.0.55.0.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/spectre.console.ansi/0.55.0/spectre.console.ansi.0.55.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/system.clientmodel/1.7.0/system.clientmodel.1.7.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/system.codedom/6.0.0/system.codedom.6.0.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/system.composition/9.0.0/system.composition.9.0.0.nupkg.sha512",
@@ -106,12 +108,12 @@
     "/Users/joshuadell/.nuget/packages/system.memory.data/8.0.1/system.memory.data.8.0.1.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/system.security.cryptography.pkcs/9.0.4/system.security.cryptography.pkcs.9.0.4.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/system.security.cryptography.protecteddata/9.0.4/system.security.cryptography.protecteddata.9.0.4.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/weasel.core/8.8.1/weasel.core.8.8.1.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/weasel.entityframeworkcore/8.8.1/weasel.entityframeworkcore.8.8.1.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/wolverinefx/5.17.0/wolverinefx.5.17.0.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/wolverinefx.azureservicebus/5.17.0/wolverinefx.azureservicebus.5.17.0.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/wolverinefx.entityframeworkcore/5.17.0/wolverinefx.entityframeworkcore.5.17.0.nupkg.sha512",
-    "/Users/joshuadell/.nuget/packages/wolverinefx.rdbms/5.17.0/wolverinefx.rdbms.5.17.0.nupkg.sha512"
+    "/Users/joshuadell/.nuget/packages/weasel.core/8.14.1/weasel.core.8.14.1.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/weasel.entityframeworkcore/8.14.1/weasel.entityframeworkcore.8.14.1.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/wolverinefx/5.36.2/wolverinefx.5.36.2.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/wolverinefx.azureservicebus/5.36.2/wolverinefx.azureservicebus.5.36.2.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/wolverinefx.entityframeworkcore/5.36.2/wolverinefx.entityframeworkcore.5.36.2.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/wolverinefx.rdbms/5.36.2/wolverinefx.rdbms.5.36.2.nupkg.sha512"
   ],
   "logs": []
 }

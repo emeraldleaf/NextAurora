@@ -40,6 +40,7 @@
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/bin/Debug/net10.0/Json.More.dll
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/bin/Debug/net10.0/JsonPatch.Net.dll
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/bin/Debug/net10.0/JsonPointer.Net.dll
+/Users/joshuadell/NovaCraft/NextAurora.AppHost/bin/Debug/net10.0/Keycloak.AuthServices.Aspire.Hosting.dll
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/bin/Debug/net10.0/KubernetesClient.dll
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/bin/Debug/net10.0/MessagePack.dll
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/bin/Debug/net10.0/MessagePack.Annotations.dll
@@ -157,11 +158,10 @@
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/Aspire/references/Storefront.ProjectMetadata.g.cs
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/Aspire/references/SellerPortal.ProjectMetadata.g.cs
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/Aspire/references/_AppHost.ProjectMetadata.g.cs
+/Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/NextAurora.AppHost.sourcelink.json
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/NextAuro.8FB5AA9C.Up2Date
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/NextAurora.AppHost.dll
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/refint/NextAurora.AppHost.dll
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/NextAurora.AppHost.pdb
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/NextAurora.AppHost.genruntimeconfig.cache
 /Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/ref/NextAurora.AppHost.dll
-/Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/Debug/net10.0/NextAurora.AppHost.sourcelink.json
-/Users/joshuadell/NovaCraft/NextAurora.AppHost/bin/Debug/net10.0/Keycloak.AuthServices.Aspire.Hosting.dll

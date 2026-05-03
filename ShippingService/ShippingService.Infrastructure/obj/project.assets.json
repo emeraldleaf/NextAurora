@@ -109,17 +109,18 @@
           }
         }
       },
-      "JasperFx/1.20.0": {
+      "JasperFx/1.28.2": {
         "type": "package",
         "dependencies": {
           "FastExpressionCompiler": "5.3.0",
           "ImTools": "4.0.0",
           "Microsoft.Bcl.TimeProvider": "10.0.0",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.0",
           "Microsoft.Extensions.Hosting": "10.0.0",
           "Microsoft.Extensions.ObjectPool": "10.0.0",
           "Polly.Core": "8.6.5",
-          "Spectre.Console": "0.53.0"
+          "Spectre.Console": "0.55.0"
         },
         "compile": {
           "lib/net10.0/JasperFx.dll": {
@@ -132,10 +133,10 @@
           }
         }
       },
-      "JasperFx.Events/1.22.0": {
+      "JasperFx.Events/1.31.1": {
         "type": "package",
         "dependencies": {
-          "JasperFx": "1.20.0"
+          "JasperFx": "1.28.2"
         },
         "compile": {
           "lib/net10.0/JasperFx.Events.dll": {
@@ -148,10 +149,10 @@
           }
         }
       },
-      "JasperFx.RuntimeCompiler/4.4.0": {
+      "JasperFx.RuntimeCompiler/4.5.0": {
         "type": "package",
         "dependencies": {
-          "JasperFx": "1.18.0",
+          "JasperFx": "1.28.0",
           "Microsoft.CodeAnalysis": "5.0.0",
           "Microsoft.CodeAnalysis.CSharp": "5.0.0",
           "Microsoft.CodeAnalysis.Scripting": "5.0.0",
@@ -167,6 +168,9 @@
             "related": ".xml"
           }
         }
+      },
+      "JasperFx.SourceGeneration/1.1.0": {
+        "type": "package"
       },
       "Meziantou.Analyzer/2.0.257": {
         "type": "package",
@@ -1750,15 +1754,31 @@
       "SonarAnalyzer.CSharp/10.16.0.128591": {
         "type": "package"
       },
-      "Spectre.Console/0.53.0": {
+      "Spectre.Console/0.55.0": {
         "type": "package",
+        "dependencies": {
+          "Spectre.Console.Ansi": "0.55.0"
+        },
         "compile": {
-          "lib/net9.0/Spectre.Console.dll": {
+          "lib/net10.0/Spectre.Console.dll": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net9.0/Spectre.Console.dll": {
+          "lib/net10.0/Spectre.Console.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Spectre.Console.Ansi/0.55.0": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/Spectre.Console.Ansi.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Spectre.Console.Ansi.dll": {
             "related": ".xml"
           }
         }
@@ -1965,10 +1985,10 @@
           }
         }
       },
-      "Weasel.Core/8.8.1": {
+      "Weasel.Core/8.14.1": {
         "type": "package",
         "dependencies": {
-          "JasperFx": "1.20.0"
+          "JasperFx": "1.26.0"
         },
         "compile": {
           "lib/net10.0/Weasel.Core.dll": {
@@ -1981,11 +2001,11 @@
           }
         }
       },
-      "Weasel.EntityFrameworkCore/8.8.1": {
+      "Weasel.EntityFrameworkCore/8.14.1": {
         "type": "package",
         "dependencies": {
-          "Microsoft.EntityFrameworkCore.Relational": "9.0.0",
-          "Weasel.Core": "8.8.1"
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.0",
+          "Weasel.Core": "8.14.1"
         },
         "compile": {
           "lib/net10.0/Weasel.EntityFrameworkCore.dll": {
@@ -1998,17 +2018,19 @@
           }
         }
       },
-      "WolverineFx/5.17.0": {
+      "WolverineFx/5.36.2": {
         "type": "package",
         "dependencies": {
-          "JasperFx": "1.20.0",
-          "JasperFx.Events": "1.22.0",
-          "JasperFx.RuntimeCompiler": "4.4.0",
+          "JasperFx": "1.28.2",
+          "JasperFx.Events": "1.31.1",
+          "JasperFx.RuntimeCompiler": "4.5.0",
+          "JasperFx.SourceGeneration": "1.1.0",
           "Microsoft.Extensions.Caching.Memory": "10.0.0",
           "Microsoft.Extensions.Configuration": "10.0.0",
           "Microsoft.Extensions.Configuration.Abstractions": "10.0.0",
           "Microsoft.Extensions.Configuration.Binder": "10.0.0",
           "Microsoft.Extensions.Configuration.Json": "10.0.0",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.0",
           "Microsoft.Extensions.Hosting": "10.0.0",
           "Microsoft.Extensions.Hosting.Abstractions": "10.0.0",
           "Microsoft.Extensions.ObjectPool": "10.0.2",
@@ -2026,12 +2048,12 @@
           }
         }
       },
-      "WolverineFx.AzureServiceBus/5.17.0": {
+      "WolverineFx.AzureServiceBus/5.36.2": {
         "type": "package",
         "dependencies": {
           "Azure.Identity": "1.17.0",
           "Azure.Messaging.ServiceBus": "7.20.1",
-          "WolverineFx": "5.17.0"
+          "WolverineFx": "5.36.2"
         },
         "compile": {
           "lib/net10.0/Wolverine.AzureServiceBus.dll": {
@@ -2044,14 +2066,14 @@
           }
         }
       },
-      "WolverineFx.EntityFrameworkCore/5.17.0": {
+      "WolverineFx.EntityFrameworkCore/5.36.2": {
         "type": "package",
         "dependencies": {
-          "Microsoft.EntityFrameworkCore": "10.0.0",
-          "Microsoft.EntityFrameworkCore.Design": "10.0.0",
-          "Microsoft.EntityFrameworkCore.Relational": "10.0.0",
-          "Weasel.EntityFrameworkCore": "8.8.1",
-          "WolverineFx.RDBMS": "5.17.0"
+          "Microsoft.EntityFrameworkCore": "10.0.2",
+          "Microsoft.EntityFrameworkCore.Design": "10.0.2",
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
+          "Weasel.EntityFrameworkCore": "8.14.1",
+          "WolverineFx.RDBMS": "5.36.2"
         },
         "compile": {
           "lib/net10.0/Wolverine.EntityFrameworkCore.dll": {
@@ -2064,11 +2086,11 @@
           }
         }
       },
-      "WolverineFx.RDBMS/5.17.0": {
+      "WolverineFx.RDBMS/5.36.2": {
         "type": "package",
         "dependencies": {
-          "Weasel.Core": "8.8.1",
-          "WolverineFx": "5.17.0"
+          "Weasel.Core": "8.14.1",
+          "WolverineFx": "5.36.2"
         },
         "compile": {
           "lib/net10.0/Wolverine.RDBMS.dll": {
@@ -2254,14 +2276,14 @@
         "imtools.nuspec"
       ]
     },
-    "JasperFx/1.20.0": {
-      "sha512": "ymb6lJnPITfnnw2IO2Ddtu4weXDcA5L80rXYKhF7H8IIsFCiTPQ1DAeGtNvsF22N3JBKNyKjAtg+fuTxgRMj3g==",
+    "JasperFx/1.28.2": {
+      "sha512": "PqiJQrZ02ytH+BBNkKm2mc+CD5OSIcx8HIElQuI8KNkqHgBQ3LRQ07wmeniHvOVkXmiEIH2CAhksA3wj0n+aeQ==",
       "type": "package",
-      "path": "jasperfx/1.20.0",
+      "path": "jasperfx/1.28.2",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "jasperfx.1.20.0.nupkg.sha512",
+        "jasperfx.1.28.2.nupkg.sha512",
         "jasperfx.nuspec",
         "lib/net10.0/JasperFx.dll",
         "lib/net10.0/JasperFx.xml",
@@ -2271,14 +2293,14 @@
         "lib/net9.0/JasperFx.xml"
       ]
     },
-    "JasperFx.Events/1.22.0": {
-      "sha512": "QD01W8GFqHcMLYpqF4G5adkEHFexCntWSIWejvccVxmw8TTMmGf+EH8EoQI8EitdCc0XZ/ocGog2TQTRkqxG4A==",
+    "JasperFx.Events/1.31.1": {
+      "sha512": "VTiVkFYgQFixA1KupIcOCAQUxfczhPrYLB6Qi9KKsdygfk4yEGyK+qQN81uoARz8TSOrEgjpCz9dx1wnQVUYHQ==",
       "type": "package",
-      "path": "jasperfx.events/1.22.0",
+      "path": "jasperfx.events/1.31.1",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "jasperfx.events.1.22.0.nupkg.sha512",
+        "jasperfx.events.1.31.1.nupkg.sha512",
         "jasperfx.events.nuspec",
         "lib/net10.0/JasperFx.Events.dll",
         "lib/net10.0/JasperFx.Events.xml",
@@ -2288,14 +2310,14 @@
         "lib/net9.0/JasperFx.Events.xml"
       ]
     },
-    "JasperFx.RuntimeCompiler/4.4.0": {
-      "sha512": "n5dOtQlytGsCfpRyOGDw/qHaqPDd2GcR7pgO53bQto1T82/VZjQdzkfuLQt8vUMY6D+m1TgqUjqedNFDT1+rEQ==",
+    "JasperFx.RuntimeCompiler/4.5.0": {
+      "sha512": "SGJlU1kD8lX8A5p0hBWTPDV7dvPzoUB37IZjprWgA+L5yZZNyBElpn6UPNo7ZuXLKKwlSSt8BWTr99vxpxT3JA==",
       "type": "package",
-      "path": "jasperfx.runtimecompiler/4.4.0",
+      "path": "jasperfx.runtimecompiler/4.5.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "jasperfx.runtimecompiler.4.4.0.nupkg.sha512",
+        "jasperfx.runtimecompiler.4.5.0.nupkg.sha512",
         "jasperfx.runtimecompiler.nuspec",
         "lib/net10.0/JasperFx.RuntimeCompiler.dll",
         "lib/net10.0/JasperFx.RuntimeCompiler.xml",
@@ -2303,6 +2325,18 @@
         "lib/net8.0/JasperFx.RuntimeCompiler.xml",
         "lib/net9.0/JasperFx.RuntimeCompiler.dll",
         "lib/net9.0/JasperFx.RuntimeCompiler.xml"
+      ]
+    },
+    "JasperFx.SourceGeneration/1.1.0": {
+      "sha512": "yIOaiA/OrlXQLGPjxFDubHnOU8MCzPTz465xBGRITMm4fDf7DbWKogb2SZC2jYLWEj27q3smTz1Z7lU4h1KkOQ==",
+      "type": "package",
+      "path": "jasperfx.sourcegeneration/1.1.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "analyzers/dotnet/cs/JasperFx.SourceGeneration.dll",
+        "jasperfx.sourcegeneration.1.1.0.nupkg.sha512",
+        "jasperfx.sourcegeneration.nuspec"
       ]
     },
     "Meziantou.Analyzer/2.0.257": {
@@ -5121,14 +5155,16 @@
         "tools/uninstall.ps1"
       ]
     },
-    "Spectre.Console/0.53.0": {
-      "sha512": "m2iv8Egfywp7FaNLKCmCFHbSf36D4ctzZKvlAK9NXMyGLh6L+CnrZWK8o+LOYsoAS1jtoHn0W1BT0W8vuq/FUw==",
+    "Spectre.Console/0.55.0": {
+      "sha512": "2TVhUHFsDux0Z+y2Hv4bFsOMuON4SuotEEKkMparFkp5Rm259naaaEQrN4Sv6C1cbsiGKPjfkJDGgUp+hZPjTw==",
       "type": "package",
-      "path": "spectre.console/0.53.0",
+      "path": "spectre.console/0.55.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
         "README.md",
+        "lib/net10.0/Spectre.Console.dll",
+        "lib/net10.0/Spectre.Console.xml",
         "lib/net8.0/Spectre.Console.dll",
         "lib/net8.0/Spectre.Console.xml",
         "lib/net9.0/Spectre.Console.dll",
@@ -5136,8 +5172,29 @@
         "lib/netstandard2.0/Spectre.Console.dll",
         "lib/netstandard2.0/Spectre.Console.xml",
         "logo.png",
-        "spectre.console.0.53.0.nupkg.sha512",
+        "spectre.console.0.55.0.nupkg.sha512",
         "spectre.console.nuspec"
+      ]
+    },
+    "Spectre.Console.Ansi/0.55.0": {
+      "sha512": "GIfgOvuF8MpU52bprhwtDEtx0gmVIGOepM8bw0lH/TSMD0rg1Xp+5Y53kPG8rFVdcpbNANlhDQ5mEVVPO3/2Tg==",
+      "type": "package",
+      "path": "spectre.console.ansi/0.55.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "lib/net10.0/Spectre.Console.Ansi.dll",
+        "lib/net10.0/Spectre.Console.Ansi.xml",
+        "lib/net8.0/Spectre.Console.Ansi.dll",
+        "lib/net8.0/Spectre.Console.Ansi.xml",
+        "lib/net9.0/Spectre.Console.Ansi.dll",
+        "lib/net9.0/Spectre.Console.Ansi.xml",
+        "lib/netstandard2.0/Spectre.Console.Ansi.dll",
+        "lib/netstandard2.0/Spectre.Console.Ansi.xml",
+        "logo.png",
+        "spectre.console.ansi.0.55.0.nupkg.sha512",
+        "spectre.console.ansi.nuspec"
       ]
     },
     "System.ClientModel/1.7.0": {
@@ -5456,10 +5513,10 @@
         "version.txt"
       ]
     },
-    "Weasel.Core/8.8.1": {
-      "sha512": "iLPWsHuCIY9BAyQ8Zfnih5TfCyHRImTBJuw8fc1/Tbt4myjvV7sZCPeWS+YzCHH4gDfTbib16JoI/t6gEnI1QA==",
+    "Weasel.Core/8.14.1": {
+      "sha512": "k9uZuArMJpOSIQ7If0bD3KNPrzIvEmE0nrqjLmQCm4KJPY7F0Qyz0hxIpdmD1LZu7qKiDCC2eiKNvYTVj0qTng==",
       "type": "package",
-      "path": "weasel.core/8.8.1",
+      "path": "weasel.core/8.14.1",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -5469,14 +5526,14 @@
         "lib/net8.0/Weasel.Core.xml",
         "lib/net9.0/Weasel.Core.dll",
         "lib/net9.0/Weasel.Core.xml",
-        "weasel.core.8.8.1.nupkg.sha512",
+        "weasel.core.8.14.1.nupkg.sha512",
         "weasel.core.nuspec"
       ]
     },
-    "Weasel.EntityFrameworkCore/8.8.1": {
-      "sha512": "7VMILfl3mQ4JbW047FU27v4qmqLvKZoIkww8msh7KpSqvzuKVTshoTTyAbCTWlE25YEqoqqgkI8d+U7ygAENNQ==",
+    "Weasel.EntityFrameworkCore/8.14.1": {
+      "sha512": "tF0xX8zUDX+QTeSrtwCJHAjiXlX2ekHZvyi1I7bMZ6vzmZzs8rR5f6UFjwXs+cCzvKiNvmTPDpYfhOdzD1hmvQ==",
       "type": "package",
-      "path": "weasel.entityframeworkcore/8.8.1",
+      "path": "weasel.entityframeworkcore/8.14.1",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -5486,31 +5543,32 @@
         "lib/net8.0/Weasel.EntityFrameworkCore.xml",
         "lib/net9.0/Weasel.EntityFrameworkCore.dll",
         "lib/net9.0/Weasel.EntityFrameworkCore.xml",
-        "weasel.entityframeworkcore.8.8.1.nupkg.sha512",
+        "weasel.entityframeworkcore.8.14.1.nupkg.sha512",
         "weasel.entityframeworkcore.nuspec"
       ]
     },
-    "WolverineFx/5.17.0": {
-      "sha512": "B7EWuzVBuyJaYoAsTEnKBKMjR+1DhjleopbHF9S2jzj0G7T3s/movynOgtq2CqlVi2EMRIyOrPhAlSm9wSPrtA==",
+    "WolverineFx/5.36.2": {
+      "sha512": "UA4I0qZiLqeqItf+J/hyqdyRq8JngEPMIvhNB79RDwp7rVfU6P4XdlvRfa9IvhVs3p+z4fkI3nzzmPGMn2/h7w==",
       "type": "package",
-      "path": "wolverinefx/5.17.0",
+      "path": "wolverinefx/5.36.2",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
+        "analyzers/dotnet/cs/Wolverine.SourceGeneration.dll",
         "lib/net10.0/Wolverine.dll",
         "lib/net10.0/Wolverine.xml",
         "lib/net8.0/Wolverine.dll",
         "lib/net8.0/Wolverine.xml",
         "lib/net9.0/Wolverine.dll",
         "lib/net9.0/Wolverine.xml",
-        "wolverinefx.5.17.0.nupkg.sha512",
+        "wolverinefx.5.36.2.nupkg.sha512",
         "wolverinefx.nuspec"
       ]
     },
-    "WolverineFx.AzureServiceBus/5.17.0": {
-      "sha512": "oj7+g8RCNxqchsg9cCW6Ih1K4ldJNmWPHas0JRtlZhjDae0ZHwbBOQZ/M2Cw3ueIqeJTiYIN2QTIme0GsCeSLA==",
+    "WolverineFx.AzureServiceBus/5.36.2": {
+      "sha512": "s9M0zTMEj6GLk06pGLuxaQVIc8y3qsE1+cMqS1C78n8Sbp9n201724fKOCLaqo5lGrufxUYyUVqzV1i7IsA7vg==",
       "type": "package",
-      "path": "wolverinefx.azureservicebus/5.17.0",
+      "path": "wolverinefx.azureservicebus/5.36.2",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -5520,14 +5578,14 @@
         "lib/net8.0/Wolverine.AzureServiceBus.xml",
         "lib/net9.0/Wolverine.AzureServiceBus.dll",
         "lib/net9.0/Wolverine.AzureServiceBus.xml",
-        "wolverinefx.azureservicebus.5.17.0.nupkg.sha512",
+        "wolverinefx.azureservicebus.5.36.2.nupkg.sha512",
         "wolverinefx.azureservicebus.nuspec"
       ]
     },
-    "WolverineFx.EntityFrameworkCore/5.17.0": {
-      "sha512": "VsolUMeYPxYg4QcvKH1Ui1d7NR/0GTUmkQfWdfxAlxtTT/UZGOaet0GWjzm8Osqk97ouJfCG19tID8cVKKes7g==",
+    "WolverineFx.EntityFrameworkCore/5.36.2": {
+      "sha512": "9uDYjF4Mrdoyufaj1t5hViTfxMGW2xiubBj78aIFWnFHBrJc2Gh2JsGjF/85NrcKjEeVRK9cUYiWBNs8W8RDQg==",
       "type": "package",
-      "path": "wolverinefx.entityframeworkcore/5.17.0",
+      "path": "wolverinefx.entityframeworkcore/5.36.2",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -5540,14 +5598,14 @@
         "lib/net9.0/Wolverine.EntityFrameworkCore.dll",
         "lib/net9.0/Wolverine.EntityFrameworkCore.runtimeconfig.json",
         "lib/net9.0/Wolverine.EntityFrameworkCore.xml",
-        "wolverinefx.entityframeworkcore.5.17.0.nupkg.sha512",
+        "wolverinefx.entityframeworkcore.5.36.2.nupkg.sha512",
         "wolverinefx.entityframeworkcore.nuspec"
       ]
     },
-    "WolverineFx.RDBMS/5.17.0": {
-      "sha512": "PwHOICMum8gRmQgJvaSsMDTHOImPQdtPWVcCdauHT41tuOcc7WBDp+SH9ogT1csqjO8TuVJCGBIzSoxagsBqKw==",
+    "WolverineFx.RDBMS/5.36.2": {
+      "sha512": "3vJKZgG0MxP23yrKMAZhuQdfEWKj7+83yuwNUkCUl+jyhR1gZqylF91muQVfmGXeDTSIzuQO/7ewgcDAZ+/lrg==",
       "type": "package",
-      "path": "wolverinefx.rdbms/5.17.0",
+      "path": "wolverinefx.rdbms/5.36.2",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -5557,7 +5615,7 @@
         "lib/net8.0/Wolverine.RDBMS.xml",
         "lib/net9.0/Wolverine.RDBMS.dll",
         "lib/net9.0/Wolverine.RDBMS.xml",
-        "wolverinefx.rdbms.5.17.0.nupkg.sha512",
+        "wolverinefx.rdbms.5.36.2.nupkg.sha512",
         "wolverinefx.rdbms.nuspec"
       ]
     },
@@ -5591,8 +5649,8 @@
       "ShippingService.Application >= 1.0.0",
       "ShippingService.Domain >= 1.0.0",
       "SonarAnalyzer.CSharp >= 10.16.0.128591",
-      "WolverineFx.AzureServiceBus >= 5.17.0",
-      "WolverineFx.EntityFrameworkCore >= 5.17.0"
+      "WolverineFx.AzureServiceBus >= 5.36.2",
+      "WolverineFx.EntityFrameworkCore >= 5.36.2"
     ]
   },
   "packageFolders": {
@@ -5705,16 +5763,18 @@
           },
           "WolverineFx.AzureServiceBus": {
             "target": "Package",
-            "version": "[5.17.0, )",
+            "version": "[5.36.2, )",
             "versionCentrallyManaged": true
           },
           "WolverineFx.EntityFrameworkCore": {
             "target": "Package",
-            "version": "[5.17.0, )",
+            "version": "[5.36.2, )",
             "versionCentrallyManaged": true
           }
         },
         "centralPackageVersions": {
+          "Asp.Versioning.Http": "10.0.0",
+          "Asp.Versioning.Mvc.ApiExplorer": "10.0.0",
           "Aspire.Hosting.Azure.ApplicationInsights": "9.3.0",
           "Aspire.Hosting.Azure.ServiceBus": "9.3.0",
           "Aspire.Hosting.PostgreSQL": "9.3.0",
@@ -5737,6 +5797,7 @@
           "Microsoft.AspNetCore.OpenApi": "10.0.2",
           "Microsoft.EntityFrameworkCore": "10.0.2",
           "Microsoft.EntityFrameworkCore.Design": "10.0.2",
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
           "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
@@ -5747,18 +5808,20 @@
           "Microsoft.NET.Test.Sdk": "17.13.0",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.0",
           "NSubstitute": "5.3.0",
-          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.14.0",
-          "OpenTelemetry.Extensions.Hosting": "1.14.0",
-          "OpenTelemetry.Instrumentation.AspNetCore": "1.14.0",
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.15.3",
+          "OpenTelemetry.Extensions.Hosting": "1.15.3",
+          "OpenTelemetry.Instrumentation.AspNetCore": "1.15.0",
           "OpenTelemetry.Instrumentation.GrpcNetClient": "1.10.0-beta.1",
-          "OpenTelemetry.Instrumentation.Http": "1.14.0",
-          "OpenTelemetry.Instrumentation.Runtime": "1.14.0",
+          "OpenTelemetry.Instrumentation.Http": "1.15.0",
+          "OpenTelemetry.Instrumentation.Runtime": "1.15.0",
           "Roslynator.Analyzers": "4.14.1",
           "SonarAnalyzer.CSharp": "10.16.0.128591",
-          "WolverineFx": "5.17.0",
-          "WolverineFx.AzureServiceBus": "5.17.0",
-          "WolverineFx.EntityFrameworkCore": "5.17.0",
-          "WolverineFx.FluentValidation": "5.17.0",
+          "WolverineFx": "5.36.2",
+          "WolverineFx.AzureServiceBus": "5.36.2",
+          "WolverineFx.EntityFrameworkCore": "5.36.2",
+          "WolverineFx.FluentValidation": "5.36.2",
+          "WolverineFx.Postgresql": "5.36.2",
+          "WolverineFx.SqlServer": "5.36.2",
           "xunit": "2.9.3",
           "xunit.runner.visualstudio": "3.0.2"
         },

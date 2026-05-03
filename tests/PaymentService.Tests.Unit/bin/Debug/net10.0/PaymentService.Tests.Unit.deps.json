@@ -21,6 +21,47 @@
           "PaymentService.Tests.Unit.dll": {}
         }
       },
+      "Asp.Versioning.Abstractions/10.0.0": {
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Abstractions.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.9607.28160"
+          }
+        }
+      },
+      "Asp.Versioning.Http/10.0.0": {
+        "dependencies": {
+          "Asp.Versioning.Abstractions": "10.0.0"
+        },
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Http.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.9607.28167"
+          }
+        }
+      },
+      "Asp.Versioning.Mvc/10.0.0": {
+        "dependencies": {
+          "Asp.Versioning.Http": "10.0.0"
+        },
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Mvc.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.9607.28167"
+          }
+        }
+      },
+      "Asp.Versioning.Mvc.ApiExplorer/10.0.0": {
+        "dependencies": {
+          "Asp.Versioning.Mvc": "10.0.0"
+        },
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Mvc.ApiExplorer.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.9607.28167"
+          }
+        }
+      },
       "Bogus/35.6.1": {
         "runtime": {
           "lib/net6.0/Bogus.dll": {
@@ -69,42 +110,42 @@
           }
         }
       },
-      "JasperFx/1.20.0": {
+      "JasperFx/1.28.2": {
         "dependencies": {
           "FastExpressionCompiler": "5.3.0",
           "Microsoft.Bcl.TimeProvider": "10.0.0",
           "Polly.Core": "8.6.5",
-          "Spectre.Console": "0.53.0"
+          "Spectre.Console": "0.55.0"
         },
         "runtime": {
           "lib/net10.0/JasperFx.dll": {
-            "assemblyVersion": "1.20.0.0",
-            "fileVersion": "1.20.0.0"
+            "assemblyVersion": "1.28.2.0",
+            "fileVersion": "1.28.2.0"
           }
         }
       },
-      "JasperFx.Events/1.22.0": {
+      "JasperFx.Events/1.31.1": {
         "dependencies": {
-          "JasperFx": "1.20.0"
+          "JasperFx": "1.28.2"
         },
         "runtime": {
           "lib/net10.0/JasperFx.Events.dll": {
-            "assemblyVersion": "1.22.0.0",
-            "fileVersion": "1.22.0.0"
+            "assemblyVersion": "1.31.1.0",
+            "fileVersion": "1.31.1.0"
           }
         }
       },
-      "JasperFx.RuntimeCompiler/4.4.0": {
+      "JasperFx.RuntimeCompiler/4.5.0": {
         "dependencies": {
-          "JasperFx": "1.20.0",
+          "JasperFx": "1.28.2",
           "Microsoft.CodeAnalysis": "5.0.0",
           "Microsoft.CodeAnalysis.CSharp": "5.0.0",
           "Microsoft.CodeAnalysis.Scripting": "5.0.0"
         },
         "runtime": {
           "lib/net10.0/JasperFx.RuntimeCompiler.dll": {
-            "assemblyVersion": "4.4.0.0",
-            "fileVersion": "4.4.0.0"
+            "assemblyVersion": "4.5.0.0",
+            "fileVersion": "4.5.0.0"
           }
         }
       },
@@ -582,6 +623,36 @@
           }
         }
       },
+      "Microsoft.EntityFrameworkCore/10.0.2": {
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Abstractions": "10.0.2"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.EntityFrameworkCore.dll": {
+            "assemblyVersion": "10.0.2.0",
+            "fileVersion": "10.0.225.61305"
+          }
+        }
+      },
+      "Microsoft.EntityFrameworkCore.Abstractions/10.0.2": {
+        "runtime": {
+          "lib/net10.0/Microsoft.EntityFrameworkCore.Abstractions.dll": {
+            "assemblyVersion": "10.0.2.0",
+            "fileVersion": "10.0.225.61305"
+          }
+        }
+      },
+      "Microsoft.EntityFrameworkCore.Relational/10.0.2": {
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "10.0.2"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.EntityFrameworkCore.Relational.dll": {
+            "assemblyVersion": "10.0.2.0",
+            "fileVersion": "10.0.225.61305"
+          }
+        }
+      },
       "Microsoft.Extensions.AmbientMetadata.Application/10.1.0": {
         "runtime": {
           "lib/net10.0/Microsoft.Extensions.AmbientMetadata.Application.dll": {
@@ -1034,72 +1105,72 @@
           }
         }
       },
-      "OpenTelemetry/1.14.0": {
+      "OpenTelemetry/1.15.3": {
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.14.0"
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.dll": {
             "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.14.0.1849"
+            "fileVersion": "1.15.3.2017"
           }
         }
       },
-      "OpenTelemetry.Api/1.14.0": {
+      "OpenTelemetry.Api/1.15.3": {
         "runtime": {
           "lib/net10.0/OpenTelemetry.Api.dll": {
             "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.14.0.1849"
+            "fileVersion": "1.15.3.2017"
           }
         }
       },
-      "OpenTelemetry.Api.ProviderBuilderExtensions/1.14.0": {
+      "OpenTelemetry.Api.ProviderBuilderExtensions/1.15.3": {
         "dependencies": {
-          "OpenTelemetry.Api": "1.14.0"
+          "OpenTelemetry.Api": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Api.ProviderBuilderExtensions.dll": {
             "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.14.0.1849"
+            "fileVersion": "1.15.3.2017"
           }
         }
       },
-      "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.14.0": {
+      "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.15.3": {
         "dependencies": {
-          "OpenTelemetry": "1.14.0"
+          "OpenTelemetry": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Exporter.OpenTelemetryProtocol.dll": {
             "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.14.0.1849"
+            "fileVersion": "1.15.3.2017"
           }
         }
       },
-      "OpenTelemetry.Extensions.Hosting/1.14.0": {
+      "OpenTelemetry.Extensions.Hosting/1.15.3": {
         "dependencies": {
-          "OpenTelemetry": "1.14.0"
+          "OpenTelemetry": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Extensions.Hosting.dll": {
             "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.14.0.1849"
+            "fileVersion": "1.15.3.2017"
           }
         }
       },
-      "OpenTelemetry.Instrumentation.AspNetCore/1.14.0": {
+      "OpenTelemetry.Instrumentation.AspNetCore/1.15.0": {
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.14.0"
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Instrumentation.AspNetCore.dll": {
-            "assemblyVersion": "1.14.0.761",
-            "fileVersion": "1.14.0.761"
+            "assemblyVersion": "1.15.0.901",
+            "fileVersion": "1.15.0.901"
           }
         }
       },
       "OpenTelemetry.Instrumentation.GrpcNetClient/1.10.0-beta.1": {
         "dependencies": {
-          "OpenTelemetry": "1.14.0"
+          "OpenTelemetry": "1.15.3"
         },
         "runtime": {
           "lib/net8.0/OpenTelemetry.Instrumentation.GrpcNetClient.dll": {
@@ -1108,25 +1179,25 @@
           }
         }
       },
-      "OpenTelemetry.Instrumentation.Http/1.14.0": {
+      "OpenTelemetry.Instrumentation.Http/1.15.0": {
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.14.0"
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Instrumentation.Http.dll": {
-            "assemblyVersion": "1.14.0.774",
-            "fileVersion": "1.14.0.774"
+            "assemblyVersion": "1.15.0.900",
+            "fileVersion": "1.15.0.900"
           }
         }
       },
-      "OpenTelemetry.Instrumentation.Runtime/1.14.0": {
+      "OpenTelemetry.Instrumentation.Runtime/1.15.0": {
         "dependencies": {
-          "OpenTelemetry.Api": "1.14.0"
+          "OpenTelemetry.Api": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Instrumentation.Runtime.dll": {
-            "assemblyVersion": "1.14.0.775",
-            "fileVersion": "1.14.0.775"
+            "assemblyVersion": "1.15.0.899",
+            "fileVersion": "1.15.0.899"
           }
         }
       },
@@ -1160,11 +1231,22 @@
           }
         }
       },
-      "Spectre.Console/0.53.0": {
+      "Spectre.Console/0.55.0": {
+        "dependencies": {
+          "Spectre.Console.Ansi": "0.55.0"
+        },
         "runtime": {
-          "lib/net9.0/Spectre.Console.dll": {
+          "lib/net10.0/Spectre.Console.dll": {
             "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.53.0.0"
+            "fileVersion": "0.55.0.0"
+          }
+        }
+      },
+      "Spectre.Console.Ansi/0.55.0": {
+        "runtime": {
+          "lib/net10.0/Spectre.Console.Ansi.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.55.0.0"
           }
         }
       },
@@ -1240,18 +1322,18 @@
           }
         }
       },
-      "WolverineFx/5.17.0": {
+      "WolverineFx/5.36.2": {
         "dependencies": {
-          "JasperFx": "1.20.0",
-          "JasperFx.Events": "1.22.0",
-          "JasperFx.RuntimeCompiler": "4.4.0",
+          "JasperFx": "1.28.2",
+          "JasperFx.Events": "1.31.1",
+          "JasperFx.RuntimeCompiler": "4.5.0",
           "NewId": "4.0.1",
           "Newtonsoft.Json": "13.0.3"
         },
         "runtime": {
           "lib/net10.0/Wolverine.dll": {
-            "assemblyVersion": "5.17.0.0",
-            "fileVersion": "5.17.0.0"
+            "assemblyVersion": "5.36.2.0",
+            "fileVersion": "5.36.2.0"
           }
         }
       },
@@ -1315,17 +1397,21 @@
       },
       "NextAurora.ServiceDefaults/1.0.0": {
         "dependencies": {
+          "Asp.Versioning.Http": "10.0.0",
+          "Asp.Versioning.Mvc.ApiExplorer": "10.0.0",
           "FluentValidation": "11.11.0",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "10.0.2",
+          "Microsoft.EntityFrameworkCore": "10.0.2",
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
           "Microsoft.Extensions.Http.Resilience": "10.1.0",
           "Microsoft.Extensions.ServiceDiscovery": "10.1.0",
-          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.14.0",
-          "OpenTelemetry.Extensions.Hosting": "1.14.0",
-          "OpenTelemetry.Instrumentation.AspNetCore": "1.14.0",
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.15.3",
+          "OpenTelemetry.Extensions.Hosting": "1.15.3",
+          "OpenTelemetry.Instrumentation.AspNetCore": "1.15.0",
           "OpenTelemetry.Instrumentation.GrpcNetClient": "1.10.0-beta.1",
-          "OpenTelemetry.Instrumentation.Http": "1.14.0",
-          "OpenTelemetry.Instrumentation.Runtime": "1.14.0",
-          "WolverineFx": "5.17.0"
+          "OpenTelemetry.Instrumentation.Http": "1.15.0",
+          "OpenTelemetry.Instrumentation.Runtime": "1.15.0",
+          "WolverineFx": "5.36.2"
         },
         "runtime": {
           "NextAurora.ServiceDefaults.dll": {
@@ -1362,6 +1448,34 @@
       "type": "project",
       "serviceable": false,
       "sha512": ""
+    },
+    "Asp.Versioning.Abstractions/10.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-cMRE5nvNMfBgfkb0XFWst/7UtyXCjoAXnV0L4Scx4P9fcf0idgrj1Z0c+3ylsy01K4cOib7dKhCBfpg5z3r0Kg==",
+      "path": "asp.versioning.abstractions/10.0.0",
+      "hashPath": "asp.versioning.abstractions.10.0.0.nupkg.sha512"
+    },
+    "Asp.Versioning.Http/10.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-xmNm9FM2d20NKy7i1osEQysf7pJ4iJjWnM6e8CoeIhUREqG8nugsfC82pGpmzlatjAJL5T52ieSpyW+GFdSsSQ==",
+      "path": "asp.versioning.http/10.0.0",
+      "hashPath": "asp.versioning.http.10.0.0.nupkg.sha512"
+    },
+    "Asp.Versioning.Mvc/10.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-W0wZ+0uZ0UK4KstjvEkNBZ0xxhBmxunwNg8582SVyyW7txQmSXibtm8fC4o82LaemPquYskms67bIbJOSrnlug==",
+      "path": "asp.versioning.mvc/10.0.0",
+      "hashPath": "asp.versioning.mvc.10.0.0.nupkg.sha512"
+    },
+    "Asp.Versioning.Mvc.ApiExplorer/10.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-H54UOpRoc4RmhQ4RA2lzDz43a/hAu/JN19Yyy/DNmH4XlRxhemfhifJyh9BaXNJOtGa2Dnu2xEeP4VSiTdUdAg==",
+      "path": "asp.versioning.mvc.apiexplorer/10.0.0",
+      "hashPath": "asp.versioning.mvc.apiexplorer.10.0.0.nupkg.sha512"
     },
     "Bogus/35.6.1": {
       "type": "package",
@@ -1405,26 +1519,26 @@
       "path": "humanizer.core/2.14.1",
       "hashPath": "humanizer.core.2.14.1.nupkg.sha512"
     },
-    "JasperFx/1.20.0": {
+    "JasperFx/1.28.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-ymb6lJnPITfnnw2IO2Ddtu4weXDcA5L80rXYKhF7H8IIsFCiTPQ1DAeGtNvsF22N3JBKNyKjAtg+fuTxgRMj3g==",
-      "path": "jasperfx/1.20.0",
-      "hashPath": "jasperfx.1.20.0.nupkg.sha512"
+      "sha512": "sha512-PqiJQrZ02ytH+BBNkKm2mc+CD5OSIcx8HIElQuI8KNkqHgBQ3LRQ07wmeniHvOVkXmiEIH2CAhksA3wj0n+aeQ==",
+      "path": "jasperfx/1.28.2",
+      "hashPath": "jasperfx.1.28.2.nupkg.sha512"
     },
-    "JasperFx.Events/1.22.0": {
+    "JasperFx.Events/1.31.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-QD01W8GFqHcMLYpqF4G5adkEHFexCntWSIWejvccVxmw8TTMmGf+EH8EoQI8EitdCc0XZ/ocGog2TQTRkqxG4A==",
-      "path": "jasperfx.events/1.22.0",
-      "hashPath": "jasperfx.events.1.22.0.nupkg.sha512"
+      "sha512": "sha512-VTiVkFYgQFixA1KupIcOCAQUxfczhPrYLB6Qi9KKsdygfk4yEGyK+qQN81uoARz8TSOrEgjpCz9dx1wnQVUYHQ==",
+      "path": "jasperfx.events/1.31.1",
+      "hashPath": "jasperfx.events.1.31.1.nupkg.sha512"
     },
-    "JasperFx.RuntimeCompiler/4.4.0": {
+    "JasperFx.RuntimeCompiler/4.5.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-n5dOtQlytGsCfpRyOGDw/qHaqPDd2GcR7pgO53bQto1T82/VZjQdzkfuLQt8vUMY6D+m1TgqUjqedNFDT1+rEQ==",
-      "path": "jasperfx.runtimecompiler/4.4.0",
-      "hashPath": "jasperfx.runtimecompiler.4.4.0.nupkg.sha512"
+      "sha512": "sha512-SGJlU1kD8lX8A5p0hBWTPDV7dvPzoUB37IZjprWgA+L5yZZNyBElpn6UPNo7ZuXLKKwlSSt8BWTr99vxpxT3JA==",
+      "path": "jasperfx.runtimecompiler/4.5.0",
+      "hashPath": "jasperfx.runtimecompiler.4.5.0.nupkg.sha512"
     },
     "Microsoft.AspNetCore.Authentication.JwtBearer/10.0.2": {
       "type": "package",
@@ -1523,6 +1637,27 @@
       "sha512": "sha512-9LIUy0y+DvUmEPtbRDw6Bay3rzwqFV8P4efTrK4CZhQle3M/QwLPjISghfcolmEGAPWxuJi6m98ZEfk4VR4Lfg==",
       "path": "microsoft.codecoverage/17.13.0",
       "hashPath": "microsoft.codecoverage.17.13.0.nupkg.sha512"
+    },
+    "Microsoft.EntityFrameworkCore/10.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-d3+XKbLSHPCu3vwpXECoXcFbvGKmAhEeUmc1xy2czmuPnEF7rZN2HP5ZGMwCMbAKk4B01+nS4HixSMo2Vf/Y9g==",
+      "path": "microsoft.entityframeworkcore/10.0.2",
+      "hashPath": "microsoft.entityframeworkcore.10.0.2.nupkg.sha512"
+    },
+    "Microsoft.EntityFrameworkCore.Abstractions/10.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-BzAwIU5mYeOmnKbEXrkwx7feW2V+zUTrK/kRonSib94tjvc0/iRj2a4N6YGXRhTNjaFP3tvCMIDaX1vIFF6dkg==",
+      "path": "microsoft.entityframeworkcore.abstractions/10.0.2",
+      "hashPath": "microsoft.entityframeworkcore.abstractions.10.0.2.nupkg.sha512"
+    },
+    "Microsoft.EntityFrameworkCore.Relational/10.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-1fUeyNmqDNfMogJ2ut7OKO57/WGjjkHMYeX51SpA3PwP7ftbx8g/Z3fbErD+1q14DILrqJfsszYsYhGssBRfDg==",
+      "path": "microsoft.entityframeworkcore.relational/10.0.2",
+      "hashPath": "microsoft.entityframeworkcore.relational.10.0.2.nupkg.sha512"
     },
     "Microsoft.Extensions.AmbientMetadata.Application/10.1.0": {
       "type": "package",
@@ -1685,47 +1820,47 @@
       "path": "nsubstitute/5.3.0",
       "hashPath": "nsubstitute.5.3.0.nupkg.sha512"
     },
-    "OpenTelemetry/1.14.0": {
+    "OpenTelemetry/1.15.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-aiPBAr1+0dPDItH++MQQr5UgMf4xiybruzNlAoYYMYN3UUk+mGRcoKuZy4Z4rhhWUZIpK2Xhe7wUUXSTM32duQ==",
-      "path": "opentelemetry/1.14.0",
-      "hashPath": "opentelemetry.1.14.0.nupkg.sha512"
+      "sha512": "sha512-N0i6WjPoHPbZyms1ugbDIFAJFuGlpeExJMU/+XSL0lQRUkg/D0utFkDoLXf8Z1km5B+xVZ2GyMXXiX8qdeNmPg==",
+      "path": "opentelemetry/1.15.3",
+      "hashPath": "opentelemetry.1.15.3.nupkg.sha512"
     },
-    "OpenTelemetry.Api/1.14.0": {
+    "OpenTelemetry.Api/1.15.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-foHci6viUw1f3gUB8qzz3Rk02xZIWMo299X0rxK0MoOWok/3dUVru+KKdY7WIoSHwRGpxGKkmAz9jIk2RFNbsQ==",
-      "path": "opentelemetry.api/1.14.0",
-      "hashPath": "opentelemetry.api.1.14.0.nupkg.sha512"
+      "sha512": "sha512-fX+fkCysfPut+qCcT3bKqyX4QN9Saf4CgX8HLOHywEVD+Xr7sULtfuypITpoDysjx8R59dn/3mWhgimMH8cm/g==",
+      "path": "opentelemetry.api/1.15.3",
+      "hashPath": "opentelemetry.api.1.15.3.nupkg.sha512"
     },
-    "OpenTelemetry.Api.ProviderBuilderExtensions/1.14.0": {
+    "OpenTelemetry.Api.ProviderBuilderExtensions/1.15.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-i/lxOM92v+zU5I0rGl5tXAGz6EJtxk2MvzZ0VN6F6L5pMqT6s6RCXnGWXg6fW+vtZJsllBlQaf/VLPTzgefJpg==",
-      "path": "opentelemetry.api.providerbuilderextensions/1.14.0",
-      "hashPath": "opentelemetry.api.providerbuilderextensions.1.14.0.nupkg.sha512"
+      "sha512": "sha512-SYn0lqYDwLMWhv/zlNGsQcl2yX++yTumanX46bmOZE/ZDOd1WjPBO2kZaZgKLEZTZk48pavIFGJ6vOvxXgWVFQ==",
+      "path": "opentelemetry.api.providerbuilderextensions/1.15.3",
+      "hashPath": "opentelemetry.api.providerbuilderextensions.1.15.3.nupkg.sha512"
     },
-    "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.14.0": {
+    "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.15.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-7ELExeje+T/KOywHuHwZBGQNtYlepUaYRFXWgoEaT1iKpFJVwOlE1Y2+uqHI2QQmah0Ue+XgRmDy924vWHfJ6Q==",
-      "path": "opentelemetry.exporter.opentelemetryprotocol/1.14.0",
-      "hashPath": "opentelemetry.exporter.opentelemetryprotocol.1.14.0.nupkg.sha512"
+      "sha512": "sha512-FEXJepcseTGbATiCkUfP7ipoFEYYfl/0UmmUwi0KxCPg9PaUA8ab2P1LGopK+/HExasJ1ZutFhZrN6WvUIR23g==",
+      "path": "opentelemetry.exporter.opentelemetryprotocol/1.15.3",
+      "hashPath": "opentelemetry.exporter.opentelemetryprotocol.1.15.3.nupkg.sha512"
     },
-    "OpenTelemetry.Extensions.Hosting/1.14.0": {
+    "OpenTelemetry.Extensions.Hosting/1.15.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-ZAxkCIa3Q3YWZ1sGrolXfkhPqn2PFSz2Cel74em/fATZgY5ixlw6MQp2icmqKCz4C7M1W2G0b92K3rX8mOtFRg==",
-      "path": "opentelemetry.extensions.hosting/1.14.0",
-      "hashPath": "opentelemetry.extensions.hosting.1.14.0.nupkg.sha512"
+      "sha512": "sha512-u8n/W8yIlqv0BXZmvId1iVaeWXG42tGKdTkuLYg5g57Y/r9CeUNzqtrSHNdG5IoO8iPX79w3v+WsbAHgUQbfeg==",
+      "path": "opentelemetry.extensions.hosting/1.15.3",
+      "hashPath": "opentelemetry.extensions.hosting.1.15.3.nupkg.sha512"
     },
-    "OpenTelemetry.Instrumentation.AspNetCore/1.14.0": {
+    "OpenTelemetry.Instrumentation.AspNetCore/1.15.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-NQAQpFa3a4ofPUYwxcwtNPGpuRNwwx1HM7MnLEESYjYkhfhER+PqqGywW65rWd7bJEc1/IaL+xbmHH99pYDE0A==",
-      "path": "opentelemetry.instrumentation.aspnetcore/1.14.0",
-      "hashPath": "opentelemetry.instrumentation.aspnetcore.1.14.0.nupkg.sha512"
+      "sha512": "sha512-mte1nRYefxjed2syXgVWq3UCfMKO7MkebvTZmf0O1aLgVgCktLsVjQ6mftyjIbWGBBCHN0wg+Glxj8BSFS70pQ==",
+      "path": "opentelemetry.instrumentation.aspnetcore/1.15.0",
+      "hashPath": "opentelemetry.instrumentation.aspnetcore.1.15.0.nupkg.sha512"
     },
     "OpenTelemetry.Instrumentation.GrpcNetClient/1.10.0-beta.1": {
       "type": "package",
@@ -1734,19 +1869,19 @@
       "path": "opentelemetry.instrumentation.grpcnetclient/1.10.0-beta.1",
       "hashPath": "opentelemetry.instrumentation.grpcnetclient.1.10.0-beta.1.nupkg.sha512"
     },
-    "OpenTelemetry.Instrumentation.Http/1.14.0": {
+    "OpenTelemetry.Instrumentation.Http/1.15.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-uH8X1fYnywrgaUrSbemKvFiFkBwY7ZbBU7Wh4A/ORQmdpF3G/5STidY4PlK4xYuIv9KkdMXH/vkpvzQcayW70g==",
-      "path": "opentelemetry.instrumentation.http/1.14.0",
-      "hashPath": "opentelemetry.instrumentation.http.1.14.0.nupkg.sha512"
+      "sha512": "sha512-uToc7bUp8IEdb0ny9mKsL6FrrYelINPzxxiSShJgOf4XmQc4Azww6S5RjRj24YhsOn2a1MABOrxfVTZXtDk4Eg==",
+      "path": "opentelemetry.instrumentation.http/1.15.0",
+      "hashPath": "opentelemetry.instrumentation.http.1.15.0.nupkg.sha512"
     },
-    "OpenTelemetry.Instrumentation.Runtime/1.14.0": {
+    "OpenTelemetry.Instrumentation.Runtime/1.15.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-Z6o4JDOQaKv6bInAYZxuyxxfMKr6hFpwLnKEgQ+q+oBNA9Fm1sysjFCOzRzk7U0WD86LsRPXX+chv1vJIg7cfg==",
-      "path": "opentelemetry.instrumentation.runtime/1.14.0",
-      "hashPath": "opentelemetry.instrumentation.runtime.1.14.0.nupkg.sha512"
+      "sha512": "sha512-OOvpqR/j2Pb6+tWhHNODIbSJ53Or/MDtTiXEyrsWI02K2lLAgvBFcxUOrHggS/8015cYR3AdSaXv6NZrkz5yQA==",
+      "path": "opentelemetry.instrumentation.runtime/1.15.0",
+      "hashPath": "opentelemetry.instrumentation.runtime.1.15.0.nupkg.sha512"
     },
     "Polly.Core/8.6.5": {
       "type": "package",
@@ -1769,12 +1904,19 @@
       "path": "polly.ratelimiting/8.4.2",
       "hashPath": "polly.ratelimiting.8.4.2.nupkg.sha512"
     },
-    "Spectre.Console/0.53.0": {
+    "Spectre.Console/0.55.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-m2iv8Egfywp7FaNLKCmCFHbSf36D4ctzZKvlAK9NXMyGLh6L+CnrZWK8o+LOYsoAS1jtoHn0W1BT0W8vuq/FUw==",
-      "path": "spectre.console/0.53.0",
-      "hashPath": "spectre.console.0.53.0.nupkg.sha512"
+      "sha512": "sha512-2TVhUHFsDux0Z+y2Hv4bFsOMuON4SuotEEKkMparFkp5Rm259naaaEQrN4Sv6C1cbsiGKPjfkJDGgUp+hZPjTw==",
+      "path": "spectre.console/0.55.0",
+      "hashPath": "spectre.console.0.55.0.nupkg.sha512"
+    },
+    "Spectre.Console.Ansi/0.55.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-GIfgOvuF8MpU52bprhwtDEtx0gmVIGOepM8bw0lH/TSMD0rg1Xp+5Y53kPG8rFVdcpbNANlhDQ5mEVVPO3/2Tg==",
+      "path": "spectre.console.ansi/0.55.0",
+      "hashPath": "spectre.console.ansi.0.55.0.nupkg.sha512"
     },
     "System.Composition/9.0.0": {
       "type": "package",
@@ -1825,12 +1967,12 @@
       "path": "system.identitymodel.tokens.jwt/8.0.1",
       "hashPath": "system.identitymodel.tokens.jwt.8.0.1.nupkg.sha512"
     },
-    "WolverineFx/5.17.0": {
+    "WolverineFx/5.36.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-B7EWuzVBuyJaYoAsTEnKBKMjR+1DhjleopbHF9S2jzj0G7T3s/movynOgtq2CqlVi2EMRIyOrPhAlSm9wSPrtA==",
-      "path": "wolverinefx/5.17.0",
-      "hashPath": "wolverinefx.5.17.0.nupkg.sha512"
+      "sha512": "sha512-UA4I0qZiLqeqItf+J/hyqdyRq8JngEPMIvhNB79RDwp7rVfU6P4XdlvRfa9IvhVs3p+z4fkI3nzzmPGMn2/h7w==",
+      "path": "wolverinefx/5.36.2",
+      "hashPath": "wolverinefx.5.36.2.nupkg.sha512"
     },
     "xunit/2.9.3": {
       "type": "package",

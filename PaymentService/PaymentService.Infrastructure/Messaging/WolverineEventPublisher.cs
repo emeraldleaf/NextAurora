@@ -4,9 +4,12 @@ using Wolverine;
 namespace PaymentService.Infrastructure.Messaging;
 
 /// <summary>
-/// Bridges the domain IEventPublisher abstraction to Wolverine's IMessageBus.
-/// Topic routing is configured in UseAzureServiceBus() in Program.cs via
-/// opts.PublishMessage&lt;T&gt;().ToAzureServiceBusTopic(...), not at the call site.
+/// Adapter from <see cref="IEventPublisher"/> to Wolverine's <see cref="IMessageBus"/>. See
+/// <c>OrderService.Infrastructure.Messaging.WolverineEventPublisher</c> for the full
+/// rationale — every service has the same thin shim so Application code can publish events
+/// without referencing Wolverine directly. With the transactional outbox enabled, this call
+/// stages the message in the <c>wolverine</c> schema in the same DB transaction as the entity
+/// write.
 /// </summary>
 public sealed class WolverineEventPublisher(IMessageBus bus) : IEventPublisher
 {

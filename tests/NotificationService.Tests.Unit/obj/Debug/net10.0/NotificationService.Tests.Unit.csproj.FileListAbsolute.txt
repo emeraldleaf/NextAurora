@@ -1,10 +1,4 @@
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/.msCoverageSourceRootsMapping_NotificationService.Tests.Unit
-/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.csproj.AssemblyReference.cache
-/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.GeneratedMSBuildEditorConfig.editorconfig
-/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.AssemblyInfoInputs.cache
-/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.AssemblyInfo.cs
-/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.csproj.CoreCompileInputs.cache
-/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.sourcelink.json
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/xunit.abstractions.dll
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/xunit.runner.visualstudio.testadapter.dll
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/NotificationService.Tests.Unit.deps.json
@@ -104,6 +98,12 @@
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/NotificationService.Domain.pdb
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/NotificationService.Application.pdb
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/bin/Debug/net10.0/NextAurora.Contracts.pdb
+/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.csproj.AssemblyReference.cache
+/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.GeneratedMSBuildEditorConfig.editorconfig
+/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.AssemblyInfoInputs.cache
+/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.AssemblyInfo.cs
+/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.csproj.CoreCompileInputs.cache
+/Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.sourcelink.json
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/Notifica.9800100D.Up2Date
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/NotificationService.Tests.Unit.dll
 /Users/joshuadell/NovaCraft/tests/NotificationService.Tests.Unit/obj/Debug/net10.0/refint/NotificationService.Tests.Unit.dll

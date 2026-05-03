@@ -1,14 +1,18 @@
 using System.Threading.RateLimiting;
 using FluentValidation;
+using JasperFx.Resources;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using NextAurora.Contracts.Events;
 using PaymentService.Api.Endpoints;
 using PaymentService.Application.Commands;
 using PaymentService.Infrastructure;
+using PaymentService.Infrastructure.Data;
 using Wolverine;
 using Wolverine.AzureServiceBus;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
+using Wolverine.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,13 +42,23 @@ builder.Host.UseWolverine(opts =>
     // Listen to incoming events from other services
     opts.ListenToAzureServiceBusSubscription("order-events/payment-sub");
 
+    // Transactional outbox: persist outgoing messages to SQL Server in the same
+    // transaction as the entity write, then dispatch via background flush.
+    var paymentsDb = builder.Configuration.GetConnectionString("payments-db")!;
+    opts.PersistMessagesWithSqlServer(paymentsDb, "wolverine");
+    opts.UseEntityFrameworkCoreTransactions();
+    opts.Policies.AutoApplyTransactions();
+    opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+
     opts.Discovery.IncludeAssembly(typeof(ProcessPaymentCommand).Assembly);
     opts.UseFluentValidation();
     opts.Policies.LogMessageStarting(LogLevel.Information);
     opts.AddNextAuroraContextPropagation();
+    opts.AddConcurrencyRetry();
 });
 builder.Services.AddValidatorsFromAssemblyContaining<ProcessPaymentCommand>();
 builder.Services.AddPaymentInfrastructure(builder.Configuration);
+builder.Services.AddResourceSetupOnStartup();
 
 builder.Services.AddOpenApi();
 
@@ -60,9 +74,9 @@ if (!app.Environment.IsDevelopment())
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    await app.Services.MigrateDatabaseAsync<PaymentDbContext>();
 }
 
 app.UseRateLimiter();
 app.MapPaymentEndpoints();
-app.MapAdminEventEndpoints();
-app.Run();
+await app.RunAsync();

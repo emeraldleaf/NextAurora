@@ -139,4 +139,4 @@ Each subscription has a dead-letter sub-queue at:
 
 Messages land there after exceeding `MaxDeliveryCount` retries. The `messages.abandoned` OTel counter (tagged with `subject` and `service`) rises as messages approach the DLQ. Alert when this counter crosses your threshold.
 
-Admin replay endpoints are available on each service at `POST /admin/events/replay/{eventId}`. See `docs/event-replay.md` for the replay guide.
+Replay is available through Wolverine's transactional outbox tables (`wolverine` schema in each service's database) and its `IMessageStore` API. See [docs/event-replay.md](event-replay.md).

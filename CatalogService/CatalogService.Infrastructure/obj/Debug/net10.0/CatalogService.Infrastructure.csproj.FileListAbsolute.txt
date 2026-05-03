@@ -12,9 +12,11 @@
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogService.Infrastructure.AssemblyInfoInputs.cache
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogService.Infrastructure.AssemblyInfo.cs
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogService.Infrastructure.csproj.CoreCompileInputs.cache
+/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogService.Infrastructure.sourcelink.json
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogS.D3B3D49F.Up2Date
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogService.Infrastructure.dll
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/refint/CatalogService.Infrastructure.dll
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogService.Infrastructure.pdb
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/ref/CatalogService.Infrastructure.dll
-/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogService.Infrastructure.sourcelink.json
+/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/bin/Debug/net10.0/CatalogService.Infrastructure.runtimeconfig.json
+/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Infrastructure/obj/Debug/net10.0/CatalogService.Infrastructure.genruntimeconfig.cache

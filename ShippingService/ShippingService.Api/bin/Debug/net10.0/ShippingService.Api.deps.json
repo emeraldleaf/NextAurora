@@ -13,10 +13,53 @@
           "NextAurora.ServiceDefaults": "1.0.0",
           "ShippingService.Application": "1.0.0",
           "ShippingService.Infrastructure": "1.0.0",
-          "WolverineFx": "5.17.0"
+          "WolverineFx": "5.36.2",
+          "WolverineFx.EntityFrameworkCore": "5.36.2",
+          "WolverineFx.Postgresql": "5.36.2"
         },
         "runtime": {
           "ShippingService.Api.dll": {}
+        }
+      },
+      "Asp.Versioning.Abstractions/10.0.0": {
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Abstractions.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.9607.28160"
+          }
+        }
+      },
+      "Asp.Versioning.Http/10.0.0": {
+        "dependencies": {
+          "Asp.Versioning.Abstractions": "10.0.0"
+        },
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Http.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.9607.28167"
+          }
+        }
+      },
+      "Asp.Versioning.Mvc/10.0.0": {
+        "dependencies": {
+          "Asp.Versioning.Http": "10.0.0"
+        },
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Mvc.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.9607.28167"
+          }
+        }
+      },
+      "Asp.Versioning.Mvc.ApiExplorer/10.0.0": {
+        "dependencies": {
+          "Asp.Versioning.Mvc": "10.0.0"
+        },
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Mvc.ApiExplorer.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.9607.28167"
+          }
         }
       },
       "Azure.Core/1.49.0": {
@@ -70,6 +113,26 @@
           }
         }
       },
+      "DistributedLock.Core/1.0.8": {
+        "runtime": {
+          "lib/net8.0/DistributedLock.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "DistributedLock.Postgres/1.3.0": {
+        "dependencies": {
+          "DistributedLock.Core": "1.0.8",
+          "Npgsql": "10.0.0"
+        },
+        "runtime": {
+          "lib/net8.0/DistributedLock.Postgres.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
       "FastExpressionCompiler/5.3.0": {
         "runtime": {
           "lib/net9.0/FastExpressionCompiler.dll": {
@@ -94,42 +157,42 @@
           }
         }
       },
-      "JasperFx/1.20.0": {
+      "JasperFx/1.28.2": {
         "dependencies": {
           "FastExpressionCompiler": "5.3.0",
           "Microsoft.Bcl.TimeProvider": "10.0.0",
           "Polly.Core": "8.6.5",
-          "Spectre.Console": "0.53.0"
+          "Spectre.Console": "0.55.0"
         },
         "runtime": {
           "lib/net10.0/JasperFx.dll": {
-            "assemblyVersion": "1.20.0.0",
-            "fileVersion": "1.20.0.0"
+            "assemblyVersion": "1.28.2.0",
+            "fileVersion": "1.28.2.0"
           }
         }
       },
-      "JasperFx.Events/1.22.0": {
+      "JasperFx.Events/1.31.1": {
         "dependencies": {
-          "JasperFx": "1.20.0"
+          "JasperFx": "1.28.2"
         },
         "runtime": {
           "lib/net10.0/JasperFx.Events.dll": {
-            "assemblyVersion": "1.22.0.0",
-            "fileVersion": "1.22.0.0"
+            "assemblyVersion": "1.31.1.0",
+            "fileVersion": "1.31.1.0"
           }
         }
       },
-      "JasperFx.RuntimeCompiler/4.4.0": {
+      "JasperFx.RuntimeCompiler/4.5.0": {
         "dependencies": {
-          "JasperFx": "1.20.0",
+          "JasperFx": "1.28.2",
           "Microsoft.CodeAnalysis": "5.0.0",
           "Microsoft.CodeAnalysis.CSharp": "5.0.0",
           "Microsoft.CodeAnalysis.Scripting": "5.0.0"
         },
         "runtime": {
           "lib/net10.0/JasperFx.RuntimeCompiler.dll": {
-            "assemblyVersion": "4.4.0.0",
-            "fileVersion": "4.4.0.0"
+            "assemblyVersion": "4.5.0.0",
+            "fileVersion": "4.5.0.0"
           }
         }
       },
@@ -176,6 +239,14 @@
           "lib/net8.0/Microsoft.Bcl.TimeProvider.dll": {
             "assemblyVersion": "10.0.0.0",
             "fileVersion": "10.0.25.52411"
+          }
+        }
+      },
+      "Microsoft.Build.Framework/18.0.2": {
+        "runtime": {
+          "lib/net10.0/Microsoft.Build.Framework.dll": {
+            "assemblyVersion": "15.1.0.0",
+            "fileVersion": "18.0.2.52102"
           }
         }
       },
@@ -618,6 +689,67 @@
           }
         }
       },
+      "Microsoft.CodeAnalysis.Workspaces.MSBuild/5.0.0": {
+        "dependencies": {
+          "Humanizer.Core": "2.14.1",
+          "Microsoft.Build.Framework": "18.0.2",
+          "Microsoft.CodeAnalysis.Workspaces.Common": "5.0.0",
+          "Microsoft.VisualStudio.SolutionPersistence": "1.0.52",
+          "Newtonsoft.Json": "13.0.3",
+          "System.Composition": "9.0.0"
+        },
+        "runtime": {
+          "lib/net9.0/Microsoft.CodeAnalysis.ExternalAccess.RazorCompiler.dll": {
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.0.25.56712"
+          },
+          "lib/net9.0/Microsoft.CodeAnalysis.Workspaces.MSBuild.dll": {
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.0.25.56712"
+          }
+        },
+        "resources": {
+          "lib/net9.0/cs/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "cs"
+          },
+          "lib/net9.0/de/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "de"
+          },
+          "lib/net9.0/es/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "es"
+          },
+          "lib/net9.0/fr/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "fr"
+          },
+          "lib/net9.0/it/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "it"
+          },
+          "lib/net9.0/ja/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "ja"
+          },
+          "lib/net9.0/ko/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "ko"
+          },
+          "lib/net9.0/pl/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "pl"
+          },
+          "lib/net9.0/pt-BR/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "pt-BR"
+          },
+          "lib/net9.0/ru/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "ru"
+          },
+          "lib/net9.0/tr/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "tr"
+          },
+          "lib/net9.0/zh-Hans/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "zh-Hans"
+          },
+          "lib/net9.0/zh-Hant/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll": {
+            "locale": "zh-Hant"
+          }
+        }
+      },
       "Microsoft.EntityFrameworkCore/10.0.2": {
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Abstractions": "10.0.2"
@@ -632,6 +764,25 @@
       "Microsoft.EntityFrameworkCore.Abstractions/10.0.2": {
         "runtime": {
           "lib/net10.0/Microsoft.EntityFrameworkCore.Abstractions.dll": {
+            "assemblyVersion": "10.0.2.0",
+            "fileVersion": "10.0.225.61305"
+          }
+        }
+      },
+      "Microsoft.EntityFrameworkCore.Design/10.0.2": {
+        "dependencies": {
+          "Humanizer.Core": "2.14.1",
+          "Microsoft.Build.Framework": "18.0.2",
+          "Microsoft.CodeAnalysis.CSharp": "5.0.0",
+          "Microsoft.CodeAnalysis.CSharp.Workspaces": "5.0.0",
+          "Microsoft.CodeAnalysis.Workspaces.MSBuild": "5.0.0",
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
+          "Microsoft.Extensions.DependencyModel": "10.0.2",
+          "Mono.TextTemplating": "3.0.0",
+          "Newtonsoft.Json": "13.0.3"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.EntityFrameworkCore.Design.dll": {
             "assemblyVersion": "10.0.2.0",
             "fileVersion": "10.0.225.61305"
           }
@@ -669,6 +820,14 @@
           "lib/net10.0/Microsoft.Extensions.DependencyInjection.AutoActivation.dll": {
             "assemblyVersion": "10.1.0.0",
             "fileVersion": "10.100.25.60801"
+          }
+        }
+      },
+      "Microsoft.Extensions.DependencyModel/10.0.2": {
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.DependencyModel.dll": {
+            "assemblyVersion": "10.0.0.2",
+            "fileVersion": "10.0.225.61305"
           }
         }
       },
@@ -866,6 +1025,44 @@
           }
         }
       },
+      "Microsoft.VisualStudio.SolutionPersistence/1.0.52": {
+        "runtime": {
+          "lib/net8.0/Microsoft.VisualStudio.SolutionPersistence.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.52.6595"
+          }
+        }
+      },
+      "Mono.TextTemplating/3.0.0": {
+        "dependencies": {
+          "System.CodeDom": "6.0.0"
+        },
+        "runtime": {
+          "lib/net6.0/Mono.TextTemplating.dll": {
+            "assemblyVersion": "3.0.0.0",
+            "fileVersion": "3.0.0.1"
+          }
+        }
+      },
+      "NetTopologySuite/2.5.0": {
+        "runtime": {
+          "lib/netstandard2.0/NetTopologySuite.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.0.0.0"
+          }
+        }
+      },
+      "NetTopologySuite.IO.PostGis/2.1.0": {
+        "dependencies": {
+          "NetTopologySuite": "2.5.0"
+        },
+        "runtime": {
+          "lib/netstandard2.1/NetTopologySuite.IO.PostGis.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.0.0.0"
+          }
+        }
+      },
       "NewId/4.0.1": {
         "runtime": {
           "lib/net6.0/NewId.dll": {
@@ -903,72 +1100,85 @@
           }
         }
       },
-      "OpenTelemetry/1.14.0": {
+      "Npgsql.NetTopologySuite/9.0.4": {
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.14.0"
+          "NetTopologySuite": "2.5.0",
+          "NetTopologySuite.IO.PostGis": "2.1.0",
+          "Npgsql": "10.0.0"
+        },
+        "runtime": {
+          "lib/net6.0/Npgsql.NetTopologySuite.dll": {
+            "assemblyVersion": "9.0.4.0",
+            "fileVersion": "9.0.4.0"
+          }
+        }
+      },
+      "OpenTelemetry/1.15.3": {
+        "dependencies": {
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.dll": {
             "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.14.0.1849"
+            "fileVersion": "1.15.3.2017"
           }
         }
       },
-      "OpenTelemetry.Api/1.14.0": {
+      "OpenTelemetry.Api/1.15.3": {
         "runtime": {
           "lib/net10.0/OpenTelemetry.Api.dll": {
             "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.14.0.1849"
+            "fileVersion": "1.15.3.2017"
           }
         }
       },
-      "OpenTelemetry.Api.ProviderBuilderExtensions/1.14.0": {
+      "OpenTelemetry.Api.ProviderBuilderExtensions/1.15.3": {
         "dependencies": {
-          "OpenTelemetry.Api": "1.14.0"
+          "OpenTelemetry.Api": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Api.ProviderBuilderExtensions.dll": {
             "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.14.0.1849"
+            "fileVersion": "1.15.3.2017"
           }
         }
       },
-      "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.14.0": {
+      "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.15.3": {
         "dependencies": {
-          "OpenTelemetry": "1.14.0"
+          "OpenTelemetry": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Exporter.OpenTelemetryProtocol.dll": {
             "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.14.0.1849"
+            "fileVersion": "1.15.3.2017"
           }
         }
       },
-      "OpenTelemetry.Extensions.Hosting/1.14.0": {
+      "OpenTelemetry.Extensions.Hosting/1.15.3": {
         "dependencies": {
-          "OpenTelemetry": "1.14.0"
+          "OpenTelemetry": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Extensions.Hosting.dll": {
             "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.14.0.1849"
+            "fileVersion": "1.15.3.2017"
           }
         }
       },
-      "OpenTelemetry.Instrumentation.AspNetCore/1.14.0": {
+      "OpenTelemetry.Instrumentation.AspNetCore/1.15.0": {
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.14.0"
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Instrumentation.AspNetCore.dll": {
-            "assemblyVersion": "1.14.0.761",
-            "fileVersion": "1.14.0.761"
+            "assemblyVersion": "1.15.0.901",
+            "fileVersion": "1.15.0.901"
           }
         }
       },
       "OpenTelemetry.Instrumentation.GrpcNetClient/1.10.0-beta.1": {
         "dependencies": {
-          "OpenTelemetry": "1.14.0"
+          "OpenTelemetry": "1.15.3"
         },
         "runtime": {
           "lib/net8.0/OpenTelemetry.Instrumentation.GrpcNetClient.dll": {
@@ -977,25 +1187,25 @@
           }
         }
       },
-      "OpenTelemetry.Instrumentation.Http/1.14.0": {
+      "OpenTelemetry.Instrumentation.Http/1.15.0": {
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.14.0"
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Instrumentation.Http.dll": {
-            "assemblyVersion": "1.14.0.774",
-            "fileVersion": "1.14.0.774"
+            "assemblyVersion": "1.15.0.900",
+            "fileVersion": "1.15.0.900"
           }
         }
       },
-      "OpenTelemetry.Instrumentation.Runtime/1.14.0": {
+      "OpenTelemetry.Instrumentation.Runtime/1.15.0": {
         "dependencies": {
-          "OpenTelemetry.Api": "1.14.0"
+          "OpenTelemetry.Api": "1.15.3"
         },
         "runtime": {
           "lib/net10.0/OpenTelemetry.Instrumentation.Runtime.dll": {
-            "assemblyVersion": "1.14.0.775",
-            "fileVersion": "1.14.0.775"
+            "assemblyVersion": "1.15.0.899",
+            "fileVersion": "1.15.0.899"
           }
         }
       },
@@ -1029,11 +1239,22 @@
           }
         }
       },
-      "Spectre.Console/0.53.0": {
+      "Spectre.Console/0.55.0": {
+        "dependencies": {
+          "Spectre.Console.Ansi": "0.55.0"
+        },
         "runtime": {
-          "lib/net9.0/Spectre.Console.dll": {
+          "lib/net10.0/Spectre.Console.dll": {
             "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.53.0.0"
+            "fileVersion": "0.55.0.0"
+          }
+        }
+      },
+      "Spectre.Console.Ansi/0.55.0": {
+        "runtime": {
+          "lib/net10.0/Spectre.Console.Ansi.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.55.0.0"
           }
         }
       },
@@ -1045,6 +1266,14 @@
           "lib/net9.0/System.ClientModel.dll": {
             "assemblyVersion": "1.7.0.0",
             "fileVersion": "1.700.25.47207"
+          }
+        }
+      },
+      "System.CodeDom/6.0.0": {
+        "runtime": {
+          "lib/net6.0/System.CodeDom.dll": {
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.0.21.52210"
           }
         }
       },
@@ -1144,63 +1373,78 @@
           }
         }
       },
-      "Weasel.Core/8.8.1": {
+      "Weasel.Core/8.14.1": {
         "dependencies": {
-          "JasperFx": "1.20.0"
+          "JasperFx": "1.28.2"
         },
         "runtime": {
           "lib/net10.0/Weasel.Core.dll": {
-            "assemblyVersion": "8.8.1.0",
-            "fileVersion": "8.8.1.0"
+            "assemblyVersion": "8.14.1.0",
+            "fileVersion": "8.14.1.0"
           }
         }
       },
-      "Weasel.EntityFrameworkCore/8.8.1": {
+      "Weasel.EntityFrameworkCore/8.14.1": {
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
-          "Weasel.Core": "8.8.1"
+          "Weasel.Core": "8.14.1"
         },
         "runtime": {
           "lib/net10.0/Weasel.EntityFrameworkCore.dll": {
-            "assemblyVersion": "8.8.1.0",
-            "fileVersion": "8.8.1.0"
+            "assemblyVersion": "8.14.1.0",
+            "fileVersion": "8.14.1.0"
           }
         }
       },
-      "WolverineFx/5.17.0": {
+      "Weasel.Postgresql/8.14.1": {
         "dependencies": {
-          "JasperFx": "1.20.0",
-          "JasperFx.Events": "1.22.0",
-          "JasperFx.RuntimeCompiler": "4.4.0",
+          "DistributedLock.Postgres": "1.3.0",
+          "Npgsql": "10.0.0",
+          "Npgsql.NetTopologySuite": "9.0.4",
+          "Weasel.Core": "8.14.1"
+        },
+        "runtime": {
+          "lib/net10.0/Weasel.Postgresql.dll": {
+            "assemblyVersion": "8.14.1.0",
+            "fileVersion": "8.14.1.0"
+          }
+        }
+      },
+      "WolverineFx/5.36.2": {
+        "dependencies": {
+          "JasperFx": "1.28.2",
+          "JasperFx.Events": "1.31.1",
+          "JasperFx.RuntimeCompiler": "4.5.0",
           "NewId": "4.0.1",
           "Newtonsoft.Json": "13.0.3"
         },
         "runtime": {
           "lib/net10.0/Wolverine.dll": {
-            "assemblyVersion": "5.17.0.0",
-            "fileVersion": "5.17.0.0"
+            "assemblyVersion": "5.36.2.0",
+            "fileVersion": "5.36.2.0"
           }
         }
       },
-      "WolverineFx.AzureServiceBus/5.17.0": {
+      "WolverineFx.AzureServiceBus/5.36.2": {
         "dependencies": {
           "Azure.Identity": "1.17.0",
           "Azure.Messaging.ServiceBus": "7.20.1",
-          "WolverineFx": "5.17.0"
+          "WolverineFx": "5.36.2"
         },
         "runtime": {
           "lib/net10.0/Wolverine.AzureServiceBus.dll": {
-            "assemblyVersion": "5.17.0.0",
-            "fileVersion": "5.17.0.0"
+            "assemblyVersion": "5.36.2.0",
+            "fileVersion": "5.36.2.0"
           }
         }
       },
-      "WolverineFx.EntityFrameworkCore/5.17.0": {
+      "WolverineFx.EntityFrameworkCore/5.36.2": {
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "10.0.2",
+          "Microsoft.EntityFrameworkCore.Design": "10.0.2",
           "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
-          "Weasel.EntityFrameworkCore": "8.8.1",
-          "WolverineFx.RDBMS": "5.17.0"
+          "Weasel.EntityFrameworkCore": "8.14.1",
+          "WolverineFx.RDBMS": "5.36.2"
         },
         "runtime": {
           "lib/net10.0/Wolverine.EntityFrameworkCore.dll": {
@@ -1209,10 +1453,22 @@
           }
         }
       },
-      "WolverineFx.RDBMS/5.17.0": {
+      "WolverineFx.Postgresql/5.36.2": {
         "dependencies": {
-          "Weasel.Core": "8.8.1",
-          "WolverineFx": "5.17.0"
+          "Weasel.Postgresql": "8.14.1",
+          "WolverineFx.RDBMS": "5.36.2"
+        },
+        "runtime": {
+          "lib/net10.0/Wolverine.Postgresql.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "WolverineFx.RDBMS/5.36.2": {
+        "dependencies": {
+          "Weasel.Core": "8.14.1",
+          "WolverineFx": "5.36.2"
         },
         "runtime": {
           "lib/net10.0/Wolverine.RDBMS.dll": {
@@ -1231,17 +1487,21 @@
       },
       "NextAurora.ServiceDefaults/1.0.0": {
         "dependencies": {
+          "Asp.Versioning.Http": "10.0.0",
+          "Asp.Versioning.Mvc.ApiExplorer": "10.0.0",
           "FluentValidation": "11.11.0",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "10.0.2",
+          "Microsoft.EntityFrameworkCore": "10.0.2",
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
           "Microsoft.Extensions.Http.Resilience": "10.1.0",
           "Microsoft.Extensions.ServiceDiscovery": "10.1.0",
-          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.14.0",
-          "OpenTelemetry.Extensions.Hosting": "1.14.0",
-          "OpenTelemetry.Instrumentation.AspNetCore": "1.14.0",
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.15.3",
+          "OpenTelemetry.Extensions.Hosting": "1.15.3",
+          "OpenTelemetry.Instrumentation.AspNetCore": "1.15.0",
           "OpenTelemetry.Instrumentation.GrpcNetClient": "1.10.0-beta.1",
-          "OpenTelemetry.Instrumentation.Http": "1.14.0",
-          "OpenTelemetry.Instrumentation.Runtime": "1.14.0",
-          "WolverineFx": "5.17.0"
+          "OpenTelemetry.Instrumentation.Http": "1.15.0",
+          "OpenTelemetry.Instrumentation.Runtime": "1.15.0",
+          "WolverineFx": "5.36.2"
         },
         "runtime": {
           "NextAurora.ServiceDefaults.dll": {
@@ -1279,8 +1539,8 @@
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.0",
           "ShippingService.Application": "1.0.0",
           "ShippingService.Domain": "1.0.0",
-          "WolverineFx.AzureServiceBus": "5.17.0",
-          "WolverineFx.EntityFrameworkCore": "5.17.0"
+          "WolverineFx.AzureServiceBus": "5.36.2",
+          "WolverineFx.EntityFrameworkCore": "5.36.2"
         },
         "runtime": {
           "ShippingService.Infrastructure.dll": {
@@ -1296,6 +1556,34 @@
       "type": "project",
       "serviceable": false,
       "sha512": ""
+    },
+    "Asp.Versioning.Abstractions/10.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-cMRE5nvNMfBgfkb0XFWst/7UtyXCjoAXnV0L4Scx4P9fcf0idgrj1Z0c+3ylsy01K4cOib7dKhCBfpg5z3r0Kg==",
+      "path": "asp.versioning.abstractions/10.0.0",
+      "hashPath": "asp.versioning.abstractions.10.0.0.nupkg.sha512"
+    },
+    "Asp.Versioning.Http/10.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-xmNm9FM2d20NKy7i1osEQysf7pJ4iJjWnM6e8CoeIhUREqG8nugsfC82pGpmzlatjAJL5T52ieSpyW+GFdSsSQ==",
+      "path": "asp.versioning.http/10.0.0",
+      "hashPath": "asp.versioning.http.10.0.0.nupkg.sha512"
+    },
+    "Asp.Versioning.Mvc/10.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-W0wZ+0uZ0UK4KstjvEkNBZ0xxhBmxunwNg8582SVyyW7txQmSXibtm8fC4o82LaemPquYskms67bIbJOSrnlug==",
+      "path": "asp.versioning.mvc/10.0.0",
+      "hashPath": "asp.versioning.mvc.10.0.0.nupkg.sha512"
+    },
+    "Asp.Versioning.Mvc.ApiExplorer/10.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-H54UOpRoc4RmhQ4RA2lzDz43a/hAu/JN19Yyy/DNmH4XlRxhemfhifJyh9BaXNJOtGa2Dnu2xEeP4VSiTdUdAg==",
+      "path": "asp.versioning.mvc.apiexplorer/10.0.0",
+      "hashPath": "asp.versioning.mvc.apiexplorer.10.0.0.nupkg.sha512"
     },
     "Azure.Core/1.49.0": {
       "type": "package",
@@ -1325,6 +1613,20 @@
       "path": "azure.messaging.servicebus/7.20.1",
       "hashPath": "azure.messaging.servicebus.7.20.1.nupkg.sha512"
     },
+    "DistributedLock.Core/1.0.8": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-LAOsY8WxX8JU/n3lfXFz+f2pfnv0+4bHkCrOO3bwa28u9HrS3DlxSG6jf+u76SqesKs+KehZi0CndkfaUXBKvg==",
+      "path": "distributedlock.core/1.0.8",
+      "hashPath": "distributedlock.core.1.0.8.nupkg.sha512"
+    },
+    "DistributedLock.Postgres/1.3.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-CyjXmbhFgG30qPg4DwGnsmZO63y5DBRo+PI2xW0NwtFrsYsMVt/T1RcEUlb36JMKhDkf+euhnkanv/nU+W35qA==",
+      "path": "distributedlock.postgres/1.3.0",
+      "hashPath": "distributedlock.postgres.1.3.0.nupkg.sha512"
+    },
     "FastExpressionCompiler/5.3.0": {
       "type": "package",
       "serviceable": true,
@@ -1346,26 +1648,26 @@
       "path": "humanizer.core/2.14.1",
       "hashPath": "humanizer.core.2.14.1.nupkg.sha512"
     },
-    "JasperFx/1.20.0": {
+    "JasperFx/1.28.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-ymb6lJnPITfnnw2IO2Ddtu4weXDcA5L80rXYKhF7H8IIsFCiTPQ1DAeGtNvsF22N3JBKNyKjAtg+fuTxgRMj3g==",
-      "path": "jasperfx/1.20.0",
-      "hashPath": "jasperfx.1.20.0.nupkg.sha512"
+      "sha512": "sha512-PqiJQrZ02ytH+BBNkKm2mc+CD5OSIcx8HIElQuI8KNkqHgBQ3LRQ07wmeniHvOVkXmiEIH2CAhksA3wj0n+aeQ==",
+      "path": "jasperfx/1.28.2",
+      "hashPath": "jasperfx.1.28.2.nupkg.sha512"
     },
-    "JasperFx.Events/1.22.0": {
+    "JasperFx.Events/1.31.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-QD01W8GFqHcMLYpqF4G5adkEHFexCntWSIWejvccVxmw8TTMmGf+EH8EoQI8EitdCc0XZ/ocGog2TQTRkqxG4A==",
-      "path": "jasperfx.events/1.22.0",
-      "hashPath": "jasperfx.events.1.22.0.nupkg.sha512"
+      "sha512": "sha512-VTiVkFYgQFixA1KupIcOCAQUxfczhPrYLB6Qi9KKsdygfk4yEGyK+qQN81uoARz8TSOrEgjpCz9dx1wnQVUYHQ==",
+      "path": "jasperfx.events/1.31.1",
+      "hashPath": "jasperfx.events.1.31.1.nupkg.sha512"
     },
-    "JasperFx.RuntimeCompiler/4.4.0": {
+    "JasperFx.RuntimeCompiler/4.5.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-n5dOtQlytGsCfpRyOGDw/qHaqPDd2GcR7pgO53bQto1T82/VZjQdzkfuLQt8vUMY6D+m1TgqUjqedNFDT1+rEQ==",
-      "path": "jasperfx.runtimecompiler/4.4.0",
-      "hashPath": "jasperfx.runtimecompiler.4.4.0.nupkg.sha512"
+      "sha512": "sha512-SGJlU1kD8lX8A5p0hBWTPDV7dvPzoUB37IZjprWgA+L5yZZNyBElpn6UPNo7ZuXLKKwlSSt8BWTr99vxpxT3JA==",
+      "path": "jasperfx.runtimecompiler/4.5.0",
+      "hashPath": "jasperfx.runtimecompiler.4.5.0.nupkg.sha512"
     },
     "Microsoft.AspNetCore.Authentication.JwtBearer/10.0.2": {
       "type": "package",
@@ -1401,6 +1703,13 @@
       "sha512": "sha512-bUubrBD6tRJE3V1kvRloYc6NymH3R5oFKjAS9e0ELNx6u0ZR+zjps9dDQyjgqN/rArzl7f+21KGszj3YRN7F2Q==",
       "path": "microsoft.bcl.timeprovider/10.0.0",
       "hashPath": "microsoft.bcl.timeprovider.10.0.0.nupkg.sha512"
+    },
+    "Microsoft.Build.Framework/18.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-sOSb+0J4G/jCBW/YqmRuL0eOMXgfw1KQLdC9TkbvfA5xs7uNm+PBQXJCOzSJGXtZcZrtXozcwxPmUiRUbmd7FA==",
+      "path": "microsoft.build.framework/18.0.2",
+      "hashPath": "microsoft.build.framework.18.0.2.nupkg.sha512"
     },
     "Microsoft.CodeAnalysis/5.0.0": {
       "type": "package",
@@ -1472,6 +1781,13 @@
       "path": "microsoft.codeanalysis.workspaces.common/5.0.0",
       "hashPath": "microsoft.codeanalysis.workspaces.common.5.0.0.nupkg.sha512"
     },
+    "Microsoft.CodeAnalysis.Workspaces.MSBuild/5.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-/G+LVoAGMz6Ae8nm+PGLxSw+F5RjYx/J7irbTO5uKAPw1bxHyQJLc/YOnpDxt+EpPtYxvC9wvBsg/kETZp1F9Q==",
+      "path": "microsoft.codeanalysis.workspaces.msbuild/5.0.0",
+      "hashPath": "microsoft.codeanalysis.workspaces.msbuild.5.0.0.nupkg.sha512"
+    },
     "Microsoft.EntityFrameworkCore/10.0.2": {
       "type": "package",
       "serviceable": true,
@@ -1485,6 +1801,13 @@
       "sha512": "sha512-BzAwIU5mYeOmnKbEXrkwx7feW2V+zUTrK/kRonSib94tjvc0/iRj2a4N6YGXRhTNjaFP3tvCMIDaX1vIFF6dkg==",
       "path": "microsoft.entityframeworkcore.abstractions/10.0.2",
       "hashPath": "microsoft.entityframeworkcore.abstractions.10.0.2.nupkg.sha512"
+    },
+    "Microsoft.EntityFrameworkCore.Design/10.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-tBwpyZ75SqcRjmZyhLYJVGKyfz1Z1dmsYtvJGZ2QLSI1tOHgMuLPTovunHA1JF9a0EWJs+WB6tVWmqo3DTL/MQ==",
+      "path": "microsoft.entityframeworkcore.design/10.0.2",
+      "hashPath": "microsoft.entityframeworkcore.design.10.0.2.nupkg.sha512"
     },
     "Microsoft.EntityFrameworkCore.Relational/10.0.2": {
       "type": "package",
@@ -1513,6 +1836,13 @@
       "sha512": "sha512-O052pqWkdVNXaj3n9E4x6nLL7sG860434gLh7XHhFp/KpyAY9/rCk9NJUinYfQnDkAA8UgCHimVZz+lTjnEwzQ==",
       "path": "microsoft.extensions.dependencyinjection.autoactivation/10.1.0",
       "hashPath": "microsoft.extensions.dependencyinjection.autoactivation.10.1.0.nupkg.sha512"
+    },
+    "Microsoft.Extensions.DependencyModel/10.0.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-DHXzj/FKmUDmhzw7AHbMXbNNcgO8Cb9PDbYOUDICjFAdIALy2WbC6pm+dFKiAUNtcYMucZu2iMVw1ef/sdcZFw==",
+      "path": "microsoft.extensions.dependencymodel/10.0.2",
+      "hashPath": "microsoft.extensions.dependencymodel.10.0.2.nupkg.sha512"
     },
     "Microsoft.Extensions.Diagnostics.ExceptionSummarization/10.1.0": {
       "type": "package",
@@ -1640,6 +1970,34 @@
       "path": "microsoft.openapi/2.0.0",
       "hashPath": "microsoft.openapi.2.0.0.nupkg.sha512"
     },
+    "Microsoft.VisualStudio.SolutionPersistence/1.0.52": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-oNv2JtYXhpdJrX63nibx1JT3uCESOBQ1LAk7Dtz/sr0+laW0KRM6eKp4CZ3MHDR2siIkKsY8MmUkeP5DKkQQ5w==",
+      "path": "microsoft.visualstudio.solutionpersistence/1.0.52",
+      "hashPath": "microsoft.visualstudio.solutionpersistence.1.0.52.nupkg.sha512"
+    },
+    "Mono.TextTemplating/3.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-YqueG52R/Xej4VVbKuRIodjiAhV0HR/XVbLbNrJhCZnzjnSjgMJ/dCdV0akQQxavX6hp/LC6rqLGLcXeQYU7XA==",
+      "path": "mono.texttemplating/3.0.0",
+      "hashPath": "mono.texttemplating.3.0.0.nupkg.sha512"
+    },
+    "NetTopologySuite/2.5.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-5/+2O2ADomEdUn09mlSigACdqvAf0m/pVPGtIPEPQWnyrVykYY0NlfXLIdkMgi41kvH9kNrPqYaFBTZtHYH7Xw==",
+      "path": "nettopologysuite/2.5.0",
+      "hashPath": "nettopologysuite.2.5.0.nupkg.sha512"
+    },
+    "NetTopologySuite.IO.PostGis/2.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-3W8XTFz8iP6GQ5jDXK1/LANHiU+988k1kmmuPWNKcJLpmSg6CvFpbTpz+s4+LBzkAp64wHGOldSlkSuzYfrIKA==",
+      "path": "nettopologysuite.io.postgis/2.1.0",
+      "hashPath": "nettopologysuite.io.postgis.2.1.0.nupkg.sha512"
+    },
     "NewId/4.0.1": {
       "type": "package",
       "serviceable": true,
@@ -1668,47 +2026,54 @@
       "path": "npgsql.entityframeworkcore.postgresql/10.0.0",
       "hashPath": "npgsql.entityframeworkcore.postgresql.10.0.0.nupkg.sha512"
     },
-    "OpenTelemetry/1.14.0": {
+    "Npgsql.NetTopologySuite/9.0.4": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-aiPBAr1+0dPDItH++MQQr5UgMf4xiybruzNlAoYYMYN3UUk+mGRcoKuZy4Z4rhhWUZIpK2Xhe7wUUXSTM32duQ==",
-      "path": "opentelemetry/1.14.0",
-      "hashPath": "opentelemetry.1.14.0.nupkg.sha512"
+      "sha512": "sha512-7AwBLPz8EPmgAXveZ55K0Tz/9bNb8j4VI4pkTOQjyHrce8wWfAA9pefm3REidy+Kt2UFiAWef34YVi7sb/kB4A==",
+      "path": "npgsql.nettopologysuite/9.0.4",
+      "hashPath": "npgsql.nettopologysuite.9.0.4.nupkg.sha512"
     },
-    "OpenTelemetry.Api/1.14.0": {
+    "OpenTelemetry/1.15.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-foHci6viUw1f3gUB8qzz3Rk02xZIWMo299X0rxK0MoOWok/3dUVru+KKdY7WIoSHwRGpxGKkmAz9jIk2RFNbsQ==",
-      "path": "opentelemetry.api/1.14.0",
-      "hashPath": "opentelemetry.api.1.14.0.nupkg.sha512"
+      "sha512": "sha512-N0i6WjPoHPbZyms1ugbDIFAJFuGlpeExJMU/+XSL0lQRUkg/D0utFkDoLXf8Z1km5B+xVZ2GyMXXiX8qdeNmPg==",
+      "path": "opentelemetry/1.15.3",
+      "hashPath": "opentelemetry.1.15.3.nupkg.sha512"
     },
-    "OpenTelemetry.Api.ProviderBuilderExtensions/1.14.0": {
+    "OpenTelemetry.Api/1.15.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-i/lxOM92v+zU5I0rGl5tXAGz6EJtxk2MvzZ0VN6F6L5pMqT6s6RCXnGWXg6fW+vtZJsllBlQaf/VLPTzgefJpg==",
-      "path": "opentelemetry.api.providerbuilderextensions/1.14.0",
-      "hashPath": "opentelemetry.api.providerbuilderextensions.1.14.0.nupkg.sha512"
+      "sha512": "sha512-fX+fkCysfPut+qCcT3bKqyX4QN9Saf4CgX8HLOHywEVD+Xr7sULtfuypITpoDysjx8R59dn/3mWhgimMH8cm/g==",
+      "path": "opentelemetry.api/1.15.3",
+      "hashPath": "opentelemetry.api.1.15.3.nupkg.sha512"
     },
-    "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.14.0": {
+    "OpenTelemetry.Api.ProviderBuilderExtensions/1.15.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-7ELExeje+T/KOywHuHwZBGQNtYlepUaYRFXWgoEaT1iKpFJVwOlE1Y2+uqHI2QQmah0Ue+XgRmDy924vWHfJ6Q==",
-      "path": "opentelemetry.exporter.opentelemetryprotocol/1.14.0",
-      "hashPath": "opentelemetry.exporter.opentelemetryprotocol.1.14.0.nupkg.sha512"
+      "sha512": "sha512-SYn0lqYDwLMWhv/zlNGsQcl2yX++yTumanX46bmOZE/ZDOd1WjPBO2kZaZgKLEZTZk48pavIFGJ6vOvxXgWVFQ==",
+      "path": "opentelemetry.api.providerbuilderextensions/1.15.3",
+      "hashPath": "opentelemetry.api.providerbuilderextensions.1.15.3.nupkg.sha512"
     },
-    "OpenTelemetry.Extensions.Hosting/1.14.0": {
+    "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.15.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-ZAxkCIa3Q3YWZ1sGrolXfkhPqn2PFSz2Cel74em/fATZgY5ixlw6MQp2icmqKCz4C7M1W2G0b92K3rX8mOtFRg==",
-      "path": "opentelemetry.extensions.hosting/1.14.0",
-      "hashPath": "opentelemetry.extensions.hosting.1.14.0.nupkg.sha512"
+      "sha512": "sha512-FEXJepcseTGbATiCkUfP7ipoFEYYfl/0UmmUwi0KxCPg9PaUA8ab2P1LGopK+/HExasJ1ZutFhZrN6WvUIR23g==",
+      "path": "opentelemetry.exporter.opentelemetryprotocol/1.15.3",
+      "hashPath": "opentelemetry.exporter.opentelemetryprotocol.1.15.3.nupkg.sha512"
     },
-    "OpenTelemetry.Instrumentation.AspNetCore/1.14.0": {
+    "OpenTelemetry.Extensions.Hosting/1.15.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-NQAQpFa3a4ofPUYwxcwtNPGpuRNwwx1HM7MnLEESYjYkhfhER+PqqGywW65rWd7bJEc1/IaL+xbmHH99pYDE0A==",
-      "path": "opentelemetry.instrumentation.aspnetcore/1.14.0",
-      "hashPath": "opentelemetry.instrumentation.aspnetcore.1.14.0.nupkg.sha512"
+      "sha512": "sha512-u8n/W8yIlqv0BXZmvId1iVaeWXG42tGKdTkuLYg5g57Y/r9CeUNzqtrSHNdG5IoO8iPX79w3v+WsbAHgUQbfeg==",
+      "path": "opentelemetry.extensions.hosting/1.15.3",
+      "hashPath": "opentelemetry.extensions.hosting.1.15.3.nupkg.sha512"
+    },
+    "OpenTelemetry.Instrumentation.AspNetCore/1.15.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-mte1nRYefxjed2syXgVWq3UCfMKO7MkebvTZmf0O1aLgVgCktLsVjQ6mftyjIbWGBBCHN0wg+Glxj8BSFS70pQ==",
+      "path": "opentelemetry.instrumentation.aspnetcore/1.15.0",
+      "hashPath": "opentelemetry.instrumentation.aspnetcore.1.15.0.nupkg.sha512"
     },
     "OpenTelemetry.Instrumentation.GrpcNetClient/1.10.0-beta.1": {
       "type": "package",
@@ -1717,19 +2082,19 @@
       "path": "opentelemetry.instrumentation.grpcnetclient/1.10.0-beta.1",
       "hashPath": "opentelemetry.instrumentation.grpcnetclient.1.10.0-beta.1.nupkg.sha512"
     },
-    "OpenTelemetry.Instrumentation.Http/1.14.0": {
+    "OpenTelemetry.Instrumentation.Http/1.15.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-uH8X1fYnywrgaUrSbemKvFiFkBwY7ZbBU7Wh4A/ORQmdpF3G/5STidY4PlK4xYuIv9KkdMXH/vkpvzQcayW70g==",
-      "path": "opentelemetry.instrumentation.http/1.14.0",
-      "hashPath": "opentelemetry.instrumentation.http.1.14.0.nupkg.sha512"
+      "sha512": "sha512-uToc7bUp8IEdb0ny9mKsL6FrrYelINPzxxiSShJgOf4XmQc4Azww6S5RjRj24YhsOn2a1MABOrxfVTZXtDk4Eg==",
+      "path": "opentelemetry.instrumentation.http/1.15.0",
+      "hashPath": "opentelemetry.instrumentation.http.1.15.0.nupkg.sha512"
     },
-    "OpenTelemetry.Instrumentation.Runtime/1.14.0": {
+    "OpenTelemetry.Instrumentation.Runtime/1.15.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-Z6o4JDOQaKv6bInAYZxuyxxfMKr6hFpwLnKEgQ+q+oBNA9Fm1sysjFCOzRzk7U0WD86LsRPXX+chv1vJIg7cfg==",
-      "path": "opentelemetry.instrumentation.runtime/1.14.0",
-      "hashPath": "opentelemetry.instrumentation.runtime.1.14.0.nupkg.sha512"
+      "sha512": "sha512-OOvpqR/j2Pb6+tWhHNODIbSJ53Or/MDtTiXEyrsWI02K2lLAgvBFcxUOrHggS/8015cYR3AdSaXv6NZrkz5yQA==",
+      "path": "opentelemetry.instrumentation.runtime/1.15.0",
+      "hashPath": "opentelemetry.instrumentation.runtime.1.15.0.nupkg.sha512"
     },
     "Polly.Core/8.6.5": {
       "type": "package",
@@ -1752,12 +2117,19 @@
       "path": "polly.ratelimiting/8.4.2",
       "hashPath": "polly.ratelimiting.8.4.2.nupkg.sha512"
     },
-    "Spectre.Console/0.53.0": {
+    "Spectre.Console/0.55.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-m2iv8Egfywp7FaNLKCmCFHbSf36D4ctzZKvlAK9NXMyGLh6L+CnrZWK8o+LOYsoAS1jtoHn0W1BT0W8vuq/FUw==",
-      "path": "spectre.console/0.53.0",
-      "hashPath": "spectre.console.0.53.0.nupkg.sha512"
+      "sha512": "sha512-2TVhUHFsDux0Z+y2Hv4bFsOMuON4SuotEEKkMparFkp5Rm259naaaEQrN4Sv6C1cbsiGKPjfkJDGgUp+hZPjTw==",
+      "path": "spectre.console/0.55.0",
+      "hashPath": "spectre.console.0.55.0.nupkg.sha512"
+    },
+    "Spectre.Console.Ansi/0.55.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-GIfgOvuF8MpU52bprhwtDEtx0gmVIGOepM8bw0lH/TSMD0rg1Xp+5Y53kPG8rFVdcpbNANlhDQ5mEVVPO3/2Tg==",
+      "path": "spectre.console.ansi/0.55.0",
+      "hashPath": "spectre.console.ansi.0.55.0.nupkg.sha512"
     },
     "System.ClientModel/1.7.0": {
       "type": "package",
@@ -1765,6 +2137,13 @@
       "sha512": "sha512-NKKA3/O6B7PxmtIzOifExHdfoWthy3AD4EZ1JfzcZU8yGZTbYrK1qvXsHUL/1yQKKqWSKgIR1Ih/yf2gOaHc4w==",
       "path": "system.clientmodel/1.7.0",
       "hashPath": "system.clientmodel.1.7.0.nupkg.sha512"
+    },
+    "System.CodeDom/6.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-CPc6tWO1LAer3IzfZufDBRL+UZQcj5uS207NHALQzP84Vp/z6wF0Aa0YZImOQY8iStY0A2zI/e3ihKNPfUm8XA==",
+      "path": "system.codedom/6.0.0",
+      "hashPath": "system.codedom.6.0.0.nupkg.sha512"
     },
     "System.Composition/9.0.0": {
       "type": "package",
@@ -1829,47 +2208,61 @@
       "path": "system.security.cryptography.protecteddata/4.5.0",
       "hashPath": "system.security.cryptography.protecteddata.4.5.0.nupkg.sha512"
     },
-    "Weasel.Core/8.8.1": {
+    "Weasel.Core/8.14.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-iLPWsHuCIY9BAyQ8Zfnih5TfCyHRImTBJuw8fc1/Tbt4myjvV7sZCPeWS+YzCHH4gDfTbib16JoI/t6gEnI1QA==",
-      "path": "weasel.core/8.8.1",
-      "hashPath": "weasel.core.8.8.1.nupkg.sha512"
+      "sha512": "sha512-k9uZuArMJpOSIQ7If0bD3KNPrzIvEmE0nrqjLmQCm4KJPY7F0Qyz0hxIpdmD1LZu7qKiDCC2eiKNvYTVj0qTng==",
+      "path": "weasel.core/8.14.1",
+      "hashPath": "weasel.core.8.14.1.nupkg.sha512"
     },
-    "Weasel.EntityFrameworkCore/8.8.1": {
+    "Weasel.EntityFrameworkCore/8.14.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-7VMILfl3mQ4JbW047FU27v4qmqLvKZoIkww8msh7KpSqvzuKVTshoTTyAbCTWlE25YEqoqqgkI8d+U7ygAENNQ==",
-      "path": "weasel.entityframeworkcore/8.8.1",
-      "hashPath": "weasel.entityframeworkcore.8.8.1.nupkg.sha512"
+      "sha512": "sha512-tF0xX8zUDX+QTeSrtwCJHAjiXlX2ekHZvyi1I7bMZ6vzmZzs8rR5f6UFjwXs+cCzvKiNvmTPDpYfhOdzD1hmvQ==",
+      "path": "weasel.entityframeworkcore/8.14.1",
+      "hashPath": "weasel.entityframeworkcore.8.14.1.nupkg.sha512"
     },
-    "WolverineFx/5.17.0": {
+    "Weasel.Postgresql/8.14.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-B7EWuzVBuyJaYoAsTEnKBKMjR+1DhjleopbHF9S2jzj0G7T3s/movynOgtq2CqlVi2EMRIyOrPhAlSm9wSPrtA==",
-      "path": "wolverinefx/5.17.0",
-      "hashPath": "wolverinefx.5.17.0.nupkg.sha512"
+      "sha512": "sha512-bi2XmS2t8/6y95SXG15pF7bkX7na+bbUHj1Nr2rLTlrOUP1IZJJCnllRHYnFHuiYOthx50LhqZ1QZT+XhhnHTg==",
+      "path": "weasel.postgresql/8.14.1",
+      "hashPath": "weasel.postgresql.8.14.1.nupkg.sha512"
     },
-    "WolverineFx.AzureServiceBus/5.17.0": {
+    "WolverineFx/5.36.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-oj7+g8RCNxqchsg9cCW6Ih1K4ldJNmWPHas0JRtlZhjDae0ZHwbBOQZ/M2Cw3ueIqeJTiYIN2QTIme0GsCeSLA==",
-      "path": "wolverinefx.azureservicebus/5.17.0",
-      "hashPath": "wolverinefx.azureservicebus.5.17.0.nupkg.sha512"
+      "sha512": "sha512-UA4I0qZiLqeqItf+J/hyqdyRq8JngEPMIvhNB79RDwp7rVfU6P4XdlvRfa9IvhVs3p+z4fkI3nzzmPGMn2/h7w==",
+      "path": "wolverinefx/5.36.2",
+      "hashPath": "wolverinefx.5.36.2.nupkg.sha512"
     },
-    "WolverineFx.EntityFrameworkCore/5.17.0": {
+    "WolverineFx.AzureServiceBus/5.36.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-VsolUMeYPxYg4QcvKH1Ui1d7NR/0GTUmkQfWdfxAlxtTT/UZGOaet0GWjzm8Osqk97ouJfCG19tID8cVKKes7g==",
-      "path": "wolverinefx.entityframeworkcore/5.17.0",
-      "hashPath": "wolverinefx.entityframeworkcore.5.17.0.nupkg.sha512"
+      "sha512": "sha512-s9M0zTMEj6GLk06pGLuxaQVIc8y3qsE1+cMqS1C78n8Sbp9n201724fKOCLaqo5lGrufxUYyUVqzV1i7IsA7vg==",
+      "path": "wolverinefx.azureservicebus/5.36.2",
+      "hashPath": "wolverinefx.azureservicebus.5.36.2.nupkg.sha512"
     },
-    "WolverineFx.RDBMS/5.17.0": {
+    "WolverineFx.EntityFrameworkCore/5.36.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-PwHOICMum8gRmQgJvaSsMDTHOImPQdtPWVcCdauHT41tuOcc7WBDp+SH9ogT1csqjO8TuVJCGBIzSoxagsBqKw==",
-      "path": "wolverinefx.rdbms/5.17.0",
-      "hashPath": "wolverinefx.rdbms.5.17.0.nupkg.sha512"
+      "sha512": "sha512-9uDYjF4Mrdoyufaj1t5hViTfxMGW2xiubBj78aIFWnFHBrJc2Gh2JsGjF/85NrcKjEeVRK9cUYiWBNs8W8RDQg==",
+      "path": "wolverinefx.entityframeworkcore/5.36.2",
+      "hashPath": "wolverinefx.entityframeworkcore.5.36.2.nupkg.sha512"
+    },
+    "WolverineFx.Postgresql/5.36.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-zIm49vFMRRQHstypdwDP+Hn5FPLqDU6sN/9E8HVBPTgyf93cQ1a4mYoRkmomV1hH+tNeiAh39F4/IJDjOjT/aA==",
+      "path": "wolverinefx.postgresql/5.36.2",
+      "hashPath": "wolverinefx.postgresql.5.36.2.nupkg.sha512"
+    },
+    "WolverineFx.RDBMS/5.36.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-3vJKZgG0MxP23yrKMAZhuQdfEWKj7+83yuwNUkCUl+jyhR1gZqylF91muQVfmGXeDTSIzuQO/7ewgcDAZ+/lrg==",
+      "path": "wolverinefx.rdbms/5.36.2",
+      "hashPath": "wolverinefx.rdbms.5.36.2.nupkg.sha512"
     },
     "NextAurora.Contracts/1.0.0": {
       "type": "project",

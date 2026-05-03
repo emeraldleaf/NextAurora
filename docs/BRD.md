@@ -155,13 +155,14 @@ The system is built as a set of independently deployable microservices to suppor
 | SCL-01 | Horizontal scaling per service | Supported (stateless services) |
 | SCL-02 | Database per service | Implemented (polyglot persistence) |
 | SCL-03 | Cache layer for read-heavy services | Redis infrastructure ready |
+| SCL-04 | API contract evolution without breaking clients | Implemented (URL-segment versioning via `Asp.Versioning.Http`; routes follow `/api/v{version}/...`; v2+ added side-by-side without disturbing v1) |
 
 ### 5.4 Security
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| SEC-01 | API authentication (JWT/OAuth2) | High | Not implemented |
-| SEC-02 | Service-to-service authentication | High | Not implemented |
+| SEC-01 | API authentication (JWT/OAuth2) | High | Implemented (JWT Bearer + Keycloak realm via Aspire; `.RequireAuthorization()` on protected endpoints; buyer-scope checks on order endpoints) |
+| SEC-02 | Service-to-service authentication | High | Not implemented (gRPC + Service Bus calls are inside the Aspire-managed mesh; mTLS / per-service tokens not yet configured) |
 | SEC-03 | Input validation on all endpoints | High | Implemented (FluentValidation + Wolverine pipeline + domain guard clauses) |
 | SEC-04 | Secrets management | Medium | Aspire User Secrets (dev) |
 | SEC-05 | HTTPS enforcement | Medium | Implemented (production redirection) |
@@ -305,9 +306,9 @@ The system is built as a set of independently deployable microservices to suppor
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
 | Payment service failure | Orders placed but not processed | Service Bus queues messages; payment processes when service recovers |
-| Stock oversold (concurrent orders) | Customer dissatisfaction | Future: Implement stock reservation or optimistic concurrency |
-| Event message loss | Incomplete order lifecycle | Azure Service Bus provides at-least-once delivery with dead letter queues |
-| Service Bus unavailable | Order pipeline halts | Aspire resilience handlers; future: outbox pattern for guaranteed publishing |
+| Stock oversold (concurrent orders) | Customer dissatisfaction | Optimistic concurrency tokens (`xmin`/`RowVersion`) on all aggregates; `DbUpdateConcurrencyException` → 409 on HTTP, 3-attempt Wolverine retry on Service Bus. Future: stock reservation in Catalog. |
+| Event message loss | Incomplete order lifecycle | Wolverine transactional outbox in Order/Payment/Shipping (events persist to a `wolverine` schema in the same DB transaction as the entity write); Azure Service Bus at-least-once delivery + DLQ for downstream consumers. |
+| Service Bus unavailable | Order pipeline halts | Wolverine outbox dispatcher retries with backoff; events stay durable on disk until the bus recovers. Aspire resilience handlers cover gRPC/HTTP. |
 | gRPC catalog call failure | Order placement fails | HTTP resilience handler retries; future: circuit breaker with cached fallback |
 
 ---

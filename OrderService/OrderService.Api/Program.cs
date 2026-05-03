@@ -1,5 +1,6 @@
 using CatalogService.Api.Grpc;
 using FluentValidation;
+using JasperFx.Resources;
 using Microsoft.Extensions.Logging;
 using NextAurora.Contracts.Events;
 using OrderService.Api.Endpoints;
@@ -7,9 +8,12 @@ using OrderService.Api.GrpcClients;
 using OrderService.Application.Commands;
 using OrderService.Application.Interfaces;
 using OrderService.Infrastructure;
+using OrderService.Infrastructure.Data;
 using Wolverine;
 using Wolverine.AzureServiceBus;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
+using Wolverine.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,13 +32,23 @@ builder.Host.UseWolverine(opts =>
     opts.ListenToAzureServiceBusSubscription("payment-events/order-sub");
     opts.ListenToAzureServiceBusSubscription("shipping-events/order-sub");
 
+    // Transactional outbox: persist outgoing messages to SQL Server in the same
+    // transaction as the entity write, then dispatch via background flush.
+    var ordersDb = builder.Configuration.GetConnectionString("orders-db")!;
+    opts.PersistMessagesWithSqlServer(ordersDb, "wolverine");
+    opts.UseEntityFrameworkCoreTransactions();
+    opts.Policies.AutoApplyTransactions();
+    opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+
     opts.Discovery.IncludeAssembly(typeof(PlaceOrderCommand).Assembly);
     opts.UseFluentValidation();
     opts.Policies.LogMessageStarting(LogLevel.Information);
     opts.AddNextAuroraContextPropagation();
+    opts.AddConcurrencyRetry();
 });
 builder.Services.AddValidatorsFromAssemblyContaining<PlaceOrderCommand>();
 builder.Services.AddOrderInfrastructure(builder.Configuration);
+builder.Services.AddResourceSetupOnStartup();
 
 builder.Services.AddGrpcClient<CatalogGrpc.CatalogGrpcClient>(o =>
 {
@@ -56,8 +70,8 @@ if (!app.Environment.IsDevelopment())
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    await app.Services.MigrateDatabaseAsync<OrderDbContext>();
 }
 
 app.MapOrderEndpoints();
-app.MapAdminEventEndpoints();
-app.Run();
+await app.RunAsync();

@@ -4,6 +4,17 @@ using NotificationService.Application.Interfaces;
 
 namespace NotificationService.Application.EventHandlers;
 
+/// <summary>
+/// On <see cref="ShipmentDispatchedEvent"/>, build a "your order has shipped" notification with
+/// tracking info. Same cascading-messages pattern as the other notification handlers.
+///
+/// <para>
+/// <b>Different recipient lookup:</b> here we resolve by <c>OrderId</c> rather than
+/// <c>BuyerId</c>, because <see cref="ShipmentDispatchedEvent"/> doesn't carry a buyer ID.
+/// In a real system the resolver would look up the order's buyer; today
+/// <c>StubRecipientResolver</c> returns a placeholder either way.
+/// </para>
+/// </summary>
 public class ShipmentDispatchedNotificationHandler(IRecipientResolver recipientResolver)
 {
     public async Task<SendNotificationRequest?> Handle(ShipmentDispatchedEvent @event, CancellationToken cancellationToken)

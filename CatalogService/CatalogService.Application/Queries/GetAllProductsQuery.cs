@@ -1,5 +1,3 @@
-using NextAurora.Contracts.DTOs;
-
 namespace CatalogService.Application.Queries;
 
-public record GetAllProductsQuery;
+public record GetAllProductsQuery(int Page = 1, int PageSize = 50);

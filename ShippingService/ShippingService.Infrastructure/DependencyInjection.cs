@@ -1,4 +1,3 @@
-using Azure.Messaging.ServiceBus;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,6 +8,11 @@ using ShippingService.Infrastructure.Repositories;
 
 namespace ShippingService.Infrastructure;
 
+/// <summary>
+/// Composition root for ShippingService's Infrastructure layer. Wires up PostgreSQL
+/// (shipping-db), the EF repository, and the Wolverine-backed event publisher. Same scoped
+/// lifetime convention as the other services.
+/// </summary>
 public static class DependencyInjection
 {
     public static IServiceCollection AddShippingInfrastructure(this IServiceCollection services, IConfiguration configuration)
@@ -20,11 +24,6 @@ public static class DependencyInjection
             .AddDbContextCheck<ShippingDbContext>();
 
         services.AddScoped<IShipmentRepository, ShipmentRepository>();
-
-        // ServiceBusClient is kept for AdminEventEndpoints replay functionality.
-        services.AddSingleton(_ =>
-            new ServiceBusClient(configuration.GetConnectionString("messaging")));
-
         services.AddScoped<IEventPublisher, WolverineEventPublisher>();
 
         return services;

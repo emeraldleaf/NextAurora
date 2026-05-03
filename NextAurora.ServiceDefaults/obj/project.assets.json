@@ -2,6 +2,70 @@
   "version": 3,
   "targets": {
     "net10.0": {
+      "Asp.Versioning.Abstractions/10.0.0": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/Asp.Versioning.Abstractions.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Abstractions.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Asp.Versioning.Http/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Asp.Versioning.Abstractions": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Asp.Versioning.Http.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Http.dll": {
+            "related": ".xml"
+          }
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
+      },
+      "Asp.Versioning.Mvc/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Asp.Versioning.Http": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Asp.Versioning.Mvc.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Mvc.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Asp.Versioning.Mvc.ApiExplorer/10.0.0": {
+        "type": "package",
+        "dependencies": {
+          "Asp.Versioning.Mvc": "10.0.0"
+        },
+        "compile": {
+          "lib/net10.0/Asp.Versioning.Mvc.ApiExplorer.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Asp.Versioning.Mvc.ApiExplorer.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "FastExpressionCompiler/5.3.0": {
         "type": "package",
         "compile": {
@@ -51,14 +115,14 @@
           }
         }
       },
-      "JasperFx/1.20.0": {
+      "JasperFx/1.28.2": {
         "type": "package",
         "dependencies": {
           "FastExpressionCompiler": "5.3.0",
           "ImTools": "4.0.0",
           "Microsoft.Bcl.TimeProvider": "10.0.0",
           "Polly.Core": "8.6.5",
-          "Spectre.Console": "0.53.0"
+          "Spectre.Console": "0.55.0"
         },
         "compile": {
           "lib/net10.0/JasperFx.dll": {
@@ -71,10 +135,10 @@
           }
         }
       },
-      "JasperFx.Events/1.22.0": {
+      "JasperFx.Events/1.31.1": {
         "type": "package",
         "dependencies": {
-          "JasperFx": "1.20.0"
+          "JasperFx": "1.28.2"
         },
         "compile": {
           "lib/net10.0/JasperFx.Events.dll": {
@@ -87,10 +151,10 @@
           }
         }
       },
-      "JasperFx.RuntimeCompiler/4.4.0": {
+      "JasperFx.RuntimeCompiler/4.5.0": {
         "type": "package",
         "dependencies": {
-          "JasperFx": "1.18.0",
+          "JasperFx": "1.28.0",
           "Microsoft.CodeAnalysis": "5.0.0",
           "Microsoft.CodeAnalysis.CSharp": "5.0.0",
           "Microsoft.CodeAnalysis.Scripting": "5.0.0"
@@ -105,6 +169,9 @@
             "related": ".xml"
           }
         }
+      },
+      "JasperFx.SourceGeneration/1.1.0": {
+        "type": "package"
       },
       "Meziantou.Analyzer/2.0.257": {
         "type": "package",
@@ -666,6 +733,58 @@
           }
         }
       },
+      "Microsoft.EntityFrameworkCore/10.0.2": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Abstractions": "10.0.2",
+          "Microsoft.EntityFrameworkCore.Analyzers": "10.0.2"
+        },
+        "compile": {
+          "lib/net10.0/Microsoft.EntityFrameworkCore.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.EntityFrameworkCore.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net10.0/Microsoft.EntityFrameworkCore.props": {}
+        }
+      },
+      "Microsoft.EntityFrameworkCore.Abstractions/10.0.2": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/Microsoft.EntityFrameworkCore.Abstractions.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.EntityFrameworkCore.Abstractions.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Microsoft.EntityFrameworkCore.Analyzers/10.0.2": {
+        "type": "package"
+      },
+      "Microsoft.EntityFrameworkCore.Relational/10.0.2": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "10.0.2"
+        },
+        "compile": {
+          "lib/net10.0/Microsoft.EntityFrameworkCore.Relational.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.EntityFrameworkCore.Relational.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "Microsoft.Extensions.AmbientMetadata.Application/10.1.0": {
         "type": "package",
         "compile": {
@@ -978,10 +1097,10 @@
           }
         }
       },
-      "OpenTelemetry/1.14.0": {
+      "OpenTelemetry/1.15.3": {
         "type": "package",
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.14.0"
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.15.3"
         },
         "compile": {
           "lib/net10.0/OpenTelemetry.dll": {
@@ -994,7 +1113,7 @@
           }
         }
       },
-      "OpenTelemetry.Api/1.14.0": {
+      "OpenTelemetry.Api/1.15.3": {
         "type": "package",
         "compile": {
           "lib/net10.0/OpenTelemetry.Api.dll": {
@@ -1007,10 +1126,10 @@
           }
         }
       },
-      "OpenTelemetry.Api.ProviderBuilderExtensions/1.14.0": {
+      "OpenTelemetry.Api.ProviderBuilderExtensions/1.15.3": {
         "type": "package",
         "dependencies": {
-          "OpenTelemetry.Api": "1.14.0"
+          "OpenTelemetry.Api": "1.15.3"
         },
         "compile": {
           "lib/net10.0/OpenTelemetry.Api.ProviderBuilderExtensions.dll": {
@@ -1023,10 +1142,10 @@
           }
         }
       },
-      "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.14.0": {
+      "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.15.3": {
         "type": "package",
         "dependencies": {
-          "OpenTelemetry": "1.14.0"
+          "OpenTelemetry": "1.15.3"
         },
         "compile": {
           "lib/net10.0/OpenTelemetry.Exporter.OpenTelemetryProtocol.dll": {
@@ -1039,10 +1158,10 @@
           }
         }
       },
-      "OpenTelemetry.Extensions.Hosting/1.14.0": {
+      "OpenTelemetry.Extensions.Hosting/1.15.3": {
         "type": "package",
         "dependencies": {
-          "OpenTelemetry": "1.14.0"
+          "OpenTelemetry": "1.15.3"
         },
         "compile": {
           "lib/net10.0/OpenTelemetry.Extensions.Hosting.dll": {
@@ -1055,10 +1174,10 @@
           }
         }
       },
-      "OpenTelemetry.Instrumentation.AspNetCore/1.14.0": {
+      "OpenTelemetry.Instrumentation.AspNetCore/1.15.0": {
         "type": "package",
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.14.0, 2.0.0)"
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.15.0, 2.0.0)"
         },
         "compile": {
           "lib/net10.0/OpenTelemetry.Instrumentation.AspNetCore.dll": {
@@ -1090,10 +1209,10 @@
           }
         }
       },
-      "OpenTelemetry.Instrumentation.Http/1.14.0": {
+      "OpenTelemetry.Instrumentation.Http/1.15.0": {
         "type": "package",
         "dependencies": {
-          "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.14.0, 2.0.0)"
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.15.0, 2.0.0)"
         },
         "compile": {
           "lib/net10.0/OpenTelemetry.Instrumentation.Http.dll": {
@@ -1106,10 +1225,10 @@
           }
         }
       },
-      "OpenTelemetry.Instrumentation.Runtime/1.14.0": {
+      "OpenTelemetry.Instrumentation.Runtime/1.15.0": {
         "type": "package",
         "dependencies": {
-          "OpenTelemetry.Api": "[1.14.0, 2.0.0)"
+          "OpenTelemetry.Api": "[1.15.0, 2.0.0)"
         },
         "compile": {
           "lib/net10.0/OpenTelemetry.Instrumentation.Runtime.dll": {
@@ -1173,15 +1292,31 @@
       "SonarAnalyzer.CSharp/10.16.0.128591": {
         "type": "package"
       },
-      "Spectre.Console/0.53.0": {
+      "Spectre.Console/0.55.0": {
         "type": "package",
+        "dependencies": {
+          "Spectre.Console.Ansi": "0.55.0"
+        },
         "compile": {
-          "lib/net9.0/Spectre.Console.dll": {
+          "lib/net10.0/Spectre.Console.dll": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net9.0/Spectre.Console.dll": {
+          "lib/net10.0/Spectre.Console.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Spectre.Console.Ansi/0.55.0": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/Spectre.Console.Ansi.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Spectre.Console.Ansi.dll": {
             "related": ".xml"
           }
         }
@@ -1313,12 +1448,13 @@
           }
         }
       },
-      "WolverineFx/5.17.0": {
+      "WolverineFx/5.36.2": {
         "type": "package",
         "dependencies": {
-          "JasperFx": "1.20.0",
-          "JasperFx.Events": "1.22.0",
-          "JasperFx.RuntimeCompiler": "4.4.0",
+          "JasperFx": "1.28.2",
+          "JasperFx.Events": "1.31.1",
+          "JasperFx.RuntimeCompiler": "4.5.0",
+          "JasperFx.SourceGeneration": "1.1.0",
           "NewId": "4.0.1",
           "Newtonsoft.Json": "13.0.3"
         },
@@ -1336,6 +1472,74 @@
     }
   },
   "libraries": {
+    "Asp.Versioning.Abstractions/10.0.0": {
+      "sha512": "cMRE5nvNMfBgfkb0XFWst/7UtyXCjoAXnV0L4Scx4P9fcf0idgrj1Z0c+3ylsy01K4cOib7dKhCBfpg5z3r0Kg==",
+      "type": "package",
+      "path": "asp.versioning.abstractions/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.txt",
+        "README.md",
+        "asp.versioning.abstractions.10.0.0.nupkg.sha512",
+        "asp.versioning.abstractions.nuspec",
+        "icon.png",
+        "lib/net10.0/Asp.Versioning.Abstractions.dll",
+        "lib/net10.0/Asp.Versioning.Abstractions.xml",
+        "lib/netstandard1.0/Asp.Versioning.Abstractions.dll",
+        "lib/netstandard1.0/Asp.Versioning.Abstractions.xml",
+        "lib/netstandard2.0/Asp.Versioning.Abstractions.dll",
+        "lib/netstandard2.0/Asp.Versioning.Abstractions.xml"
+      ]
+    },
+    "Asp.Versioning.Http/10.0.0": {
+      "sha512": "xmNm9FM2d20NKy7i1osEQysf7pJ4iJjWnM6e8CoeIhUREqG8nugsfC82pGpmzlatjAJL5T52ieSpyW+GFdSsSQ==",
+      "type": "package",
+      "path": "asp.versioning.http/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.txt",
+        "README.md",
+        "asp.versioning.http.10.0.0.nupkg.sha512",
+        "asp.versioning.http.nuspec",
+        "icon.png",
+        "lib/net10.0/Asp.Versioning.Http.dll",
+        "lib/net10.0/Asp.Versioning.Http.xml"
+      ]
+    },
+    "Asp.Versioning.Mvc/10.0.0": {
+      "sha512": "W0wZ+0uZ0UK4KstjvEkNBZ0xxhBmxunwNg8582SVyyW7txQmSXibtm8fC4o82LaemPquYskms67bIbJOSrnlug==",
+      "type": "package",
+      "path": "asp.versioning.mvc/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.txt",
+        "README.md",
+        "asp.versioning.mvc.10.0.0.nupkg.sha512",
+        "asp.versioning.mvc.nuspec",
+        "icon.png",
+        "lib/net10.0/Asp.Versioning.Mvc.dll",
+        "lib/net10.0/Asp.Versioning.Mvc.xml"
+      ]
+    },
+    "Asp.Versioning.Mvc.ApiExplorer/10.0.0": {
+      "sha512": "H54UOpRoc4RmhQ4RA2lzDz43a/hAu/JN19Yyy/DNmH4XlRxhemfhifJyh9BaXNJOtGa2Dnu2xEeP4VSiTdUdAg==",
+      "type": "package",
+      "path": "asp.versioning.mvc.apiexplorer/10.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.txt",
+        "README.md",
+        "asp.versioning.mvc.apiexplorer.10.0.0.nupkg.sha512",
+        "asp.versioning.mvc.apiexplorer.nuspec",
+        "icon.png",
+        "lib/net10.0/Asp.Versioning.Mvc.ApiExplorer.dll",
+        "lib/net10.0/Asp.Versioning.Mvc.ApiExplorer.xml"
+      ]
+    },
     "FastExpressionCompiler/5.3.0": {
       "sha512": "XRmGW48Gdm7B70WUtTJJUnmuc8jRDmOhhjG/a3rix/nXChnrkETaSvA0j2VrcsH4MNeYLe60LA5o5JABmbneag==",
       "type": "package",
@@ -1422,14 +1626,14 @@
         "imtools.nuspec"
       ]
     },
-    "JasperFx/1.20.0": {
-      "sha512": "ymb6lJnPITfnnw2IO2Ddtu4weXDcA5L80rXYKhF7H8IIsFCiTPQ1DAeGtNvsF22N3JBKNyKjAtg+fuTxgRMj3g==",
+    "JasperFx/1.28.2": {
+      "sha512": "PqiJQrZ02ytH+BBNkKm2mc+CD5OSIcx8HIElQuI8KNkqHgBQ3LRQ07wmeniHvOVkXmiEIH2CAhksA3wj0n+aeQ==",
       "type": "package",
-      "path": "jasperfx/1.20.0",
+      "path": "jasperfx/1.28.2",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "jasperfx.1.20.0.nupkg.sha512",
+        "jasperfx.1.28.2.nupkg.sha512",
         "jasperfx.nuspec",
         "lib/net10.0/JasperFx.dll",
         "lib/net10.0/JasperFx.xml",
@@ -1439,14 +1643,14 @@
         "lib/net9.0/JasperFx.xml"
       ]
     },
-    "JasperFx.Events/1.22.0": {
-      "sha512": "QD01W8GFqHcMLYpqF4G5adkEHFexCntWSIWejvccVxmw8TTMmGf+EH8EoQI8EitdCc0XZ/ocGog2TQTRkqxG4A==",
+    "JasperFx.Events/1.31.1": {
+      "sha512": "VTiVkFYgQFixA1KupIcOCAQUxfczhPrYLB6Qi9KKsdygfk4yEGyK+qQN81uoARz8TSOrEgjpCz9dx1wnQVUYHQ==",
       "type": "package",
-      "path": "jasperfx.events/1.22.0",
+      "path": "jasperfx.events/1.31.1",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "jasperfx.events.1.22.0.nupkg.sha512",
+        "jasperfx.events.1.31.1.nupkg.sha512",
         "jasperfx.events.nuspec",
         "lib/net10.0/JasperFx.Events.dll",
         "lib/net10.0/JasperFx.Events.xml",
@@ -1456,14 +1660,14 @@
         "lib/net9.0/JasperFx.Events.xml"
       ]
     },
-    "JasperFx.RuntimeCompiler/4.4.0": {
-      "sha512": "n5dOtQlytGsCfpRyOGDw/qHaqPDd2GcR7pgO53bQto1T82/VZjQdzkfuLQt8vUMY6D+m1TgqUjqedNFDT1+rEQ==",
+    "JasperFx.RuntimeCompiler/4.5.0": {
+      "sha512": "SGJlU1kD8lX8A5p0hBWTPDV7dvPzoUB37IZjprWgA+L5yZZNyBElpn6UPNo7ZuXLKKwlSSt8BWTr99vxpxT3JA==",
       "type": "package",
-      "path": "jasperfx.runtimecompiler/4.4.0",
+      "path": "jasperfx.runtimecompiler/4.5.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "jasperfx.runtimecompiler.4.4.0.nupkg.sha512",
+        "jasperfx.runtimecompiler.4.5.0.nupkg.sha512",
         "jasperfx.runtimecompiler.nuspec",
         "lib/net10.0/JasperFx.RuntimeCompiler.dll",
         "lib/net10.0/JasperFx.RuntimeCompiler.xml",
@@ -1471,6 +1675,18 @@
         "lib/net8.0/JasperFx.RuntimeCompiler.xml",
         "lib/net9.0/JasperFx.RuntimeCompiler.dll",
         "lib/net9.0/JasperFx.RuntimeCompiler.xml"
+      ]
+    },
+    "JasperFx.SourceGeneration/1.1.0": {
+      "sha512": "yIOaiA/OrlXQLGPjxFDubHnOU8MCzPTz465xBGRITMm4fDf7DbWKogb2SZC2jYLWEj27q3smTz1Z7lU4h1KkOQ==",
+      "type": "package",
+      "path": "jasperfx.sourcegeneration/1.1.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "analyzers/dotnet/cs/JasperFx.SourceGeneration.dll",
+        "jasperfx.sourcegeneration.1.1.0.nupkg.sha512",
+        "jasperfx.sourcegeneration.nuspec"
       ]
     },
     "Meziantou.Analyzer/2.0.257": {
@@ -2787,6 +3003,66 @@
         "microsoft.codeanalysis.workspaces.common.nuspec"
       ]
     },
+    "Microsoft.EntityFrameworkCore/10.0.2": {
+      "sha512": "d3+XKbLSHPCu3vwpXECoXcFbvGKmAhEeUmc1xy2czmuPnEF7rZN2HP5ZGMwCMbAKk4B01+nS4HixSMo2Vf/Y9g==",
+      "type": "package",
+      "path": "microsoft.entityframeworkcore/10.0.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "buildTransitive/net10.0/Microsoft.EntityFrameworkCore.props",
+        "lib/net10.0/Microsoft.EntityFrameworkCore.dll",
+        "lib/net10.0/Microsoft.EntityFrameworkCore.xml",
+        "microsoft.entityframeworkcore.10.0.2.nupkg.sha512",
+        "microsoft.entityframeworkcore.nuspec"
+      ]
+    },
+    "Microsoft.EntityFrameworkCore.Abstractions/10.0.2": {
+      "sha512": "BzAwIU5mYeOmnKbEXrkwx7feW2V+zUTrK/kRonSib94tjvc0/iRj2a4N6YGXRhTNjaFP3tvCMIDaX1vIFF6dkg==",
+      "type": "package",
+      "path": "microsoft.entityframeworkcore.abstractions/10.0.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "lib/net10.0/Microsoft.EntityFrameworkCore.Abstractions.dll",
+        "lib/net10.0/Microsoft.EntityFrameworkCore.Abstractions.xml",
+        "microsoft.entityframeworkcore.abstractions.10.0.2.nupkg.sha512",
+        "microsoft.entityframeworkcore.abstractions.nuspec"
+      ]
+    },
+    "Microsoft.EntityFrameworkCore.Analyzers/10.0.2": {
+      "sha512": "5C8aKN2HFhXfLhkrVvQ6yH990nw35pS7HNnwdBc628zIREaKJ4/rkdCXzxOdZo/SnCT3Kg7a/CqnhlzuJhlD4Q==",
+      "type": "package",
+      "path": "microsoft.entityframeworkcore.analyzers/10.0.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "analyzers/dotnet/cs/Microsoft.EntityFrameworkCore.Analyzers.dll",
+        "docs/PACKAGE.md",
+        "microsoft.entityframeworkcore.analyzers.10.0.2.nupkg.sha512",
+        "microsoft.entityframeworkcore.analyzers.nuspec"
+      ]
+    },
+    "Microsoft.EntityFrameworkCore.Relational/10.0.2": {
+      "sha512": "1fUeyNmqDNfMogJ2ut7OKO57/WGjjkHMYeX51SpA3PwP7ftbx8g/Z3fbErD+1q14DILrqJfsszYsYhGssBRfDg==",
+      "type": "package",
+      "path": "microsoft.entityframeworkcore.relational/10.0.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "lib/net10.0/Microsoft.EntityFrameworkCore.Relational.dll",
+        "lib/net10.0/Microsoft.EntityFrameworkCore.Relational.xml",
+        "microsoft.entityframeworkcore.relational.10.0.2.nupkg.sha512",
+        "microsoft.entityframeworkcore.relational.nuspec"
+      ]
+    },
     "Microsoft.Extensions.AmbientMetadata.Application/10.1.0": {
       "sha512": "+T2Ax2fgw7T7nlhio+ZtgSyYGfevHCOXNPqO0vxA+f2HmbtfwAnIwHEE/jm1/4uFRDDP8PEENpxAhbucg+wUWg==",
       "type": "package",
@@ -3243,10 +3519,10 @@
         "packageIcon.png"
       ]
     },
-    "OpenTelemetry/1.14.0": {
-      "sha512": "aiPBAr1+0dPDItH++MQQr5UgMf4xiybruzNlAoYYMYN3UUk+mGRcoKuZy4Z4rhhWUZIpK2Xhe7wUUXSTM32duQ==",
+    "OpenTelemetry/1.15.3": {
+      "sha512": "N0i6WjPoHPbZyms1ugbDIFAJFuGlpeExJMU/+XSL0lQRUkg/D0utFkDoLXf8Z1km5B+xVZ2GyMXXiX8qdeNmPg==",
       "type": "package",
-      "path": "opentelemetry/1.14.0",
+      "path": "opentelemetry/1.15.3",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -3272,14 +3548,14 @@
         "lib/netstandard2.1/OpenTelemetry.dll.sigstore.json",
         "lib/netstandard2.1/OpenTelemetry.xml",
         "opentelemetry-icon-color.png",
-        "opentelemetry.1.14.0.nupkg.sha512",
+        "opentelemetry.1.15.3.nupkg.sha512",
         "opentelemetry.nuspec"
       ]
     },
-    "OpenTelemetry.Api/1.14.0": {
-      "sha512": "foHci6viUw1f3gUB8qzz3Rk02xZIWMo299X0rxK0MoOWok/3dUVru+KKdY7WIoSHwRGpxGKkmAz9jIk2RFNbsQ==",
+    "OpenTelemetry.Api/1.15.3": {
+      "sha512": "fX+fkCysfPut+qCcT3bKqyX4QN9Saf4CgX8HLOHywEVD+Xr7sULtfuypITpoDysjx8R59dn/3mWhgimMH8cm/g==",
       "type": "package",
-      "path": "opentelemetry.api/1.14.0",
+      "path": "opentelemetry.api/1.15.3",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -3302,14 +3578,14 @@
         "lib/netstandard2.0/OpenTelemetry.Api.dll.sigstore.json",
         "lib/netstandard2.0/OpenTelemetry.Api.xml",
         "opentelemetry-icon-color.png",
-        "opentelemetry.api.1.14.0.nupkg.sha512",
+        "opentelemetry.api.1.15.3.nupkg.sha512",
         "opentelemetry.api.nuspec"
       ]
     },
-    "OpenTelemetry.Api.ProviderBuilderExtensions/1.14.0": {
-      "sha512": "i/lxOM92v+zU5I0rGl5tXAGz6EJtxk2MvzZ0VN6F6L5pMqT6s6RCXnGWXg6fW+vtZJsllBlQaf/VLPTzgefJpg==",
+    "OpenTelemetry.Api.ProviderBuilderExtensions/1.15.3": {
+      "sha512": "SYn0lqYDwLMWhv/zlNGsQcl2yX++yTumanX46bmOZE/ZDOd1WjPBO2kZaZgKLEZTZk48pavIFGJ6vOvxXgWVFQ==",
       "type": "package",
-      "path": "opentelemetry.api.providerbuilderextensions/1.14.0",
+      "path": "opentelemetry.api.providerbuilderextensions/1.15.3",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -3332,14 +3608,14 @@
         "lib/netstandard2.0/OpenTelemetry.Api.ProviderBuilderExtensions.dll.sigstore.json",
         "lib/netstandard2.0/OpenTelemetry.Api.ProviderBuilderExtensions.xml",
         "opentelemetry-icon-color.png",
-        "opentelemetry.api.providerbuilderextensions.1.14.0.nupkg.sha512",
+        "opentelemetry.api.providerbuilderextensions.1.15.3.nupkg.sha512",
         "opentelemetry.api.providerbuilderextensions.nuspec"
       ]
     },
-    "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.14.0": {
-      "sha512": "7ELExeje+T/KOywHuHwZBGQNtYlepUaYRFXWgoEaT1iKpFJVwOlE1Y2+uqHI2QQmah0Ue+XgRmDy924vWHfJ6Q==",
+    "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.15.3": {
+      "sha512": "FEXJepcseTGbATiCkUfP7ipoFEYYfl/0UmmUwi0KxCPg9PaUA8ab2P1LGopK+/HExasJ1ZutFhZrN6WvUIR23g==",
       "type": "package",
-      "path": "opentelemetry.exporter.opentelemetryprotocol/1.14.0",
+      "path": "opentelemetry.exporter.opentelemetryprotocol/1.15.3",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -3365,14 +3641,14 @@
         "lib/netstandard2.1/OpenTelemetry.Exporter.OpenTelemetryProtocol.dll.sigstore.json",
         "lib/netstandard2.1/OpenTelemetry.Exporter.OpenTelemetryProtocol.xml",
         "opentelemetry-icon-color.png",
-        "opentelemetry.exporter.opentelemetryprotocol.1.14.0.nupkg.sha512",
+        "opentelemetry.exporter.opentelemetryprotocol.1.15.3.nupkg.sha512",
         "opentelemetry.exporter.opentelemetryprotocol.nuspec"
       ]
     },
-    "OpenTelemetry.Extensions.Hosting/1.14.0": {
-      "sha512": "ZAxkCIa3Q3YWZ1sGrolXfkhPqn2PFSz2Cel74em/fATZgY5ixlw6MQp2icmqKCz4C7M1W2G0b92K3rX8mOtFRg==",
+    "OpenTelemetry.Extensions.Hosting/1.15.3": {
+      "sha512": "u8n/W8yIlqv0BXZmvId1iVaeWXG42tGKdTkuLYg5g57Y/r9CeUNzqtrSHNdG5IoO8iPX79w3v+WsbAHgUQbfeg==",
       "type": "package",
-      "path": "opentelemetry.extensions.hosting/1.14.0",
+      "path": "opentelemetry.extensions.hosting/1.15.3",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -3395,14 +3671,14 @@
         "lib/netstandard2.0/OpenTelemetry.Extensions.Hosting.dll.sigstore.json",
         "lib/netstandard2.0/OpenTelemetry.Extensions.Hosting.xml",
         "opentelemetry-icon-color.png",
-        "opentelemetry.extensions.hosting.1.14.0.nupkg.sha512",
+        "opentelemetry.extensions.hosting.1.15.3.nupkg.sha512",
         "opentelemetry.extensions.hosting.nuspec"
       ]
     },
-    "OpenTelemetry.Instrumentation.AspNetCore/1.14.0": {
-      "sha512": "NQAQpFa3a4ofPUYwxcwtNPGpuRNwwx1HM7MnLEESYjYkhfhER+PqqGywW65rWd7bJEc1/IaL+xbmHH99pYDE0A==",
+    "OpenTelemetry.Instrumentation.AspNetCore/1.15.0": {
+      "sha512": "mte1nRYefxjed2syXgVWq3UCfMKO7MkebvTZmf0O1aLgVgCktLsVjQ6mftyjIbWGBBCHN0wg+Glxj8BSFS70pQ==",
       "type": "package",
-      "path": "opentelemetry.instrumentation.aspnetcore/1.14.0",
+      "path": "opentelemetry.instrumentation.aspnetcore/1.15.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -3415,7 +3691,7 @@
         "lib/netstandard2.0/OpenTelemetry.Instrumentation.AspNetCore.dll",
         "lib/netstandard2.0/OpenTelemetry.Instrumentation.AspNetCore.xml",
         "opentelemetry-icon-color.png",
-        "opentelemetry.instrumentation.aspnetcore.1.14.0.nupkg.sha512",
+        "opentelemetry.instrumentation.aspnetcore.1.15.0.nupkg.sha512",
         "opentelemetry.instrumentation.aspnetcore.nuspec"
       ]
     },
@@ -3438,10 +3714,10 @@
         "opentelemetry.instrumentation.grpcnetclient.nuspec"
       ]
     },
-    "OpenTelemetry.Instrumentation.Http/1.14.0": {
-      "sha512": "uH8X1fYnywrgaUrSbemKvFiFkBwY7ZbBU7Wh4A/ORQmdpF3G/5STidY4PlK4xYuIv9KkdMXH/vkpvzQcayW70g==",
+    "OpenTelemetry.Instrumentation.Http/1.15.0": {
+      "sha512": "uToc7bUp8IEdb0ny9mKsL6FrrYelINPzxxiSShJgOf4XmQc4Azww6S5RjRj24YhsOn2a1MABOrxfVTZXtDk4Eg==",
       "type": "package",
-      "path": "opentelemetry.instrumentation.http/1.14.0",
+      "path": "opentelemetry.instrumentation.http/1.15.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -3456,14 +3732,14 @@
         "lib/netstandard2.0/OpenTelemetry.Instrumentation.Http.dll",
         "lib/netstandard2.0/OpenTelemetry.Instrumentation.Http.xml",
         "opentelemetry-icon-color.png",
-        "opentelemetry.instrumentation.http.1.14.0.nupkg.sha512",
+        "opentelemetry.instrumentation.http.1.15.0.nupkg.sha512",
         "opentelemetry.instrumentation.http.nuspec"
       ]
     },
-    "OpenTelemetry.Instrumentation.Runtime/1.14.0": {
-      "sha512": "Z6o4JDOQaKv6bInAYZxuyxxfMKr6hFpwLnKEgQ+q+oBNA9Fm1sysjFCOzRzk7U0WD86LsRPXX+chv1vJIg7cfg==",
+    "OpenTelemetry.Instrumentation.Runtime/1.15.0": {
+      "sha512": "OOvpqR/j2Pb6+tWhHNODIbSJ53Or/MDtTiXEyrsWI02K2lLAgvBFcxUOrHggS/8015cYR3AdSaXv6NZrkz5yQA==",
       "type": "package",
-      "path": "opentelemetry.instrumentation.runtime/1.14.0",
+      "path": "opentelemetry.instrumentation.runtime/1.15.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -3478,7 +3754,7 @@
         "lib/netstandard2.0/OpenTelemetry.Instrumentation.Runtime.dll",
         "lib/netstandard2.0/OpenTelemetry.Instrumentation.Runtime.xml",
         "opentelemetry-icon-color.png",
-        "opentelemetry.instrumentation.runtime.1.14.0.nupkg.sha512",
+        "opentelemetry.instrumentation.runtime.1.15.0.nupkg.sha512",
         "opentelemetry.instrumentation.runtime.nuspec"
       ]
     },
@@ -3618,14 +3894,16 @@
         "tools/uninstall.ps1"
       ]
     },
-    "Spectre.Console/0.53.0": {
-      "sha512": "m2iv8Egfywp7FaNLKCmCFHbSf36D4ctzZKvlAK9NXMyGLh6L+CnrZWK8o+LOYsoAS1jtoHn0W1BT0W8vuq/FUw==",
+    "Spectre.Console/0.55.0": {
+      "sha512": "2TVhUHFsDux0Z+y2Hv4bFsOMuON4SuotEEKkMparFkp5Rm259naaaEQrN4Sv6C1cbsiGKPjfkJDGgUp+hZPjTw==",
       "type": "package",
-      "path": "spectre.console/0.53.0",
+      "path": "spectre.console/0.55.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
         "README.md",
+        "lib/net10.0/Spectre.Console.dll",
+        "lib/net10.0/Spectre.Console.xml",
         "lib/net8.0/Spectre.Console.dll",
         "lib/net8.0/Spectre.Console.xml",
         "lib/net9.0/Spectre.Console.dll",
@@ -3633,8 +3911,29 @@
         "lib/netstandard2.0/Spectre.Console.dll",
         "lib/netstandard2.0/Spectre.Console.xml",
         "logo.png",
-        "spectre.console.0.53.0.nupkg.sha512",
+        "spectre.console.0.55.0.nupkg.sha512",
         "spectre.console.nuspec"
+      ]
+    },
+    "Spectre.Console.Ansi/0.55.0": {
+      "sha512": "GIfgOvuF8MpU52bprhwtDEtx0gmVIGOepM8bw0lH/TSMD0rg1Xp+5Y53kPG8rFVdcpbNANlhDQ5mEVVPO3/2Tg==",
+      "type": "package",
+      "path": "spectre.console.ansi/0.55.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "lib/net10.0/Spectre.Console.Ansi.dll",
+        "lib/net10.0/Spectre.Console.Ansi.xml",
+        "lib/net8.0/Spectre.Console.Ansi.dll",
+        "lib/net8.0/Spectre.Console.Ansi.xml",
+        "lib/net9.0/Spectre.Console.Ansi.dll",
+        "lib/net9.0/Spectre.Console.Ansi.xml",
+        "lib/netstandard2.0/Spectre.Console.Ansi.dll",
+        "lib/netstandard2.0/Spectre.Console.Ansi.xml",
+        "logo.png",
+        "spectre.console.ansi.0.55.0.nupkg.sha512",
+        "spectre.console.ansi.nuspec"
       ]
     },
     "System.Composition/9.0.0": {
@@ -3823,40 +4122,45 @@
         "system.identitymodel.tokens.jwt.nuspec"
       ]
     },
-    "WolverineFx/5.17.0": {
-      "sha512": "B7EWuzVBuyJaYoAsTEnKBKMjR+1DhjleopbHF9S2jzj0G7T3s/movynOgtq2CqlVi2EMRIyOrPhAlSm9wSPrtA==",
+    "WolverineFx/5.36.2": {
+      "sha512": "UA4I0qZiLqeqItf+J/hyqdyRq8JngEPMIvhNB79RDwp7rVfU6P4XdlvRfa9IvhVs3p+z4fkI3nzzmPGMn2/h7w==",
       "type": "package",
-      "path": "wolverinefx/5.17.0",
+      "path": "wolverinefx/5.36.2",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
+        "analyzers/dotnet/cs/Wolverine.SourceGeneration.dll",
         "lib/net10.0/Wolverine.dll",
         "lib/net10.0/Wolverine.xml",
         "lib/net8.0/Wolverine.dll",
         "lib/net8.0/Wolverine.xml",
         "lib/net9.0/Wolverine.dll",
         "lib/net9.0/Wolverine.xml",
-        "wolverinefx.5.17.0.nupkg.sha512",
+        "wolverinefx.5.36.2.nupkg.sha512",
         "wolverinefx.nuspec"
       ]
     }
   },
   "projectFileDependencyGroups": {
     "net10.0": [
+      "Asp.Versioning.Http >= 10.0.0",
+      "Asp.Versioning.Mvc.ApiExplorer >= 10.0.0",
       "FluentValidation >= 11.11.0",
       "Meziantou.Analyzer >= 2.0.257",
       "Microsoft.AspNetCore.Authentication.JwtBearer >= 10.0.2",
+      "Microsoft.EntityFrameworkCore >= 10.0.2",
+      "Microsoft.EntityFrameworkCore.Relational >= 10.0.2",
       "Microsoft.Extensions.Http.Resilience >= 10.1.0",
       "Microsoft.Extensions.ServiceDiscovery >= 10.1.0",
-      "OpenTelemetry.Exporter.OpenTelemetryProtocol >= 1.14.0",
-      "OpenTelemetry.Extensions.Hosting >= 1.14.0",
-      "OpenTelemetry.Instrumentation.AspNetCore >= 1.14.0",
+      "OpenTelemetry.Exporter.OpenTelemetryProtocol >= 1.15.3",
+      "OpenTelemetry.Extensions.Hosting >= 1.15.3",
+      "OpenTelemetry.Instrumentation.AspNetCore >= 1.15.0",
       "OpenTelemetry.Instrumentation.GrpcNetClient >= 1.10.0-beta.1",
-      "OpenTelemetry.Instrumentation.Http >= 1.14.0",
-      "OpenTelemetry.Instrumentation.Runtime >= 1.14.0",
+      "OpenTelemetry.Instrumentation.Http >= 1.15.0",
+      "OpenTelemetry.Instrumentation.Runtime >= 1.15.0",
       "Roslynator.Analyzers >= 4.14.1",
       "SonarAnalyzer.CSharp >= 10.16.0.128591",
-      "WolverineFx >= 5.17.0"
+      "WolverineFx >= 5.36.2"
     ]
   },
   "packageFolders": {
@@ -3904,6 +4208,16 @@
       "net10.0": {
         "targetAlias": "net10.0",
         "dependencies": {
+          "Asp.Versioning.Http": {
+            "target": "Package",
+            "version": "[10.0.0, )",
+            "versionCentrallyManaged": true
+          },
+          "Asp.Versioning.Mvc.ApiExplorer": {
+            "target": "Package",
+            "version": "[10.0.0, )",
+            "versionCentrallyManaged": true
+          },
           "FluentValidation": {
             "target": "Package",
             "version": "[11.11.0, )",
@@ -3921,6 +4235,16 @@
             "version": "[10.0.2, )",
             "versionCentrallyManaged": true
           },
+          "Microsoft.EntityFrameworkCore": {
+            "target": "Package",
+            "version": "[10.0.2, )",
+            "versionCentrallyManaged": true
+          },
+          "Microsoft.EntityFrameworkCore.Relational": {
+            "target": "Package",
+            "version": "[10.0.2, )",
+            "versionCentrallyManaged": true
+          },
           "Microsoft.Extensions.Http.Resilience": {
             "target": "Package",
             "version": "[10.1.0, )",
@@ -3933,17 +4257,17 @@
           },
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": {
             "target": "Package",
-            "version": "[1.14.0, )",
+            "version": "[1.15.3, )",
             "versionCentrallyManaged": true
           },
           "OpenTelemetry.Extensions.Hosting": {
             "target": "Package",
-            "version": "[1.14.0, )",
+            "version": "[1.15.3, )",
             "versionCentrallyManaged": true
           },
           "OpenTelemetry.Instrumentation.AspNetCore": {
             "target": "Package",
-            "version": "[1.14.0, )",
+            "version": "[1.15.0, )",
             "versionCentrallyManaged": true
           },
           "OpenTelemetry.Instrumentation.GrpcNetClient": {
@@ -3953,12 +4277,12 @@
           },
           "OpenTelemetry.Instrumentation.Http": {
             "target": "Package",
-            "version": "[1.14.0, )",
+            "version": "[1.15.0, )",
             "versionCentrallyManaged": true
           },
           "OpenTelemetry.Instrumentation.Runtime": {
             "target": "Package",
-            "version": "[1.14.0, )",
+            "version": "[1.15.0, )",
             "versionCentrallyManaged": true
           },
           "Roslynator.Analyzers": {
@@ -3977,11 +4301,13 @@
           },
           "WolverineFx": {
             "target": "Package",
-            "version": "[5.17.0, )",
+            "version": "[5.36.2, )",
             "versionCentrallyManaged": true
           }
         },
         "centralPackageVersions": {
+          "Asp.Versioning.Http": "10.0.0",
+          "Asp.Versioning.Mvc.ApiExplorer": "10.0.0",
           "Aspire.Hosting.Azure.ApplicationInsights": "9.3.0",
           "Aspire.Hosting.Azure.ServiceBus": "9.3.0",
           "Aspire.Hosting.PostgreSQL": "9.3.0",
@@ -4004,6 +4330,7 @@
           "Microsoft.AspNetCore.OpenApi": "10.0.2",
           "Microsoft.EntityFrameworkCore": "10.0.2",
           "Microsoft.EntityFrameworkCore.Design": "10.0.2",
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
           "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
@@ -4014,18 +4341,20 @@
           "Microsoft.NET.Test.Sdk": "17.13.0",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.0",
           "NSubstitute": "5.3.0",
-          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.14.0",
-          "OpenTelemetry.Extensions.Hosting": "1.14.0",
-          "OpenTelemetry.Instrumentation.AspNetCore": "1.14.0",
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.15.3",
+          "OpenTelemetry.Extensions.Hosting": "1.15.3",
+          "OpenTelemetry.Instrumentation.AspNetCore": "1.15.0",
           "OpenTelemetry.Instrumentation.GrpcNetClient": "1.10.0-beta.1",
-          "OpenTelemetry.Instrumentation.Http": "1.14.0",
-          "OpenTelemetry.Instrumentation.Runtime": "1.14.0",
+          "OpenTelemetry.Instrumentation.Http": "1.15.0",
+          "OpenTelemetry.Instrumentation.Runtime": "1.15.0",
           "Roslynator.Analyzers": "4.14.1",
           "SonarAnalyzer.CSharp": "10.16.0.128591",
-          "WolverineFx": "5.17.0",
-          "WolverineFx.AzureServiceBus": "5.17.0",
-          "WolverineFx.EntityFrameworkCore": "5.17.0",
-          "WolverineFx.FluentValidation": "5.17.0",
+          "WolverineFx": "5.36.2",
+          "WolverineFx.AzureServiceBus": "5.36.2",
+          "WolverineFx.EntityFrameworkCore": "5.36.2",
+          "WolverineFx.FluentValidation": "5.36.2",
+          "WolverineFx.Postgresql": "5.36.2",
+          "WolverineFx.SqlServer": "5.36.2",
           "xunit": "2.9.3",
           "xunit.runner.visualstudio": "3.0.2"
         },

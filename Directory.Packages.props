@@ -15,17 +15,22 @@
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.2" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.2" />
+    <PackageVersion Include="Asp.Versioning.Http" Version="10.0.0" />
+    <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.0.0" />
 
     <!-- Messaging -->
     <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
-    <PackageVersion Include="WolverineFx" Version="5.17.0" />
-    <PackageVersion Include="WolverineFx.AzureServiceBus" Version="5.17.0" />
-    <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="5.17.0" />
-    <PackageVersion Include="WolverineFx.FluentValidation" Version="5.17.0" />
+    <PackageVersion Include="WolverineFx" Version="5.36.2" />
+    <PackageVersion Include="WolverineFx.AzureServiceBus" Version="5.36.2" />
+    <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="5.36.2" />
+    <PackageVersion Include="WolverineFx.FluentValidation" Version="5.36.2" />
+    <PackageVersion Include="WolverineFx.SqlServer" Version="5.36.2" />
+    <PackageVersion Include="WolverineFx.Postgresql" Version="5.36.2" />
 
     <!-- Entity Framework -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.2" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.2" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
@@ -40,11 +45,11 @@
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.1.0" />
 
     <!-- OpenTelemetry -->
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.14.0" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.14.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.14.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.14.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.14.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.0" />
 
     <!-- gRPC -->
     <PackageVersion Include="Grpc.AspNetCore" Version="2.71.0" />

@@ -1,5 +1,16 @@
 namespace PaymentService.Domain.Entities;
 
+/// <summary>
+/// A refund issued against a completed <see cref="Payment"/>. Its own aggregate root rather than
+/// a child of Payment because refunds have an independent lifecycle (pending → processed/failed)
+/// and a payment may have multiple partial refunds over time.
+///
+/// <para>
+/// Currently there's no command that creates a Refund — this entity exists to support a future
+/// "Refund Processing" requirement (see BRD). Once a `RequestRefundCommand` lands, the handler
+/// will load the parent Payment, validate it's <c>Completed</c>, then call <see cref="Create"/>.
+/// </para>
+/// </summary>
 public class Refund
 {
     public Guid Id { get; private set; }

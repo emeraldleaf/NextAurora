@@ -55,6 +55,15 @@ ServiceName/
 - TreatWarningsAsErrors is enabled - zero warnings allowed
 - Static analyzers: Meziantou, SonarAnalyzer, Roslynator
 
+## Commenting Convention
+
+Two tiers:
+
+- **Architecturally significant files** (domain entities, command/event/query handlers, repositories, DbContexts, Wolverine middleware, ServiceDefaults helpers): include teaching-grade XML docs and inline comments. Explain SOLID intent (SRP, OCP, encapsulation), perf implications (`AsNoTracking`, projection, transactional outbox), idempotency mechanisms, and the *why* behind non-obvious choices. Aim for "a junior dev can read this file end-to-end and learn the pattern" — not encyclopedic, but generous with context. Do not strip these comments on subsequent edits.
+- **Trivial files** (DTOs, FluentValidation validators, generated EF migrations, simple endpoint registrations, csproj, AppHost, gRPC `.proto` glue): no comments unless something is genuinely non-obvious. Names carry the meaning.
+
+The original "default to no comments" guidance still applies when *adding new code that doesn't fit tier 1* — don't sprinkle WHAT-comments across plumbing, never leave PR-relative comments ("added for X", "fixes #123"), never comment around well-named identifiers. The tier-1 carve-out is about *teaching the architecture*, not narrating every method.
+
 ## Package Management
 
 - Central Package Management via `Directory.Packages.props` - all versions defined there
@@ -64,8 +73,8 @@ ServiceName/
 ## Communication Patterns
 
 - **Async events** (Azure Service Bus): For workflow orchestration (order -> payment -> shipping -> notification)
-- **gRPC** (sync): For real-time queries between services (OrderService -> CatalogService product validation)
-- **REST** (HTTP): For frontend-to-service communication only
+- **gRPC** (sync): For real-time queries between services (OrderService -> CatalogService product validation). gRPC is versioned separately via `.proto` `package` declarations.
+- **REST** (HTTP): For frontend-to-service communication only. URL-segment versioned via `Asp.Versioning.Http` — every endpoint lives under `/api/v{version}/...`. Default version is `1.0`; the version segment is required (`AssumeDefaultVersionWhenUnspecified = false`). **Always use `app.MapV1ApiGroup("Tag", "resource")`** (helper in `NextAurora.ServiceDefaults`) to register a versioned route group — it returns a `RouteGroupBuilder` rooted at `/api/v1/resource` and applies the version + tag in one call. Don't hand-roll `NewVersionedApi(...).MapGroup(...).HasApiVersion(...)` chains — drift across services is the failure mode. To add v2 later, register a side-by-side group with `.HasApiVersion(new ApiVersion(2, 0))`; v1 keeps working untouched.
 
 ## Key Conventions
 
@@ -74,8 +83,27 @@ ServiceName/
 - Domain entities use factory methods (`Create()`) with validation, not public constructors
 - Event handlers must be idempotent
 - Use the Outbox pattern for guaranteed event publishing (save entity + event in same transaction)
-- All API responses should use Result pattern or ProblemDetails for errors
+- All API error responses use RFC 7807 ProblemDetails via `GlobalExceptionHandler` (in `NextAurora.ServiceDefaults`). Never expose internal state, entity IDs, or stack traces to clients — log details server-side and return generic detail with the trace ID
 - Never commit .env files, connection strings, or secrets
+
+## Performance Rules
+
+These are always-on. Deeper guidance (modern EF features, transactions, caching strategies, GC pressure, migrations, benchmarking) lives in the `dotnet-performance` skill.
+
+- **EF Core reads**: always `AsNoTracking()` + projection (`.Select(...)` to a DTO). Queries return DTOs, never tracked entities. Writes load the aggregate (tracked) because they mutate it. If you must `Include` an entity graph without tracking, use `AsNoTrackingWithIdentityResolution()` (plain `AsNoTracking() + Include` duplicates shared related objects).
+- **No N+1**: use `Include` or projection. Never query inside a `foreach` over results from another query.
+- **Async on request paths**: `await` everywhere. Never `.Result`, `.Wait()`, or `.GetAwaiter().GetResult()`. Every async method on a request path takes and propagates `CancellationToken`.
+- **Pagination**: every list endpoint must paginate with a server-side size cap (≤ 100). Use keyset pagination for large offsets.
+- **Bulk ops**: use `ExecuteUpdateAsync` / `ExecuteDeleteAsync` — never load thousands of rows just to mutate or delete them.
+- **Optimistic concurrency**: every updatable aggregate must have a concurrency token (Postgres `xmin` or a row-version column). Last-write-wins is not acceptable.
+- **Outbox atomicity**: the entity write and outbox-row write commit in the same transaction. Prefer one `SaveChanges` call; otherwise use `BeginTransactionAsync` explicitly.
+- **`DbContext` is not thread-safe**: parallel queries (`Task.WhenAll`) require `IDbContextFactory<T>` — one context per task. The scoped per-request context handles only sequential work.
+- **Structured logging**: use message templates (`"User {UserId} logged in"`) with parameter placeholders, never string concatenation or interpolation. This is also required for the correlation/user/session scope to work.
+- **No logging in tight loops**: log summaries (`"Processed {Count} items"`), not per-item lines.
+- **DB connection hold time**: open → query → dispose. Don't `await` unrelated work (HTTP calls, message publishes) while a connection is open.
+- **Cache invalidation in the write path**: if a handler mutates a cached entity, it must invalidate or update the cache in the same handler — not "later" or "via TTL".
+- **Migrations are immutable once applied**: never edit a migration that has run anywhere (dev included). Destructive changes (drop column/table, rename, NOT NULL on existing column) need a multi-step plan, not a single migration.
+- **Measure before optimizing**: don't add caching, compiled queries, `ValueTask`, or `AsSplitQuery()` on intuition. Use BenchmarkDotNet for code paths, `dotnet-counters`/k6 for system behavior, `ToQueryString()` for EF.
 
 ## Testing
 
@@ -108,33 +136,35 @@ Every HTTP request and Service Bus message carries three context identifiers:
 - `user.id` — from `ClaimTypes.NameIdentifier` JWT claim (`sub`); null when unauthenticated
 - `session.id` — from `X-Session-Id` request header (client-generated browser/app session UUID); null if not provided
 
-All three are set by `CorrelationIdMiddleware` (HTTP entry point) and by each Service Bus processor handler (async entry point). All three are propagated into outgoing Service Bus messages by `ServiceBusEventPublisher`.
+All three are set by `CorrelationIdMiddleware` (HTTP entry point) and by `ContextPropagationMiddleware` (Wolverine incoming-message middleware, async entry point). All three are propagated onto outgoing Wolverine messages by `OutgoingContextMiddleware`. Both middlewares are wired via the `opts.AddNextAuroraContextPropagation()` extension in each service's `Program.cs`.
 
-### LoggingBehavior scope
+### Wolverine pipeline scope
 
-`LoggingBehavior<TRequest, TResponse>` opens a `logger.BeginScope()` before invoking the handler. This means **every log line emitted anywhere in the handler** carries `CorrelationId`, `UserId`, and `SessionId` automatically in structured log output.
+`ContextPropagationMiddleware` opens a `logger.BeginScope()` before invoking each handler so **every log line emitted anywhere in the handler** carries `CorrelationId`, `UserId`, and `SessionId` automatically. Wolverine's `Policies.LogMessageStarting()` adds handler name + elapsed time on top of that.
 
-Order in the MediatR pipeline: `ValidationBehavior` → `LoggingBehavior` → handler.
+Order in the Wolverine pipeline: FluentValidation policy (`opts.UseFluentValidation()`, rejects invalid commands before handlers run) → `ContextPropagationMiddleware` (opens logger scope) → handler. `opts.Policies.AutoApplyTransactions()` wraps each EF-touching handler chain so outgoing messages are persisted to the outbox in the same DB transaction as the entity write.
 
-### Service Bus context extraction pattern
+### Wolverine envelope context extraction
 
-All processors extract context with null-safe checks and add to both Activity baggage and `logger.BeginScope()`:
+Handlers don't extract context manually — `ContextPropagationMiddleware` does it for them. The middleware reads `Envelope.Headers["X-Correlation-Id" | "X-User-Id" | "X-Session-Id"]` (Wolverine's transport-agnostic header bag, mapped to Service Bus `ApplicationProperties` over the wire), restores them into Activity baggage, and opens a `logger.BeginScope()`. After the handler runs, `Finally()` disposes the scope.
+
+Outgoing context is stamped by `OutgoingContextMiddleware`, which reads Activity baggage and writes the same headers onto outgoing envelopes. The full mechanism is registered via `opts.AddNextAuroraContextPropagation()` in each service's `Program.cs`.
+
+Never add null/empty keys to logging scope dictionaries — use `if (x is not null) scope["Key"] = x`. Always pass `StringComparer.Ordinal` when constructing `Dictionary<string, T>` (per Meziantou MA0002).
+
+### Transactional Outbox (Wolverine)
+
+Each event-publishing service (Order, Payment, Shipping) runs Wolverine's transactional outbox. Outgoing events are persisted to a `wolverine.*` schema in the same DB transaction as the entity write, then dispatched to Azure Service Bus by Wolverine's background flush. Configuration lives in each service's `Program.cs`:
 
 ```csharp
-var correlationId = message.ApplicationProperties.TryGetValue("X-Correlation-Id", out var cid)
-    ? cid?.ToString() : message.CorrelationId;
-var userId = message.ApplicationProperties.TryGetValue("X-User-Id", out var uid)
-    ? uid?.ToString() : null;
-var sessionId = message.ApplicationProperties.TryGetValue("X-Session-Id", out var sid)
-    ? sid?.ToString() : null;
-
-if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
-if (userId is not null) Activity.Current?.SetBaggage("user.id", userId);
-if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
+opts.PersistMessagesWithSqlServer(connectionString, "wolverine");   // or PersistMessagesWithPostgresql
+opts.UseEntityFrameworkCoreTransactions();
+opts.Policies.AutoApplyTransactions();
+opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 ```
 
-Never add null/empty keys to logging scope dictionaries — use `if (x is not null) scope["Key"] = x`.
+`builder.Services.AddResourceSetupOnStartup()` auto-creates outbox tables on app startup. This means the entity write and the event publish either both commit or neither does — no more lost events on bus failure or process crash. See [docs/performance-and-data-correctness.md](docs/performance-and-data-correctness.md) for the full rationale and failure modes addressed.
 
 ### Event Replay
 
-Each of Order, Payment, and Shipping services logs every published event to an `EventLogs` table (see `LoggingEventPublisher`). Admin endpoints (`/admin/events`) allow querying and replaying events by correlation ID or entity ID. Protected by `X-Admin-Key` header matching `AdminApiKey` config value.
+Replay is handled through Wolverine's own message-store and DLQ tooling. The previous hand-rolled `EventLogs` table and `/admin/events` endpoints were deleted as dead code post-Wolverine — they were only ever populated by replay records of replays. If operator-facing event browsing is needed, build it on top of `IMessageStore` (Wolverine's API) or the `wolverine.outgoing_envelopes` table directly.

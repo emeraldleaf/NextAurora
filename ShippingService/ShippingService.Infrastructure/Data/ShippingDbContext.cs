@@ -1,14 +1,18 @@
 using Microsoft.EntityFrameworkCore;
 using ShippingService.Domain.Entities;
-using ShippingService.Infrastructure.EventLog;
 
 namespace ShippingService.Infrastructure.Data;
 
+/// <summary>
+/// EF Core DbContext for ShippingService — backed by PostgreSQL. Mirrors the patterns used in
+/// the other DbContexts: enums as strings, money/identifier length caps, the Postgres-native
+/// <c>xmin</c> concurrency token (see <c>CatalogDbContext</c> for the full explanation), and
+/// a unique index on <c>OrderId</c> so each order gets at most one shipment.
+/// </summary>
 public class ShippingDbContext(DbContextOptions<ShippingDbContext> options) : DbContext(options)
 {
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<TrackingEvent> TrackingEvents => Set<TrackingEvent>();
-    public DbSet<EventLogEntry> EventLogs => Set<EventLogEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -18,8 +22,16 @@ public class ShippingDbContext(DbContextOptions<ShippingDbContext> options) : Db
             entity.Property(e => e.Carrier).HasMaxLength(50);
             entity.Property(e => e.TrackingNumber).HasMaxLength(50);
             entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+
+            // One-to-many: TrackingEvents belong to a Shipment. Unidirectional like Order/Lines.
             entity.HasMany(e => e.TrackingEvents).WithOne().HasForeignKey(t => t.ShipmentId);
+
+            // One shipment per order. Like Payment, this is the database backstop against the
+            // saga creating duplicate shipments under message redelivery.
             entity.HasIndex(e => e.OrderId).IsUnique();
+
+            // Postgres `xmin` concurrency token.
+            entity.Property<uint>("xmin").HasColumnName("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
         });
 
         modelBuilder.Entity<TrackingEvent>(entity =>
@@ -27,20 +39,7 @@ public class ShippingDbContext(DbContextOptions<ShippingDbContext> options) : Db
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.Status).HasMaxLength(20);
-        });
-
-        modelBuilder.Entity<EventLogEntry>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.EventType).HasMaxLength(256);
-            entity.Property(e => e.Topic).HasMaxLength(256);
-            entity.Property(e => e.Payload).HasColumnType("text");
-            entity.Property(e => e.CorrelationId).HasMaxLength(256);
-            entity.Property(e => e.EntityId).HasMaxLength(256);
-            entity.HasIndex(e => e.CorrelationId);
-            entity.HasIndex(e => e.OccurredAt);
-            entity.HasIndex(e => e.EventType);
-            entity.HasIndex(e => e.EntityId);
+            // No concurrency token: tracking events are append-only audit records, never updated.
         });
     }
 }

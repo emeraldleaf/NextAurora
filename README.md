@@ -11,7 +11,7 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 |                   FRONTEND LAYER                     |
 |                                                      |
 |   Storefront            SellerPortal                 |
-|   (Blazor WASM)         (Blazor Server)              |
+|   (Blazor WASM)         (scaffold)              |
 +-------+--------------------+-------------------------+
         |  REST              |  REST
         v                    v
@@ -66,18 +66,21 @@ Orchestrated by .NET Aspire (service discovery, health checks, OpenTelemetry)
 | **PaymentService** | SQL Server | Payment processing (Stripe integration) |
 | **ShippingService** | PostgreSQL | Shipment creation, tracking |
 | **NotificationService** | Stateless | Email notifications (order confirmations, shipping updates) |
-| **Storefront** | - | Customer-facing Blazor WASM SPA |
-| **SellerPortal** | - | Merchant dashboard for product/order management |
+| **Storefront** | - | Customer-facing Blazor WASM SPA (scaffold) |
+| **SellerPortal** | - | Merchant dashboard (scaffold — currently a static-file ASP.NET Core host, no UI framework chosen) |
 
 ## Tech Stack
 
 - **.NET 10** / C# 13
 - **ASP.NET Core** Minimal APIs
-- **Blazor WebAssembly** (Storefront) and **Blazor Server** (SellerPortal)
-- **Entity Framework Core 10** (PostgreSQL + SQL Server)
+- **Blazor WebAssembly** (Storefront, scaffolded — no business logic yet)
+- **ASP.NET Core static-file host** (SellerPortal scaffold — no UI framework chosen yet, currently serves a placeholder `index.html`)
+- **Entity Framework Core 10** (PostgreSQL + SQL Server) with EF migrations
 - **Azure Service Bus** for async event-driven messaging
+- **Wolverine** for command/query dispatch, message handling, and the transactional outbox
 - **gRPC** for synchronous inter-service communication
-- **MediatR** for CQRS command/query dispatch
+- **Keycloak + JWT Bearer** for authentication and authorization
+- **Asp.Versioning** for URL-segment API versioning (`/api/v1/...`)
 - **.NET Aspire** for orchestration, service discovery, and observability
 - **OpenTelemetry** for distributed tracing, metrics, and logging
 - **Redis** for caching
@@ -127,23 +130,27 @@ This starts all services, databases (PostgreSQL, SQL Server), Redis, and Azure S
 
 ## API Endpoints
 
-### Catalog Service
-- `GET /api/products` - List all products
-- `GET /api/products/{id}` - Get product by ID
-- `GET /api/products/search?query=` - Search products
-- `POST /api/products` - Create a product
-- `PUT /api/products/{id}` - Update a product
+🔒 = requires JWT Bearer authentication. Pagination params apply to list endpoints (`?page=1&pageSize=50`, server cap 100).
 
-### Order Service
-- `POST /api/orders` - Place an order
-- `GET /api/orders/{id}` - Get order by ID
-- `GET /api/orders/buyer/{buyerId}` - Get orders by buyer
+**API versioning:** URL-segment versioning via `Asp.Versioning.Http`. The version is required in the route — `/api/v1/...`. Default version is `1.0`; unversioned URLs (`/api/products`) return 400. Versioned endpoints appear in OpenAPI under group `v1`.
+
+### Catalog Service
+- `GET /api/v1/products?page=&pageSize=` - List products (paginated)
+- `GET /api/v1/products/{id}` - Get product by ID
+- `GET /api/v1/products/search?query=&page=&pageSize=` - Search products (rate-limited, paginated)
+- 🔒 `POST /api/v1/products` - Create a product
+- 🔒 `PUT /api/v1/products/{id}` - Update a product
+
+### Order Service (entire group 🔒)
+- 🔒 `POST /api/v1/orders` - Place an order (buyerId in command must match JWT `sub`)
+- 🔒 `GET /api/v1/orders/{id}` - Get order by ID
+- 🔒 `GET /api/v1/orders/buyer/{buyerId}?page=&pageSize=` - Get orders by buyer (paginated; route buyerId must match JWT `sub`)
 
 ### Payment Service
-- `POST /api/payments/process` - Process a payment
+- 🔒 `POST /api/v1/payments/process` - Process a payment (rate-limited)
 
-### Shipping Service
-- `GET /api/shipments/order/{orderId}` - Get shipment by order ID
+### Shipping Service (entire group 🔒)
+- 🔒 `GET /api/v1/shipments/order/{orderId}` - Get shipment by order ID
 
 ## Project Structure
 
@@ -177,8 +184,8 @@ NextAurora/
     NotificationService.Application/
     NotificationService.Infrastructure/
     NotificationService.Api/
-  Storefront/                 # Blazor WASM customer app
-  SellerPortal/               # Blazor Server merchant dashboard
+  Storefront/                 # Blazor WASM customer app (scaffold)
+  SellerPortal/               # ASP.NET Core static-file host scaffold (UI framework TBD)
 ```
 
 ## Event Flow
@@ -224,14 +231,12 @@ Every request and Service Bus message carries three identifiers through the enti
 These appear on **every structured log line** in every service, making it possible to search for a single `CorrelationId` and see the complete transaction timeline across all five services.
 
 Key components:
-- **`CorrelationIdMiddleware`** (`ServiceDefaults`) — HTTP entry point; extracts all three IDs
-- **`LoggingBehavior`** — MediatR pipeline behavior; opens a logger scope so handler log lines inherit the IDs automatically
-- **`ServiceBusEventPublisher`** — writes IDs into outgoing message `ApplicationProperties`
-- **Service Bus processors** — read IDs from incoming messages and restore them into the logging scope
+- **`CorrelationIdMiddleware`** (`ServiceDefaults`) — HTTP entry point; extracts all three IDs from request headers and JWT claims
+- **`ContextPropagationMiddleware`** — Wolverine middleware on the incoming side; restores the three IDs from envelope headers into the logger scope before each handler runs
+- **`OutgoingContextMiddleware`** — Wolverine middleware on the outgoing side; stamps the three IDs onto outgoing message envelopes
+- **`WolverineEventPublisher`** — thin pass-through to `IMessageBus.PublishAsync` so domain code stays infrastructure-agnostic
 
-Order, Payment, and Shipping services also persist every published event to an `EventLogs` table, enabling replay of historical events for debugging. Admin endpoints (protected by `X-Admin-Key`) are available at `/admin/events`.
-
-See [`docs/context-propagation.md`](docs/context-propagation.md) and [`docs/event-replay.md`](docs/event-replay.md) for full details.
+Order, Payment, and Shipping run **Wolverine's transactional outbox**: outgoing events persist to a `wolverine` schema in each service's database in the same DB transaction as the entity write, then dispatch to Service Bus via a background flush. See [`docs/context-propagation.md`](docs/context-propagation.md) and [`docs/performance-and-data-correctness.md`](docs/performance-and-data-correctness.md) for full details.
 
 ## Code Quality
 
@@ -242,14 +247,29 @@ The project enforces code quality standards from day one:
 - **.editorconfig** - Coding standards and naming conventions
 - **GitHub Actions** - CI pipeline for build and test on every push/PR
 
+## Authentication
+
+JWT Bearer authentication is configured in `NextAurora.ServiceDefaults` and applied to every service. Identity is provided by **Keycloak**, which runs as an Aspire-managed container with the `nextaurora-realm` imported from `realms/nextaurora-realm.json`.
+
+- **JWT validation** — issuer, audience, lifetime, and signing all validated via `AddJwtBearer` (`Authentication:Authority` config falls back to `Keycloak:Url`).
+- **Claim mapping** — `preferred_username` is the name claim, `realm_access.roles` is the role claim.
+- **Endpoint protection** — `.RequireAuthorization()` on every state-changing endpoint and the buyer-scoped read endpoints (Catalog write endpoints, all of `/api/v1/orders`, `/api/v1/payments/process`, all of `/api/v1/shipments`). Public read endpoints (`GET /api/v1/products`) remain anonymous.
+- **Buyer-scope enforcement** — endpoints that operate on a buyer's data (e.g. `GET /api/v1/orders/buyer/{buyerId}`, `POST /api/v1/orders`) verify the JWT `sub` claim matches the route/body buyer ID and return 403 otherwise.
+
+If Keycloak isn't configured (no `Authentication:Authority` and no `Keycloak:Url`), ServiceDefaults registers no-op auth services — `UseAuthentication` doesn't crash, but every `.RequireAuthorization()`-protected endpoint returns 401.
+
 ## Security & Validation
 
-- **Input Validation** - FluentValidation validators on all commands, enforced via MediatR pipeline behavior
+- **Input Validation** - FluentValidation validators on all commands, enforced via Wolverine's `UseFluentValidation()` pipeline policy (validators run before handlers; failures throw `ValidationException`)
 - **Domain Invariants** - All entities enforce business rules in factory methods (guard clauses for invalid state)
+- **Optimistic Concurrency** - `xmin` (Postgres) / `RowVersion` (SQL Server) tokens on every aggregate; `DbUpdateConcurrencyException` becomes 409 Conflict on the HTTP path and triggers Wolverine retry on the message path
+- **Transactional Outbox** - Wolverine outbox in Order, Payment, Shipping; entity writes and event publishes commit atomically
+- **Rate Limiting** - Fixed-window limiters on `/api/v1/products/search` (search) and `/api/v1/payments/process` (payments)
 - **Global Exception Handling** - ProblemDetails responses with trace IDs; internal details never leaked to clients
 - **Encapsulated Aggregates** - Collections exposed as `IReadOnlyList<T>` with private backing fields
 - **HTTPS Redirection** - Enforced in production environments
 - **Server-Side Pricing** - Order totals calculated from catalog data, not client-submitted prices
+- **Pagination Caps** - List endpoints take `page`/`pageSize` (default 50, server-side max 100)
 
 ## Communication Patterns
 

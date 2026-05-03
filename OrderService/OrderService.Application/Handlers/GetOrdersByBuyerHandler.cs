@@ -8,7 +8,7 @@ public class GetOrdersByBuyerHandler(IOrderRepository repository)
 {
     public async Task<IReadOnlyList<OrderSummaryDto>> Handle(GetOrdersByBuyerQuery request, CancellationToken cancellationToken)
     {
-        var orders = await repository.GetByBuyerIdAsync(request.BuyerId, cancellationToken);
+        var orders = await repository.GetByBuyerIdAsync(request.BuyerId, request.Page, request.PageSize, cancellationToken);
         return orders.Select(order => new OrderSummaryDto
         {
             OrderId = order.Id,

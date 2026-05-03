@@ -1,6 +1,11 @@
+using Asp.Versioning;
+using JasperFx.Core;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -13,6 +18,7 @@ using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Wolverine;
+using Wolverine.ErrorHandling;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -38,6 +44,8 @@ public static class Extensions
         builder.Services.AddServiceDiscovery();
 
         builder.AddDefaultAuthentication();
+
+        builder.AddNextAuroraApiVersioning();
 
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
@@ -179,15 +187,149 @@ public static class Extensions
     }
 
     /// <summary>
-    /// Registers Wolverine context propagation middleware for incoming messages (restores
-    /// CorrelationId, UserId, SessionId from envelope headers into Activity baggage and logger scope)
-    /// and outgoing messages (stamps X-User-Id and X-Session-Id from Activity baggage).
-    /// Call this inside UseWolverine() in every service.
+    /// URL-segment API versioning. Default version is 1.0; clients must include the version in
+    /// the route (`/api/v1/...`). The ApiExplorer integration makes versioned endpoints visible
+    /// in OpenAPI docs with version-aware group names. Called automatically by
+    /// <see cref="AddServiceDefaults{TBuilder}"/>.
+    ///
+    /// <para>
+    /// <b>Why URL-segment over header-based versioning:</b> URL versioning is what most public
+    /// REST APIs (Stripe, GitHub, Twitter, AWS) use. Pros: visible in logs/dashboards, cacheable
+    /// (HTTP caches key on URL), debuggable from a browser, plays well with Swagger. The
+    /// "header versioning is more RESTful" argument is academic — the practical wins of URL
+    /// versioning dominate.
+    /// </para>
+    /// <para>
+    /// <b>Why <c>AssumeDefaultVersionWhenUnspecified = false</c>:</b> the version segment is
+    /// required. Hitting <c>/api/products</c> returns 400, not silent v1. This avoids the
+    /// classic mistake of silently treating un-versioned calls as v1, which makes future v2
+    /// migrations a behavior-change debugging nightmare.
+    /// </para>
+    /// </summary>
+    private static TBuilder AddNextAuroraApiVersioning<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    {
+        builder.Services
+            .AddApiVersioning(options =>
+            {
+                options.DefaultApiVersion = new ApiVersion(1, 0);
+                options.AssumeDefaultVersionWhenUnspecified = false;
+                options.ReportApiVersions = true;
+                options.ApiVersionReader = new UrlSegmentApiVersionReader();
+            })
+            .AddApiExplorer(options =>
+            {
+                // 'v'VVV → groups become "v1", "v2", "v1.1" etc. in OpenAPI.
+                options.GroupNameFormat = "'v'VVV";
+                // Replace `{version:apiVersion}` placeholder with the actual version in
+                // generated docs/URLs (so Swagger UI shows "/api/v1/products" not the template).
+                options.SubstituteApiVersionInUrl = true;
+            });
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Canonical helper for registering a versioned route group at
+    /// <c>/api/v{version}/{template}</c>. Every endpoint group in every service goes through
+    /// this — that way the policy (default version, tag application, route prefix) can't drift
+    /// across services. Equivalent to:
+    /// <code>
+    /// app.NewVersionedApi(tag)
+    ///    .MapGroup("/api/v{version:apiVersion}/" + template)
+    ///    .HasApiVersion(new ApiVersion(1, 0))
+    ///    .WithTags(tag);
+    /// </code>
+    /// <para>
+    /// <b>How v2 will work:</b> register a side-by-side group with the same template but
+    /// <c>HasApiVersion(new ApiVersion(2, 0))</c>. Existing v1 callers keep hitting the v1
+    /// handler unchanged.
+    /// </para>
+    /// <para>
+    /// <b>SOLID — DRY without ceremony:</b> this method exists because the alternative — every
+    /// endpoint extension repeating four lines of boilerplate — is the kind of duplication that
+    /// rots over time (somebody copies it, somebody else types it slightly differently, the
+    /// versioning policy quietly diverges). One helper, one rule, one place to change.
+    /// </para>
+    /// </summary>
+    public static RouteGroupBuilder MapV1ApiGroup(this WebApplication app, string tag, string template)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tag);
+        ArgumentException.ThrowIfNullOrWhiteSpace(template);
+
+        var trimmed = template.TrimStart('/');
+        return app.NewVersionedApi(tag)
+            .MapGroup($"/api/v{{version:apiVersion}}/{trimmed}")
+            .HasApiVersion(new ApiVersion(1, 0))
+            .WithTags(tag);
+    }
+
+    /// <summary>
+    /// Registers Wolverine context propagation middleware for both directions:
+    /// <list type="bullet">
+    ///   <item><c>ContextPropagationMiddleware</c> (incoming) — reads CorrelationId/UserId/SessionId
+    ///         from the envelope headers and opens a logger scope so every log line emitted by
+    ///         the handler carries those fields. Mirrors what <c>CorrelationIdMiddleware</c>
+    ///         does for HTTP requests.</item>
+    ///   <item><c>OutgoingContextMiddleware</c> (outgoing) — copies those same IDs from
+    ///         Activity baggage onto outbound envelope headers so the next service in the saga
+    ///         picks them up.</item>
+    /// </list>
+    /// Call inside <c>UseWolverine()</c> in every service. Without this, observability falls
+    /// apart at the Service Bus boundary — you can't trace one transaction across services.
     /// </summary>
     public static WolverineOptions AddNextAuroraContextPropagation(this WolverineOptions opts)
     {
         opts.Policies.AddMiddleware<ContextPropagationMiddleware>();
         opts.Policies.AddMiddleware<OutgoingContextMiddleware>();
         return opts;
+    }
+
+    /// <summary>
+    /// On <see cref="DbUpdateConcurrencyException"/>, retry the message handler up to three
+    /// times with increasing backoff (50ms, 100ms, 250ms). After exhaustion the message goes
+    /// to the dead-letter queue.
+    ///
+    /// <para>
+    /// <b>Why retry rather than fail:</b> concurrency conflicts in the saga are *expected* —
+    /// when <c>PaymentCompletedEvent</c> and <c>ShipmentDispatchedEvent</c> arrive at OrderService
+    /// near-simultaneously, both handlers fetch the same order, both try to mutate, one wins.
+    /// The loser's retry refetches the now-updated order; its status guard then either no-ops
+    /// (if the operation became invalid) or applies cleanly. This is the right behavior — not
+    /// an error — and shouldn't surface as a 5xx.
+    /// </para>
+    /// <para>
+    /// <b>Pairs with the HTTP path:</b> <c>GlobalExceptionHandler</c> catches the same exception
+    /// on the HTTP side and returns 409 Conflict with a refetch-and-try-again hint.
+    /// </para>
+    /// <para>
+    /// Call inside <c>UseWolverine()</c> in every service that handles events on tracked
+    /// aggregates with concurrency tokens (Order, Payment, Shipping).
+    /// </para>
+    /// </summary>
+    public static WolverineOptions AddConcurrencyRetry(this WolverineOptions opts)
+    {
+        opts.OnException<DbUpdateConcurrencyException>()
+            .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+        return opts;
+    }
+
+    /// <summary>
+    /// Apply pending EF Core migrations at startup. Resolves the DbContext from a fresh DI
+    /// scope, calls <c>Database.MigrateAsync</c>, returns.
+    ///
+    /// <para>
+    /// <b>Dev-only by convention:</b> this is called inside <c>if (app.Environment.IsDevelopment())</c>
+    /// in every service's Program.cs. Why not production? With multiple replicas behind a load
+    /// balancer, all replicas would race to apply migrations on startup — the first wins, the
+    /// rest see history-table conflicts. In production, migrations should run as a separate
+    /// pre-deploy step, then app pods start without migration at all.
+    /// </para>
+    /// </summary>
+    public static async Task MigrateDatabaseAsync<TContext>(this IServiceProvider services, CancellationToken ct = default)
+        where TContext : DbContext
+    {
+        using var scope = services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<TContext>();
+        await context.Database.MigrateAsync(ct);
     }
 }

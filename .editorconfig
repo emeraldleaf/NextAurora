@@ -1,5 +1,13 @@
 root = true
 
+# Generated EF Core migration files: opt out of style rules.
+# Migrations are immutable once applied; treat as generated code.
+[**/Migrations/**.cs]
+generated_code = true
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.S125.severity = none
+
 [*]
 charset = utf-8
 indent_style = space

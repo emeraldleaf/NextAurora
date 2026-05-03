@@ -141,45 +141,48 @@ Request arrives
 
 ---
 
-### 3. `WolverineEventPublisher` — Carries Context to the Next Service
+### 3. `OutgoingContextMiddleware` — Carries Context to the Next Service
 
-**Files:** `{Service}.Infrastructure/Messaging/WolverineEventPublisher.cs`
+**File:** `NextAurora.ServiceDefaults/Messaging/ContextPropagationMiddleware.cs` (same file as `ContextPropagationMiddleware`).
 
-When a service publishes an event, context would normally be lost — the message is fire-and-forget. `OutgoingContextMiddleware` (also in `ServiceDefaults`) runs on every outgoing Wolverine envelope and copies the baggage into the envelope's `ApplicationProperties`:
+When a service publishes an event, context would normally be lost — the message is fire-and-forget. `OutgoingContextMiddleware` runs on every outgoing Wolverine envelope and reads the three IDs from `Activity.Current` baggage, writing them onto `Envelope.Headers`:
 
 ```csharp
-// Written onto every outgoing Service Bus message
-message.ApplicationProperties["X-Correlation-Id"] = correlationId;
-if (userId    is not null) message.ApplicationProperties["X-User-Id"]     = userId;
-if (sessionId is not null) message.ApplicationProperties["X-Session-Id"]  = sessionId;
+// Conceptual view — the middleware writes onto Envelope.Headers, which
+// Wolverine maps to the underlying transport (Azure Service Bus
+// ApplicationProperties for Service Bus, headers for other transports).
+envelope.Headers["X-Correlation-Id"] = correlationId;
+if (userId    is not null) envelope.Headers["X-User-Id"]    = userId;
+if (sessionId is not null) envelope.Headers["X-Session-Id"] = sessionId;
 ```
 
-These properties ride along with the message body and are available to the receiving service.
+`WolverineEventPublisher` itself is just a thin wrapper around `IMessageBus.PublishAsync` — it doesn't extract or stamp context. Domain code can stay infrastructure-agnostic; the middleware does the work.
+
+The headers ride along with the message and are available to the receiving service.
 
 ---
 
 ### 4. Wolverine Message Handlers — The Entry Point for Async Messages
 
-Wolverine discovers and invokes handler methods (`Handle(TEvent e)`) automatically for every incoming Service Bus message. `ContextPropagationMiddleware` runs before each handler, mirroring what `CorrelationIdMiddleware` does for HTTP — it reads `ApplicationProperties` from the Wolverine `Envelope` and restores all three IDs into Activity baggage and a logger scope.
-
-The properties extracted from each message:
+Wolverine discovers and invokes handler methods (`Handle(TEvent e)`) automatically for every incoming Service Bus message. `ContextPropagationMiddleware` runs before each handler, mirroring what `CorrelationIdMiddleware` does for HTTP — it reads the three IDs from `Envelope.Headers`, restores them into Activity baggage, and opens a logger scope.
 
 ```csharp
-// Extracted from the message, not an HTTP request
-var correlationId = message.ApplicationProperties["X-Correlation-Id"]?.ToString();
-var userId        = message.ApplicationProperties["X-User-Id"]?.ToString();
-var sessionId     = message.ApplicationProperties["X-Session-Id"]?.ToString();
+// Conceptual view of what ContextPropagationMiddleware.Before() does.
+// You never write this code in handlers — the middleware does it once for everyone.
+var correlationId = envelope.Headers["X-Correlation-Id"]
+                   ?? envelope.CorrelationId?.ToString()
+                   ?? Activity.Current?.TraceId.ToString();
+var userId    = envelope.Headers["X-User-Id"];
+var sessionId = envelope.Headers["X-Session-Id"];
 
-// Put into baggage so downstream code can read it
-Activity.Current?.SetBaggage("correlation.id", correlationId);
-if (userId    is not null) Activity.Current?.SetBaggage("user.id",    userId);
-if (sessionId is not null) Activity.Current?.SetBaggage("session.id", sessionId);
+if (correlationId is not null) Activity.Current?.SetBaggage("correlation.id", correlationId);
+if (userId        is not null) Activity.Current?.SetBaggage("user.id",        userId);
+if (sessionId     is not null) Activity.Current?.SetBaggage("session.id",     sessionId);
 
-// The middleware handles this automatically — no per-handler boilerplate needed
-// ContextPropagationMiddleware.Before() runs before every Wolverine handler
+_scope = logger.BeginScope(/* dict with non-null IDs */);
 ```
 
-All three IDs are available in Activity baggage for the duration of the handler chain.
+All three IDs are then available in Activity baggage and the logger scope for the duration of the handler chain — no per-handler boilerplate.
 
 ---
 

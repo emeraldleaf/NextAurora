@@ -5,14 +5,18 @@ using OrderService.Domain.Interfaces;
 namespace OrderService.Application.EventHandlers;
 
 /// <summary>
-/// Handles the PaymentFailedEvent published by PaymentService when a payment gateway
-/// call fails (insufficient funds, expired card, gateway timeout, etc.).
+/// Reacts to <see cref="PaymentFailedEvent"/> — transitions the order to <c>PaymentFailed</c>
+/// (terminal state). Mirrors <see cref="PaymentCompletedHandler"/> in structure: existence
+/// check, status guard at handler level, status guard at domain level. See that handler's
+/// summary for the full idempotency rationale.
 ///
-/// The handler is idempotent: if the order has already moved out of the "Placed" state
-/// (e.g. a duplicate event from DLQ replay), the status check short-circuits — no double-update occurs.
-///
-/// Domain rule: only a Placed order can be transitioned to PaymentFailed.
-/// The domain entity enforces this invariant in <see cref="Order.MarkAsPaymentFailed"/>.
+/// <para>
+/// <b>Why no compensation logic here:</b> if payment failed, there's nothing to roll back on
+/// the order side — it just stays in PaymentFailed. The buyer places a new order if they want
+/// to try again. If we ever introduce stock reservation reversal, that would belong on the
+/// PaymentService side (where it can read the order's lines from the event payload) rather
+/// than here, because it touches Catalog, not Order.
+/// </para>
 /// </summary>
 public class PaymentFailedHandler(IOrderRepository repository)
 {
@@ -21,8 +25,8 @@ public class PaymentFailedHandler(IOrderRepository repository)
         var order = await repository.GetByIdAsync(@event.OrderId, cancellationToken);
         if (order is null) return;
 
-        // Idempotency guard — if the order is no longer in Placed status, a previous
-        // delivery of this event already processed it; skip silently.
+        // Idempotency guard — if the order is no longer in Placed status, a previous delivery
+        // of this event already processed it (or PaymentCompletedHandler somehow ran first).
         if (order.Status != OrderStatus.Placed) return;
 
         order.MarkAsPaymentFailed();

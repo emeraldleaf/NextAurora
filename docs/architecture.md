@@ -22,7 +22,7 @@ NextAurora is a distributed e-commerce platform built as a microservices archite
 ```
                          +-------------------+     +-------------------+
                          |    Storefront     |     |   SellerPortal    |
-                         |  (Blazor WASM)    |     | (Blazor Server)   |
+                         |  (Blazor WASM)    |     |   (scaffold)      |
                          +--------+----------+     +--------+----------+
                                   |                         |
                            REST API (HTTP)            REST API (HTTP)
@@ -134,9 +134,11 @@ Used for synchronous request/reply queries between services where the caller nee
 
 ### 3. REST APIs (External)
 
-Used for frontend-to-service communication. ASP.NET Core Minimal APIs with OpenAPI documentation.
+Used for frontend-to-service communication. ASP.NET Core Minimal APIs with OpenAPI documentation, URL-segment versioned (`/api/v{version}/...`) via `Asp.Versioning.Http`.
 
 **When to use:** Client-facing endpoints accessed by Storefront and SellerPortal.
+
+**Versioning:** Default version is `1.0`; the version segment is required in the URL. Adding a v2 endpoint is a side-by-side handler with `.HasApiVersion(new ApiVersion(2, 0))` and a separate route — old v1 callers keep working without changes.
 
 ### Communication Matrix
 
@@ -186,7 +188,6 @@ Each service owns its database. No service accesses another service's database d
 |-------|---------|
 | **Orders** | Id, BuyerId, Status, TotalAmount, Currency, PlacedAt, PaidAt, ShippedAt |
 | **OrderLines** | Id, OrderId (FK), ProductId, ProductName, Quantity, UnitPrice |
-| **EventLogs** | Id, EventType, Payload, CorrelationId, EntityId, CreatedAt, PublishedAt (null = unpublished) |
 
 #### payments-db (SQL Server)
 
@@ -194,7 +195,6 @@ Each service owns its database. No service accesses another service's database d
 |-------|---------|
 | **Payments** | Id, OrderId, Amount, Currency, Status, Provider, ExternalTransactionId, CreatedAt, CompletedAt, FailureReason |
 | **Refunds** | Id, PaymentId, Amount, Reason, Status, CreatedAt |
-| **EventLogs** | Id, EventType, Payload, CorrelationId, EntityId, CreatedAt, PublishedAt (null = unpublished) |
 
 #### shipping-db (PostgreSQL)
 
@@ -202,7 +202,6 @@ Each service owns its database. No service accesses another service's database d
 |-------|---------|
 | **Shipments** | Id, OrderId, Carrier, TrackingNumber, Status, CreatedAt, DispatchedAt, DeliveredAt |
 | **TrackingEvents** | Id, ShipmentId (FK), Description, Status, OccurredAt |
-| **EventLogs** | Id, EventType, Payload, CorrelationId, EntityId, CreatedAt, PublishedAt (null = unpublished) |
 
 ---
 
@@ -411,6 +410,14 @@ All services inherit shared infrastructure configuration:
 - Standard resilience handler on all HTTP clients (retries, circuit breaker, timeout, rate limiting)
 - gRPC calls benefit from HTTP client resilience via service discovery
 
+### Authentication & Authorization
+- **JWT Bearer** wired in `NextAurora.ServiceDefaults.AddJwtBearerAuthentication()`. Validates issuer, audience, lifetime; reads authority from `Authentication:Authority` (fallback `Keycloak:Url`), audience from `Authentication:Audience` (default `nextaurora-api`).
+- **Keycloak** runs as an Aspire-managed container; `nextaurora-realm` is imported from `realms/nextaurora-realm.json` and injected into each service via `WithReference(realm, configurationPrefix: "Keycloak")`.
+- **Claim mapping:** `NameClaimType = "preferred_username"`, `RoleClaimType = "realm_access.roles"`.
+- **Endpoint protection:** `.RequireAuthorization()` on Catalog writes (`POST`/`PUT /api/v1/products`), the entire `/api/v1/orders` group, `/api/v1/payments/process`, the entire `/api/v1/shipments` group. Public reads (`GET /api/v1/products`) remain anonymous.
+- **Buyer-scope checks:** `POST /api/v1/orders` and `GET /api/v1/orders/buyer/{buyerId}` reject when the JWT `sub` claim doesn't match the route/body buyer ID (returns 403).
+- **No-op fallback:** if no `Authentication:Authority` and no `Keycloak:Url` are present, ServiceDefaults registers vanilla `AddAuthentication()`/`AddAuthorization()` so middleware doesn't crash, but `.RequireAuthorization()` endpoints will return 401 (no scheme to validate against).
+
 ### Input Validation
 - **FluentValidation:** All commands have corresponding validator classes (e.g., `CreateProductCommandValidator`, `PlaceOrderCommandValidator`, `ProcessPaymentCommandValidator`)
 - **Input Validation:** All commands have `FluentValidation` validator classes. `opts.UseFluentValidation()` in Wolverine's pipeline runs validators before handlers, throwing `ValidationException` with structured errors on failure.
@@ -498,14 +505,18 @@ Adding `AsNoTracking()` to shared methods would break the read-then-mutate-then-
 - **Encapsulated Aggregates** - `IReadOnlyList` collections, private backing fields
 - **HTTPS Redirection** - Enforced in production
 - **Idempotent Event Handling** - Status guards in all event handlers; GetByOrderId checks prevent duplicate processing
-- **Dead Letter Queue Processing** - `messages.abandoned` metric counter on all processors; admin replay endpoints at `/admin/events/replay/{id}`
+- **Transactional Outbox** - Wolverine transactional outbox in Order, Payment, Shipping. Outgoing events persist to a `wolverine` schema in the same DB transaction as the entity write; background dispatcher flushes to Service Bus. Concurrency-retry policy on `DbUpdateConcurrencyException` (3 attempts, 50/100/250ms backoff). See [docs/performance-and-data-correctness.md](performance-and-data-correctness.md).
+- **Optimistic Concurrency Tokens** - Postgres `xmin` (Catalog Product/Category, Shipping Shipment) and SQL Server `RowVersion` (Order, Payment, Refund) shadow properties. Last-write-wins is no longer possible.
+- **EF Core Migrations** - Initial migrations for all four DB services (Catalog, Order, Payment, Shipping). `IDesignTimeDbContextFactory<T>` per context for `dotnet ef` tooling. `MigrateDatabaseAsync<T>()` runs at app startup in development; production should run as a separate deploy step.
+- **Authentication & Authorization** - JWT Bearer authentication wired in `NextAurora.ServiceDefaults` (`AddJwtBearerAuthentication()`); identity provider is **Keycloak** (Aspire-managed container, `nextaurora-realm` imported from `realms/nextaurora-realm.json`). `AddJwtBearer` validates issuer, audience, lifetime; claim mapping uses `preferred_username` → name and `realm_access.roles` → role. `.RequireAuthorization()` on every state-changing endpoint and buyer-scoped reads (Catalog write endpoints, all of `/api/v1/orders`, `/api/v1/payments/process`, all of `/api/v1/shipments`). Buyer-scope endpoints additionally verify the JWT `sub` claim matches the route/body buyer ID. `GET /api/v1/products` remains anonymous.
+- **API Versioning** - URL-segment versioning via `Asp.Versioning.Http`. Routes follow `/api/v{version:apiVersion}/...` with the version required in the URL (`AssumeDefaultVersionWhenUnspecified = false`). Default version is `1.0`; `Asp.Versioning.Mvc.ApiExplorer` integrates with OpenAPI so versioned endpoints show up under group `v1` in Swagger. Configured globally in `AddServiceDefaults()` so every service inherits the same policy. gRPC is versioned separately via `.proto` `package` (out of scope here).
+- **Dead Letter Queue Processing** - `messages.abandoned` metric counter on all processors. Replay/audit available via Wolverine's `IMessageStore` API or by querying the `wolverine` schema directly.
 
 ### Not Yet Implemented
-- **Authentication & Authorization** - JWT/OAuth2 for API security
 - **API Gateway** - Centralized routing, rate limiting, auth
 - **Saga Compensation** - Rollback logic for failed payments/shipments
 - **Distributed Caching** - Redis caching strategy for CatalogService
 - **Frontend Implementation** - Storefront and SellerPortal business logic
-- **Database Migrations** - EF Core migration pipeline
 - **Integration Tests** - Testcontainers-based service testing
 - **Order Cancellation Flow** - Cancel event and compensation logic
+- **Production migration deployment step** - In dev, `MigrateDatabaseAsync<T>()` runs at startup; production should run migrations as a separate deploy step (not in-process) to avoid races between replicas. Tooling exists; deploy automation does not.

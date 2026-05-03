@@ -5,12 +5,15 @@ using NotificationService.Application.Interfaces;
 namespace NotificationService.Application.EventHandlers;
 
 /// <summary>
-/// Handles the PaymentFailedEvent published by PaymentService when a payment gateway
-/// call fails.  Returns a SendNotificationRequest which Wolverine automatically cascades
-/// to SendNotificationHandler.
+/// On <see cref="PaymentFailedEvent"/>, build a "payment failed, try again" notification. Same
+/// cascading-messages pattern as <see cref="OrderPlacedNotificationHandler"/>.
 ///
-/// If the buyer cannot be resolved the handler returns null — Wolverine ignores null returns,
-/// so no notification is sent without infinite retries.
+/// <para>
+/// <b>Note on user-facing copy:</b> we reflect <see cref="PaymentFailedEvent.Reason"/> into the
+/// email body. The Reason field comes from the payment gateway and is intended for internal
+/// audit; in production this should be filtered/translated to a user-friendly message rather
+/// than passing the raw provider error code through. Tracked as future product-approved copy work.
+/// </para>
 /// </summary>
 public class PaymentFailedNotificationHandler(IRecipientResolver recipientResolver)
 {

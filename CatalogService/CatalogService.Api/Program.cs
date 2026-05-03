@@ -3,6 +3,7 @@ using CatalogService.Api.Endpoints;
 using CatalogService.Api.Services;
 using CatalogService.Application.Commands;
 using CatalogService.Infrastructure;
+using CatalogService.Infrastructure.Data;
 using FluentValidation;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
@@ -54,9 +55,10 @@ if (!app.Environment.IsDevelopment())
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    await app.Services.MigrateDatabaseAsync<CatalogDbContext>();
 }
 
 app.UseRateLimiter();
 app.MapCatalogEndpoints();
 app.MapGrpcService<CatalogGrpcService>();
-app.Run();
+await app.RunAsync();
