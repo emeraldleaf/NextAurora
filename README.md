@@ -34,13 +34,14 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 +-----------------------------------------------------+
 |                 MESSAGING LAYER                      |
 |                                                      |
-|   Async Messaging (Topics + Subscriptions)          |
+|   Async Messaging (Topics & Subscriptions)          |
 |   Local/CI: Azure Service Bus emulator              |
 |   AWS prod: Amazon SNS + SQS                        |
 |                                                      |
 |   Topics:                                            |
 |   order-events -----> PaymentSvc, NotificationSvc    |
-|   payment-events ---> OrderSvc, ShippingSvc          |
+|   payment-events ---> OrderSvc, ShippingSvc,         |
+|                       NotificationSvc                |
 |   shipping-events --> OrderSvc, NotificationSvc      |
 |                                                      |
 |   Queue:                                             |
