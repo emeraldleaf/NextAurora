@@ -17,7 +17,7 @@ public class OutgoingContextMiddlewareTests
         {
             var envelope = new Envelope();
 
-            OutgoingContextMiddleware.Before(envelope);
+            new OutgoingContextMiddleware().Before(envelope);
 
             envelope.Headers["X-User-Id"].Should().Be("user-123");
         }
@@ -33,7 +33,7 @@ public class OutgoingContextMiddlewareTests
         {
             var envelope = new Envelope();
 
-            OutgoingContextMiddleware.Before(envelope);
+            new OutgoingContextMiddleware().Before(envelope);
 
             envelope.Headers["X-Session-Id"].Should().Be("sess-abc");
         }
@@ -48,7 +48,7 @@ public class OutgoingContextMiddlewareTests
         {
             var envelope = new Envelope();
 
-            OutgoingContextMiddleware.Before(envelope);
+            new OutgoingContextMiddleware().Before(envelope);
 
             envelope.Headers.Should().NotContainKey("X-User-Id");
             envelope.Headers.Should().NotContainKey("X-Session-Id");
@@ -60,7 +60,7 @@ public class OutgoingContextMiddlewareTests
     {
         var envelope = new Envelope();
 
-        var act = () => OutgoingContextMiddleware.Before(envelope);
+        var act = () => new OutgoingContextMiddleware().Before(envelope);
 
         act.Should().NotThrow();
     }
@@ -76,7 +76,7 @@ public class OutgoingContextMiddlewareTests
         {
             var envelope = new Envelope();
 
-            OutgoingContextMiddleware.Before(envelope);
+            new OutgoingContextMiddleware().Before(envelope);
 
             envelope.Headers["X-User-Id"].Should().Be("user-999");
             envelope.Headers["X-Session-Id"].Should().Be("sess-xyz");

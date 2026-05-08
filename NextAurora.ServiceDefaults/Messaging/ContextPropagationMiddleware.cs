@@ -82,9 +82,11 @@ public sealed class ContextPropagationMiddleware(ILogger<ContextPropagationMiddl
 /// OpenTelemetry trace context propagation, so duplicating it would be wasted bytes.
 ///
 /// <para>
-/// <b>Why a static <c>Before</c> method:</b> there's no per-instance state and no DI dependencies
-/// — the only inputs are the envelope and the ambient Activity baggage. Static avoids the
-/// allocation of an instance per dispatch.
+/// <b>Why an instance method (not static):</b> Wolverine's <c>AddMiddleware&lt;T&gt;()</c>
+/// discovers <c>Before/After/Finally</c> methods only when they're defined as instance methods
+/// on a public class with a public constructor. Static methods aren't discovered and the
+/// registration call throws <c>InvalidWolverineMiddlewareException</c> at host startup. This
+/// cost us a smoke-test debug session. See CLAUDE.md.
 /// </para>
 /// <para>
 /// <b>Registration:</b> <c>opts.Policies.AddMiddleware&lt;OutgoingContextMiddleware&gt;()</c>
@@ -93,13 +95,14 @@ public sealed class ContextPropagationMiddleware(ILogger<ContextPropagationMiddl
 /// </summary>
 public sealed class OutgoingContextMiddleware
 {
-    // Private constructor: this class is never instantiated. Keeps the static analyzer happy
-    // about "class with only static members" without forcing the type itself to be static
-    // (Wolverine's middleware discovery looks for instance method signatures; static *method*
-    // is fine but the type can't be `static class`).
-    private OutgoingContextMiddleware() { }
-
-    public static void Before(Envelope envelope)
+    // S2325 / CA1822 want this static because it doesn't reference instance state. We can't —
+    // Wolverine's middleware discovery only finds Before/After/Finally as instance methods.
+    // Making it static fails registration with InvalidWolverineMiddlewareException.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static",
+        Justification = "Wolverine's AddMiddleware<T> requires instance methods; static is not discovered.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Wolverine's AddMiddleware<T> requires instance methods; static is not discovered.")]
+    public void Before(Envelope envelope)
     {
         var userId = Activity.Current?.GetBaggageItem("user.id");
         var sessionId = Activity.Current?.GetBaggageItem("session.id");

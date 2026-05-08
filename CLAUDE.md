@@ -158,6 +158,10 @@ Every HTTP request and Service Bus message carries three context identifiers:
 
 All three are set by `CorrelationIdMiddleware` (HTTP entry point) and by `ContextPropagationMiddleware` (Wolverine incoming-message middleware, async entry point). All three are propagated onto outgoing Wolverine messages by `OutgoingContextMiddleware`. Both middlewares are wired via the `opts.AddNextAuroraContextPropagation()` extension in each service's `Program.cs`.
 
+### Wolverine middleware classes must use instance methods
+
+`opts.Policies.AddMiddleware<T>()` only discovers `Before`/`After`/`Finally` (and their `Async` variants) as **instance methods** on a public class with a public constructor. Static methods aren't discovered — registration throws `InvalidWolverineMiddlewareException` at host startup. This applies even when the method has no instance state. Suppress S2325 ("should be static") with a `Justification` referencing this rule rather than satisfying the analyzer.
+
 ### Wolverine pipeline scope
 
 `ContextPropagationMiddleware` opens a `logger.BeginScope()` before invoking each handler so **every log line emitted anywhere in the handler** carries `CorrelationId`, `UserId`, and `SessionId` automatically. Wolverine's `Policies.LogMessageStarting()` adds handler name + elapsed time on top of that.
