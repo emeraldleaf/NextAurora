@@ -1,3 +1,6 @@
+using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.Azure;
+
 // .NET Aspire orchestration root for NextAurora. Defines the entire local-development topology:
 // every container (Postgres, SQL Server, Redis, Service Bus emulator, Keycloak, App Insights),
 // every service project, and every dependency edge between them. When you run this project,
@@ -31,8 +34,12 @@ var shippingDb = builder.AddPostgres("shipping-pg")
 // once we wire it (architecture.md "Future Considerations").
 var redis = builder.AddRedis("cache");
 
-// Azure Service Bus emulator — runs locally, exposes a real-protocol endpoint to the services.
-var serviceBus = builder.AddAzureServiceBus("messaging");
+// Azure Service Bus — Aspire 13 requires explicit `.RunAsEmulator()` for local dev (in 9.x
+// the emulator was implicit). Without this, AppHost reports "Missing subscription configuration"
+// at startup because Aspire treats the resource as needing a real Azure subscription.
+// See CLAUDE.md.
+var serviceBus = builder.AddAzureServiceBus("messaging")
+    .RunAsEmulator();
 
 // Topic / subscription topology. Each service that publishes events owns a topic; subscribers
 // get their own subscription per topic so they can be scaled and dead-lettered independently.
@@ -58,7 +65,16 @@ shippingEventsTopic.AddServiceBusSubscription("notify-shipping-sub");  // Notifi
 // fan-in only. NotificationService listens here in addition to the topic subscriptions.
 serviceBus.AddServiceBusQueue("send-notification");
 
-var appInsights = builder.AddAzureApplicationInsights("insights");
+// Application Insights only when running in Publish mode (i.e. real deploys to Azure).
+// Aspire 13 has no local emulator for App Insights — keeping this in for local dev causes
+// "Missing subscription configuration" at startup. The Aspire dashboard already provides
+// trace/metric/log views for local; OpenTelemetry exports OTLP to Aspire's in-process collector
+// regardless. See CLAUDE.md.
+IResourceBuilder<AzureApplicationInsightsResource>? appInsights = null;
+if (builder.ExecutionContext.IsPublishMode)
+{
+    appInsights = builder.AddAzureApplicationInsights("insights");
+}
 
 // Keycloak runs as a container. The realm definition is imported from a JSON file so the
 // dev environment always boots with the same users/clients/roles configured.
@@ -76,37 +92,44 @@ const string keycloakConfigPrefix = "Keycloak";
 // service finds its dependencies via service-discovery + injected env vars, not via a config
 // file. This is the entire reason Aspire exists — local dev mirrors production-style discovery.
 
-var catalogService = builder.AddProject<Projects.CatalogService_Api>("catalog-service")
-    .WithReference(catalogDb)
-    .WithReference(redis)
-    .WithReference(appInsights)
+// Local helper to apply optional AppInsights reference uniformly.
+// In dev (RunMode), appInsights is null and this is a no-op.
+static IResourceBuilder<ProjectResource> WithOptionalAppInsights(
+    IResourceBuilder<ProjectResource> project,
+    IResourceBuilder<AzureApplicationInsightsResource>? insights)
+    => insights is null ? project : project.WithReference(insights);
+
+var catalogService = WithOptionalAppInsights(
+    builder.AddProject<Projects.CatalogService_Api>("catalog-service")
+        .WithReference(catalogDb)
+        .WithReference(redis), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
 // OrderService also references catalogService — that gives it the gRPC client config to call
 // into Catalog for product validation during order placement.
-var orderService = builder.AddProject<Projects.OrderService_Api>("order-service")
-    .WithReference(ordersDb)
-    .WithReference(serviceBus)
-    .WithReference(catalogService)
-    .WithReference(appInsights)
+var orderService = WithOptionalAppInsights(
+    builder.AddProject<Projects.OrderService_Api>("order-service")
+        .WithReference(ordersDb)
+        .WithReference(serviceBus)
+        .WithReference(catalogService), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
-builder.AddProject<Projects.PaymentService_Api>("payment-service")
-    .WithReference(paymentsDb)
-    .WithReference(serviceBus)
-    .WithReference(appInsights)
+WithOptionalAppInsights(
+    builder.AddProject<Projects.PaymentService_Api>("payment-service")
+        .WithReference(paymentsDb)
+        .WithReference(serviceBus), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
-builder.AddProject<Projects.ShippingService_Api>("shipping-service")
-    .WithReference(shippingDb)
-    .WithReference(serviceBus)
-    .WithReference(appInsights)
+WithOptionalAppInsights(
+    builder.AddProject<Projects.ShippingService_Api>("shipping-service")
+        .WithReference(shippingDb)
+        .WithReference(serviceBus), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
 // NotificationService is stateless — no DB reference, just messaging + telemetry.
-builder.AddProject<Projects.NotificationService_Api>("notification-service")
-    .WithReference(serviceBus)
-    .WithReference(appInsights);
+WithOptionalAppInsights(
+    builder.AddProject<Projects.NotificationService_Api>("notification-service")
+        .WithReference(serviceBus), appInsights);
 
 // --- Frontend ---
 // Storefront and SellerPortal reference the API services so service-discovery resolves
