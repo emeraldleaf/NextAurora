@@ -37,7 +37,7 @@ NextAurora is a distributed e-commerce platform built as a microservices archite
                  +<---------------+
                                   |
                     +-------------v--------------+
-                    |     Azure Service Bus       |
+                    |     Async Messaging         |
                     |  (Topics & Subscriptions)   |
                     +---+------+------+------+---+
                         |      |      |      |
@@ -48,6 +48,8 @@ NextAurora is a distributed e-commerce platform built as a microservices archite
                   +--------+ +------+ +--------+ +--------+
                   SQL Server  SQL Svr  PostgreSQL  Stateless
 ```
+
+> **Transport choice is environmental, not architectural.** Locally and in CI, the async-messaging layer is Azure Service Bus run as an Aspire-managed emulator. In production on AWS, it's Amazon SNS + SQS. Handlers and domain code don't change — see the [Deployment](#deployment) section.
 
 ## Service Architecture
 
