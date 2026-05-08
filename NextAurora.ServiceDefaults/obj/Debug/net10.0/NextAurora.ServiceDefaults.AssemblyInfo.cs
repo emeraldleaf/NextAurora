@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NextAurora.ServiceDefaults")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6f28e2e54fed693ff610e720d09cee0a398388ce")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+84516403dbc525de9d795afce503aa7390db8f42")]
 [assembly: System.Reflection.AssemblyProductAttribute("NextAurora.ServiceDefaults")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NextAurora.ServiceDefaults")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
