@@ -109,8 +109,8 @@ public class PlaceOrderHandler(
             }
 
             // Notice: we use `product.Price` from CatalogService, NOT a price the client sent.
-            // This is the server-side pricing rule from CLAUDE.md — never trust client-submitted
-            // prices for money calculations.
+            // Server-side pricing — never trust client-submitted prices for money calculations.
+            // See CLAUDE.md.
             lines.Add(OrderLine.Create(product.Id, product.Name, lineItem.Quantity, product.Price));
         }
 

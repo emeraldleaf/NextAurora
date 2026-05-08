@@ -13,5 +13,18 @@
     "additionalDirectories": [
       "/Users/joshuadell/NovaCraft/.claude/skills"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/joshuadell/NovaCraft/.claude/scripts/check-claude-md-refs.sh"
+          }
+        ]
+      }
+    ]
   }
 }
