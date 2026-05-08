@@ -11,21 +11,19 @@ using System;
 using System.Reflection;
 
 [assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("c4741def-89d5-447e-af79-e43ded7574ec")]
-[assembly: System.Reflection.AssemblyMetadata("dcpclipath", ("/Users/joshuadell/.nuget/packages/aspire.hosting.orchestration.osx-arm64/13.1.0/t" +
+[assembly: System.Reflection.AssemblyMetadata("dcpclipath", ("/Users/joshuadell/.nuget/packages/aspire.hosting.orchestration.osx-arm64/13.3.0/t" +
     "ools/dcp"))]
-[assembly: System.Reflection.AssemblyMetadata("dcpextensionpaths", ("/Users/joshuadell/.nuget/packages/aspire.hosting.orchestration.osx-arm64/13.1.0/t" +
+[assembly: System.Reflection.AssemblyMetadata("dcpextensionpaths", ("/Users/joshuadell/.nuget/packages/aspire.hosting.orchestration.osx-arm64/13.3.0/t" +
     "ools/ext/"))]
-[assembly: System.Reflection.AssemblyMetadata("dcpbinpath", ("/Users/joshuadell/.nuget/packages/aspire.hosting.orchestration.osx-arm64/13.1.0/t" +
-    "ools/ext/bin/"))]
 [assembly: System.Reflection.AssemblyMetadata("apphostprojectpath", "/Users/joshuadell/NovaCraft/NextAurora.AppHost")]
 [assembly: System.Reflection.AssemblyMetadata("apphostprojectname", "NextAurora.AppHost.csproj")]
-[assembly: System.Reflection.AssemblyMetadata("aspiredashboardpath", ("/Users/joshuadell/.nuget/packages/aspire.dashboard.sdk.osx-arm64/13.1.0/tools/Asp" +
+[assembly: System.Reflection.AssemblyMetadata("aspiredashboardpath", ("/Users/joshuadell/.nuget/packages/aspire.dashboard.sdk.osx-arm64/13.3.0/tools/Asp" +
     "ire.Dashboard.dll"))]
 [assembly: System.Reflection.AssemblyMetadataAttribute("apphostprojectbaseintermediateoutputpath", "/Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/")]
 [assembly: System.Reflection.AssemblyCompanyAttribute("NextAurora.AppHost")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b6513f071fb95bc66d592307548451665bddc41c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6f28e2e54fed693ff610e720d09cee0a398388ce")]
 [assembly: System.Reflection.AssemblyProductAttribute("NextAurora.AppHost")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NextAurora.AppHost")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

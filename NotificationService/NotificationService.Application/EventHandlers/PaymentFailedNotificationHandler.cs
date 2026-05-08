@@ -17,7 +17,7 @@ namespace NotificationService.Application.EventHandlers;
 /// </summary>
 public class PaymentFailedNotificationHandler(IRecipientResolver recipientResolver)
 {
-    public async Task<SendNotificationRequest?> Handle(PaymentFailedEvent @event, CancellationToken cancellationToken)
+    public async Task<SendNotificationRequest?> HandleAsync(PaymentFailedEvent @event, CancellationToken cancellationToken)
     {
         var recipient = await recipientResolver.ResolveByBuyerIdAsync(@event.BuyerId, cancellationToken);
         if (recipient is null) return null;
