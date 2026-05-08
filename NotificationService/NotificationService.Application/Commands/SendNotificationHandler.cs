@@ -49,7 +49,7 @@ public partial class SendNotificationHandler(
     private static readonly Counter<long> NotificationsSent =
         new Meter("NextAurora").CreateCounter<long>("notifications.sent");
 
-    public async Task Handle(SendNotificationRequest request, CancellationToken cancellationToken)
+    public async Task HandleAsync(SendNotificationRequest request, CancellationToken cancellationToken)
     {
         // Domain validation up-front — bad inputs throw before we hit any delivery infrastructure.
         var notification = NotificationRequest.Create(

@@ -28,7 +28,7 @@ namespace NotificationService.Application.EventHandlers;
 /// </summary>
 public class OrderPlacedNotificationHandler(IRecipientResolver recipientResolver)
 {
-    public async Task<SendNotificationRequest?> Handle(OrderPlacedEvent @event, CancellationToken cancellationToken)
+    public async Task<SendNotificationRequest?> HandleAsync(OrderPlacedEvent @event, CancellationToken cancellationToken)
     {
         var recipient = await recipientResolver.ResolveByBuyerIdAsync(@event.BuyerId, cancellationToken);
         if (recipient is null) return null;

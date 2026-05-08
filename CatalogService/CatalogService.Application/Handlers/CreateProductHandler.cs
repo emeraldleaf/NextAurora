@@ -6,7 +6,7 @@ namespace CatalogService.Application.Handlers;
 
 public class CreateProductHandler(IProductRepository repository)
 {
-    public async Task<Guid> Handle(CreateProductCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> HandleAsync(CreateProductCommand request, CancellationToken cancellationToken)
     {
         var product = Product.Create(
             request.Name, request.Description, request.Price,

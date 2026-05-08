@@ -5,7 +5,7 @@ namespace CatalogService.Application.Handlers;
 
 public class ReserveStockHandler(IProductRepository repository)
 {
-    public async Task<bool> Handle(ReserveStockCommand request, CancellationToken cancellationToken)
+    public async Task<bool> HandleAsync(ReserveStockCommand request, CancellationToken cancellationToken)
     {
         var product = await repository.GetByIdAsync(request.ProductId, cancellationToken);
         if (product is null)

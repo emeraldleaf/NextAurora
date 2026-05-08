@@ -34,7 +34,7 @@ namespace OrderService.Application.EventHandlers;
 /// </summary>
 public class PaymentCompletedHandler(IOrderRepository repository)
 {
-    public async Task Handle(PaymentCompletedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(PaymentCompletedEvent @event, CancellationToken cancellationToken)
     {
         var order = await repository.GetByIdAsync(@event.OrderId, cancellationToken);
         if (order is null) return;

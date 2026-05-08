@@ -26,7 +26,7 @@ public class CreateShipmentHandlerTests
         var command = new CreateShipmentCommand(Guid.NewGuid());
 
         // Act
-        var result = await _sut.Handle(command, CancellationToken.None);
+        var result = await _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeEmpty();
@@ -43,7 +43,7 @@ public class CreateShipmentHandlerTests
         var command = new CreateShipmentCommand(orderId);
 
         // Act
-        await _sut.Handle(command, CancellationToken.None);
+        await _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         await _eventPublisher.Received(1).PublishAsync(
@@ -58,7 +58,7 @@ public class CreateShipmentHandlerTests
         var command = new CreateShipmentCommand(Guid.NewGuid());
 
         // Act
-        await _sut.Handle(command, CancellationToken.None);
+        await _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         await _eventPublisher.Received(1).PublishAsync(
@@ -76,7 +76,7 @@ public class CreateShipmentHandlerTests
         _repository.GetByOrderIdAsync(orderId, Arg.Any<CancellationToken>()).Returns(existingShipment);
 
         // Act
-        var result = await _sut.Handle(command, CancellationToken.None);
+        var result = await _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().Be(existingShipment.Id);

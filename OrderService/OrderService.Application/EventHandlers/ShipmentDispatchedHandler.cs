@@ -20,7 +20,7 @@ namespace OrderService.Application.EventHandlers;
 /// </summary>
 public class ShipmentDispatchedHandler(IOrderRepository repository)
 {
-    public async Task Handle(ShipmentDispatchedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(ShipmentDispatchedEvent @event, CancellationToken cancellationToken)
     {
         var order = await repository.GetByIdAsync(@event.OrderId, cancellationToken);
         if (order is null) return;

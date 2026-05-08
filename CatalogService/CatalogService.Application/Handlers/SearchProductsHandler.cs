@@ -6,7 +6,7 @@ namespace CatalogService.Application.Handlers;
 
 public class SearchProductsHandler(IProductRepository repository)
 {
-    public async Task<IReadOnlyList<ProductDto>> Handle(SearchProductsQuery request, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ProductDto>> HandleAsync(SearchProductsQuery request, CancellationToken cancellationToken)
     {
         var products = await repository.SearchAsync(request.Query, request.Page, request.PageSize, cancellationToken);
         return products.Select(p => new ProductDto

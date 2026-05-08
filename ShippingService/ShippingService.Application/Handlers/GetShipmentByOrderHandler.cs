@@ -5,7 +5,7 @@ namespace ShippingService.Application.Handlers;
 
 public class GetShipmentByOrderHandler(IShipmentRepository repository)
 {
-    public async Task<ShipmentDto?> Handle(GetShipmentByOrderQuery request, CancellationToken cancellationToken)
+    public async Task<ShipmentDto?> HandleAsync(GetShipmentByOrderQuery request, CancellationToken cancellationToken)
     {
         var shipment = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
         if (shipment is null) return null;

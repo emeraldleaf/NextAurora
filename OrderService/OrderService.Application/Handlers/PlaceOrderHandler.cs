@@ -64,7 +64,7 @@ public class PlaceOrderHandler(
     private static readonly Counter<long> OrdersPlaced =
         new Meter("NextAurora").CreateCounter<long>("orders.placed");
 
-    public async Task<Guid> Handle(PlaceOrderCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> HandleAsync(PlaceOrderCommand request, CancellationToken cancellationToken)
     {
         var lines = new List<OrderLine>();
 

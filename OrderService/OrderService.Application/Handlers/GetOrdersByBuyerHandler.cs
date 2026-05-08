@@ -6,7 +6,7 @@ namespace OrderService.Application.Handlers;
 
 public class GetOrdersByBuyerHandler(IOrderRepository repository)
 {
-    public async Task<IReadOnlyList<OrderSummaryDto>> Handle(GetOrdersByBuyerQuery request, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<OrderSummaryDto>> HandleAsync(GetOrdersByBuyerQuery request, CancellationToken cancellationToken)
     {
         var orders = await repository.GetByBuyerIdAsync(request.BuyerId, request.Page, request.PageSize, cancellationToken);
         return orders.Select(order => new OrderSummaryDto

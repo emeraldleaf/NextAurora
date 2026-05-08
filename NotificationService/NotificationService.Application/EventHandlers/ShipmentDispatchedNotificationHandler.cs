@@ -17,7 +17,7 @@ namespace NotificationService.Application.EventHandlers;
 /// </summary>
 public class ShipmentDispatchedNotificationHandler(IRecipientResolver recipientResolver)
 {
-    public async Task<SendNotificationRequest?> Handle(ShipmentDispatchedEvent @event, CancellationToken cancellationToken)
+    public async Task<SendNotificationRequest?> HandleAsync(ShipmentDispatchedEvent @event, CancellationToken cancellationToken)
     {
         var recipient = await recipientResolver.ResolveByOrderIdAsync(@event.OrderId, cancellationToken);
         if (recipient is null) return null;

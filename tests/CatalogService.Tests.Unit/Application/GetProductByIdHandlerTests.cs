@@ -26,7 +26,7 @@ public class GetProductByIdHandlerTests
         _repository.GetByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
 
         // Act
-        var result = await _sut.Handle(new GetProductByIdQuery(product.Id), CancellationToken.None);
+        var result = await _sut.HandleAsync(new GetProductByIdQuery(product.Id), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -42,7 +42,7 @@ public class GetProductByIdHandlerTests
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Product?)null);
 
         // Act
-        var result = await _sut.Handle(new GetProductByIdQuery(Guid.NewGuid()), CancellationToken.None);
+        var result = await _sut.HandleAsync(new GetProductByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         // Assert
         result.Should().BeNull();

@@ -33,7 +33,7 @@ public class ShipmentDispatchedNotificationHandlerTests
         _recipientResolver.ResolveByOrderIdAsync(orderId, Arg.Any<CancellationToken>())
             .Returns(new RecipientInfo(buyerId, "buyer@test.com"));
 
-        var result = await _sut.Handle(@event, CancellationToken.None);
+        var result = await _sut.HandleAsync(@event, CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.RecipientEmail.Should().Be("buyer@test.com");
@@ -54,7 +54,7 @@ public class ShipmentDispatchedNotificationHandlerTests
         _recipientResolver.ResolveByOrderIdAsync(orderId, Arg.Any<CancellationToken>())
             .Returns(new RecipientInfo(Guid.NewGuid(), "buyer@test.com"));
 
-        var result = await _sut.Handle(@event, CancellationToken.None);
+        var result = await _sut.HandleAsync(@event, CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.Subject.Should().Be("Order Shipped");
@@ -75,7 +75,7 @@ public class ShipmentDispatchedNotificationHandlerTests
         _recipientResolver.ResolveByOrderIdAsync(orderId, Arg.Any<CancellationToken>())
             .Returns((RecipientInfo?)null);
 
-        var result = await _sut.Handle(@event, CancellationToken.None);
+        var result = await _sut.HandleAsync(@event, CancellationToken.None);
 
         result.Should().BeNull();
     }
@@ -95,7 +95,7 @@ public class ShipmentDispatchedNotificationHandlerTests
         _recipientResolver.ResolveByOrderIdAsync(orderId, Arg.Any<CancellationToken>())
             .Returns(new RecipientInfo(Guid.NewGuid(), "buyer@test.com"));
 
-        var result = await _sut.Handle(@event, CancellationToken.None);
+        var result = await _sut.HandleAsync(@event, CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.Body.Should().Contain("FedEx");

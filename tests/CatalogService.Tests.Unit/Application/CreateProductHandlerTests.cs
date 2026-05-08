@@ -24,7 +24,7 @@ public class CreateProductHandlerTests
         var command = new CreateProductCommand("Widget", "A widget", 19.99m, "USD", Guid.NewGuid(), "seller-1", 10);
 
         // Act
-        var result = await _sut.Handle(command, CancellationToken.None);
+        var result = await _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeEmpty();

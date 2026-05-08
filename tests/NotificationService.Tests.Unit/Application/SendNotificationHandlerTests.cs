@@ -26,7 +26,7 @@ public class SendNotificationHandlerTests
             Guid.NewGuid(), "user@test.com", "Subject", "Body", "Email");
 
         // Act
-        var act = () => _sut.Handle(request, CancellationToken.None);
+        var act = () => _sut.HandleAsync(request, CancellationToken.None);
 
         // Assert
         await act.Should().NotThrowAsync();
@@ -43,7 +43,7 @@ public class SendNotificationHandlerTests
             .ThrowsAsync(new InvalidOperationException("SMTP error"));
 
         // Act
-        var act = () => _sut.Handle(request, CancellationToken.None);
+        var act = () => _sut.HandleAsync(request, CancellationToken.None);
 
         // Assert — exceptions must propagate so Wolverine can retry or dead-letter
         await act.Should().ThrowAsync<InvalidOperationException>()

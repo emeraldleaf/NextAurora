@@ -56,7 +56,7 @@ public class PlaceOrderHandlerTests
         SetupProductAvailable(productId, price: 25m, stock: 10);
 
         // Act
-        var result = await _sut.Handle(command, CancellationToken.None);
+        var result = await _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeEmpty();
@@ -73,7 +73,7 @@ public class PlaceOrderHandlerTests
         _catalogClient.GetProductAsync(productId, Arg.Any<CancellationToken>()).Returns((ProductDto?)null);
 
         // Act
-        var act = () => _sut.Handle(command, CancellationToken.None);
+        var act = () => _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not*found*");
@@ -89,7 +89,7 @@ public class PlaceOrderHandlerTests
             .Returns(new ProductDto { Id = productId, Name = "P", IsAvailable = false, StockQuantity = 0 });
 
         // Act
-        var act = () => _sut.Handle(command, CancellationToken.None);
+        var act = () => _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not currently available*");
@@ -104,7 +104,7 @@ public class PlaceOrderHandlerTests
         SetupProductAvailable(productId, stock: 5);
 
         // Act
-        var act = () => _sut.Handle(command, CancellationToken.None);
+        var act = () => _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Insufficient stock*");
@@ -119,7 +119,7 @@ public class PlaceOrderHandlerTests
         SetupProductAvailable(productId, stock: 10);
 
         // Act
-        await _sut.Handle(command, CancellationToken.None);
+        await _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         await _catalogClient.Received(1).ReserveStockAsync(productId, 3, Arg.Any<CancellationToken>());
@@ -137,7 +137,7 @@ public class PlaceOrderHandlerTests
             .Returns(false);
 
         // Act
-        var act = () => _sut.Handle(command, CancellationToken.None);
+        var act = () => _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*reserve stock*");
@@ -152,7 +152,7 @@ public class PlaceOrderHandlerTests
         SetupProductAvailable(productId, price: 25m);
 
         // Act
-        await _sut.Handle(command, CancellationToken.None);
+        await _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         await _orderRepository.Received(1).AddAsync(
@@ -176,7 +176,7 @@ public class PlaceOrderHandlerTests
             .AndDoes(_ => callOrder.Add("publish"));
 
         // Act
-        await _sut.Handle(command, CancellationToken.None);
+        await _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         callOrder.Should().ContainInOrder("save", "publish");
@@ -192,7 +192,7 @@ public class PlaceOrderHandlerTests
         SetupProductAvailable(productId, price: 20m);
 
         // Act
-        await _sut.Handle(command, CancellationToken.None);
+        await _sut.HandleAsync(command, CancellationToken.None);
 
         // Assert
         await _eventPublisher.Received(1).PublishAsync(

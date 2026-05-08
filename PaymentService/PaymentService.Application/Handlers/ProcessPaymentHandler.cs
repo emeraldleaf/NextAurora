@@ -42,7 +42,7 @@ public class ProcessPaymentHandler(
     private static readonly Counter<long> PaymentsProcessed =
         new Meter("NextAurora").CreateCounter<long>("payments.processed");
 
-    public async Task<Guid> Handle(ProcessPaymentCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> HandleAsync(ProcessPaymentCommand request, CancellationToken cancellationToken)
     {
         // Idempotency check — see class summary.
         var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);

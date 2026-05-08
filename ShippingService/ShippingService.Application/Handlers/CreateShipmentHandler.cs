@@ -31,7 +31,7 @@ public class CreateShipmentHandler(
     private static readonly Counter<long> ShipmentsDispatched =
         new Meter("NextAurora").CreateCounter<long>("shipments.dispatched");
 
-    public async Task<Guid> Handle(CreateShipmentCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> HandleAsync(CreateShipmentCommand request, CancellationToken cancellationToken)
     {
         var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
         if (existing is not null)

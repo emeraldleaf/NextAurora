@@ -30,7 +30,7 @@ namespace OrderService.Application.Handlers;
 /// </summary>
 public class GetOrderByIdHandler(IOrderRepository repository)
 {
-    public async Task<OrderSummaryDto?> Handle(GetOrderByIdQuery request, CancellationToken cancellationToken)
+    public async Task<OrderSummaryDto?> HandleAsync(GetOrderByIdQuery request, CancellationToken cancellationToken)
     {
         var order = await repository.GetByIdAsync(request.OrderId, cancellationToken);
         if (order is null) return null;

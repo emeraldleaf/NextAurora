@@ -20,7 +20,7 @@ namespace OrderService.Application.EventHandlers;
 /// </summary>
 public class PaymentFailedHandler(IOrderRepository repository)
 {
-    public async Task Handle(PaymentFailedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(PaymentFailedEvent @event, CancellationToken cancellationToken)
     {
         var order = await repository.GetByIdAsync(@event.OrderId, cancellationToken);
         if (order is null) return;

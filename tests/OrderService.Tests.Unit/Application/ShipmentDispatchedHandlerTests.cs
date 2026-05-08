@@ -33,7 +33,7 @@ public class ShipmentDispatchedHandlerTests
         };
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
-        await _sut.Handle(@event, CancellationToken.None);
+        await _sut.HandleAsync(@event, CancellationToken.None);
 
         order.Status.Should().Be(OrderStatus.Shipped);
         await _repository.Received(1).UpdateAsync(order, Arg.Any<CancellationToken>());
@@ -52,7 +52,7 @@ public class ShipmentDispatchedHandlerTests
         };
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Order?)null);
 
-        var act = () => _sut.Handle(@event, CancellationToken.None);
+        var act = () => _sut.HandleAsync(@event, CancellationToken.None);
 
         await act.Should().NotThrowAsync();
     }
@@ -71,7 +71,7 @@ public class ShipmentDispatchedHandlerTests
         };
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
-        var act = () => _sut.Handle(@event, CancellationToken.None);
+        var act = () => _sut.HandleAsync(@event, CancellationToken.None);
 
         await act.Should().NotThrowAsync();
         await _repository.DidNotReceive().UpdateAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());

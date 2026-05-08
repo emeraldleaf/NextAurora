@@ -6,7 +6,7 @@ namespace CatalogService.Application.Handlers;
 
 public class GetProductByIdHandler(IProductRepository repository)
 {
-    public async Task<ProductDto?> Handle(GetProductByIdQuery request, CancellationToken cancellationToken)
+    public async Task<ProductDto?> HandleAsync(GetProductByIdQuery request, CancellationToken cancellationToken)
     {
         var product = await repository.GetByIdAsync(request.ProductId, cancellationToken);
         if (product is null) return null;
