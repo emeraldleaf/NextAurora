@@ -88,9 +88,12 @@ var realm = keycloak.AddRealm("nextaurora-realm", "nextaurora");
 const string keycloakConfigPrefix = "Keycloak";
 
 // --- Services: each gets its DB + messaging + telemetry + identity ---
-// `WithReference(x)` is what wires the connection string / endpoint / config: at runtime, the
-// service finds its dependencies via service-discovery + injected env vars, not via a config
-// file. This is the entire reason Aspire exists — local dev mirrors production-style discovery.
+// `WithReference(x)` injects the connection string / endpoint via service discovery.
+// `WithReference()` does NOT block startup until the target is healthy — Aspire 13 needs an
+// explicit `.WaitFor(x)` for that. Without WaitFor, services boot the moment their config is
+// resolvable (which is at app start) and crash trying to reach a still-warming-up dependency.
+// Hard rule: every WithReference on a non-trivial dependency (DB, messaging, identity, gRPC
+// peer) gets a matching WaitFor. See CLAUDE.md.
 
 // Local helper to apply optional AppInsights reference uniformly.
 // In dev (RunMode), appInsights is null and this is a no-op.
@@ -101,35 +104,35 @@ static IResourceBuilder<ProjectResource> WithOptionalAppInsights(
 
 var catalogService = WithOptionalAppInsights(
     builder.AddProject<Projects.CatalogService_Api>("catalog-service")
-        .WithReference(catalogDb)
-        .WithReference(redis), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
+        .WithReference(catalogDb).WaitFor(catalogDb)
+        .WithReference(redis).WaitFor(redis), appInsights)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);
 
 // OrderService also references catalogService — that gives it the gRPC client config to call
 // into Catalog for product validation during order placement.
 var orderService = WithOptionalAppInsights(
     builder.AddProject<Projects.OrderService_Api>("order-service")
-        .WithReference(ordersDb)
-        .WithReference(serviceBus)
-        .WithReference(catalogService), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
+        .WithReference(ordersDb).WaitFor(ordersDb)
+        .WithReference(serviceBus).WaitFor(serviceBus)
+        .WithReference(catalogService).WaitFor(catalogService), appInsights)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);
 
 WithOptionalAppInsights(
     builder.AddProject<Projects.PaymentService_Api>("payment-service")
-        .WithReference(paymentsDb)
-        .WithReference(serviceBus), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
+        .WithReference(paymentsDb).WaitFor(paymentsDb)
+        .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);
 
 WithOptionalAppInsights(
     builder.AddProject<Projects.ShippingService_Api>("shipping-service")
-        .WithReference(shippingDb)
-        .WithReference(serviceBus), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
+        .WithReference(shippingDb).WaitFor(shippingDb)
+        .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);
 
 // NotificationService is stateless — no DB reference, just messaging + telemetry.
 WithOptionalAppInsights(
     builder.AddProject<Projects.NotificationService_Api>("notification-service")
-        .WithReference(serviceBus), appInsights);
+        .WithReference(serviceBus).WaitFor(serviceBus), appInsights);
 
 // --- Frontend ---
 // Storefront and SellerPortal reference the API services so service-discovery resolves
