@@ -522,3 +522,50 @@ Adding `AsNoTracking()` to shared methods would break the read-then-mutate-then-
 - **Integration Tests** - Testcontainers-based service testing
 - **Order Cancellation Flow** - Cancel event and compensation logic
 - **Production migration deployment step** - In dev, `MigrateDatabaseAsync<T>()` runs at startup; production should run migrations as a separate deploy step (not in-process) to avoid races between replicas. Tooling exists; deploy automation does not.
+
+---
+
+## Deployment
+
+NextAurora is built transport-agnostic via Wolverine — handlers depend on `IMessageBus` and `Envelope`, not on transport-specific types. That means the local-dev choice of Azure Service Bus (run as an Aspire emulator) does not lock the app into Azure. The intended production deployment is **Amazon Web Services**, with **SNS + SQS** as the messaging backbone.
+
+### Why SNS + SQS over RabbitMQ
+
+A common confusion: "AWS deployment" doesn't imply RabbitMQ. The AWS-native equivalent of Azure Service Bus is the SNS + SQS pair — SNS provides the publish-subscribe topic surface; SQS provides per-subscriber queues.
+
+| Concern | Recommended | Alternative | Notes |
+|---|---|---|---|
+| Topic + per-subscriber queues | SNS topic → SQS queues | RabbitMQ on Amazon MQ | SNS+SQS is fully managed, IAM/VPC/CloudWatch native, pay-per-message. |
+| Cross-cloud portability | — | RabbitMQ on Amazon MQ | Pick this only if running the same broker on AWS, Azure, GCP, on-prem matters more than first-class AWS integration. |
+| Event-streaming workloads | Amazon MSK (Kafka) | — | Out of scope for our saga model — different mental model (log-based). |
+| Higher-level event routing | Amazon EventBridge | — | Wolverine support is limited; not a fit for the per-subscription idempotency model we use. |
+
+### 1:1 topology mapping
+
+| NextAurora today (Azure) | AWS equivalent |
+|---|---|
+| Topic `order-events` | SNS topic `order-events` |
+| Subscription `payment-orders-sub` | SQS queue `payment-orders-sub` (subscribed to the topic) |
+| Subscription `notify-orders-sub` | SQS queue `notify-orders-sub` (subscribed to the topic) |
+| Topic `payment-events` + 3 subs | SNS topic + 3 SQS queues |
+| Topic `shipping-events` + 2 subs | SNS topic + 2 SQS queues |
+| Queue `send-notification` | SQS queue `send-notification` (no SNS needed; direct send) |
+
+Idempotency, dead-letter handling, and the transactional outbox all behave the same — Wolverine implements them at the framework level.
+
+### What changes during the swap
+
+- **`AppHost.cs`** — In production, infrastructure usually lives outside Aspire (Terraform/CDK/CloudFormation). The Aspire-driven `AddAzureServiceBus(...).RunAsEmulator()` exists only for local dev.
+- **Each service's `Program.cs`** — `opts.UseAzureServiceBus(...)` becomes `opts.UseAmazonSqs(...)` (and SNS publishing config). The package reference swap is `WolverineFx.AzureServiceBus` → `WolverineFx.AmazonSqs`.
+- **Handlers and domain code** — zero changes. They read/write the same `Envelope.Headers`, the same `IMessageBus.PublishAsync(...)`. The `WolverineEventPublisher` adapter we already have is the seam.
+- **Database hosting** — Postgres → Amazon RDS for PostgreSQL or Aurora; SQL Server → RDS for SQL Server. EF Core providers stay the same.
+- **Identity** — Keycloak can run on ECS/EKS/EC2, or swap for **Amazon Cognito**. JWT validation in `ServiceDefaults` doesn't care which IdP issued the token, only that audience/issuer/signing match.
+- **Telemetry** — OpenTelemetry already exports OTLP; point at any OTel-compatible AWS collector (X-Ray via OTel exporter, Managed Prometheus + Managed Grafana, or third-party APM).
+
+### What stays the same
+
+The entire Domain layer, the entire Application layer (handlers + commands + queries), all middleware, the API versioning scheme, the auth/JWT flow, the saga orchestration, the transactional outbox, the optimistic concurrency tokens. The cloud-portability story is real because we kept Wolverine + EF Core abstractions clean and put cloud-specific calls only in `AppHost.cs` and per-service `Program.cs` configuration blocks.
+
+### Open work
+
+A non-trivial AWS deploy still needs (separate from this codebase): Terraform/CDK to provision SNS topics, SQS queues, RDS instances, ECS/EKS clusters; a CI/CD pipeline; secret management (AWS Secrets Manager); and the production migration deployment step listed above. None of these are blocked by application-level changes.
