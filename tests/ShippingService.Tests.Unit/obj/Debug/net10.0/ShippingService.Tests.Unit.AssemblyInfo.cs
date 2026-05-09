@@ -10,10 +10,11 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("ShippingService.Tests.Unit")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("Joshua Dell")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright (c) 2026 Joshua Dell")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3d5472aa71e99464ab6bbad4c62faf450551532b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+13ce1ed2a21471fa89b020b4bf2a37bebc041cae")]
 [assembly: System.Reflection.AssemblyProductAttribute("ShippingService.Tests.Unit")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ShippingService.Tests.Unit")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

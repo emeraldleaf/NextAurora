@@ -20,10 +20,11 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyMetadata("aspiredashboardpath", ("/Users/joshuadell/.nuget/packages/aspire.dashboard.sdk.osx-arm64/13.3.0/tools/Asp" +
     "ire.Dashboard.dll"))]
 [assembly: System.Reflection.AssemblyMetadataAttribute("apphostprojectbaseintermediateoutputpath", "/Users/joshuadell/NovaCraft/NextAurora.AppHost/obj/")]
-[assembly: System.Reflection.AssemblyCompanyAttribute("NextAurora.AppHost")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("Joshua Dell")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright (c) 2026 Joshua Dell")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3d5472aa71e99464ab6bbad4c62faf450551532b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+13ce1ed2a21471fa89b020b4bf2a37bebc041cae")]
 [assembly: System.Reflection.AssemblyProductAttribute("NextAurora.AppHost")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NextAurora.AppHost")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

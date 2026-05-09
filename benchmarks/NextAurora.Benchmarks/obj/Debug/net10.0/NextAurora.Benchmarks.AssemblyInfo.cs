@@ -10,10 +10,11 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("NextAurora.Benchmarks")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("Joshua Dell")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright (c) 2026 Joshua Dell")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+029c8b846dd1e9e4469399b9da3029bd8c5e692c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+13ce1ed2a21471fa89b020b4bf2a37bebc041cae")]
 [assembly: System.Reflection.AssemblyProductAttribute("NextAurora.Benchmarks")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NextAurora.Benchmarks")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
