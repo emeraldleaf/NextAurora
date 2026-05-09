@@ -1,4 +1,6 @@
+using CatalogService.Application.Interfaces;
 using CatalogService.Domain.Interfaces;
+using CatalogService.Infrastructure.Caching;
 using CatalogService.Infrastructure.Data;
 using CatalogService.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +42,12 @@ public static class DependencyInjection
         // the same scope and therefore the same DbContext instance.
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
+
+        // Distributed cache for product reads. The underlying IDistributedCache is registered
+        // in Program.cs via AddStackExchangeRedisCache. See CLAUDE.md "Performance Rules" for
+        // the cache-invalidation contract — every write handler that mutates a Product must
+        // call IProductCache.InvalidateAsync in the same unit of work.
+        services.AddScoped<IProductCache, RedisProductCache>();
 
         return services;
     }

@@ -65,10 +65,9 @@ The script verifies:
 Roughly highest-leverage first:
 
 1. **Integration tests** (Testcontainers-based saga test). Locks in correctness for everything we just built. Architecture.md still lists this as "Not Yet Implemented".
-2. **Distributed caching for Catalog** — Redis is wired in AppHost but unused. Cache-aside on product reads. ~1–2 hours.
-3. **Order cancellation flow** — listed in BRD as ORD-08, "Not Yet Implemented".
-4. **Saga compensation** — failed-payment / failed-shipment rollback. Larger.
-5. **Frontend implementation** — Storefront + SellerPortal scaffolds → real UIs. Big investment.
+2. **Order cancellation flow** — listed in BRD as ORD-08, "Not Yet Implemented".
+3. **Saga compensation** — failed-payment / failed-shipment rollback. Larger.
+4. **Frontend implementation** — Storefront + SellerPortal scaffolds → real UIs. Big investment.
 
 ---
 
