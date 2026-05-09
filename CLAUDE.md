@@ -50,7 +50,7 @@ ServiceName/
 
 - .NET 10 / C# 13
 - File-scoped namespaces
-- Private fields prefixed with `_`
+- Private *instance* fields prefixed with `_` (camelCase). Constants and `static readonly` fields use PascalCase per .NET convention — do NOT prefix with `_` (e.g. `OrdersPlaced`, `Carriers`, `TraceIdKey`). The `.editorconfig` enforces this split via separate naming rules
 - Async methods suffixed with `Async`
 - Interfaces prefixed with `I`
 - Use `var` when type is apparent

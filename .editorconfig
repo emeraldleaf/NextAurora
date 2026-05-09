@@ -67,6 +67,31 @@ dotnet_naming_symbols.any_async_methods.required_modifiers = async
 dotnet_naming_style.end_in_async.required_suffix = Async
 dotnet_naming_style.end_in_async.capitalization = pascal_case
 
+# Naming rules evaluate first-match-wins. Order matters: more specific rules first.
+# Constants and static-readonly fields use PascalCase (the .NET convention for compile-time
+# / module-level immutables), NOT the _camelCase prefix that's reserved for mutable instance
+# state. See OrdersPlaced, PaymentsProcessed, Carriers, TraceIdKey for examples.
+# See CLAUDE.md.
+
+dotnet_naming_rule.private_constants_should_be_pascal_case.severity = warning
+dotnet_naming_rule.private_constants_should_be_pascal_case.symbols = private_constants
+dotnet_naming_rule.private_constants_should_be_pascal_case.style = pascal_case_style
+
+dotnet_naming_symbols.private_constants.applicable_kinds = field
+dotnet_naming_symbols.private_constants.applicable_accessibilities = private, internal, protected, protected_internal, private_protected
+dotnet_naming_symbols.private_constants.required_modifiers = const
+
+dotnet_naming_rule.private_static_readonly_should_be_pascal_case.severity = warning
+dotnet_naming_rule.private_static_readonly_should_be_pascal_case.symbols = private_static_readonly_fields
+dotnet_naming_rule.private_static_readonly_should_be_pascal_case.style = pascal_case_style
+
+dotnet_naming_symbols.private_static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.private_static_readonly_fields.applicable_accessibilities = private, internal, protected, protected_internal, private_protected
+dotnet_naming_symbols.private_static_readonly_fields.required_modifiers = static, readonly
+
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+# All OTHER private fields (mutable instance state) get the _camelCase prefix.
 dotnet_naming_rule.private_fields_should_begin_with_underscore.severity = warning
 dotnet_naming_rule.private_fields_should_begin_with_underscore.symbols = private_fields
 dotnet_naming_rule.private_fields_should_begin_with_underscore.style = underscore_prefix
