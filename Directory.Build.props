@@ -8,6 +8,12 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Licensing & ownership metadata. Surfaces in NuGet packages if any project ever
+         publishes one. PackageLicenseExpression is an SPDX identifier (machine-readable). -->
+    <Authors>Joshua Dell</Authors>
+    <Copyright>Copyright (c) 2026 Joshua Dell</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

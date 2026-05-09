@@ -315,4 +315,4 @@ If Keycloak isn't configured (no `Authentication:Authority` and no `Keycloak:Url
 
 ## License
 
-This project is for educational and demonstration purposes.
+[MIT](LICENSE) — Copyright (c) 2026 Joshua Dell. Free to use, modify, and redistribute with attribution.
