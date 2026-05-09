@@ -2,7 +2,7 @@
 
 > **Read this first when picking up work.** It's the cross-session entry point: where the project is right now, what to do next, and where the deeper docs live. Keep it short (~100 lines). Update it at the start or end of each working session.
 
-**Last updated:** 2026-05-03
+**Last updated:** 2026-05-08
 
 ---
 
@@ -27,10 +27,21 @@ These two commits collectively add:
 - **Doc consistency sweep** — README, CLAUDE.md, architecture.md, BRD.md, observability.md, event-driven-observability.md, event-catalog.md, copilot-instructions.md, event-replay.md all updated. SellerPortal "Blazor Server" claim corrected (it's a static-file host scaffold).
 - **Package bumps** — WolverineFx 5.17 → 5.36.2, OpenTelemetry 1.14.0 → 1.15.x (cleared 4 CVE warnings).
 
+### Recently landed (since the original architectural commits)
+
+- **Smoke-test debugging arc** (commits `1cb5ea8` through `8019891`) — surfaced and captured five Aspire/Wolverine 13.x gotchas: SDK/package version alignment, globally-unique subscription names, `RunAsEmulator()` for Service Bus, `IsPublishMode` gate on App Insights, `WaitFor()` for service-startup gating, Wolverine middleware requires instance methods. Each fix paired with a CLAUDE.md rule update per the Debugging Discipline.
+- **Aspire 13.2.4 → 13.3.0** (commit `6f28e2e`) — minor bump, clean.
+- **Cross-reference automation** (commit `8644ae5`) — PostToolUse hook surfaces "See CLAUDE.md" markers when CLAUDE.md is edited so paraphrases don't drift.
+- **Distributed caching for Catalog** (commit `<HEAD~1>`) — `IProductCache` cache-aside on `GetProductByIdQuery`; invalidation in `UpdateProductHandler`/`ReserveStockHandler`. Closes the long-standing "Distributed Caching" gap.
+- **Perf-testing harness** (current commit) — BenchmarkDotNet project at `benchmarks/NextAurora.Benchmarks/` with `OrderFactoryBenchmarks` as starter; k6 smoke at `scripts/k6/smoke.js`. Run instructions in [README "Performance Testing"](../README.md#performance-testing).
+- **AWS deployment section** in architecture.md — SNS+SQS as the production target, with the 1:1 topology mapping. System overview diagrams made transport-agnostic.
+- **`Handle` → `HandleAsync` rename** across all async handlers (commit `15e11c1`) — CLAUDE.md naming rule compliance.
+
 ### Build / test state
 - `dotnet build` — clean, 0 warnings, 0 errors.
-- `dotnet test` — 133/133 unit tests pass.
+- `dotnet test` — 134/134 unit tests pass.
 - **No integration tests** — runtime correctness of the saga / outbox / migrations has not been verified.
+- **Performance baselines not measured yet** — harness exists; no recorded baseline numbers.
 
 ---
 

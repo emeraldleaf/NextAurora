@@ -246,6 +246,30 @@ Key components:
 
 Order, Payment, and Shipping run **Wolverine's transactional outbox**: outgoing events persist to a `wolverine` schema in each service's database in the same DB transaction as the entity write, then dispatch to Service Bus via a background flush. See [`docs/context-propagation.md`](docs/context-propagation.md) and [`docs/performance-and-data-correctness.md`](docs/performance-and-data-correctness.md) for full details.
 
+## Performance Testing
+
+Two harnesses, both opt-in.
+
+### Code-level micro-benchmarks (BenchmarkDotNet)
+
+```bash
+dotnet run -c Release --project benchmarks/NextAurora.Benchmarks
+# Or filter to a single benchmark class:
+dotnet run -c Release --project benchmarks/NextAurora.Benchmarks -- --filter '*OrderFactory*'
+```
+
+Always run in **Release** — Debug numbers are not representative. Currently includes `OrderFactoryBenchmarks` (Order aggregate creation with 1/5/25 line counts). Add new benchmarks under `benchmarks/NextAurora.Benchmarks/` following the same pattern.
+
+### Endpoint load tests (k6)
+
+```bash
+brew install k6   # macOS; see https://k6.io/docs/getting-started/installation/ for others
+# AppHost must be running. CATALOG_URL is the same value smoke-test.sh uses.
+CATALOG_URL=https://localhost:XXXXX k6 run scripts/k6/smoke.js
+```
+
+Currently includes `smoke.js` (1 VU for 30s with p95 < 500ms / error rate < 1% thresholds). See [scripts/k6/README.md](scripts/k6/README.md).
+
 ## Code Quality
 
 The project enforces code quality standards from day one:
