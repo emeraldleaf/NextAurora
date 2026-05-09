@@ -313,6 +313,16 @@ If Keycloak isn't configured (no `Authentication:Authority` and no `Keycloak:Url
 | **gRPC (Sync)** | Protocol Buffers | Product validation during order placement |
 | **REST (External)** | ASP.NET Core Minimal APIs | Frontend-to-service communication |
 
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [How It Works](docs/how-it-works.md) | Developer walkthrough — Clean Architecture, CQRS, request lifecycle, event flow, testing |
+| [Architecture](docs/architecture.md) | Service diagrams, communication matrix, domain model, design patterns |
+| [Observability](docs/observability.md) | Correlation IDs, distributed tracing, MediatR pipeline logging, DLQ handling, metrics |
+| [Event Replay](docs/event-replay.md) | Event log, admin endpoints, debugging failed transactions, replay guide |
+| [Business Requirements](docs/BRD.md) | Functional requirements, implementation status, business processes, glossary |
+
 ## License
 
 [MIT](LICENSE) — Copyright (c) 2026 Joshua Dell. Free to use, modify, and redistribute with attribution.
