@@ -4314,6 +4314,7 @@
           "Aspire.Hosting.Redis": "13.3.0",
           "Aspire.Hosting.SqlServer": "13.3.0",
           "Azure.Messaging.ServiceBus": "7.20.1",
+          "BenchmarkDotNet": "0.15.8",
           "Bogus": "35.6.1",
           "FluentAssertions": "8.0.1",
           "FluentValidation": "11.11.0",
