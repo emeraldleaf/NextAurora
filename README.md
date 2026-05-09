@@ -4,6 +4,8 @@ A microservices-based e-commerce platform built with .NET 10, Blazor, and .NET A
 
 NextAurora demonstrates a production-style distributed system with event-driven architecture, CQRS, domain-driven design, and gRPC for inter-service communication.
 
+> **Want the full picture in one view?** See [docs/nextaurora-architecture.excalidraw](docs/nextaurora-architecture.excalidraw) — services, Service Bus topology, databases, and the 10-step order-placement saga in a single diagram. Open in VSCode (Excalidraw plugin) or drag onto [excalidraw.com](https://excalidraw.com).
+
 ## Architecture Overview
 
 ```
