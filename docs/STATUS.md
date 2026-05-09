@@ -32,10 +32,11 @@ These two commits collectively add:
 - **Smoke-test debugging arc** (commits `1cb5ea8` through `8019891`) — surfaced and captured five Aspire/Wolverine 13.x gotchas: SDK/package version alignment, globally-unique subscription names, `RunAsEmulator()` for Service Bus, `IsPublishMode` gate on App Insights, `WaitFor()` for service-startup gating, Wolverine middleware requires instance methods. Each fix paired with a CLAUDE.md rule update per the Debugging Discipline.
 - **Aspire 13.2.4 → 13.3.0** (commit `6f28e2e`) — minor bump, clean.
 - **Cross-reference automation** (commit `8644ae5`) — PostToolUse hook surfaces "See CLAUDE.md" markers when CLAUDE.md is edited so paraphrases don't drift.
-- **Distributed caching for Catalog** (commit `<HEAD~1>`) — `IProductCache` cache-aside on `GetProductByIdQuery`; invalidation in `UpdateProductHandler`/`ReserveStockHandler`. Closes the long-standing "Distributed Caching" gap.
-- **Perf-testing harness** (current commit) — BenchmarkDotNet project at `benchmarks/NextAurora.Benchmarks/` with `OrderFactoryBenchmarks` as starter; k6 smoke at `scripts/k6/smoke.js`. Run instructions in [README "Performance Testing"](../README.md#performance-testing).
-- **AWS deployment section** in architecture.md — SNS+SQS as the production target, with the 1:1 topology mapping. System overview diagrams made transport-agnostic.
+- **Distributed caching for Catalog** (commit `14e8432`) — `IProductCache` cache-aside on `GetProductByIdQuery`; invalidation in `UpdateProductHandler`/`ReserveStockHandler`. Backed by Redis via `IDistributedCache`, 5-min TTL. Closes the long-standing "Distributed Caching" gap.
+- **Perf-testing harness** (commit `3d5472a`) — BenchmarkDotNet project at `benchmarks/NextAurora.Benchmarks/` with `OrderFactoryBenchmarks` as starter; k6 smoke at `scripts/k6/smoke.js`. Run instructions in [README "Performance Testing"](../README.md#performance-testing).
+- **AWS deployment section** in architecture.md (commits `ea24c6e` + `029c8b8`) — SNS+SQS as the planned production target with a 1:1 topology mapping and a four-phase migration plan. **Status callout at the top: planning, not implemented — the codebase still runs on Azure Service Bus.** System overview diagrams made transport-agnostic.
 - **`Handle` → `HandleAsync` rename** across all async handlers (commit `15e11c1`) — CLAUDE.md naming rule compliance.
+- **Naming rule fix in `.editorconfig`** (commit `e706edd`) — scoped the `_camelCase` underscore-prefix rule to instance fields only. Constants and `static readonly` use PascalCase per .NET convention. CLAUDE.md "Coding Standards" clarified.
 
 ### Build / test state
 - `dotnet build` — clean, 0 warnings, 0 errors.
