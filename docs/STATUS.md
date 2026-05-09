@@ -2,7 +2,7 @@
 
 > **Read this first when picking up work.** It's the cross-session entry point: where the project is right now, what to do next, and where the deeper docs live. Keep it short (~100 lines). Update it at the start or end of each working session.
 
-**Last updated:** 2026-05-08
+**Last updated:** 2026-05-09
 
 ---
 
