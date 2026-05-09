@@ -529,7 +529,9 @@ Adding `AsNoTracking()` to shared methods would break the read-then-mutate-then-
 
 ## Deployment
 
-NextAurora is built transport-agnostic via Wolverine — handlers depend on `IMessageBus` and `Envelope`, not on transport-specific types. That means the local-dev choice of Azure Service Bus (run as an Aspire emulator) does not lock the app into Azure. The intended production deployment is **Amazon Web Services**, with **SNS + SQS** as the messaging backbone.
+> **Status: planning, not implemented.** The codebase currently runs on **Azure Service Bus** in every environment (locally via the Aspire emulator). All five services use `WolverineFx.AzureServiceBus`. AppHost wires the messaging through `AddAzureServiceBus("messaging").RunAsEmulator()`. **No AWS code is in the repo yet.** This section describes the AWS migration target so the work has a plan when it's prioritized — it is not a record of work done.
+
+NextAurora is built transport-agnostic via Wolverine — handlers depend on `IMessageBus` and `Envelope`, not on transport-specific types. That means the local-dev choice of Azure Service Bus (run as an Aspire emulator) does not lock the app into Azure. The intended production deployment target is **Amazon Web Services**, with **SNS + SQS** as the messaging backbone.
 
 ### Why SNS + SQS over RabbitMQ
 
@@ -568,6 +570,53 @@ Idempotency, dead-letter handling, and the transactional outbox all behave the s
 
 The entire Domain layer, the entire Application layer (handlers + commands + queries), all middleware, the API versioning scheme, the auth/JWT flow, the saga orchestration, the transactional outbox, the optimistic concurrency tokens. The cloud-portability story is real because we kept Wolverine + EF Core abstractions clean and put cloud-specific calls only in `AppHost.cs` and per-service `Program.cs` configuration blocks.
 
-### Open work
+### What it takes to actually switch
 
-A non-trivial AWS deploy still needs (separate from this codebase): Terraform/CDK to provision SNS topics, SQS queues, RDS instances, ECS/EKS clusters; a CI/CD pipeline; secret management (AWS Secrets Manager); and the production migration deployment step listed above. None of these are blocked by application-level changes.
+Phased plan, smallest blast radius first. Each phase is independently shippable.
+
+**Phase 0 — Code swap (~half day, app-level changes only).** No infra yet; just prove the codebase compiles and tests pass against the Wolverine SQS transport.
+- Bump packages: `WolverineFx.AzureServiceBus` → `WolverineFx.AmazonSqs` in [Directory.Packages.props](../Directory.Packages.props) and the four service Api csprojs.
+- In each service's `Program.cs`: `opts.UseAzureServiceBus(connectionString)` → `opts.UseAmazonSqs(...)`. Topic publish: `PublishMessage<X>().ToAzureServiceBusTopic("foo")` → `.ToSnsTopic("foo")`. Subscription listen: `ListenToAzureServiceBusSubscription("foo/bar")` → `ListenToSqsQueue("bar")` (SQS doesn't have the topic-prefix path).
+- Handlers, domain entities, DTOs, middleware, the `WolverineEventPublisher` adapter — all unchanged.
+- Tests stay unit-level (no transport in unit tests). Add at least one integration test using LocalStack to exercise the new transport before going further.
+
+**Phase 1 — AWS infrastructure as code (~2-3 days).** Pure Terraform/CDK work, no app changes.
+- 3 SNS topics: `order-events`, `payment-events`, `shipping-events`.
+- 7 SQS queues mapping to today's subscriptions (`payment-orders-sub`, `notify-orders-sub`, `order-payments-sub`, `shipping-payments-sub`, `notify-payments-sub`, `order-shipping-sub`, `notify-shipping-sub`), each subscribed to its source SNS topic.
+- 1 standalone SQS queue: `send-notification` (NotificationService's direct queue, no SNS).
+- DLQ per queue with `maxReceiveCount` (~5).
+- IAM policies — each service gets a role with minimum-privilege publish/subscribe for the topics/queues it touches.
+- RDS for PostgreSQL (catalog-db, shipping-db) and SQL Server (orders-db, payments-db). Or Aurora.
+- ElastiCache for Redis (Catalog cache).
+- Secrets Manager entries for connection strings + Stripe keys.
+- VPC + security groups gating egress.
+
+**Phase 2 — Containerize + ship (~3-5 days).**
+- Dockerfile per service.
+- ECR repos.
+- ECS Fargate (simpler) or EKS (more control). Task definitions / Helm charts.
+- ALB or API Gateway in front of public services (Storefront, OrderService).
+- Service discovery — Aspire-style `https+http://catalog-service` resolution doesn't translate. Use ECS Service Connect or AWS Cloud Map, then update `WithReference(catalogService)` consumers (`GrpcCatalogClient`) to use the resolved DNS.
+- Production migration deploy step: a one-shot ECS task or CodeBuild step that runs `dotnet ef database update` per service before the app deploys (gating on the migration succeeding). Aspire's startup `MigrateDatabaseAsync<T>()` stays dev-only.
+- CI/CD pipeline (GitHub Actions or CodePipeline): build → test → push image → run migrations → deploy.
+
+**Phase 3 — Identity, observability, hardening (~2-3 days).**
+- Identity: pick one of (a) keep Keycloak, run on ECS with RDS-backed storage; (b) migrate to **Amazon Cognito**. JWT validation in `ServiceDefaults` works with either as long as `Authentication:Authority` and `Authentication:Audience` config point at the right values. Rewriting the realm is the only Keycloak→Cognito migration cost; user data export/import is its own minor project.
+- Observability: OTel exporter → AWS Distro for OpenTelemetry collector → CloudWatch + X-Ray. Aspire dashboard becomes dev-only.
+- Health checks: ALB target group → existing `/health` and `/alive` endpoints in `ServiceDefaults` (no app change).
+- Autoscaling policies on ECS/EKS — CPU + queue-depth-based for the saga consumers.
+- WAF in front of public APIs.
+
+**What this codebase blocks** (basically nothing): the Wolverine + EF Core abstractions hold up. Domain, Application, middleware, auth, the saga, the outbox, concurrency tokens — none touch AWS code paths. Phase 0 is a small focused PR; phases 1-3 are infra-team work that can proceed in parallel once Phase 0 is merged.
+
+**What it does NOT solve** that you'd still need:
+- A cost model. SNS+SQS is cheap per message but multiplies fast; estimate before committing.
+- A runbook for rotating credentials, recovering from Redis failure, replaying DLQ messages in prod.
+- Disaster recovery: cross-region replication for RDS, multi-AZ for everything stateful.
+- Compliance review if PCI/SOC2 applies (Stripe handles PCI scope but the rest of the system doesn't yet think about it).
+
+---
+
+### Aspire's role after the migration
+
+The Aspire AppHost stays — for local development. It continues to spin up Postgres, SQL Server, Service Bus emulator, Redis, Keycloak as containers. Production never sees it. Local dev keeps the fast inner loop; AWS deploy is a separate set of artifacts.
