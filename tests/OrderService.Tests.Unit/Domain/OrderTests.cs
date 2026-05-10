@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using OrderService.Domain.Entities;
 using OrderService.Tests.Unit.Builders;
 

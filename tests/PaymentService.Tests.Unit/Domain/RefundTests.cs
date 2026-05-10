@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using PaymentService.Domain.Entities;
 
 namespace PaymentService.Tests.Unit.Domain;

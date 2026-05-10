@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using FluentAssertions;
+using AwesomeAssertions;
 using NextAurora.ServiceDefaults.Messaging;
 using Wolverine;
 

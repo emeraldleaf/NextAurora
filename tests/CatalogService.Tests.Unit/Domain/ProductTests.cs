@@ -1,5 +1,5 @@
 using CatalogService.Tests.Unit.Builders;
-using FluentAssertions;
+using AwesomeAssertions;
 
 namespace CatalogService.Tests.Unit.Domain;
 

@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using NotificationService.Domain.Entities;
 
 namespace NotificationService.Tests.Unit.Domain;

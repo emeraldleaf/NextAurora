@@ -2,7 +2,7 @@ using CatalogService.Application.Commands;
 using CatalogService.Application.Handlers;
 using CatalogService.Domain.Entities;
 using CatalogService.Domain.Interfaces;
-using FluentAssertions;
+using AwesomeAssertions;
 using NSubstitute;
 
 namespace CatalogService.Tests.Unit.Application;

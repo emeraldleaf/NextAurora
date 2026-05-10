@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using OrderService.Application.Commands;
 using OrderService.Application.Validators;
 

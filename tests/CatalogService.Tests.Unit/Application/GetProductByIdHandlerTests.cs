@@ -4,7 +4,7 @@ using CatalogService.Application.Queries;
 using CatalogService.Domain.Entities;
 using CatalogService.Domain.Interfaces;
 using CatalogService.Tests.Unit.Builders;
-using FluentAssertions;
+using AwesomeAssertions;
 using NextAurora.Contracts.DTOs;
 using NSubstitute;
 

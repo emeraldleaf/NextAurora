@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using ShippingService.Domain.Entities;
 
 namespace ShippingService.Tests.Unit.Domain;

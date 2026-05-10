@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using NextAurora.Contracts.Events;
 using ShippingService.Application.Commands;
 using ShippingService.Application.EventHandlers;

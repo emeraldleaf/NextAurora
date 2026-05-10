@@ -1,6 +1,6 @@
 using CatalogService.Application.Commands;
 using CatalogService.Application.Validators;
-using FluentAssertions;
+using AwesomeAssertions;
 
 namespace CatalogService.Tests.Unit.Application;
 
