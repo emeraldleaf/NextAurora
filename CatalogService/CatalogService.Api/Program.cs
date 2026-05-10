@@ -7,6 +7,7 @@ using CatalogService.Infrastructure.Data;
 using FluentValidation;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
+using Scalar.AspNetCore;
 using Wolverine;
 using Wolverine.FluentValidation;
 
@@ -63,6 +64,7 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapOpenApi("/openapi/{documentName}.yaml");
+    app.MapScalarApiReference();
     await app.Services.MigrateDatabaseAsync<CatalogDbContext>();
 }
 

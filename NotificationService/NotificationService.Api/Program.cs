@@ -3,6 +3,7 @@ using NextAurora.Contracts.Commands;
 using NextAurora.Contracts.Events;
 using NotificationService.Application.Commands;
 using NotificationService.Infrastructure;
+using Scalar.AspNetCore;
 using Wolverine;
 using Wolverine.AzureServiceBus;
 
@@ -45,6 +46,7 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapOpenApi("/openapi/{documentName}.yaml");
+    app.MapScalarApiReference();
 }
 
 app.Run();

@@ -9,6 +9,7 @@ using OrderService.Application.Commands;
 using OrderService.Application.Interfaces;
 using OrderService.Infrastructure;
 using OrderService.Infrastructure.Data;
+using Scalar.AspNetCore;
 using Wolverine;
 using Wolverine.AzureServiceBus;
 using Wolverine.EntityFrameworkCore;
@@ -71,6 +72,7 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapOpenApi("/openapi/{documentName}.yaml");
+    app.MapScalarApiReference();
     await app.Services.MigrateDatabaseAsync<OrderDbContext>();
 }
 
