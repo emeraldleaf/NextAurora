@@ -99,6 +99,33 @@ Roughly highest-leverage first:
 
 ---
 
+## If this stops being a learning project: polyrepo migration sketch
+
+The current monorepo is the right shape for a portfolio — full architecture in one `git clone`, lockstep changes across services, simple local dev. If this ever becomes a production system with multiple teams, the split would look like:
+
+**Target shape:**
+- 5 service repos (`nextaurora-{catalog,orders,payments,shipping,notifications}`) — each owns its tests and migrations
+- 2 frontend repos (`nextaurora-{storefront,seller-portal}`)
+- 1 platform repo (`nextaurora-platform`) — `AppHost`, integration tests, architecture docs, deploy manifests, the Excalidraw diagram
+- `NextAurora.Contracts` and `NextAurora.ServiceDefaults` → versioned **NuGet packages** on a private feed (GitHub Packages, Azure Artifacts)
+
+**Contracts strategy:** single `NextAurora.Contracts` NuGet package, SemVer-pinned by each consumer, with a **compatibility-matrix CI job** in the platform repo that builds each service against latest contracts and reports drift. Per-bounded-context contract packages and schema-registry-driven generation are stronger options, but earn their weight only at much larger team scale.
+
+**The five things that actually change:**
+1. **Local dev breaks unless re-engineered.** `dotnet run --project NextAurora.AppHost` builds everything from source today; polyrepo means either sibling-checkout + path-references OR pre-built container images + `AddDockerImage(...)`. Most shops do both modes.
+2. **Cross-cutting refactors become multi-PR migrations.** "Add a field to `OrderPlacedEvent`" goes from one PR to: contracts bump → publish → update each consumer → integration-test in platform. Intentional friction, but you pay it on every change.
+3. **`ServiceDefaults` drift.** Every service ends up on a different version. Mitigation: a "minimum supported `ServiceDefaults`" version pin enforced in CI + Dependabot.
+4. **Code search loses cross-repo navigation.** "Where is `OrderPlacedEvent` handled?" stops being a single grep. Need sourcegraph, GitHub cross-repo search, or central tooling.
+5. **Integration tests can't live with one service.** Platform repo owns them. Aspire-driven with pre-built images is the cleanest harness.
+
+**What doesn't change:** DB migrations stay with their owning service (already correctly organized), the choreography saga / event contracts / outbox / concurrency tokens / HybridCache all carry over unmodified — they're the load-bearing architecture, not the monorepo.
+
+**Estimated effort:** ~1 week mechanical (split + CI setup + private feed wiring + contracts package publish) plus ~2-3 weeks soak (find the cross-cutting refactors that quietly relied on monorepo lockstep). Single biggest investment: the contracts-compatibility CI matrix. Everything else is mechanical.
+
+This is filed here, not in "After the smoke run," because it's *conditional* — only do it when the project's nature actually changes. Premature polyrepo splits add maintenance overhead without unlocking team-scale benefits.
+
+---
+
 ## Source-of-truth links
 
 | Topic | File |
