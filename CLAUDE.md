@@ -124,6 +124,7 @@ These are always-on. Deeper guidance (modern EF features, transactions, caching 
 - **Cache invalidation in the write path**: if a handler mutates a cached entity, it must invalidate or update the cache in the same handler — not "later" or "via TTL".
 - **Migrations are immutable once applied**: never edit a migration that has run anywhere (dev included). Destructive changes (drop column/table, rename, NOT NULL on existing column) need a multi-step plan, not a single migration.
 - **Measure before optimizing**: don't add caching, compiled queries, `ValueTask`, or `AsSplitQuery()` on intuition. Use BenchmarkDotNet for code paths, `dotnet-counters`/k6 for system behavior, `ToQueryString()` for EF.
+- **Dapper is the sanctioned escape hatch from EF**, not a peer abstraction. Reach for it only when (a) the SQL is provider-specific and doesn't translate cleanly, (b) profiling proves EF is the bottleneck on a hot path, or (c) the query is a SQL aggregation where LINQ obscures intent. Always use `ctx.Database.GetDbConnection()` so Dapper shares the EF connection and any ambient transaction — never open a separate `NpgsqlConnection`/`SqlConnection`. Writes always go through aggregates + EF (Dapper bypasses concurrency tokens, domain validation, and the outbox). Full rationale: [docs/performance-and-data-correctness.md "Decision: when to reach past EF Core (Dapper escape hatch)"](docs/performance-and-data-correctness.md#decision-when-to-reach-past-ef-core-dapper-escape-hatch).
 
 ## Testing
 

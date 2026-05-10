@@ -11,6 +11,7 @@ The hard rules live in [CLAUDE.md](../CLAUDE.md#performance-rules). The deeper "
 - [Decision: optimistic concurrency tokens](#decision-optimistic-concurrency-tokens)
 - [Decision: AsNoTracking strategy](#decision-asnotracking-strategy)
 - [Decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache)
+- [Decision: when to reach past EF Core (Dapper escape hatch)](#decision-when-to-reach-past-ef-core-dapper-escape-hatch)
 - [Resolved: transactional outbox via Wolverine](#resolved-transactional-outbox-via-wolverine)
 - [Resolved: concurrency exception handling](#resolved-concurrency-exception-handling)
 - [Resolved: migration tooling wired up](#resolved-migration-tooling-wired-up)
@@ -374,6 +375,99 @@ List queries (`GetAllProducts`, `SearchProducts`) are intentionally not cached. 
 
 ---
 
+## Decision: when to reach past EF Core (Dapper escape hatch)
+
+### Problem
+
+EF Core handles ~95% of our read patterns well — `AsNoTracking()` + projection produces tight SQL, the LINQ stays readable, and we get strong typing across schema changes. The remaining ~5%:
+
+- **Provider-specific SQL** — Postgres `ILIKE`, trigram operators, full-text search; SQL Server `MERGE`, hint syntax; window functions used in reporting — doesn't translate cleanly through LINQ.
+- **Hot-path projections** where every microsecond matters and EF's expression-tree compilation, identity-map check, and DbContext bookkeeping show up in profiles.
+- **Aggregate / reporting queries** where the SQL is the obvious expression of the intent and the LINQ equivalent obscures it.
+
+Without an explicit answer for these cases, two failure modes appear: people contort LINQ into something that performs worse than raw SQL would have, or they reach for `SqlConnection` / `NpgsqlConnection` directly and lose the parameterization, transaction sharing, and pooling we already get from EF.
+
+### What we chose
+
+`Dapper` 2.1.72 referenced from each Infrastructure project that has a relational DB (Catalog, Order, Payment, Shipping). **Not registered in DI; not a new abstraction.** The package is on the path; the pattern below is the only sanctioned way to use it.
+
+### The pattern: share the EF connection (and transaction)
+
+EF's `DbContext` already owns a connection — and, while a write is in flight, a transaction. Reach into it rather than opening a separate connection:
+
+```csharp
+public sealed class ProductReportRepository(CatalogDbContext ctx)
+{
+    public async Task<IReadOnlyList<TopSellerRow>> GetTopSellersAsync(
+        DateOnly since, int limit, CancellationToken ct)
+    {
+        // Same connection EF already opened for this scope.
+        var connection = ctx.Database.GetDbConnection();
+
+        // Postgres-specific SQL that's awkward in LINQ.
+        const string sql = """
+            SELECT p.id AS Id, p.name AS Name, COUNT(*) AS Sold
+            FROM products p
+            JOIN order_lines ol ON ol.product_id = p.id
+            JOIN orders o ON o.id = ol.order_id
+            WHERE o.placed_at >= @Since
+            GROUP BY p.id, p.name
+            ORDER BY Sold DESC
+            LIMIT @Limit;
+            """;
+
+        var rows = await connection.QueryAsync<TopSellerRow>(
+            new CommandDefinition(sql, new { Since = since, Limit = limit }, cancellationToken: ct));
+        return rows.AsList();
+    }
+}
+```
+
+Why this exact shape:
+
+1. **Transaction sharing.** If the calling handler has an EF transaction open (e.g., during a Wolverine `AutoApplyTransactions` chain), `GetDbConnection()` returns the connection that transaction is bound to, and Dapper queries automatically participate in it. No `BeginTransaction` in the Dapper code.
+2. **Connection lifetime.** EF disposes the connection when the scope ends. Dapper neither owns nor closes it. No `using` block, no double-dispose risk.
+3. **Single pool slot per request.** Opening a separate `NpgsqlConnection`/`SqlConnection` would consume a second pool slot for the same request, doubling pool pressure for no reason. CLAUDE.md "DB connection hold time" applies just as much to Dapper as to EF.
+4. **No new abstraction layer.** No `IDbConnectionFactory`, no `IDapperContext`, no decorator. The `DbContext` already in DI is the seam.
+
+### When to reach for Dapper — and when not to
+
+**Do** reach for it when one of these holds:
+
+- The query uses provider-specific SQL that doesn't translate cleanly (`ILIKE`, full-text search, window functions in Postgres; `MERGE`, hint syntax in SQL Server).
+- Profiling (`dotnet-counters`, `BenchmarkDotNet`, `EXPLAIN ANALYZE`) shows the EF version is the bottleneck on a hot path. *Profiling first is non-negotiable* — see CLAUDE.md "Measure before optimizing."
+- The query is fundamentally a SQL aggregation and writing the LINQ equivalent obscures intent (reporting, dashboards).
+
+**Don't** reach for it when:
+
+- The query is a straightforward CRUD read. EF projection is fine and gives compile-time safety on schema changes.
+- You're trying to avoid learning EF's projection syntax. The CQRS query handlers in this codebase show the pattern; learn that first.
+- It's a write. Writes go through aggregates and the change tracker — Dapper bypasses both, which means no concurrency token check, no domain validation, no outbox staging. Wholly the wrong tool.
+- You haven't profiled. Speculative Dapper rewrites of working LINQ are a classic optimization-without-measurement antipattern.
+
+### Trade-offs we accepted
+
+- **No compile-time column safety.** Dapper maps by name from the result set to property names. A column rename in a migration silently breaks the Dapper query at runtime; EF would catch it at compile time. **Mitigation:** every Dapper query needs an integration test that hits a real (Testcontainer) database and asserts the round-trip.
+- **No automatic snake_case ↔ PascalCase mapping.** EF Core has a naming convention pipeline; Dapper doesn't. Either alias columns in SQL (`SELECT p.product_id AS Id`) or flip `Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true` once at startup. The example above uses explicit aliases — preferred because it makes the contract local to the query.
+- **No change tracking.** Already noted as a feature, not a bug — Dapper is for read paths.
+- **Manual cancellation propagation.** Dapper takes `CancellationToken` via `CommandDefinition` (not as a final parameter on `QueryAsync`). Wrap each call in a `CommandDefinition` so the token is honored — see CLAUDE.md "Async on request paths."
+
+### Why not register `IDbConnectionFactory`
+
+A common alternative is to register an `IDbConnectionFactory` that hands out fresh `NpgsqlConnection`/`SqlConnection` instances. We deliberately didn't, for three reasons:
+
+1. **Transaction sharing breaks.** A separately-opened connection isn't enrolled in the ambient EF transaction; you'd have to thread `IDbContextTransaction.GetDbTransaction()` through manually or accept the dual-write hazard.
+2. **Pool pressure doubles.** Each request that mixes EF and Dapper holds two pool slots instead of one.
+3. **It implies Dapper is the peer of EF.** It isn't — it's the escape hatch. Making it look like a peer abstraction encourages spec-bypass usage.
+
+The convention "go through the DbContext's connection" is a feature, not a limitation.
+
+### Where it applies today
+
+**Nowhere yet.** Dapper is plumbing that's available; no current query has a measured reason to use it. When the first reason arrives, the example above is the canonical shape to copy. Until then, treat the package's presence as "the tool is on the bench" — not as a license to use it.
+
+---
+
 ## Resolved: transactional outbox via Wolverine
 
 This was the highest-priority correctness gap. **Resolved.** Wolverine's transactional outbox is now configured in OrderService, PaymentService, and ShippingService.
@@ -599,3 +693,5 @@ A short audit trail of how this guide's content came to exist, so you can explai
 | URL-segment API versioning | Added `Asp.Versioning.Http` + `Asp.Versioning.Mvc.ApiExplorer` 10.0.0. New `AddNextAuroraApiVersioning()` extension wired into `AddServiceDefaults()` so every service inherits the same policy: default 1.0, `UrlSegmentApiVersionReader`, `AssumeDefaultVersionWhenUnspecified=false`. All four endpoint extensions now use `app.NewVersionedApi(...)` with `/api/v{version:apiVersion}/...` routes. `Results.Created`/`Results.Accepted` Location headers updated. README, architecture.md, BRD.md (SCL-04), CLAUDE.md updated. Hard cutover (no compat shim for unversioned URLs) since there are no external consumers yet. | This conversation. |
 | Distributed read caching with HybridCache | Replaced the earlier single-tier Redis-via-`IDistributedCache` design with `Microsoft.Extensions.Caching.Hybrid` 10.5.0 (L1 in-process MemoryCache + L2 Redis, stampede protection, tag-based invalidation). `IProductCache` reshaped from `Get / Set / Invalidate` to factory-based `GetOrLoadAsync(factory) / InvalidateAsync` so the framework owns the cache-aside flow. `HybridProductCache` replaces `RedisProductCache`. Handler dropped to a one-liner. Build clean, all 134 tests pass. Full rationale: [decision section](#decision-distributed-read-caching-with-hybridcache). | This conversation. |
 | OpenAPI YAML output | Added `app.MapOpenApi("/openapi/{documentName}.yaml")` alongside the existing JSON endpoint in all five services. .NET 9+'s built-in OpenAPI emitter switches format on the route extension. Useful for tooling that prefers YAML (Spectral, embedding in markdown, some Postman/Insomnia imports). | This conversation. |
+| Scalar API reference UI | Added `Scalar.AspNetCore` 2.14.11 + `app.MapScalarApiReference()` in all five services. Reads the existing OpenAPI doc and renders an interactive UI at `/scalar/v1` (dev-only). | This conversation. |
+| Dapper escape hatch | Added `Dapper` 2.1.72 to the four Infrastructure projects with relational DBs (Catalog, Order, Payment, Shipping). No DI registration — the sanctioned pattern is `ctx.Database.GetDbConnection()` so Dapper queries share the EF connection + transaction. Plumbing only; no current query uses it. Full pattern + when-to-reach-for-it: [decision section](#decision-when-to-reach-past-ef-core-dapper-escape-hatch). | This conversation. |
