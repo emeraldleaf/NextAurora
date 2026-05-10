@@ -12,6 +12,7 @@ The hard rules live in [CLAUDE.md](../CLAUDE.md#performance-rules). The deeper "
 - [Decision: AsNoTracking strategy](#decision-asnotracking-strategy)
 - [Decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache)
 - [Decision: when to reach past EF Core (Dapper escape hatch)](#decision-when-to-reach-past-ef-core-dapper-escape-hatch)
+- [Discipline: pre-merge concurrency audit](#discipline-pre-merge-concurrency-audit)
 - [Resolved: transactional outbox via Wolverine](#resolved-transactional-outbox-via-wolverine)
 - [Resolved: concurrency exception handling](#resolved-concurrency-exception-handling)
 - [Resolved: migration tooling wired up](#resolved-migration-tooling-wired-up)
@@ -468,6 +469,95 @@ The convention "go through the DbContext's connection" is a feature, not a limit
 
 ---
 
+## Discipline: pre-merge concurrency audit
+
+### Why this exists
+
+Concurrency bugs have a specific, infuriating personality: they don't fail unit tests, they don't fail in dev, they don't fail under modest load. They fail under *sustained* concurrent traffic, often in production, often weeks after the offending change shipped. By the time the symptom shows up (deadlock, corruption, hang), the offending PR is buried in `git log` and nobody remembers writing it.
+
+Two articles read during this project's evolution both made the same point with different framing: "We Scaled to 500K Users — Then Everything Slowed Down" (Kerim Kara) and "7 Concurrency Mistakes C# Developers Keep Making" (Sukhpinder Singh). Both said *concurrency hazards only surface under load* and *static analysis catches the obvious patterns; the rest catch you*.
+
+The 14 always-on rules in CLAUDE.md cover the *substance* of safe concurrency — async-everywhere, `IDbContextFactory<T>` for parallel queries, no locking in hot paths, projection over fan-out. The audit below covers the *enforcement*: a mechanical grep pass that runs before any PR with non-trivial concurrency surface area (anything that adds fan-out, locks, async event handlers, background services, or static state).
+
+### The seven patterns we grep for
+
+Each pattern is one of the seven mistakes from the articles, with the exact `grep` to find it in this codebase, and what counts as a true positive vs. an acceptable framework pattern.
+
+```bash
+# 1. Sync-over-async — blocks a thread, deadlocks under sync context.
+grep -rnE "\.Result\b|\.Wait\(\)|\.GetAwaiter\(\)\.GetResult\(\)" \
+  --include="*.cs" --exclude-dir=bin --exclude-dir=obj --exclude-dir=Migrations
+```
+**Acceptable:** none. Every hit is a real exposure. CLAUDE.md "Async on request paths" makes this a hard rule. The only legitimate use is in `Main` for top-level synchronous entry, but `await app.RunAsync()` already covers that.
+
+```bash
+# 2. Explicit lock statements — usually a sign of shared mutable state.
+grep -rnE "^\s*lock\s*\(" --include="*.cs" --exclude-dir=bin --exclude-dir=obj
+```
+**Acceptable:** locks on private `readonly object` instances guarding genuinely shared state, with a code comment explaining what's being protected. Locks on `this`, on a public object, or with no explanatory comment fail review. Async-compatible alternative is `SemaphoreSlim.WaitAsync()`.
+
+```bash
+# 3. async void (except UI/Wolverine event handlers).
+grep -rnE "async\s+void\b" --include="*.cs" --exclude-dir=bin --exclude-dir=obj
+```
+**Acceptable:** Wolverine handlers that genuinely have no return value can be `async Task` — `async void` should never appear. UI event handlers (none today; will appear when Storefront/SellerPortal frontends exist) are the only legitimate `async void`.
+
+```bash
+# 4. TPL misuse — Task.WaitAll / Parallel.For / Parallel.ForEach.
+grep -rnE "Task\.WaitAll|Parallel\.(For|ForEach)\b" --include="*.cs" --exclude-dir=bin --exclude-dir=obj
+```
+**Acceptable:** `Parallel.ForEachAsync` for genuine CPU-bound or fan-out-friendly I/O *with* `IDbContextFactory<T>` if any DB work is involved (per CLAUDE.md "DbContext is not thread-safe"). Plain `Parallel.For` over collections has no valid use in this codebase today.
+
+```bash
+# 5. Shared static mutable collections.
+grep -rnE "static\s+(readonly\s+)?(List|Dictionary|HashSet|Queue|Stack)<" \
+  --include="*.cs" --exclude-dir=bin --exclude-dir=obj --exclude-dir=Tests.Unit
+```
+**Acceptable:** `static readonly` collections that are *initialized at type-init time and never mutated* (e.g., a constant lookup table). Anything written to from multiple threads must be `Concurrent*` / `Immutable*` / `FrozenDictionary` / `Channel<T>`.
+
+```bash
+# 6. Async methods missing a CancellationToken parameter.
+# (Manual review — automated grep is noisy.)
+grep -rnE "public.*async.*Task[^(]*\([^)]*\)\s*[\{$]" \
+  --include="*.cs" --exclude-dir=bin --exclude-dir=obj --exclude-dir=Tests.Unit \
+  | grep -v "CancellationToken"
+```
+**Acceptable:** ASP.NET middleware (`InvokeAsync(HttpContext context)` — uses `context.RequestAborted`), gRPC service overrides (`override async Task<T>(Request, ServerCallContext context)` — uses `context.CancellationToken`), endpoint filters (`InvokeAsync(EndpointFilterInvocationContext, EndpointFilterDelegate)` — propagates from filter delegate), Wolverine handlers when the dispatch loop owns cancellation. Verify the framework token is actually *propagated through* into the next call — a method that takes a token via context but never passes it onward is the same hazard as not having one.
+
+```bash
+# 7. Framework gotchas — UI thread violations, Dispatcher.Invoke deadlocks.
+# Not applicable today (no UI). When Storefront/SellerPortal grow real UIs:
+grep -rnE "Control\.Invoke|Dispatcher\.Invoke|InvokeRequired" --include="*.cs"
+```
+Storefront is Blazor WASM (single-threaded JS interop boundary, no UI thread issues until WebWorkers). SellerPortal is a static-file scaffold. Re-add this check the moment either grows reactive components.
+
+### Today's baseline
+
+Run on the current `main` (`591c9f9` and onward): **all seven patterns return zero true positives.** Pattern #6 returns five framework-standard hits (3× `CatalogGrpcService` methods, 1× `CorrelationIdMiddleware`, 1× `AdminKeyEndpointFilter`), all verified to propagate the framework-provided token. This baseline is what we're protecting; any new hit is the regression to investigate.
+
+### When to run the audit
+
+- **Always:** any PR that adds `Task.WhenAll`, `Parallel.*`, `lock`, a static field, a new background service, or an async event handler.
+- **Always:** any PR that introduces a new repository method called from inside a loop or fanout.
+- **Recommended:** before tagging a release, even if no obvious-trigger PRs landed (regression catches things the line-level review missed).
+- **Optional but worth it:** as part of an automated pre-merge CI step. The greps above are fast and produce zero output on a clean repo, so a non-empty result == failure is straightforward to wire up. We haven't done that yet — listed as a follow-up in [STATUS.md](STATUS.md).
+
+### What this audit will not catch
+
+Static greps catch the *patterns*, not the *behavior*. Three classes of concurrency hazard show up only under sustained load and need a different tool:
+
+- **Cache stampede / thundering herd.** HybridCache mitigates this for `IProductCache`; everywhere else needs measurement under simulated cold-start.
+- **Connection-pool exhaustion.** Only visible at sustained RPS with realistic query mix. Per the article's lesson and the [500K-users article that preceded this](#what-changed-when), this is the most common scaling cliff.
+- **GC pauses from allocation-heavy hot paths.** `dotnet-counters` against the running stack is the tool; not visible in source review.
+
+These are exactly what the [STATUS.md "Perf baselines under sustained load"](STATUS.md) follow-up exists to surface. The audit + the baseline measurement are complements, not substitutes.
+
+### Why this is documented as discipline rather than added to CLAUDE.md
+
+CLAUDE.md is for *invariants* — rules every PR must satisfy at the source-of-truth level. The audit is *process* — a thing we run, not a thing the code is. Mechanical greps belong in a runnable form (this section, eventually a CI check); the underlying rules they enforce already live in CLAUDE.md "Performance Rules." Splitting them keeps each in its right form.
+
+---
+
 ## Resolved: transactional outbox via Wolverine
 
 This was the highest-priority correctness gap. **Resolved.** Wolverine's transactional outbox is now configured in OrderService, PaymentService, and ShippingService.
@@ -695,3 +785,4 @@ A short audit trail of how this guide's content came to exist, so you can explai
 | OpenAPI YAML output | Added `app.MapOpenApi("/openapi/{documentName}.yaml")` alongside the existing JSON endpoint in all five services. .NET 9+'s built-in OpenAPI emitter switches format on the route extension. Useful for tooling that prefers YAML (Spectral, embedding in markdown, some Postman/Insomnia imports). | This conversation. |
 | Scalar API reference UI | Added `Scalar.AspNetCore` 2.14.11 + `app.MapScalarApiReference()` in all five services. Reads the existing OpenAPI doc and renders an interactive UI at `/scalar/v1` (dev-only). | This conversation. |
 | Dapper escape hatch | Added `Dapper` 2.1.72 to the four Infrastructure projects with relational DBs (Catalog, Order, Payment, Shipping). No DI registration — the sanctioned pattern is `ctx.Database.GetDbConnection()` so Dapper queries share the EF connection + transaction. Plumbing only; no current query uses it. Full pattern + when-to-reach-for-it: [decision section](#decision-when-to-reach-past-ef-core-dapper-escape-hatch). | This conversation. |
+| Pre-merge concurrency audit | Codified the seven-pattern grep checklist as a documented discipline ([discipline section](#discipline-pre-merge-concurrency-audit)). Today's baseline against `main` is clean — zero true positives across sync-over-async, explicit locks, async void, TPL misuse, shared static mutable collections, missing CancellationToken (framework-standard hits verified), and UI-thread gotchas (no UI yet). Inspired by Sukhpinder Singh's "7 Concurrency Mistakes" article + Kerim Kara's "500K Users" piece. | This conversation. |
