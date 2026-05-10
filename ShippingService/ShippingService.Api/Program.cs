@@ -56,6 +56,7 @@ if (!app.Environment.IsDevelopment())
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapOpenApi("/openapi/{documentName}.yaml");
     await app.Services.MigrateDatabaseAsync<ShippingDbContext>();
 }
 

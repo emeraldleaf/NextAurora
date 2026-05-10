@@ -44,6 +44,7 @@ if (!app.Environment.IsDevelopment())
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapOpenApi("/openapi/{documentName}.yaml");
 }
 
 app.Run();
