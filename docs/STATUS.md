@@ -90,7 +90,6 @@ Roughly highest-leverage first:
 ## Open issues / known gaps
 
 - **Two recent commits have generic messages** (`Refactor code structure for improved readability and maintainability`). The architectural detail is recoverable from this doc + [performance-and-data-correctness.md "What changed when"](performance-and-data-correctness.md#what-changed-when), but `git log` alone won't tell the story. Future commits should use real messages.
-- **Build artifacts (`bin/`, `obj/`) appear to be tracked** — see `git status -uall` after a clean. Add to `.gitignore` if not already, and untrack what's in.
 - **Production migration deploy step** not yet automated. Tooling exists; deploy automation doesn't. See [perf guide](performance-and-data-correctness.md#resolved-migration-tooling-wired-up).
 - **Integration tests** — none. Outbox semantics, concurrency-retry behavior, saga choreography aren't unit-testable.
 - **`dotnet ef` tools 9.0.8 vs runtime 10.0.2** — non-fatal advisory. `dotnet tool update --global dotnet-ef` when convenient.
