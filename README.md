@@ -88,7 +88,7 @@ Orchestrated by .NET Aspire (service discovery, health checks, OpenTelemetry)
 - **Asp.Versioning** for URL-segment API versioning (`/api/v1/...`)
 - **.NET Aspire** for orchestration, service discovery, and observability
 - **OpenTelemetry** for distributed tracing, metrics, and logging
-- **Redis** for caching
+- **HybridCache** (.NET 10) for two-tier read caching — in-process MemoryCache (L1) + **Redis** (L2), with stampede protection and tag-based invalidation
 
 ## Prerequisites
 

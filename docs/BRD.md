@@ -52,7 +52,7 @@ The system is built as a set of independently deployable microservices to suppor
 | CAT-05 | Sellers can update product details and pricing | High | Implemented (API) |
 | CAT-06 | Products display real-time stock availability | High | Implemented |
 | CAT-07 | Products are organized by categories | Medium | Implemented (Domain) |
-| CAT-08 | Product data is cached for fast retrieval | Medium | Infrastructure ready (Redis), not yet utilized |
+| CAT-08 | Product data is cached for fast retrieval | Medium | Implemented (HybridCache: L1 MemoryCache + L2 Redis, stampede-protected, tag-based invalidation; see [performance-and-data-correctness.md](performance-and-data-correctness.md#decision-distributed-read-caching-with-hybridcache)) |
 | CAT-09 | Sellers can upload product images | Low | Not implemented |
 | CAT-10 | Product ratings and reviews | Low | Not implemented |
 
@@ -154,7 +154,7 @@ The system is built as a set of independently deployable microservices to suppor
 |----|-------------|--------|
 | SCL-01 | Horizontal scaling per service | Supported (stateless services) |
 | SCL-02 | Database per service | Implemented (polyglot persistence) |
-| SCL-03 | Cache layer for read-heavy services | Redis infrastructure ready |
+| SCL-03 | Cache layer for read-heavy services | Implemented for Catalog (HybridCache: L1 MemoryCache + L2 Redis); other services as need arises |
 | SCL-04 | API contract evolution without breaking clients | Implemented (URL-segment versioning via `Asp.Versioning.Http`; routes follow `/api/v{version}/...`; v2+ added side-by-side without disturbing v1) |
 
 ### 5.4 Security
@@ -280,7 +280,7 @@ The system is built as a set of independently deployable microservices to suppor
 | Azure Service Bus | Managed Service | Implemented (emulator for dev) |
 | PostgreSQL | Database | Implemented (Docker) |
 | SQL Server | Database | Implemented (Docker) |
-| Redis | Cache | Infrastructure ready |
+| Redis | Cache (L2 tier) | Implemented (CatalogService via HybridCache; other services pending need) |
 | Azure Application Insights | Observability | Configuration ready |
 
 ---

@@ -19,25 +19,26 @@ public class GetProductByIdHandlerTests
     public GetProductByIdHandlerTests()
     {
         _sut = new GetProductByIdHandler(_repository, _cache);
+
+        // Mock the cache to always invoke the factory it receives — this lets us test the
+        // handler's projection logic (Product → ProductDto mapping) independently of the
+        // cache framework. With a real HybridCache we'd test cache hit/miss separately as
+        // an integration test; here we trust the framework and verify the delegation.
+        _cache.GetOrLoadAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<Func<CancellationToken, Task<ProductDto?>>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var factory = callInfo.Arg<Func<CancellationToken, Task<ProductDto?>>>();
+                return factory(CancellationToken.None);
+            });
     }
 
     [Fact]
-    public async Task Handle_WhenCacheHit_ReturnsCachedDtoWithoutHittingRepository()
-    {
-        var dto = new ProductDto { Id = Guid.NewGuid(), Name = "Cached", Price = 9.99m };
-        _cache.GetAsync(dto.Id, Arg.Any<CancellationToken>()).Returns(dto);
-
-        var result = await _sut.HandleAsync(new GetProductByIdQuery(dto.Id), CancellationToken.None);
-
-        result.Should().BeSameAs(dto);
-        await _repository.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Handle_WhenCacheMissAndProductExists_LoadsFromRepoAndPopulatesCache()
+    public async Task Handle_WhenProductExists_ReturnsMappedDto()
     {
         var product = ProductBuilder.Default().Build();
-        _cache.GetAsync(product.Id, Arg.Any<CancellationToken>()).Returns((ProductDto?)null);
         _repository.GetByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
 
         var result = await _sut.HandleAsync(new GetProductByIdQuery(product.Id), CancellationToken.None);
@@ -46,18 +47,29 @@ public class GetProductByIdHandlerTests
         result!.Id.Should().Be(product.Id);
         result.Name.Should().Be(product.Name);
         result.Price.Should().Be(product.Price);
-        await _cache.Received(1).SetAsync(Arg.Is<ProductDto>(d => d.Id == product.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_WhenCacheMissAndProductNotFound_ReturnsNullAndDoesNotPopulateCache()
+    public async Task Handle_WhenProductNotFound_ReturnsNull()
     {
-        _cache.GetAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((ProductDto?)null);
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Product?)null);
 
         var result = await _sut.HandleAsync(new GetProductByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeNull();
-        await _cache.DidNotReceive().SetAsync(Arg.Any<ProductDto>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_DelegatesToCache()
+    {
+        var product = ProductBuilder.Default().Build();
+        _repository.GetByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
+
+        await _sut.HandleAsync(new GetProductByIdQuery(product.Id), CancellationToken.None);
+
+        await _cache.Received(1).GetOrLoadAsync(
+            product.Id,
+            Arg.Any<Func<CancellationToken, Task<ProductDto?>>>(),
+            Arg.Any<CancellationToken>());
     }
 }

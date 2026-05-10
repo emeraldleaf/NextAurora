@@ -10,6 +10,7 @@ The hard rules live in [CLAUDE.md](../CLAUDE.md#performance-rules). The deeper "
 - [The 14 always-on rules](#the-14-always-on-rules)
 - [Decision: optimistic concurrency tokens](#decision-optimistic-concurrency-tokens)
 - [Decision: AsNoTracking strategy](#decision-asnotracking-strategy)
+- [Decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache)
 - [Resolved: transactional outbox via Wolverine](#resolved-transactional-outbox-via-wolverine)
 - [Resolved: concurrency exception handling](#resolved-concurrency-exception-handling)
 - [Resolved: migration tooling wired up](#resolved-migration-tooling-wired-up)
@@ -22,7 +23,7 @@ The hard rules live in [CLAUDE.md](../CLAUDE.md#performance-rules). The deeper "
 
 ## Philosophy
 
-Three principles drive every rule in this doc:
+Four principles drive every rule in this doc:
 
 1. **Measure before optimizing.** Most "optimizations" applied without a profiler hurt more than they help. Examples worth knowing:
    - `AsNoTracking()` blanket-applied with `Include` duplicates shared related entities (Customer fetched once, materialized 500 times) — see [decision: AsNoTracking strategy](#decision-asnotracking-strategy).
@@ -32,6 +33,8 @@ Three principles drive every rule in this doc:
 2. **Correctness > performance.** Concurrency tokens, transactional outbox, and connection-string isolation aren't perf concerns — they're correctness concerns that perf shortcuts often break. A faster-but-occasionally-wrong system is worse than a correct one with known bottlenecks.
 
 3. **Make the right thing easy.** Hard rules in CLAUDE.md exist because we want every new query to use projection by default, every new endpoint to paginate by default, every new aggregate to have a concurrency token by default. The skill has the deeper material; CLAUDE.md is the on-ramp.
+
+4. **Use the platform — don't reinvent it.** Modern .NET ships well-engineered primitives for the patterns we'd otherwise hand-roll: `HybridCache` for two-tier caching with stampede protection, Wolverine's transactional outbox for the dual-write problem, `IDbContextFactory<T>` for parallel EF work, `Microsoft.AspNetCore.OpenApi` for spec emission, source-generated `System.Text.Json` for AOT-friendly serialization, `Asp.Versioning.Http` for URL-segment versioning. Bespoke versions of the same thing tend to ship the easy 80% and miss the load-bearing 20% — locking, dedup, atomic invalidation, async-safe coordination. **Default to the framework primitive; document the case if you reach past it.** This shows up concretely in the [outbox](#resolved-transactional-outbox-via-wolverine) and [caching](#decision-distributed-read-caching-with-hybridcache) decisions below.
 
 ---
 
@@ -121,7 +124,7 @@ See [decision: optimistic concurrency tokens](#decision-optimistic-concurrency-t
 
 **Spec:** the same handler that owns the change owns the invalidation. For domain events that affect cached entities cross-service (e.g., `ProductPriceChanged` invalidating product cache), the event handler invalidates.
 
-**Where it applies:** Currently CatalogService has Redis wired up (see [AppHost.cs:16](../NextAurora.AppHost/AppHost.cs#L16)) but no caching is implemented yet. Architecture doc lists "Distributed Caching - Not Yet Implemented." When it's added, this rule kicks in.
+**Where it applies:** [CatalogService.Application.Interfaces.IProductCache](../CatalogService/CatalogService.Application/Interfaces/IProductCache.cs), backed by `HybridCache` ([HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs)). [GetProductByIdHandler](../CatalogService/CatalogService.Application/Handlers/GetProductByIdHandler.cs) reads through it; [UpdateProductHandler](../CatalogService/CatalogService.Application/Handlers/UpdateProductHandler.cs) and [ReserveStockHandler](../CatalogService/CatalogService.Application/Handlers/ReserveStockHandler.cs) call `InvalidateAsync` after their save in the same unit of work. Tag-based invalidation clears L1 (in-process) and L2 (Redis) atomically. Full rationale: [decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache).
 
 ### 13. Migrations are immutable once applied
 
@@ -217,6 +220,157 @@ Reasons we haven't done it yet:
 The earlier perf audit flagged "AsNoTracking missing" on `OrderRepository.GetByIdAsync` and similar shared methods. Those flags were technically correct (the rule says "AsNoTracking on reads") but *contextually wrong* — those methods are shared with write paths. The CLAUDE.md rule is the simple version; the [cqrs-data-access.md](cqrs-data-access.md) doc is the nuanced version. Both can be true: the *default* is `AsNoTracking()` + projection, but shared repository methods preserve tracking deliberately.
 
 If we ever do split read/write repositories, the audit's flags become correct and the shared methods go away.
+
+---
+
+## Decision: distributed read caching with HybridCache
+
+### Problem
+
+CatalogService's `GetProductByIdQuery` is the highest-frequency read in the system. The storefront fetches product details on every PDP view; `PlaceOrderHandler` does gRPC fan-out per line item to validate stock; recommendation widgets, search-result enrichment, and admin tools all hit the same key. Without caching, each request becomes a Postgres round-trip — fine at 10 RPS, ruinous at 1000 RPS, especially under spiky load (flash sales, scraping bots, schema-warming after a deploy).
+
+The classical answer is cache-aside backed by Redis. Three failure modes lurk in the naive implementation:
+
+1. **Cache stampede.** N concurrent requests for a key that just expired all miss simultaneously, all invoke the load function, all hit the database. The DB sees a synchronized burst that's worse than no caching at all because every replica's MemoryCache misses in lockstep. This isn't theoretical — it's the standard failure mode for a high-traffic single-tier cache after an entry is evicted.
+2. **L1/L2 invalidation skew.** A two-tier (in-process + Redis) implementation has to keep both layers consistent on writes. Miss either side and readers on the same replica see stale data until TTL. Doing both layers correctly under concurrency requires per-key coordination that's surprisingly hard to get right.
+3. **Serialization protocol drift.** The hand-rolled version usually accretes ad-hoc `JsonSerializer.Serialize(...)` calls. Each call site picks its own options, and over time you have entries written with one shape that can't be deserialized by another — a poison-pill scenario.
+
+### What we chose
+
+`Microsoft.Extensions.Caching.Hybrid` 10.5.0 — .NET 10's official two-tier cache primitive. Implementation in [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs); abstraction in [IProductCache.cs](../CatalogService/CatalogService.Application/Interfaces/IProductCache.cs).
+
+```csharp
+public sealed class HybridProductCache(HybridCache cache) : IProductCache
+{
+    private static readonly HybridCacheEntryOptions Options = new()
+    {
+        Expiration = TimeSpan.FromMinutes(5),
+        LocalCacheExpiration = TimeSpan.FromMinutes(5)
+    };
+
+    private static string KeyFor(Guid productId) => $"catalog:product:{productId:N}";
+    private static string TagFor(Guid productId) => $"product:{productId:N}";
+
+    public Task<ProductDto?> GetOrLoadAsync(
+        Guid productId,
+        Func<CancellationToken, Task<ProductDto?>> factory,
+        CancellationToken ct = default) =>
+        cache.GetOrCreateAsync(
+            KeyFor(productId),
+            factory: async cancel => await factory(cancel).ConfigureAwait(false),
+            options: Options,
+            tags: [TagFor(productId)],
+            cancellationToken: ct).AsTask();
+
+    public Task InvalidateAsync(Guid productId, CancellationToken ct = default) =>
+        cache.RemoveByTagAsync(TagFor(productId), ct).AsTask();
+}
+```
+
+The handler is now a thin delegate to the cache — see [GetProductByIdHandler.cs](../CatalogService/CatalogService.Application/Handlers/GetProductByIdHandler.cs):
+
+```csharp
+public Task<ProductDto?> HandleAsync(GetProductByIdQuery request, CancellationToken ct) =>
+    cache.GetOrLoadAsync(request.ProductId, async cancel =>
+    {
+        var product = await repository.GetByIdAsync(request.ProductId, cancel);
+        return product is null ? null : new ProductDto { /* projection */ };
+    }, ct);
+```
+
+DI registration in [Program.cs](../CatalogService/CatalogService.Api/Program.cs) and [DependencyInjection.cs](../CatalogService/CatalogService.Infrastructure/DependencyInjection.cs):
+
+```csharp
+// Program.cs
+builder.Services.AddStackExchangeRedisCache(options =>
+    options.Configuration = builder.Configuration.GetConnectionString("cache"));
+builder.Services.AddHybridCache();
+
+// DependencyInjection.cs
+services.AddScoped<IProductCache, HybridProductCache>();
+```
+
+### What HybridCache gives us
+
+- **L1 (in-process MemoryCache).** Microseconds, no network. Hot products served without leaving the replica.
+- **L2 (distributed Redis).** Milliseconds. Survives process restart; shared across replicas; primary L1 fallback.
+- **Stampede protection.** N concurrent misses for the same key invoke the factory once. Implemented internally as keyed async coordination — the in-flight `Task<T>` is what's stored, not just the result, so subsequent callers `await` the first one's work rather than racing past. This is the bit that's hard to do correctly by hand: locking has to be per-key, async-safe, and non-reentrant across awaits inside the factory.
+- **Tag-based invalidation.** Each entry carries a per-product tag (`product:{id}`); `RemoveByTagAsync` clears both L1 and L2 atomically. Without tags we'd need separate `Remove` calls per layer with a window between them where one layer is fresh and the other is stale.
+- **Built-in serializer pipeline.** Defaults to source-generated `System.Text.Json` (AOT-friendly, allocation-light, schema-stable). Pluggable via `IHybridCacheSerializer<T>` if a hot type warrants raw protobuf or MessagePack.
+
+### Why `GetOrLoadAsync(factory)` and not `Get / Set / Invalidate`
+
+The earlier sketch of `IProductCache` was three discrete methods. That shape leaks the cache-aside dance into the handler:
+
+```csharp
+// rejected
+var dto = await cache.GetAsync(id, ct);
+if (dto is not null) return dto;
+var product = await repository.GetByIdAsync(id, ct);
+dto = product is null ? null : Project(product);
+if (dto is not null) await cache.SetAsync(id, dto, ct);
+return dto;
+```
+
+This is broken in two specific ways:
+
+1. **The `Get` then `Set` sequence cannot dedupe concurrent misses.** By the time the second caller calls `Get` and sees a miss, the first caller is already between `Get` and `Set`. Stampede protection requires the cache to know about the in-flight load — it has to hand back the same `Task<T>` to all concurrent miss-callers and `await` it once. That's only possible if the cache *owns* the factory call.
+2. **The handler is the wrong owner of the policy.** Every new cached entity in a new handler reinvents the same five lines, and small differences (forgetting to filter null on `Set`, not propagating `CancellationToken`, swallowing exceptions from the load) are how staleness bugs ship.
+
+The factory-based shape pushes all of that into the cache. The handler describes *intent* ("how to load on miss"); the cache owns the *flow* (try L1, try L2, dedupe, run factory, populate both layers, return). Test surface drops to the projection logic — see [GetProductByIdHandlerTests.cs](../tests/CatalogService.Tests.Unit/Application/GetProductByIdHandlerTests.cs).
+
+### What we cache, and why
+
+`ProductDto`, not the EF `Product` entity. Two reasons:
+
+1. **No tracker poisoning.** A cached EF entity carries a navigation graph that's tied to the `DbContext` it was loaded from (which has long since been disposed). Putting it back into a tracker is at best fragile, at worst silently incorrect — change tracking starts believing values that haven't been read from the DB.
+2. **The cached unit matches the endpoint output.** `GetProductByIdHandler` returns `ProductDto`; the cache hands back exactly what the handler hands back. No secondary projection on hit.
+
+List queries (`GetAllProducts`, `SearchProducts`) are intentionally not cached. Two reasons: (a) the cache key would have to encode pagination / search parameters (`catalog:products:search:term=foo&page=2&size=50`), and the long tail of unique queries dilutes hit rate to near zero; (b) cross-page invalidation is hard — a single product update would need to invalidate every page that *might* contain it, which means enumerating tags by predicate, which `RemoveByTagAsync` doesn't do.
+
+### Trade-offs we accepted
+
+- **Negative caching.** The factory returning `null` (product not found) is stored as a null entry. Subsequent lookups for that ID skip the DB until TTL. We accept this because product IDs are server-generated GUIDs — there's no "not found now, exists later" race window. If catalog ever supports user-supplied identifiers (slugs, SKUs), this trade flips: we'd filter `null` in the factory or use `HybridCacheEntryFlags.DisableLocalCacheWrite` / `DisableDistributedCacheWrite` selectively.
+- **Bounded staleness regardless of writes.** Both L1 and L2 use a 5-minute absolute TTL. After 5 minutes, the next read pays the L2 round-trip + (possibly) the DB. This is fine — TTL is the *safety net* for a missed invalidation in the write path, not the primary consistency mechanism. CLAUDE.md "Cache invalidation in the write path" is the primary mechanism.
+- **No probabilistic early refresh.** Large systems sometimes refresh entries at, say, 80% of TTL to avoid synchronized expiry storms. HybridCache supports this pattern via custom flags but we haven't enabled it; under our load profile expiry-clustering hasn't shown up in profiles. On the watchlist for when traffic justifies it.
+- **Cache key namespace bound to service.** `catalog:product:{guid}`. The service prefix is deliberate — Redis is shared across services in the AWS deployment (single ElastiCache cluster). The tag (`product:{guid}`) is internal to HybridCache and doesn't need the prefix.
+- **Tier-equal TTL.** Both L1 and L2 expire at 5 minutes. We could give L1 a shorter TTL (say 60 seconds, so cross-replica updates propagate sooner via L2) but it complicates the consistency model. We picked simplicity; revisit if cross-replica staleness shows up as a real-user-impact bug.
+- **L1 memory budget unbounded.** `MemoryCache`'s default size limit is in effect. For catalogs with millions of products we'd cap entries with `SizeLimit` and a `Size` per entry; today's ~1k product seed doesn't justify it.
+
+### Modern .NET / C# 13 features the implementation leans on
+
+| Feature | Where it shows up | Why it matters |
+|---|---|---|
+| `HybridCache` (10.0+) | The whole class | Ships the L1+L2 + stampede + tags pattern as a primitive. Did not exist in .NET 9. |
+| Primary constructor | `HybridProductCache(HybridCache cache) : IProductCache` | One-liner injection; no boilerplate field; less ceremony than the constructor-and-readonly-field form. |
+| Collection expression | `tags: [TagFor(productId)]` | Replaces `new[] { ... }` for single-element arrays; intent is clearer at the call site. |
+| `ValueTask` ↔ `Task` adaptation | `cache.GetOrCreateAsync(...).AsTask()` | HybridCache returns `ValueTask<T>` to skip allocation on synchronous L1 hits; our public contract returns `Task<T>` to keep the seam framework-agnostic. We pay the allocation only at the boundary, not on every hit. |
+| Source-generated `System.Text.Json` | Default `IHybridCacheSerializer` | AOT-compatible; reflection-free; allocation-friendly. Stable across deploys (no expression-tree rebuild on first hit). |
+| Nullable reference types | `Func<CancellationToken, Task<ProductDto?>>` | Encodes "negative cache is intentional" in the type — a non-nullable factory would have no way to signal absence. |
+| `ConfigureAwait(false)` | Inside the factory adapter | Library code path; we don't capture sync context. |
+| `IHybridCacheSerializer<T>` (extension point) | Default suffices for now | Hot types could opt into `MessagePack` or `protobuf-net` without changing call sites. Pluggable, not foreclosed. |
+
+### What we deliberately did not do
+
+- **Read-through cache as the only data interface.** Tempting (handlers depend only on the cache), but it would force every read path through the cache even for queries that don't benefit (search, filters, paginated list). The seam is read-side single-entity only, by design.
+- **Write-through cache on updates.** Updates go to the DB and *invalidate* rather than re-populate the cache. Reasoning: the next read recomputes the projection, and we don't have to map mutation → projection in two places. The cost is one cold read after a write, which is fine and self-healing.
+- **Eager warming.** No background job pre-populates the cache on app start. Worth considering if profiling shows post-deploy latency spikes, but unwarranted today.
+- **Per-tenant key partitioning.** NextAurora is single-tenant. If multi-tenancy lands, the key becomes `catalog:tenant:{tid}:product:{guid}` and the tag becomes `tenant:{tid}:product:{guid}` so `RemoveByTagAsync` stays per-tenant.
+- **Distributed lock for invalidation.** Tag invalidation is best-effort across the cluster (Redis pub/sub fans out the tag clear). For the consistency level we need (read-your-writes within a single request via the same scoped DI container), this is enough. Strict cross-cluster linearizability would require a write-ahead log + consensus — out of scope.
+
+### Operational story
+
+- **Observability.** HybridCache emits OpenTelemetry metrics for hit/miss/factory invocations under the `Microsoft.Extensions.Caching.Hybrid` meter. Already picked up by the OTLP exporter wired in `NextAurora.ServiceDefaults` — no extra configuration. Once dashboards exist, hit-ratio and factory-latency belong on the catalog SLO board.
+- **Failure isolation.** L2 (Redis) down? `HybridCache` falls back to L1-only and continues serving. L1 hits unaffected; L1 misses go to factory. Worth verifying with a chaos test once integration testing exists; until then, treat as designed-in-but-unverified.
+- **Cancellation.** The factory takes a `CancellationToken` that propagates from the originating HTTP request through the handler into the repository call. Client disconnects abandon the load instead of doing wasted work — see CLAUDE.md "Async on request paths."
+- **Connection management.** Redis connection is multiplexed via the shared `IConnectionMultiplexer` registered by `AddStackExchangeRedisCache`. No per-request connections; connection holds are bounded by HybridCache's own usage.
+
+### Future work
+
+- **Cross-service cache invalidation via domain events.** When a `ProductPriceChanged` event is published from CatalogService, downstream services that hold product projections in their own caches (search, recommendations) should subscribe and invalidate. Not yet — those services don't exist. The pattern would be a Wolverine handler in each subscribing service that calls `IProductCache.InvalidateAsync` on receipt.
+- **Probabilistic early refresh** if expiry-clustering shows up in dashboards.
+- **Per-tenant partitioning** when multi-tenancy lands.
+- **Per-type budget tuning.** When the catalog grows past ~100k products, set `SizeLimit` on the underlying `MemoryCache` and a `Size` per entry so L1 doesn't unboundedly consume process memory.
 
 ---
 
@@ -413,6 +567,7 @@ When you need to discuss specific decisions, here's where the source-of-truth li
 | Event replay (admin endpoints) | [docs/event-replay.md](event-replay.md) |
 | Aggregate invariants & business rules | [docs/architecture.md "Domain Model"](architecture.md#domain-model) |
 | Concurrency token configuration per service | [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs), [OrderDbContext.cs](../OrderService/OrderService.Infrastructure/Data/OrderDbContext.cs), [PaymentDbContext.cs](../PaymentService/PaymentService.Infrastructure/Data/PaymentDbContext.cs), [ShippingDbContext.cs](../ShippingService/ShippingService.Infrastructure/Data/ShippingDbContext.cs) |
+| Read-cache contract & implementation | [IProductCache.cs](../CatalogService/CatalogService.Application/Interfaces/IProductCache.cs), [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) |
 | Build settings (warnings as errors, analyzers) | [Directory.Build.props](../Directory.Build.props) |
 | Package versions (CPM) | [Directory.Packages.props](../Directory.Packages.props) |
 
@@ -442,3 +597,4 @@ A short audit trail of how this guide's content came to exist, so you can explai
 | `EventLogs` deletion | Removed the orphaned `EventLog` entity, DbSets, OnModelCreating configs, `AdminEventEndpoints` files, and `ServiceBusClient` DI registrations from Order, Payment, Shipping. `event-replay.md` reduced to a 20-line stub pointing at Wolverine's outbox/`IMessageStore` instead. CLAUDE.md, architecture.md, observability.md, event-driven-observability.md, event-catalog.md updated to remove stale references. | This conversation. |
 | EF migration pipeline | Initial migrations generated for all 4 services (Catalog, Order, Payment, Shipping). `IDesignTimeDbContextFactory<T>` per service uses env var with localhost fallback. New `MigrateDatabaseAsync<T>()` extension in ServiceDefaults runs at startup in dev only. Migrations include `RowVersion` (SQL Server) and `xmin` (Postgres) concurrency-token columns from the entity configs. `.editorconfig` updated to opt out generated migration files from style rules. `app.Run()` switched to `await app.RunAsync()` everywhere (cleared a recurring `S6966` warning). | This conversation. |
 | URL-segment API versioning | Added `Asp.Versioning.Http` + `Asp.Versioning.Mvc.ApiExplorer` 10.0.0. New `AddNextAuroraApiVersioning()` extension wired into `AddServiceDefaults()` so every service inherits the same policy: default 1.0, `UrlSegmentApiVersionReader`, `AssumeDefaultVersionWhenUnspecified=false`. All four endpoint extensions now use `app.NewVersionedApi(...)` with `/api/v{version:apiVersion}/...` routes. `Results.Created`/`Results.Accepted` Location headers updated. README, architecture.md, BRD.md (SCL-04), CLAUDE.md updated. Hard cutover (no compat shim for unversioned URLs) since there are no external consumers yet. | This conversation. |
+| Distributed read caching with HybridCache | Replaced the earlier single-tier Redis-via-`IDistributedCache` design with `Microsoft.Extensions.Caching.Hybrid` 10.5.0 (L1 in-process MemoryCache + L2 Redis, stampede protection, tag-based invalidation). `IProductCache` reshaped from `Get / Set / Invalidate` to factory-based `GetOrLoadAsync(factory) / InvalidateAsync` so the framework owns the cache-aside flow. `HybridProductCache` replaces `RedisProductCache`. Handler dropped to a one-liner. Build clean, all 134 tests pass. Full rationale: [decision section](#decision-distributed-read-caching-with-hybridcache). | This conversation. |

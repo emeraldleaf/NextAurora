@@ -43,11 +43,12 @@ public static class DependencyInjection
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
 
-        // Distributed cache for product reads. The underlying IDistributedCache is registered
-        // in Program.cs via AddStackExchangeRedisCache. See CLAUDE.md "Performance Rules" for
-        // the cache-invalidation contract — every write handler that mutates a Product must
-        // call IProductCache.InvalidateAsync in the same unit of work.
-        services.AddScoped<IProductCache, RedisProductCache>();
+        // Two-tier cache for product reads (L1 MemoryCache + L2 Redis via IDistributedCache,
+        // managed together by HybridCache). HybridCache itself is registered in Program.cs via
+        // AddHybridCache. See CLAUDE.md "Performance Rules" for the cache-invalidation
+        // contract — every write handler that mutates a Product must call
+        // IProductCache.InvalidateAsync in the same unit of work.
+        services.AddScoped<IProductCache, HybridProductCache>();
 
         return services;
     }

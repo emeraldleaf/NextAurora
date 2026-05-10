@@ -6,49 +6,43 @@ using NextAurora.Contracts.DTOs;
 namespace CatalogService.Application.Handlers;
 
 /// <summary>
-/// Read-side handler for <see cref="GetProductByIdQuery"/>. Cache-aside via
-/// <see cref="IProductCache"/>:
-/// <list type="number">
-///   <item>Try the cache. Hit → return immediately, no DB roundtrip.</item>
-///   <item>Miss → load from the repository, project to DTO, populate the cache, return.</item>
-/// </list>
+/// Read-side handler for <see cref="GetProductByIdQuery"/>. The handler is intentionally tiny:
+/// it delegates to <see cref="IProductCache"/> with a factory that loads + projects on miss.
 ///
 /// <para>
-/// <b>Why cache the DTO and not the entity:</b> entities are mutable + tracked. The
-/// projection-as-cache shape keeps deserialization simple and means the cached unit is exactly
-/// what the endpoint returns. See <see cref="IProductCache"/> for the full contract.
+/// <b>Why the cache owns the cache-aside flow:</b> the .NET 10 <c>HybridCache</c> primitive
+/// underneath <c>IProductCache</c> has stampede protection — concurrent misses for the same
+/// key invoke the factory once. If we did the cache-aside dance inline here (try-cache, miss,
+/// load, set), we'd lose that protection: every concurrent miss would hit the DB independently.
 /// </para>
 /// <para>
-/// <b>What happens on cache write failure:</b> the <c>SetAsync</c> call can throw if Redis is
-/// unreachable. We let it surface — a hard fail is better than silent slow degradation, and
-/// the orchestrator's health checks will route traffic away if Redis is genuinely down. The
-/// alternative (catch + log + carry on) makes the failure invisible and harder to diagnose.
+/// <b>Negative caching.</b> If <c>repository.GetByIdAsync</c> returns null, the factory
+/// returns null and the cache stores it. Subsequent lookups for that ID skip the DB. For our
+/// system this is fine: product IDs are server-generated GUIDs, so a "not found right now,
+/// but will exist later" race is effectively impossible.
 /// </para>
 /// </summary>
 public class GetProductByIdHandler(IProductRepository repository, IProductCache cache)
 {
-    public async Task<ProductDto?> HandleAsync(GetProductByIdQuery request, CancellationToken cancellationToken)
+    public Task<ProductDto?> HandleAsync(GetProductByIdQuery request, CancellationToken cancellationToken)
     {
-        var cached = await cache.GetAsync(request.ProductId, cancellationToken);
-        if (cached is not null) return cached;
-
-        var product = await repository.GetByIdAsync(request.ProductId, cancellationToken);
-        if (product is null) return null;
-
-        var dto = new ProductDto
+        return cache.GetOrLoadAsync(request.ProductId, async ct =>
         {
-            Id = product.Id,
-            Name = product.Name,
-            Description = product.Description,
-            Price = product.Price,
-            Currency = product.Currency,
-            Category = product.Category?.Name ?? "",
-            SellerId = product.SellerId,
-            StockQuantity = product.StockQuantity,
-            IsAvailable = product.IsAvailable
-        };
+            var product = await repository.GetByIdAsync(request.ProductId, ct);
+            if (product is null) return null;
 
-        await cache.SetAsync(dto, cancellationToken);
-        return dto;
+            return new ProductDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Description = product.Description,
+                Price = product.Price,
+                Currency = product.Currency,
+                Category = product.Category?.Name ?? "",
+                SellerId = product.SellerId,
+                StockQuantity = product.StockQuantity,
+                IsAvailable = product.IsAvailable
+            };
+        }, cancellationToken);
     }
 }

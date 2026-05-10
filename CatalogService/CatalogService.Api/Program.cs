@@ -35,10 +35,17 @@ builder.Host.UseWolverine(opts =>
 builder.Services.AddValidatorsFromAssemblyContaining<CreateProductCommand>();
 builder.Services.AddCatalogInfrastructure(builder.Configuration);
 
+// L2 distributed cache (Redis). HybridCache discovers IDistributedCache and uses it as the
+// distributed tier; without this registration, HybridCache would only use its in-process L1.
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("cache");
 });
+
+// L1 in-process cache + stampede-protected GetOrCreateAsync. .NET 10's HybridCache abstracts
+// the two-tier flow so we don't hand-roll it. Per-call options (TTL, tags) live in
+// HybridProductCache — this registration uses framework defaults globally.
+builder.Services.AddHybridCache();
 
 builder.Services.AddOpenApi();
 builder.Services.AddGrpc();
