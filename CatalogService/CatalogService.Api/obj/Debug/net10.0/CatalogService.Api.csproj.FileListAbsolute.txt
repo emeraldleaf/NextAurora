@@ -246,3 +246,4 @@
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Api/bin/Debug/net10.0/Asp.Versioning.Http.dll
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Api/bin/Debug/net10.0/Asp.Versioning.Mvc.dll
 /Users/joshuadell/NovaCraft/CatalogService/CatalogService.Api/bin/Debug/net10.0/Asp.Versioning.Mvc.ApiExplorer.dll
+/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Api/bin/Debug/net10.0/Microsoft.Extensions.Caching.Hybrid.dll

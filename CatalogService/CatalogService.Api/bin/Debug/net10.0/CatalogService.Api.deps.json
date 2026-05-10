@@ -819,6 +819,14 @@
           }
         }
       },
+      "Microsoft.Extensions.Caching.Hybrid/10.5.0": {
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Caching.Hybrid.dll": {
+            "assemblyVersion": "10.5.0.0",
+            "fileVersion": "10.500.26.21304"
+          }
+        }
+      },
       "Microsoft.Extensions.Caching.StackExchangeRedis/10.0.2": {
         "dependencies": {
           "StackExchange.Redis": "2.7.27"
@@ -1378,6 +1386,7 @@
           "CatalogService.Application": "1.0.0",
           "CatalogService.Domain": "1.0.0",
           "Microsoft.EntityFrameworkCore": "10.0.2",
+          "Microsoft.Extensions.Caching.Hybrid": "10.5.0",
           "Microsoft.Extensions.Caching.StackExchangeRedis": "10.0.2",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "10.0.2",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.0"
@@ -1709,6 +1718,13 @@
       "sha512": "sha512-+T2Ax2fgw7T7nlhio+ZtgSyYGfevHCOXNPqO0vxA+f2HmbtfwAnIwHEE/jm1/4uFRDDP8PEENpxAhbucg+wUWg==",
       "path": "microsoft.extensions.ambientmetadata.application/10.1.0",
       "hashPath": "microsoft.extensions.ambientmetadata.application.10.1.0.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Caching.Hybrid/10.5.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-INkOmE/6q6txxCS45A9HfY8dCqqjTMJfGzr3cNoMwuZpHVSr0JhMfgr/QNm9BvtvyzsyiK+q7yhCn57fBmoy9Q==",
+      "path": "microsoft.extensions.caching.hybrid/10.5.0",
+      "hashPath": "microsoft.extensions.caching.hybrid.10.5.0.nupkg.sha512"
     },
     "Microsoft.Extensions.Caching.StackExchangeRedis/10.0.2": {
       "type": "package",

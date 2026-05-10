@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "uoMREWiwmw8=",
+  "dgSpecHash": "FWW6pwklxN4=",
   "success": true,
   "projectFilePath": "/Users/joshuadell/NovaCraft/CatalogService/CatalogService.Api/CatalogService.Api.csproj",
   "expectedPackageFiles": [
@@ -50,6 +50,7 @@
     "/Users/joshuadell/.nuget/packages/microsoft.entityframeworkcore.design/10.0.2/microsoft.entityframeworkcore.design.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.entityframeworkcore.relational/10.0.2/microsoft.entityframeworkcore.relational.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.ambientmetadata.application/10.1.0/microsoft.extensions.ambientmetadata.application.10.1.0.nupkg.sha512",
+    "/Users/joshuadell/.nuget/packages/microsoft.extensions.caching.hybrid/10.5.0/microsoft.extensions.caching.hybrid.10.5.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.caching.stackexchangeredis/10.0.2/microsoft.extensions.caching.stackexchangeredis.10.0.2.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.compliance.abstractions/10.1.0/microsoft.extensions.compliance.abstractions.10.1.0.nupkg.sha512",
     "/Users/joshuadell/.nuget/packages/microsoft.extensions.dependencyinjection.autoactivation/10.1.0/microsoft.extensions.dependencyinjection.autoactivation.10.1.0.nupkg.sha512",
