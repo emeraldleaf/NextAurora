@@ -82,6 +82,8 @@ Roughly highest-leverage first:
 2. **Order cancellation flow** — listed in BRD as ORD-08, "Not Yet Implemented".
 3. **Saga compensation** — failed-payment / failed-shipment rollback. Larger.
 4. **Frontend implementation** — Storefront + SellerPortal scaffolds → real UIs. Big investment.
+5. **DTO payload audit** (~1 hour). Walk every `*Dto` and confirm each field is actually consumed by a known client (REST endpoint response, gRPC contract, or cache value). Drop unused fields. Article-triggered: most large-scale .NET slowdowns trace to DTOs that grew faster than their consumers shrank, and the cost is invisible until concurrency amplifies it. Low effort, no architectural risk.
+6. **Perf baselines under sustained load** (~2-3 hours initial, then ongoing). The BenchmarkDotNet + k6 harness exists but has never run against the system under concurrent traffic. Build a k6 profile that hits `GET /api/v1/products/{id}` and `POST /api/v1/orders` at realistic ratios + concurrency; capture P50/P95/P99 latency, GC-pause distribution (`dotnet-counters` for `System.Runtime`), connection-pool saturation point, and HybridCache hit ratio. Without numbers we can't tell the difference between "fast enough" and "lucky so far." Pairs naturally with integration tests since Testcontainers gives us a reproducible target.
 
 ---
 
