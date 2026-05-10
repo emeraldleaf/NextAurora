@@ -12,7 +12,7 @@ The hard rules live in [CLAUDE.md](../CLAUDE.md#performance-rules). The deeper "
 - [Decision: AsNoTracking strategy](#decision-asnotracking-strategy)
 - [Decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache)
 - [Decision: when to reach past EF Core (Dapper escape hatch)](#decision-when-to-reach-past-ef-core-dapper-escape-hatch)
-- [Discipline: pre-merge concurrency audit](#discipline-pre-merge-concurrency-audit)
+- [Concurrency hazards: what the build enforces](#concurrency-hazards-what-the-build-enforces)
 - [Resolved: transactional outbox via Wolverine](#resolved-transactional-outbox-via-wolverine)
 - [Resolved: concurrency exception handling](#resolved-concurrency-exception-handling)
 - [Resolved: migration tooling wired up](#resolved-migration-tooling-wired-up)
@@ -469,92 +469,69 @@ The convention "go through the DbContext's connection" is a feature, not a limit
 
 ---
 
-## Discipline: pre-merge concurrency audit
+## Concurrency hazards: what the build enforces
 
-### Why this exists
+Concurrency bugs surface under load, not in dev — by the time symptoms appear, the offending PR is buried in `git log`. The defense is to make the compiler refuse the bad shapes outright. Most of the classical C# concurrency mistakes are already build-failures here; the remaining gap is closed by `Microsoft.CodeAnalysis.BannedApiAnalyzers` reading [`BannedSymbols.txt`](../BannedSymbols.txt) at the repo root.
 
-Concurrency bugs have a specific, infuriating personality: they don't fail unit tests, they don't fail in dev, they don't fail under modest load. They fail under *sustained* concurrent traffic, often in production, often weeks after the offending change shipped. By the time the symptom shows up (deadlock, corruption, hang), the offending PR is buried in `git log` and nobody remembers writing it.
+### The mapping
 
-Two articles read during this project's evolution both made the same point with different framing: "We Scaled to 500K Users — Then Everything Slowed Down" (Kerim Kara) and "7 Concurrency Mistakes C# Developers Keep Making" (Sukhpinder Singh). Both said *concurrency hazards only surface under load* and *static analysis catches the obvious patterns; the rest catch you*.
+| # | Hazard | Enforced by | Notes |
+|---|---|---|---|
+| 1 | Sync-over-async (`.Result`, `.Wait()`, `.GetAwaiter().GetResult()`) | **Sonar S4462** + Meziantou MA0042 (build error via `TreatWarningsAsErrors`) | Fires inside async methods. Synchronous entry points use `await app.RunAsync()` so it never appears legitimately. |
+| 2 | `lock(this)`, `lock` on string, `lock` on type | **Sonar S2445 / S2444** + CA2002 | General `lock(privateObject)` is allowed — it's sometimes correct. The dangerous shapes are banned. |
+| 3 | `async void` outside event handlers | **Sonar S3168** + Meziantou MA0040 | Fires unconditionally on void async methods. UI event handlers (none today) would need a per-method suppression with justification. |
+| 4 | `Task.WaitAll`, `Task.WaitAny`, `Parallel.For`, `Parallel.ForEach`, `Thread.Sleep` | **`Microsoft.CodeAnalysis.BannedApiAnalyzers` rule RS0030** via [`BannedSymbols.txt`](../BannedSymbols.txt) | Each banned API has a custom error message pointing at the right replacement (e.g. `await Task.WhenAll`, `Parallel.ForEachAsync`, `await Task.Delay`). |
+| 5 | Shared static mutable collections (`static List<T>`, `static Dictionary<K,V>` written across threads) | **Pre-merge grep** (no analyzer covers it cleanly — see below) | Static collections that are *immutable after type-init* are fine and common. Distinguishing requires reading the surrounding code. |
+| 6 | Missing `CancellationToken` propagation | **Meziantou MA0032 / MA0040** | Forces forwarding the token to overloads that accept one. Framework-standard hits where the token comes from `HttpContext.RequestAborted`, `ServerCallContext.CancellationToken`, or `EndpointFilterInvocationContext` are recognized. |
+| 7 | UI-thread violations (`Dispatcher.Invoke`, `Control.Invoke`) | **N/A — no UI yet** | Storefront is Blazor WASM (no UI thread issues outside WebWorkers); SellerPortal is a static-file scaffold. Add WPF/WinForms-aware analyzers when reactive UI lands. |
 
-The 14 always-on rules in CLAUDE.md cover the *substance* of safe concurrency — async-everywhere, `IDbContextFactory<T>` for parallel queries, no locking in hot paths, projection over fan-out. The audit below covers the *enforcement*: a mechanical grep pass that runs before any PR with non-trivial concurrency surface area (anything that adds fan-out, locks, async event handlers, background services, or static state).
+### What the build catches today
 
-### The seven patterns we grep for
+A deliberately-bad probe was added to verify wiring before this section was written:
 
-Each pattern is one of the seven mistakes from the articles, with the exact `grep` to find it in this codebase, and what counts as a true positive vs. an acceptable framework pattern.
-
-```bash
-# 1. Sync-over-async — blocks a thread, deadlocks under sync context.
-grep -rnE "\.Result\b|\.Wait\(\)|\.GetAwaiter\(\)\.GetResult\(\)" \
-  --include="*.cs" --exclude-dir=bin --exclude-dir=obj --exclude-dir=Migrations
+```csharp
+public static class Probe
+{
+    public static void Test()
+    {
+        System.Threading.Thread.Sleep(0);                                       // RS0030
+        System.Threading.Tasks.Task.WaitAll(new[] { Task.CompletedTask });      // RS0030
+    }
+}
 ```
-**Acceptable:** none. Every hit is a real exposure. CLAUDE.md "Async on request paths" makes this a hard rule. The only legitimate use is in `Main` for top-level synchronous entry, but `await app.RunAsync()` already covers that.
 
-```bash
-# 2. Explicit lock statements — usually a sign of shared mutable state.
-grep -rnE "^\s*lock\s*\(" --include="*.cs" --exclude-dir=bin --exclude-dir=obj
+Build output:
+
 ```
-**Acceptable:** locks on private `readonly object` instances guarding genuinely shared state, with a code comment explaining what's being protected. Locks on `this`, on a public object, or with no explanatory comment fail review. Async-compatible alternative is `SemaphoreSlim.WaitAsync()`.
-
-```bash
-# 3. async void (except UI/Wolverine event handlers).
-grep -rnE "async\s+void\b" --include="*.cs" --exclude-dir=bin --exclude-dir=obj
+error RS0030: The symbol 'Thread.Sleep(int)' is banned in this project:
+  Use 'await Task.Delay(ms, ct)' instead — Thread.Sleep blocks the thread.
+error RS0030: The symbol 'Task.WaitAll(params Task[])' is banned in this project:
+  Use 'await Task.WhenAll(...)' instead — Task.WaitAll blocks the thread.
 ```
-**Acceptable:** Wolverine handlers that genuinely have no return value can be `async Task` — `async void` should never appear. UI event handlers (none today; will appear when Storefront/SellerPortal frontends exist) are the only legitimate `async void`.
+
+The probe was deleted; the wiring is the wiring.
+
+### The one pattern that's still manual: hazardous shared static state
+
+Rule #5 doesn't have a clean analyzer. The line between "harmless lookup table built at type-init" and "shared mutable state across threads" is structural, not syntactic — `static readonly Dictionary<int, string> Lookup = new() { ... }` is fine as a constant; `static Dictionary<int, string> _cache = new();` written from request handlers is a bug. A grep can flag the *shape*, but a human has to read the surrounding code.
+
+When reviewing a PR that adds a static collection, ask: *is anything ever written to it after type-init?* If yes and the writes can race, the answer is `ConcurrentDictionary<K,V>`, `FrozenDictionary<K,V>`, `ImmutableList<T>`, or `Channel<T>` — never the plain `System.Collections.Generic` types.
 
 ```bash
-# 4. TPL misuse — Task.WaitAll / Parallel.For / Parallel.ForEach.
-grep -rnE "Task\.WaitAll|Parallel\.(For|ForEach)\b" --include="*.cs" --exclude-dir=bin --exclude-dir=obj
-```
-**Acceptable:** `Parallel.ForEachAsync` for genuine CPU-bound or fan-out-friendly I/O *with* `IDbContextFactory<T>` if any DB work is involved (per CLAUDE.md "DbContext is not thread-safe"). Plain `Parallel.For` over collections has no valid use in this codebase today.
-
-```bash
-# 5. Shared static mutable collections.
+# Quick grep when you want to spot all the static collections in one go:
 grep -rnE "static\s+(readonly\s+)?(List|Dictionary|HashSet|Queue|Stack)<" \
   --include="*.cs" --exclude-dir=bin --exclude-dir=obj --exclude-dir=Tests.Unit
 ```
-**Acceptable:** `static readonly` collections that are *initialized at type-init time and never mutated* (e.g., a constant lookup table). Anything written to from multiple threads must be `Concurrent*` / `Immutable*` / `FrozenDictionary` / `Channel<T>`.
 
-```bash
-# 6. Async methods missing a CancellationToken parameter.
-# (Manual review — automated grep is noisy.)
-grep -rnE "public.*async.*Task[^(]*\([^)]*\)\s*[\{$]" \
-  --include="*.cs" --exclude-dir=bin --exclude-dir=obj --exclude-dir=Tests.Unit \
-  | grep -v "CancellationToken"
-```
-**Acceptable:** ASP.NET middleware (`InvokeAsync(HttpContext context)` — uses `context.RequestAborted`), gRPC service overrides (`override async Task<T>(Request, ServerCallContext context)` — uses `context.CancellationToken`), endpoint filters (`InvokeAsync(EndpointFilterInvocationContext, EndpointFilterDelegate)` — propagates from filter delegate), Wolverine handlers when the dispatch loop owns cancellation. Verify the framework token is actually *propagated through* into the next call — a method that takes a token via context but never passes it onward is the same hazard as not having one.
+### What this section does not catch
 
-```bash
-# 7. Framework gotchas — UI thread violations, Dispatcher.Invoke deadlocks.
-# Not applicable today (no UI). When Storefront/SellerPortal grow real UIs:
-grep -rnE "Control\.Invoke|Dispatcher\.Invoke|InvokeRequired" --include="*.cs"
-```
-Storefront is Blazor WASM (single-threaded JS interop boundary, no UI thread issues until WebWorkers). SellerPortal is a static-file scaffold. Re-add this check the moment either grows reactive components.
-
-### Today's baseline
-
-Run on the current `main` (`591c9f9` and onward): **all seven patterns return zero true positives.** Pattern #6 returns five framework-standard hits (3× `CatalogGrpcService` methods, 1× `CorrelationIdMiddleware`, 1× `AdminKeyEndpointFilter`), all verified to propagate the framework-provided token. This baseline is what we're protecting; any new hit is the regression to investigate.
-
-### When to run the audit
-
-- **Always:** any PR that adds `Task.WhenAll`, `Parallel.*`, `lock`, a static field, a new background service, or an async event handler.
-- **Always:** any PR that introduces a new repository method called from inside a loop or fanout.
-- **Recommended:** before tagging a release, even if no obvious-trigger PRs landed (regression catches things the line-level review missed).
-- **Optional but worth it:** as part of an automated pre-merge CI step. The greps above are fast and produce zero output on a clean repo, so a non-empty result == failure is straightforward to wire up. We haven't done that yet — listed as a follow-up in [STATUS.md](STATUS.md).
-
-### What this audit will not catch
-
-Static greps catch the *patterns*, not the *behavior*. Three classes of concurrency hazard show up only under sustained load and need a different tool:
+The build catches the *shapes*. It can't catch the *behaviors* — those need load:
 
 - **Cache stampede / thundering herd.** HybridCache mitigates this for `IProductCache`; everywhere else needs measurement under simulated cold-start.
-- **Connection-pool exhaustion.** Only visible at sustained RPS with realistic query mix. Per the article's lesson and the [500K-users article that preceded this](#what-changed-when), this is the most common scaling cliff.
-- **GC pauses from allocation-heavy hot paths.** `dotnet-counters` against the running stack is the tool; not visible in source review.
+- **Connection-pool exhaustion.** Only visible at sustained RPS with realistic query mix.
+- **GC pauses from allocation-heavy hot paths.** `dotnet-counters` against a running stack is the tool, not source review.
 
-These are exactly what the [STATUS.md "Perf baselines under sustained load"](STATUS.md) follow-up exists to surface. The audit + the baseline measurement are complements, not substitutes.
-
-### Why this is documented as discipline rather than added to CLAUDE.md
-
-CLAUDE.md is for *invariants* — rules every PR must satisfy at the source-of-truth level. The audit is *process* — a thing we run, not a thing the code is. Mechanical greps belong in a runnable form (this section, eventually a CI check); the underlying rules they enforce already live in CLAUDE.md "Performance Rules." Splitting them keeps each in its right form.
+These are what the [STATUS.md "Perf baselines under sustained load"](STATUS.md) follow-up exists to surface. The compiler enforcement and the load measurement are complements.
 
 ---
 
@@ -785,4 +762,4 @@ A short audit trail of how this guide's content came to exist, so you can explai
 | OpenAPI YAML output | Added `app.MapOpenApi("/openapi/{documentName}.yaml")` alongside the existing JSON endpoint in all five services. .NET 9+'s built-in OpenAPI emitter switches format on the route extension. Useful for tooling that prefers YAML (Spectral, embedding in markdown, some Postman/Insomnia imports). | This conversation. |
 | Scalar API reference UI | Added `Scalar.AspNetCore` 2.14.11 + `app.MapScalarApiReference()` in all five services. Reads the existing OpenAPI doc and renders an interactive UI at `/scalar/v1` (dev-only). | This conversation. |
 | Dapper escape hatch | Added `Dapper` 2.1.72 to the four Infrastructure projects with relational DBs (Catalog, Order, Payment, Shipping). No DI registration — the sanctioned pattern is `ctx.Database.GetDbConnection()` so Dapper queries share the EF connection + transaction. Plumbing only; no current query uses it. Full pattern + when-to-reach-for-it: [decision section](#decision-when-to-reach-past-ef-core-dapper-escape-hatch). | This conversation. |
-| Pre-merge concurrency audit | Codified the seven-pattern grep checklist as a documented discipline ([discipline section](#discipline-pre-merge-concurrency-audit)). Today's baseline against `main` is clean — zero true positives across sync-over-async, explicit locks, async void, TPL misuse, shared static mutable collections, missing CancellationToken (framework-standard hits verified), and UI-thread gotchas (no UI yet). Inspired by Sukhpinder Singh's "7 Concurrency Mistakes" article + Kerim Kara's "500K Users" piece. | This conversation. |
+| Concurrency hazards: build-enforced | Audited the seven classical C# concurrency mistakes against current analyzer coverage. Six of seven are now build-failures: Sonar S4462/S2445/S2444/S3168, Meziantou MA0032/MA0040/MA0042, plus newly-added `Microsoft.CodeAnalysis.BannedApiAnalyzers` 3.3.4 fed by [`BannedSymbols.txt`](../BannedSymbols.txt) banning `Task.WaitAll`/`WaitAny`, `Parallel.For`/`ForEach`, `Thread.Sleep` (with replacement guidance in each error message). The one exception is "shared static mutable collections" — too structural for a pure-syntactic analyzer; documented as a code-review check. Section reframed from "manual grep checklist" to "what the build enforces and what it can't." | This conversation. |

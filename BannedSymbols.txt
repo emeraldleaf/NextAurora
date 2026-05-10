@@ -1,0 +1,32 @@
+# BannedSymbols.txt — fed to Microsoft.CodeAnalysis.BannedApiAnalyzers (rule RS0030).
+# Each line is: <symbol-id> ; <message>
+# The build fails with RS0030 if banned APIs are used. Documented in
+# docs/performance-and-data-correctness.md "Pre-merge concurrency audit".
+
+# --- Blocking calls in async / threadpool world ---
+# Task.WaitAll / WaitAny block the calling thread, deadlock under sync context, and
+# under load exhaust the threadpool. await Task.WhenAll / Task.WhenAny instead.
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[]);Use 'await Task.WhenAll(...)' instead — Task.WaitAll blocks the thread.
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Int32);Use 'await Task.WhenAll(...).WaitAsync(timeout)' instead.
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Threading.CancellationToken);Use 'await Task.WhenAll(...).WaitAsync(ct)' instead.
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Int32,System.Threading.CancellationToken);Use 'await Task.WhenAll(...).WaitAsync(timeout, ct)' instead.
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.TimeSpan);Use 'await Task.WhenAll(...).WaitAsync(timespan)' instead.
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[]);Use 'await Task.WhenAny(...)' instead — WaitAny blocks the thread.
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Int32);Use 'await Task.WhenAny(...)' instead.
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Threading.CancellationToken);Use 'await Task.WhenAny(...)' instead.
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Int32,System.Threading.CancellationToken);Use 'await Task.WhenAny(...)' instead.
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.TimeSpan);Use 'await Task.WhenAny(...)' instead.
+
+# --- Synchronous parallel loops ---
+# Parallel.For / Parallel.ForEach are designed for sync CPU-bound work and pin threadpool
+# threads; they are nearly always wrong for our I/O-bound code. Use Parallel.ForEachAsync
+# (with concurrency limit) or sequential async with controlled fan-out.
+M:System.Threading.Tasks.Parallel.For(System.Int32,System.Int32,System.Action{System.Int32});Use 'Parallel.ForEachAsync' or sequential async — Parallel.For is sync CPU-bound.
+M:System.Threading.Tasks.Parallel.For(System.Int64,System.Int64,System.Action{System.Int64});Use 'Parallel.ForEachAsync' or sequential async — Parallel.For is sync CPU-bound.
+M:System.Threading.Tasks.Parallel.ForEach``1(System.Collections.Generic.IEnumerable{``0},System.Action{``0});Use 'Parallel.ForEachAsync' (with MaxDegreeOfParallelism + EF Core IDbContextFactory<T> if hitting a DB) — Parallel.ForEach is sync.
+
+# --- Thread.Sleep ---
+# Thread.Sleep blocks the calling thread synchronously; in any async path it pins a
+# threadpool worker. Use 'await Task.Delay(...)' (with CancellationToken).
+M:System.Threading.Thread.Sleep(System.Int32);Use 'await Task.Delay(ms, ct)' instead — Thread.Sleep blocks the thread.
+M:System.Threading.Thread.Sleep(System.TimeSpan);Use 'await Task.Delay(timespan, ct)' instead — Thread.Sleep blocks the thread.
