@@ -9,7 +9,7 @@ This guide explains how the code is organized, how requests flow through the sys
 1. [Project Layout](#1-project-layout)
 2. [Clean Architecture in Every Service](#2-clean-architecture-in-every-service)
 3. [Domain Model — Rich Entities with Guard Clauses](#3-domain-model--rich-entities-with-guard-clauses)
-4. [CQRS + MediatR — The Request Pipeline](#4-cqrs--mediatr--the-request-pipeline)
+4. [CQRS + Wolverine — The Request Pipeline](#4-cqrs--wolverine--the-request-pipeline)
 5. [A Complete Request: Placing an Order](#5-a-complete-request-placing-an-order)
 6. [Service-to-Service Communication](#6-service-to-service-communication)
 7. [Event-Driven Workflow](#7-event-driven-workflow)
@@ -32,17 +32,17 @@ NextAurora/
 
   CatalogService/
     CatalogService.Domain/         # Product, Category entities; repository interfaces
-    CatalogService.Application/    # Commands, queries, MediatR handlers, validators
-    CatalogService.Infrastructure/ # EF Core (PostgreSQL), repositories, gRPC server
+    CatalogService.Application/    # Commands, queries, Wolverine handlers, validators
+    CatalogService.Infrastructure/ # EF Core (PostgreSQL), repositories, HybridCache, gRPC server
     CatalogService.Api/            # ASP.NET Core host, REST endpoints, gRPC server
 
-  OrderService/       (same 4-layer structure)
-  PaymentService/     (same 4-layer structure)
-  ShippingService/    (same 4-layer structure)
+  OrderService/       (same 4-layer structure, SQL Server)
+  PaymentService/     (same 4-layer structure, SQL Server)
+  ShippingService/    (same 4-layer structure, PostgreSQL)
   NotificationService/(same 4-layer structure, no database)
 
   Storefront/        # Blazor WASM — customer-facing SPA (scaffold only)
-  SellerPortal/      # Blazor Server — merchant dashboard (scaffold only)
+  SellerPortal/      # static-file host scaffold (UI framework not yet chosen)
 
   tests/
     OrderService.Tests.Unit
@@ -67,10 +67,10 @@ Api             →  all layers (DI composition root)
 
 | Layer | What lives here |
 |-------|----------------|
-| **Domain** | Entities, value objects, enums, repository and publisher interfaces |
-| **Application** | Commands, queries, MediatR handlers, FluentValidation validators, MediatR pipeline behaviors |
-| **Infrastructure** | EF Core `DbContext`, repositories, Service Bus publisher/processor, external gateways (Stripe, etc.) |
-| **Api** | ASP.NET Core `Program.cs`, endpoint mapping, gRPC services/clients, DI wiring |
+| **Domain** | Entities, value objects, enums, repository interfaces, domain interfaces |
+| **Application** | Commands, queries, Wolverine handlers, FluentValidation validators, application interfaces (e.g. `IProductCache`) |
+| **Infrastructure** | EF Core `DbContext`, repositories, `HybridProductCache` (Catalog), gRPC server, external gateways (Stripe, etc.). Wolverine's transactional outbox and Service Bus transport are wired in `Api/Program.cs`, but the implementation lives transitively in `WolverineFx.AzureServiceBus` and `WolverineFx.{SqlServer,Postgresql}` — we don't hand-roll it. |
+| **Api** | ASP.NET Core `Program.cs`, endpoint mapping, gRPC services/clients, DI wiring, Wolverine bus configuration |
 
 The **Domain** layer has zero dependencies on any framework. The **Application** layer only knows about domain types and its own command/query objects. Infrastructure concerns (databases, message brokers) are injected through interfaces defined in the Domain or Application layer.
 
@@ -128,16 +128,15 @@ public class Order
 
 ---
 
-## 4. CQRS + MediatR — The Request Pipeline
+## 4. CQRS + Wolverine — The Request Pipeline
 
-All business operations are expressed as either a **Command** (changes state, returns an ID or nothing) or a **Query** (reads data, returns a DTO). MediatR dispatches them to the correct handler.
+All business operations are expressed as either a **Command** (changes state, returns an ID or nothing) or a **Query** (reads data, returns a DTO). [Wolverine](https://wolverinefx.net/) discovers handlers by convention and dispatches messages to them — no `IRequestHandler<T>` interface, no `MediatR`, no per-call registration.
 
 ### Command Example
 
 ```csharp
 // Application/Commands/PlaceOrderCommand.cs
-public record PlaceOrderCommand(Guid BuyerId, string Currency, List<OrderLineItem> Lines)
-    : IRequest<Guid>;
+public record PlaceOrderCommand(Guid BuyerId, string Currency, List<OrderLineItem> Lines);
 
 // Application/Validators/PlaceOrderCommandValidator.cs
 public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
@@ -151,53 +150,57 @@ public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
 }
 
 // Application/Handlers/PlaceOrderHandler.cs
-public class PlaceOrderHandler(...) : IRequestHandler<PlaceOrderCommand, Guid>
+// No interface to implement. Wolverine discovers public classes whose
+// public *Async method matches a known message type as the parameter.
+public class PlaceOrderHandler(IOrderRepository repo, ICatalogClient catalog, /* ... */)
 {
-    public async Task<Guid> Handle(PlaceOrderCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> HandleAsync(PlaceOrderCommand request, CancellationToken ct)
     {
         // 1. Validate products via gRPC
         // 2. Reserve stock
         // 3. Create Order aggregate
-        // 4. Persist to database
-        // 5. Publish OrderPlacedEvent
+        // 4. Persist to database (Wolverine's AutoApplyTransactions wraps this)
+        // 5. Stage OrderPlacedEvent into the outbox via cascading return
         return order.Id;
     }
 }
 ```
 
-### Pipeline Behaviors (Run Before Every Handler)
+Conventions:
+- Handlers live in `*.Application/Handlers/`, named `*Handler` with a public `HandleAsync` method.
+- The first parameter is the message; subsequent parameters are dependencies injected by Wolverine from the DI container.
+- For commands that return a value, `HandleAsync` returns it directly; for events, it returns nothing (or returns a *cascading* event that Wolverine publishes after the handler).
+- Tests instantiate the handler with mocks (NSubstitute) and call `HandleAsync` directly — no Wolverine bus needed in unit tests.
 
-Two pipeline behaviors run in order before any handler executes:
+### The Wolverine pipeline (runs around every handler)
 
 ```
-HTTP request
-  → FluentValidation (ValidationBehavior) — rejects invalid input with 400
-  → LoggingBehavior — logs handler name + correlation ID + elapsed time
-  → Handler
+HTTP endpoint (Minimal API)
+  → bus.InvokeAsync(command)             // Wolverine entry point
+    → FluentValidation policy            // rejects invalid input with 400
+    → ContextPropagationMiddleware       // restores correlation/user/session, opens logger scope
+    → AutoApplyTransactions              // begins EF transaction for handlers that touch a DbContext
+    → Handler (HandleAsync)
+    → Cascading messages staged into outbox (same DB transaction)
+    → SaveChanges + commit               // entity write + outbox row commit atomically
+  → response
 ```
 
-`ValidationBehavior` runs validators from the Application layer. If validation fails, it throws `FluentValidation.ValidationException`, which is caught by `GlobalExceptionHandler` and returned as a structured 400 response — the handler is never reached.
-
-`LoggingBehavior` uses a `try/finally` block so it always logs the outcome even if the handler throws:
+Each piece is wired in the service's `Program.cs` via `builder.Host.UseWolverine(opts => { ... })`:
 
 ```csharp
-// OrderService.Application/Behaviors/LoggingBehavior.cs
-var succeeded = false;
-try
-{
-    var response = await next();
-    succeeded = true;
-    return response;
-}
-finally
-{
-    sw.Stop();
-    if (succeeded)
-        logger.LogInformation("Handled {RequestName} in {ElapsedMs}ms ...");
-    else
-        logger.LogWarning("Failed {RequestName} after {ElapsedMs}ms ...");
-}
+opts.Discovery.IncludeAssembly(typeof(PlaceOrderCommand).Assembly);
+opts.UseFluentValidation();                                    // validation policy
+opts.AddNextAuroraContextPropagation();                         // correlation/user/session
+opts.PersistMessagesWithSqlServer(connStr, "wolverine");       // (or Postgresql) — outbox storage
+opts.UseEntityFrameworkCoreTransactions();                      // EF integration
+opts.Policies.AutoApplyTransactions();                          // wrap handlers in a tx
+opts.Policies.UseDurableOutboxOnAllSendingEndpoints();          // outgoing messages → outbox
+opts.Policies.LogMessageStarting(LogLevel.Information);         // handler logs
+opts.AddConcurrencyRetry();                                     // retry DbUpdateConcurrencyException
 ```
+
+Tier-1 detail: validation runs *before* `ContextPropagationMiddleware`, so 400s for invalid commands don't open a logger scope (and don't add noise to the trace). The handler only ever sees valid messages with a correlation ID already restored from the inbound transport.
 
 ---
 
@@ -208,7 +211,8 @@ This section traces an order placement from HTTP request to event publication.
 ### Step 1 — HTTP Endpoint
 
 ```
-POST /api/orders
+POST /api/v1/orders
+Authorization: Bearer <jwt>
 {
   "buyerId": "...",
   "currency": "USD",
@@ -216,19 +220,21 @@ POST /api/orders
 }
 ```
 
-The endpoint in `OrderService.Api/Endpoints/OrderEndpoints.cs` receives the request and dispatches a MediatR command:
+The endpoint in [OrderService.Api/Endpoints/OrderEndpoints.cs](../OrderService/OrderService.Api/Endpoints/OrderEndpoints.cs) receives the request and dispatches the command through Wolverine. Routes are registered under a versioned route group (`/api/v1/...`) via the shared `MapV1ApiGroup` helper from `NextAurora.ServiceDefaults`:
 
 ```csharp
-app.MapPost("/api/orders", async (PlaceOrderCommand command, ISender sender) =>
+var orders = app.MapV1ApiGroup("Orders", "orders").RequireAuthorization();
+
+orders.MapPost("/", async (PlaceOrderCommand command, IMessageBus bus, CancellationToken ct) =>
 {
-    var id = await sender.Send(command);
-    return Results.Created($"/api/orders/{id}", new { id });
+    var id = await bus.InvokeAsync<Guid>(command, ct);
+    return Results.Created($"/api/v1/orders/{id}", new { id });
 });
 ```
 
-### Step 2 — Validation (ValidationBehavior)
+### Step 2 — Validation (FluentValidation policy)
 
-`PlaceOrderCommandValidator` runs automatically before the handler. If `BuyerId` is empty or `Lines` is empty, the request is rejected with HTTP 400 before any domain logic runs.
+Wolverine's FluentValidation policy (wired via `opts.UseFluentValidation()`) runs `PlaceOrderCommandValidator` before the handler. If `BuyerId` is empty or `Lines` is empty, the bus throws `ValidationException`, `GlobalExceptionHandler` maps it to an RFC 7807 400 response, and `PlaceOrderHandler.HandleAsync` is never invoked.
 
 ### Step 3 — Handler Validates Products via gRPC
 
@@ -264,20 +270,28 @@ await orderRepository.AddAsync(order, cancellationToken);
 
 `Order.Create()` enforces domain invariants (non-empty buyer, at least one line). `IOrderRepository` is an interface in the Domain layer; the EF Core implementation is in Infrastructure.
 
-### Step 5 — Publish the Event
+### Step 5 — Stage the Event into the Outbox
 
 ```csharp
-var @event = new OrderPlacedEvent { OrderId = order.Id, ... };
-await eventPublisher.PublishAsync(@event, "order-events", cancellationToken);
+// Inside PlaceOrderHandler.HandleAsync
+await orderRepository.AddAsync(order, ct);
 OrdersPlaced.Add(1); // OpenTelemetry metric
-return order.Id;
+
+// Cascading return: Wolverine sees the event and stages it into the outbox
+// in the same transaction as the order insert. No bus.PublishAsync call needed.
+return new HandlerResult<Guid>(order.Id, new OrderPlacedEvent
+{
+    OrderId = order.Id,
+    BuyerId = order.BuyerId,
+    /* ... */
+});
 ```
 
-`IEventPublisher` is a Domain interface. In Infrastructure, it is implemented by `LoggingEventPublisher` (which wraps `ServiceBusEventPublisher` using the Decorator pattern — see [Event Replay Guide](./event-replay.md)).
+**Why no `bus.PublishAsync(...)` call** — `opts.Policies.AutoApplyTransactions()` wraps the handler chain in an EF transaction, and `opts.Policies.UseDurableOutboxOnAllSendingEndpoints()` makes Wolverine stage outgoing messages to the `wolverine.outgoing_envelopes` table. The entity write and the outbox row commit *together*. A background dispatcher then forwards the staged messages to Azure Service Bus with retry. This eliminates the dual-write problem (entity saved but event publish crashed, or vice versa). Full rationale: [docs/performance-and-data-correctness.md "Resolved: transactional outbox via Wolverine"](performance-and-data-correctness.md#resolved-transactional-outbox-via-wolverine).
 
 ### Step 6 — HTTP Response
 
-The endpoint returns `201 Created` with the new order ID. The handler never throws for the happy path, so `LoggingBehavior` logs success.
+The endpoint returns `201 Created` with the new order ID and a versioned `Location: /api/v1/orders/{id}` header. The handler logs `Handled PlaceOrderCommand in <ms>ms` via Wolverine's `LogMessageStarting` policy, with correlation/user/session IDs in the logger scope from `ContextPropagationMiddleware`.
 
 ---
 
@@ -303,7 +317,7 @@ service CatalogGrpc {
 }
 ```
 
-`CatalogGrpcService` delegates to the same MediatR handlers used by the REST API, so product retrieval and stock reservation logic is not duplicated.
+`CatalogGrpcService` delegates to the same Wolverine handlers used by the REST API (via `bus.InvokeAsync<T>(...)`), so product retrieval and stock reservation logic is not duplicated.
 
 **OrderService** registers the generated gRPC client and wraps it in `GrpcCatalogClient`:
 
@@ -318,51 +332,22 @@ builder.Services.AddScoped<ICatalogClient, GrpcCatalogClient>();
 
 Aspire resolves `catalog-service` to the running instance automatically — no hardcoded URLs.
 
-### Asynchronous: Azure Service Bus (all workflow events)
+### Asynchronous: Azure Service Bus via Wolverine (all workflow events)
 
-Used for the order fulfillment pipeline where immediate response is not required.
+Used for the order fulfillment pipeline where immediate response isn't required. **Wolverine handles everything** — there is no hand-rolled `ServiceBusMessage` construction, no `ProcessMessageAsync` event handler, no manual `CompleteMessage` / `AbandonMessage` ack logic. Every concern below is configured once in `Program.cs` and the handler code is just a class with `HandleAsync`.
 
-**Publishing** (e.g., in `ServiceBusEventPublisher`):
+**Publishing.** A handler returns the event (cascading message) or calls `bus.PublishAsync(@event)`. The outbox-aware sending endpoint stages it into `wolverine.outgoing_envelopes` in the same DB transaction as the entity write; a background dispatcher forwards it to Azure Service Bus with retry. Headers (`X-Correlation-Id`, `X-User-Id`, `X-Session-Id`) are stamped onto outgoing envelopes by `OutgoingContextMiddleware` reading from `Activity` baggage — handler code stays clean.
 
-```csharp
-var message = new ServiceBusMessage(JsonSerializer.Serialize(@event))
-{
-    Subject = typeof(T).Name,               // e.g., "OrderPlacedEvent"
-    CorrelationId = correlationId           // for tracing
-};
-message.ApplicationProperties["X-Correlation-Id"] = correlationId;
-await sender.SendMessageAsync(message, ct);
-```
-
-**Consuming** (e.g., in `ServiceBusEventProcessor`):
+**Consuming.** Wolverine subscribes to topics declared in `Program.cs`:
 
 ```csharp
-processor.ProcessMessageAsync += async args =>
-{
-    var correlationId = args.Message.ApplicationProperties
-        .TryGetValue("X-Correlation-Id", out var cid) ? cid?.ToString() : null;
-
-    using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
-    {
-        ["CorrelationId"] = correlationId,
-        ["MessageId"]     = args.Message.MessageId,
-        ["DeliveryCount"] = args.Message.DeliveryCount
-    });
-
-    try
-    {
-        // Deserialize → dispatch via MediatR → CompleteMessage
-        await args.CompleteMessageAsync(args.Message, stoppingToken);
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Failed to process {Subject}. Abandoning for retry/DLQ", args.Message.Subject);
-        await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
-    }
-};
+opts.ListenToAzureServiceBusSubscription("order-events/payment-orders-sub")
+    .FromTopic("order-events");
 ```
 
-Abandoning a message increments its `DeliveryCount`. When `DeliveryCount` reaches the subscription's `MaxDeliveryCount`, Azure Service Bus automatically moves it to the Dead Letter Queue (DLQ).
+Wolverine then discovers handler classes for the message types and dispatches each incoming envelope to the right one. The pipeline around each consumer is the same as the HTTP-side one: FluentValidation (rare for events) → `ContextPropagationMiddleware` (restores the correlation/user/session scope from envelope headers) → `AutoApplyTransactions` → handler. Idempotency guards inside handlers (status checks, "already processed" lookups) handle Service Bus's at-least-once delivery.
+
+**Retries and DLQ.** `opts.AddConcurrencyRetry()` retries `DbUpdateConcurrencyException` 3 times with 50/100/250ms cooldowns; transient transport failures use Wolverine's defaults. After retries are exhausted, the message goes to the Service Bus dead-letter queue and surfaces as the `messages.abandoned` metric.
 
 ---
 
@@ -371,7 +356,7 @@ Abandoning a message increments its `DeliveryCount`. When `DeliveryCount` reache
 The full order lifecycle is driven by a choreography-based saga — no central orchestrator. Each service reacts to events independently.
 
 ```
-1. Customer → POST /api/orders
+1. Customer → POST /api/v1/orders
                ↓
          OrderService creates Order (status: Placed)
                ↓
@@ -428,6 +413,12 @@ var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationT
 if (existing is not null) return existing.Id;     // already processed, return existing ID
 ```
 
+### Two correctness guarantees that aren't visible in the code
+
+1. **Transactional outbox.** Each event-publishing service (Order, Payment, Shipping) persists outgoing messages to a `wolverine` schema in its own DB. The entity write and the outbox-row write commit in the same EF transaction. Either both happen or neither does — no more lost events on bus failure or process crash. Wired in `Program.cs` via `PersistMessagesWith{SqlServer,Postgresql}` + `AutoApplyTransactions` + `UseDurableOutboxOnAllSendingEndpoints`.
+
+2. **Optimistic concurrency tokens.** Every updatable aggregate carries a concurrency token: Postgres `xmin` shadow property (Catalog Product/Category, Shipping Shipment) and SQL Server `RowVersion` shadow property (Order, Payment, Refund). Two concurrent handlers attempting to mutate the same aggregate produce `DbUpdateConcurrencyException` on the second `SaveChanges`. For HTTP commands, `GlobalExceptionHandler` maps it to 409 Conflict. For event handlers, `opts.AddConcurrencyRetry()` retries 3 times with backoff before DLQing. This is the difference between "we coordinate" and "the last write silently wins." Full rationale: [docs/performance-and-data-correctness.md](performance-and-data-correctness.md).
+
 ---
 
 ## 8. Cross-Cutting Concerns
@@ -440,7 +431,7 @@ Three layers of validation catch invalid data at different points:
 
 | Layer | Mechanism | When it runs |
 |-------|-----------|--------------|
-| **HTTP** | FluentValidation + `ValidationBehavior` | Before any handler executes |
+| **HTTP / messaging** | FluentValidation via Wolverine's `UseFluentValidation()` policy | Before any handler executes (HTTP-dispatched and async-dispatched alike) |
 | **Domain** | `ArgumentException` / `ArgumentOutOfRangeException` in `Create()` / mutation methods | When domain objects are constructed or modified |
 | **Business rules** | `InvalidOperationException` in domain methods | When state transitions are attempted |
 
@@ -457,26 +448,33 @@ Three layers of validation catch invalid data at different points:
 
 Every error response includes a `traceId` that links to the full server-side log.
 
-### Correlation ID Propagation
+### Correlation, User, and Session ID Propagation
 
-`CorrelationIdMiddleware` (registered in `ServiceDefaults`) runs on every HTTP request:
+Three context identifiers flow through every request — HTTP and async — automatically. There are no per-handler reads or writes; the middleware does it all.
 
-1. Reads `X-Correlation-Id` from the request header (generates one if absent)
-2. Stores it in `Activity` baggage so it propagates through gRPC and HTTP client calls automatically
-3. Opens a logger scope so every log line in that request includes the correlation ID
-4. Echoes it in the response `X-Correlation-Id` header
+| Concept | Source | HTTP / Service Bus header | Logger scope key |
+|---------|--------|---------------------------|------------------|
+| Correlation | `X-Correlation-Id` header, or generated from trace ID | `X-Correlation-Id` | `CorrelationId` |
+| User | JWT `sub` claim (`ClaimTypes.NameIdentifier`) | `X-User-Id` | `UserId` |
+| Session | `X-Session-Id` request header (client-supplied) | `X-Session-Id` | `SessionId` |
 
-Service Bus publishers inject the correlation ID into each message. Processors extract it and open a logging scope, so the same ID appears in logs across all services for a single transaction.
+Three pieces of middleware do the work:
+
+- **`CorrelationIdMiddleware`** — HTTP entry point. Sets all three IDs into `Activity` baggage and opens a `logger.BeginScope`. Echoes the correlation ID in the response header.
+- **`ContextPropagationMiddleware`** — Wolverine incoming-message middleware (async entry point). Reads the same headers from `Envelope.Headers`, restores them into `Activity` baggage, and opens a logger scope around the handler.
+- **`OutgoingContextMiddleware`** — Wolverine outgoing middleware. Reads `Activity` baggage and stamps the same headers onto outgoing envelopes, so the next consumer sees the same IDs.
+
+All three are wired in each service's `Program.cs` via the `opts.AddNextAuroraContextPropagation()` extension. Detail: [docs/context-propagation.md](context-propagation.md) and CLAUDE.md "Observability & Context Propagation."
 
 ### Structured Logging and Tracing
 
-`LoggingBehavior` in each service's Application layer logs the start and end of every MediatR handler with the correlation ID and elapsed time. Combined with OpenTelemetry distributed tracing, you can see the complete span tree for any request in the Aspire dashboard during development.
+Wolverine's `opts.Policies.LogMessageStarting(LogLevel.Information)` logs handler start + elapsed time around every dispatched message. Because `ContextPropagationMiddleware` opens the logger scope first, every log line emitted *anywhere inside the handler* (repository calls, gateway calls, custom logger calls) carries `CorrelationId`, `UserId`, and `SessionId` automatically. Combined with OpenTelemetry distributed tracing through OTLP into the Aspire dashboard (dev) or Application Insights (production), the full span tree + structured fields are queryable end-to-end.
 
 ---
 
 ## 9. Infrastructure and Local Development (Aspire)
 
-`NextAurora.AppHost/AppHost.cs` is the single entry point for local development. Running it starts the entire distributed system:
+[NextAurora.AppHost/AppHost.cs](../NextAurora.AppHost/AppHost.cs) is the single entry point for local development. Running it starts the entire distributed system:
 
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
@@ -487,30 +485,57 @@ var ordersDb   = builder.AddSqlServer("orders-sql").AddDatabase("orders-db");
 var paymentsDb = builder.AddSqlServer("payments-sql").AddDatabase("payments-db");
 var shippingDb = builder.AddPostgres("shipping-pg").AddDatabase("shipping-db");
 
-// Cache and messaging
+// L2 cache + messaging — Aspire 13+ requires explicit local-dev fallbacks
 var redis      = builder.AddRedis("cache");
-var serviceBus = builder.AddAzureServiceBus("messaging");
+var serviceBus = builder.AddAzureServiceBus("messaging").RunAsEmulator();   // mandatory in Aspire 13+
 
-// Service Bus topology
-var orderTopic   = serviceBus.AddServiceBusTopic("order-events");
-orderTopic.AddServiceBusSubscription("payment-sub");   // PaymentService reads this
-orderTopic.AddServiceBusSubscription("notify-sub");    // NotificationService reads this
-// ... payment-events and shipping-events topics
+// App Insights only when publishing — no local emulator exists
+IResourceBuilder<AzureApplicationInsightsResource>? insights = null;
+if (builder.ExecutionContext.IsPublishMode)
+{
+    insights = builder.AddAzureApplicationInsights("insights");
+}
 
-// Services with their dependencies injected
+// Service Bus topology — subscription names are GLOBALLY UNIQUE in the namespace
+var orderTopic = serviceBus.AddServiceBusTopic("order-events");
+orderTopic.AddServiceBusSubscription("payment-orders-sub");
+orderTopic.AddServiceBusSubscription("notify-orders-sub");
+// ... payment-events and shipping-events topics, each with consumer-prefixed subs
+
+// Services with their dependencies — every WithReference gets a matching WaitFor
+// because Aspire 13's WithReference no longer waits for healthy
 builder.AddProject<Projects.OrderService_Api>("order-service")
-    .WithReference(ordersDb)
-    .WithReference(serviceBus)
-    .WithReference(catalogService);  // enables gRPC service discovery
+    .WithReference(ordersDb).WaitFor(ordersDb)
+    .WithReference(serviceBus).WaitFor(serviceBus)
+    .WithReference(catalogService).WaitFor(catalogService);  // gRPC service discovery
 ```
 
 Aspire handles:
-- Spinning up Docker containers for each database
-- Running the Azure Service Bus emulator
+- Spinning up Docker containers for each database, Redis, Keycloak, and the Service Bus emulator
 - Injecting connection strings into each service automatically
 - Resolving service names (`catalog-service`) to the correct URL
+- Health-check aggregation in the dashboard
 
-Every service calls `builder.AddServiceDefaults()` in `Program.cs` to register shared telemetry, health checks, resilience handlers, and middleware automatically.
+Every service calls `builder.AddServiceDefaults()` in `Program.cs` to register shared telemetry (OpenTelemetry → OTLP), health checks, the resilience handler (`Microsoft.Extensions.Http.Resilience`), JWT bearer auth, the global exception handler, API versioning, and the correlation/user/session middleware automatically.
+
+**Aspire 13 gotchas the AppHost has to handle** (each captured in CLAUDE.md after surfacing):
+- Aspire SDK and runtime package versions must match exactly (or SDK ≥ packages).
+- Service Bus subscription names are globally unique in the namespace — convention is `{consumer}-{source}-sub` (e.g., `payment-orders-sub`).
+- `AddAzureServiceBus(...)` requires a chained `.RunAsEmulator()` for local runs.
+- `AddAzureApplicationInsights(...)` has no local emulator — gate it on `IsPublishMode`.
+- Every `.WithReference(x)` on a non-trivial dependency needs a matching `.WaitFor(x)` since `WithReference` no longer waits for healthy in Aspire 13.
+
+### Dev-time API exploration
+
+Each service emits its OpenAPI document and ships an interactive UI:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /openapi/v1.json` | Machine-readable spec (used by Scalar, gateways, codegen) |
+| `GET /openapi/v1.yaml` | Same spec, YAML form (Spectral/CI, embedding in markdown) |
+| `GET /scalar/v1` | **Scalar** interactive API reference UI (try-it-out, search) |
+
+All three are gated behind `app.Environment.IsDevelopment()` — production exposes nothing. Scalar reads the OpenAPI doc, so it picks up versioning, auth requirements, and rate-limit annotations automatically.
 
 ### Health Checks
 
@@ -575,19 +600,23 @@ All tests in the solution run. Each test project targets the unit tests for one 
 
 | I want to... | Look here |
 |--------------|-----------|
-| Add a new API endpoint | `{Service}.Api/Endpoints/` |
+| Add a new API endpoint | `{Service}.Api/Endpoints/` (use `MapV1ApiGroup(...)` so the route lives under `/api/v1/...`) |
 | Add a new command or query | `{Service}.Application/Commands/` or `Queries/` |
-| Add a handler for a command | `{Service}.Application/Handlers/` |
+| Add a handler for a command/event | `{Service}.Application/Handlers/` (Wolverine discovers by convention — no interface to implement) |
 | Add validation for a command | `{Service}.Application/Validators/` |
 | Change a domain business rule | `{Service}.Domain/Entities/` |
 | Add a new event type | `NextAurora.Contracts/Events/` |
-| Change how events are published | `{Service}.Infrastructure/Messaging/` |
-| Change how events are consumed | `{Service}.Infrastructure/Messaging/ServiceBusEventProcessor.cs` |
-| Add a new gRPC method to CatalogService | `CatalogService.Api/Protos/catalog.proto` + `CatalogService.Api/Services/CatalogGrpcService.cs` |
-| Understand the full order lifecycle | This guide, [architecture.md](./architecture.md), and the event flow diagram in [README.md](../README.md) |
-| Understand observability/logging | [observability.md](./observability.md) |
-| Understand event replay and the admin API | [event-replay.md](./event-replay.md) |
-| Understand what is and isn't implemented | [BRD.md](./BRD.md) (requirement status table) |
+| Change which events a service publishes | Return them as cascading messages from the handler, or `bus.PublishAsync` |
+| Change which events a service consumes | Add a handler class for the event in `{Service}.Application/Handlers/`, plus an `opts.ListenToAzureServiceBusSubscription(...)` line in `{Service}.Api/Program.cs` |
+| Inspect outgoing events / outbox state | Each event-publishing service's DB has a `wolverine` schema; `outgoing_envelopes` is the staged-but-not-yet-flushed queue, `dead_letters` the DLQ. See [event-replay.md](./event-replay.md) |
+| Add a new gRPC method to CatalogService | `CatalogService.Api/Protos/catalog.proto` + `CatalogService.Api/Services/CatalogGrpcService.cs` (regenerate clients in OrderService) |
+| Add a cached read query in Catalog | `IProductCache.GetOrLoadAsync(id, factory)` — see [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) |
+| Reach for raw SQL via Dapper | `ctx.Database.GetDbConnection()` so it shares the EF transaction — see [Dapper escape hatch](performance-and-data-correctness.md#decision-when-to-reach-past-ef-core-dapper-escape-hatch) |
+| Understand the full order lifecycle | This guide, [architecture.md](./architecture.md), the [Excalidraw diagram](./nextaurora-architecture.excalidraw), and the event flow diagram in [README.md](../README.md) |
+| Understand performance + correctness rules (outbox, concurrency tokens, caching) | [performance-and-data-correctness.md](./performance-and-data-correctness.md) |
+| Understand observability/logging/tracing | [observability.md](./observability.md), [context-propagation.md](./context-propagation.md) |
+| Understand event-replay / outbox tooling | [event-replay.md](./event-replay.md) |
+| Understand what is and isn't implemented | [BRD.md](./BRD.md) (requirement status table), [STATUS.md](./STATUS.md) (cross-session entry point) |
 
 ---
 
