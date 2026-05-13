@@ -98,6 +98,20 @@ Roughly highest-leverage first:
 
 ---
 
+## If we deploy multi-replica: HybridCache L1 cross-replica invalidation
+
+Conditional follow-up — only matters once we deploy more than one replica of any service that uses `IProductCache` (today only Catalog).
+
+**The problem.** `Microsoft.Extensions.Caching.Hybrid` 10.x has no backplane. When replica A invalidates a `ProductDto`, replicas B/C continue serving the stale value from their own in-process L1 for up to `LocalCacheExpiration` (currently 5 min). The API proposal for a pluggable backplane ([dotnet/extensions#5517](https://github.com/dotnet/extensions/issues/5517)) was closed as "NOT ready for implementation" — not coming soon.
+
+**Mitigation, cheapest first:**
+1. **Drop `LocalCacheExpiration` to 60s** in [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs). One-line change. Bounds cross-replica staleness at 60s. We lose part of the L1 win for the warm-but-aging tail of entries but keep the hot-entry win and the L2 win. **This is the right move for "ship multi-replica with reasonable consistency."**
+2. **Migrate to [FusionCache](https://github.com/ZiggyCreatures/FusionCache)** if 60s isn't tight enough. FusionCache ships a Redis pub/sub backplane that publishes invalidations to all replicas — drop-in functional replacement with the consistency story we originally wanted from HybridCache. Wiring change is moderate: swap package, retarget the `IProductCache` adapter, verify metrics still flow through OTel. Estimate ~half day plus a chaos test. The cache *seam* (`IProductCache`) stays the same; handlers don't change.
+
+**Filed here, not in "After the smoke run,"** because this only matters once there's an actual multi-replica deployment. Don't pre-optimize for cross-replica before there's a real cross-replica. Background reading: [Tim Deschryver: FusionCache backplane synchronizing HybridCache](https://timdeschryver.dev/blog/hybridcache-sync-with-fusioncache-backplane).
+
+---
+
 ## If this stops being a learning project: polyrepo migration sketch
 
 The current monorepo is the right shape for a portfolio — full architecture in one `git clone`, lockstep changes across services, simple local dev. If this ever becomes a production system with multiple teams, the split would look like:

@@ -19,7 +19,7 @@ namespace CatalogService.Infrastructure.Caching;
 ///         every concurrent miss trigger a separate DB roundtrip.</item>
 ///   <item><b>Tag-based invalidation:</b> each entry carries a per-product tag
 ///         (<c>product:{id}</c>); <see cref="InvalidateAsync"/> removes by tag, which clears
-///         both L1 and L2 atomically. Without tags we'd have to remove from each layer
+///         L2 and the *calling replica's* L1. Without tags we'd have to remove from each layer
 ///         separately.</item>
 /// </list>
 ///
@@ -32,6 +32,17 @@ namespace CatalogService.Infrastructure.Caching;
 /// <b>TTL.</b> 5 minutes absolute on both layers. Configured via
 /// <c>HybridCacheEntryOptions.Expiration</c> (overall) plus <c>LocalCacheExpiration</c>
 /// (L1-specific). Both at 5min keeps the model simple — bounded staleness either way.
+/// </para>
+/// <para>
+/// <b>Multi-replica caveat — L1 is not invalidated across replicas.</b>
+/// <c>Microsoft.Extensions.Caching.Hybrid</c> 10.x has no backplane.
+/// <see cref="InvalidateAsync"/> clears L2 (Redis) and the L1 of the replica that handled the
+/// write; other replicas continue serving the old <c>ProductDto</c> from their own L1 for up to
+/// <c>LocalCacheExpiration</c> (5 min). Acceptable today because we run single-replica. When
+/// we deploy multi-replica, the cheap fix is dropping <c>LocalCacheExpiration</c> to 60s; the
+/// real fix is FusionCache (it ships a Redis pub/sub backplane that publishes invalidations).
+/// See <c>docs/performance-and-data-correctness.md</c> and the API proposal at
+/// dotnet/extensions#5517.
 /// </para>
 /// <para>
 /// <b>Why we keep <see cref="IProductCache"/> as our seam</b> rather than letting handlers
