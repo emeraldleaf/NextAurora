@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# When a PR is updated rapidly, cancel earlier in-flight runs on the same ref —
+# only the latest commit matters for merge gating.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,6 +24,17 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # Cache the NuGet global packages folder keyed on Directory.Packages.props (Central
+      # Package Management is our source of truth for versions). Cache hit cuts each run by
+      # the cold-restore time (~30-60s on a fresh runner).
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Restore dependencies
         run: dotnet restore
 
@@ -26,3 +43,20 @@ jobs:
 
       - name: Test
         run: dotnet test --no-build --no-restore --verbosity normal
+
+      # Concurrency hazard #5 from docs/performance-and-data-correctness.md — the one
+      # the build can't catch via analyzers because the distinction between
+      # "type-init-immutable lookup table" and "shared mutable state" is structural.
+      # Plain List<T>/Dictionary<,>/HashSet<T>/Queue<T>/Stack<T> as static fields are
+      # banned wholesale; use ConcurrentDictionary<,>, ImmutableList<T>, FrozenDictionary<,>,
+      # or Channel<T> instead. The \b word boundary lets ConcurrentDictionary, ImmutableList,
+      # FrozenDictionary pass through.
+      - name: Concurrency audit — static mutable collections
+        run: |
+          if grep -rnE 'static\s+(readonly\s+)?\b(List|Dictionary|HashSet|Queue|Stack)<' \
+             --include="*.cs" \
+             --exclude-dir=bin --exclude-dir=obj \
+             --exclude-dir=Migrations --exclude-dir=tests .; then
+            echo "::error::Shared static mutable collection found. Use ConcurrentDictionary / ImmutableList / FrozenDictionary / Channel<T> instead. See docs/performance-and-data-correctness.md 'Concurrency hazards: what the build enforces'."
+            exit 1
+          fi

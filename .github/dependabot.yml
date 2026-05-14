@@ -1,0 +1,53 @@
+# Auto-PRs for package + workflow-action bumps. Groups keep PR volume manageable —
+# minor/patch bumps within a group come as a single PR rather than one per package.
+# Security advisories always come as standalone PRs regardless of grouping.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - nuget
+    groups:
+      microsoft-extensions:
+        patterns:
+          - "Microsoft.Extensions.*"
+          - "Microsoft.AspNetCore.*"
+      entity-framework:
+        patterns:
+          - "Microsoft.EntityFrameworkCore*"
+          - "Npgsql.EntityFrameworkCore*"
+      wolverine:
+        patterns:
+          - "WolverineFx*"
+      aspire:
+        patterns:
+          - "Aspire.*"
+      opentelemetry:
+        patterns:
+          - "OpenTelemetry.*"
+      analyzers:
+        patterns:
+          - "Meziantou.Analyzer"
+          - "SonarAnalyzer.*"
+          - "Roslynator.*"
+          - "Microsoft.CodeAnalysis.*"
+      testing:
+        patterns:
+          - "xunit*"
+          - "Microsoft.NET.Test.Sdk"
+          - "AwesomeAssertions"
+          - "NSubstitute"
+          - "Bogus"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - github-actions
