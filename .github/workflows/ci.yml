@@ -45,12 +45,14 @@ jobs:
       - name: Build
         run: dotnet build --no-restore
 
-      # --logger trx emits machine-readable result files for the reporter step;
-      # --collect "XPlat Code Coverage" produces Cobertura XML via Coverlet (ships with
-      # the test SDK, no extra package). Both land under ./test-results.
-      - name: Test
+      # Unit tests only — the FullyQualifiedName filter excludes *.Tests.Integration
+      # (those run in the dedicated job below, which has Docker). --logger trx emits
+      # machine-readable result files for the reporter step; --collect "XPlat Code
+      # Coverage" produces Cobertura XML via Coverlet. Both land under ./test-results.
+      - name: Unit tests
         run: >
           dotnet test --no-build --no-restore
+          --filter "FullyQualifiedName!~Tests.Integration"
           --logger "trx;LogFileName=test-results.trx"
           --results-directory ./test-results
           --collect:"XPlat Code Coverage"
@@ -94,3 +96,44 @@ jobs:
             echo "::error::Shared static mutable collection found. Use ConcurrentDictionary / ImmutableList / FrozenDictionary / Channel<T> instead. See docs/performance-and-data-correctness.md 'Concurrency hazards: what the build enforces'."
             exit 1
           fi
+
+  # Testcontainers-based integration tests, in their own job: they need Docker (the
+  # ubuntu-latest runner ships it at the standard /var/run/docker.sock, so Testcontainers
+  # auto-detects — no DOCKER_HOST override, unlike macOS Docker Desktop locally). Kept
+  # separate from the unit job so the fast unit signal isn't gated on container startup.
+  integration-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Integration tests
+        run: >
+          dotnet test tests/CatalogService.Tests.Integration/CatalogService.Tests.Integration.csproj
+          --logger "trx;LogFileName=integration-results.trx"
+          --results-directory ./test-results
+
+      - name: Publish integration test results
+        uses: dorny/test-reporter@v3
+        if: ${{ !cancelled() }}
+        with:
+          name: Integration Tests
+          path: test-results/**/*.trx
+          reporter: dotnet-trx

@@ -72,3 +72,9 @@ app.UseRateLimiter();
 app.MapCatalogEndpoints();
 app.MapGrpcService<CatalogGrpcService>();
 await app.RunAsync();
+
+// Exposes the implicit top-level-statement Program class to the integration test project
+// (tests/CatalogService.Tests.Integration) so it can drive WebApplicationFactory<Program>.
+#pragma warning disable S1118 // Not a utility class — this is the ASP.NET Core WebApplicationFactory entry-point idiom.
+public partial class Program;
+#pragma warning restore S1118

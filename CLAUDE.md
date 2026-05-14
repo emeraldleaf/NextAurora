@@ -129,7 +129,8 @@ These are always-on. Deeper guidance (modern EF features, transactions, caching 
 ## Testing
 
 - Unit tests for domain logic and handlers
-- Integration tests with Testcontainers for infrastructure
+- Integration tests with Testcontainers for infrastructure — `tests/{Service}.Tests.Integration`, booting the real API via `WebApplicationFactory<Program>` against real Postgres/Redis containers. CatalogService slice exists; pattern documented in its README.
+- **Integration tests need Docker.** On macOS, Docker Desktop's socket is at `~/.docker/run/docker.sock`, not `/var/run/docker.sock` — Testcontainers fails fast with `DockerUnavailableException` unless `DOCKER_HOST` points there (or Docker Desktop's "default Docker socket" toggle is on). CI runners have it at the standard path.
 - Run `dotnet build` to verify - all analyzer warnings are errors
 
 ## Build & Run

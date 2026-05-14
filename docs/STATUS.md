@@ -45,7 +45,7 @@ These two commits collectively add:
 ### Build / test state
 - `dotnet build` — clean, 0 warnings, 0 errors.
 - `dotnet test` — 134/134 unit tests pass.
-- **No integration tests** — runtime correctness of the saga / outbox / migrations has not been verified.
+- **Integration tests** — CatalogService slice exists (`tests/CatalogService.Tests.Integration`, 4 tests, Testcontainers Postgres + Redis): proves migrations apply, HybridCache caches + invalidates, and the `xmin` concurrency token fires. Runtime correctness of the **saga / outbox / cross-service choreography** is still unverified — that's the next, heavier slice (needs the Service Bus emulator container).
 - **Performance baselines not measured yet** — harness exists; no recorded baseline numbers.
 
 ---
@@ -80,7 +80,7 @@ The script verifies:
 ### After the smoke run
 Roughly highest-leverage first:
 
-1. **Integration tests** (Testcontainers-based saga test). Locks in correctness for everything we just built. Architecture.md still lists this as "Not Yet Implemented".
+1. **Integration tests — saga/messaging slice.** The CatalogService slice landed (`tests/CatalogService.Tests.Integration`: migrations, HybridCache, concurrency token). Still missing the heavier slice: Wolverine outbox staging in a real transaction, cross-service choreography, the concurrency-retry policy. Needs the Azure Service Bus emulator container. The CatalogService harness is the proven pattern to extend.
 2. **Order cancellation flow** — listed in BRD as ORD-08, "Not Yet Implemented".
 3. **Saga compensation** — failed-payment / failed-shipment rollback. Larger.
 4. **Frontend implementation** — Storefront + SellerPortal scaffolds → real UIs. Big investment.
@@ -93,7 +93,7 @@ Roughly highest-leverage first:
 
 - **Two recent commits have generic messages** (`Refactor code structure for improved readability and maintainability`). The architectural detail is recoverable from this doc + [performance-and-data-correctness.md "What changed when"](performance-and-data-correctness.md#what-changed-when), but `git log` alone won't tell the story. Future commits should use real messages.
 - **Production migration deploy step** not yet automated. Tooling exists; deploy automation doesn't. See [perf guide](performance-and-data-correctness.md#resolved-migration-tooling-wired-up).
-- **Integration tests** — none. Outbox semantics, concurrency-retry behavior, saga choreography aren't unit-testable.
+- **Integration tests** — CatalogService slice exists; outbox semantics, concurrency-retry behavior, and saga choreography are still uncovered (see "After the smoke run" item 1).
 - **Service-to-service auth** (mTLS or per-service tokens) not configured. Fine inside the Aspire mesh; matters in production.
 
 ---
