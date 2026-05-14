@@ -15,6 +15,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write          # test-reporter publishes results as a check run
+      pull-requests: write   # ...and annotates the PR
 
     steps:
       - uses: actions/checkout@v6
@@ -41,8 +45,38 @@ jobs:
       - name: Build
         run: dotnet build --no-restore
 
+      # --logger trx emits machine-readable result files for the reporter step;
+      # --collect "XPlat Code Coverage" produces Cobertura XML via Coverlet (ships with
+      # the test SDK, no extra package). Both land under ./test-results.
       - name: Test
-        run: dotnet test --no-build --no-restore --verbosity normal
+        run: >
+          dotnet test --no-build --no-restore
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ./test-results
+          --collect:"XPlat Code Coverage"
+
+      # Surfaces pass/fail counts + failed-test names as a check run in the PR UI,
+      # instead of making you scroll the raw job log. Runs even on test failure
+      # (that's the case where you most want the report).
+      - name: Publish test results
+        uses: dorny/test-reporter@v3
+        if: ${{ !cancelled() }}
+        with:
+          name: Unit Tests
+          path: test-results/**/*.trx
+          reporter: dotnet-trx
+
+      # Renders the Cobertura coverage into a markdown table written to the job
+      # summary. Measurement, not a gate — tells you what shipped untested.
+      - name: Coverage summary
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator \
+            -reports:'test-results/**/coverage.cobertura.xml' \
+            -targetdir:coverage-report \
+            -reporttypes:'MarkdownSummaryGithub'
+          cat coverage-report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
       # Concurrency hazard #5 from docs/performance-and-data-correctness.md — the one
       # the build can't catch via analyzers because the distinction between
