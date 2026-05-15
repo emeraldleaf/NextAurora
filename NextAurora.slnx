@@ -41,6 +41,7 @@
     <Project Path="tests/CatalogService.Tests.Unit/CatalogService.Tests.Unit.csproj" />
     <Project Path="tests/NotificationService.Tests.Unit/NotificationService.Tests.Unit.csproj" />
     <Project Path="tests/CatalogService.Tests.Integration/CatalogService.Tests.Integration.csproj" />
+    <Project Path="tests/OrderService.Tests.Integration/OrderService.Tests.Integration.csproj" />
   </Folder>
   <Folder Name="/Benchmarks/">
     <Project Path="benchmarks/NextAurora.Benchmarks/NextAurora.Benchmarks.csproj" />

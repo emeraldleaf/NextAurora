@@ -124,10 +124,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Integration tests
+      # Each integration project runs in its own step so a failure in one doesn't mask the
+      # other, and the TRX filenames stay distinct for the reporter step's glob.
+      - name: Integration tests — Catalog (Postgres + Redis)
         run: >
           dotnet test tests/CatalogService.Tests.Integration/CatalogService.Tests.Integration.csproj
-          --logger "trx;LogFileName=integration-results.trx"
+          --logger "trx;LogFileName=catalog-integration.trx"
+          --results-directory ./test-results
+
+      - name: Integration tests — Order (SQL Server, Wolverine outbox + saga)
+        if: ${{ !cancelled() }}
+        run: >
+          dotnet test tests/OrderService.Tests.Integration/OrderService.Tests.Integration.csproj
+          --logger "trx;LogFileName=order-integration.trx"
           --results-directory ./test-results
 
       - name: Publish integration test results

@@ -45,7 +45,7 @@ These two commits collectively add:
 ### Build / test state
 - `dotnet build` — clean, 0 warnings, 0 errors.
 - `dotnet test` — 134/134 unit tests pass.
-- **Integration tests** — CatalogService slice exists (`tests/CatalogService.Tests.Integration`, 4 tests, Testcontainers Postgres + Redis): proves migrations apply, HybridCache caches + invalidates, and the `xmin` concurrency token fires. Runtime correctness of the **saga / outbox / cross-service choreography** is still unverified — that's the next, heavier slice (needs the Service Bus emulator container).
+- **Integration tests** — two slices live now. **Catalog** (`tests/CatalogService.Tests.Integration`, 4 tests, Postgres + Redis): migrations apply, HybridCache caches + invalidates, `xmin` token fires. **Order** (`tests/OrderService.Tests.Integration`, 4 tests, SQL Server + stubbed Wolverine transport): Wolverine outbox + saga handlers verified — `OrderPlacedEvent` flows through the durable pipeline, `PaymentCompletedEvent` consumer transitions the Order through real EF, idempotency guards work, `RowVersion` token fires. **Cross-service choreography over the real Azure Service Bus wire** is still uncovered — that's the deferred ASB-emulator slice.
 - **Performance baselines not measured yet** — harness exists; no recorded baseline numbers.
 
 ---
@@ -80,7 +80,7 @@ The script verifies:
 ### After the smoke run
 Roughly highest-leverage first:
 
-1. **Integration tests — saga/messaging slice.** The CatalogService slice landed (`tests/CatalogService.Tests.Integration`: migrations, HybridCache, concurrency token). Still missing the heavier slice: Wolverine outbox staging in a real transaction, cross-service choreography, the concurrency-retry policy. Needs the Azure Service Bus emulator container. The CatalogService harness is the proven pattern to extend.
+1. **Integration tests — cross-service choreography over the real ASB wire.** The single-service slices landed (Catalog: caching + concurrency; Order: Wolverine outbox + saga handlers via stubbed transport). What's still uncovered: an actual `OrderPlacedEvent` traveling out of OrderService over Azure Service Bus to PaymentService and back as a `PaymentCompletedEvent`. Needs the Azure Service Bus emulator container (which itself wants an MSSQL sidecar — heavy). Mostly exercises Microsoft's emulator + Wolverine's transport adapter, so it's the fragile last mile rather than the load-bearing correctness piece — but it's the slice that proves "the saga works end-to-end on the wire."
 2. **Order cancellation flow** — listed in BRD as ORD-08, "Not Yet Implemented".
 3. **Saga compensation** — failed-payment / failed-shipment rollback. Larger.
 4. **Frontend implementation** — Storefront + SellerPortal scaffolds → real UIs. Big investment.
