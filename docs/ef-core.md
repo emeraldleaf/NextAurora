@@ -255,7 +255,49 @@ One column comparison per UPDATE. Negligible. **Last-write-wins is not acceptabl
 
 ## 6. Migrations
 
-### 6.1 The pieces
+### 6.1 What they are
+
+**EF Core migrations are versioned, code-generated database schema changes.** Each one is a C# class that knows how to apply a specific schema delta (and undo it). EF Core uses them to keep your database structure in sync with your entity classes over time.
+
+When you change a `Product` entity in C# — add a property, change a string length, add an index — the database doesn't update itself. You have three options:
+
+| Approach | Problem |
+|---|---|
+| **Manual `ALTER TABLE` scripts** | Easy to forget; hard to roll back; teammates write conflicting scripts; no link between code change and schema change |
+| **Drop-and-recreate** (`EnsureCreated()`) | Fine in unit tests; catastrophic anywhere with real data |
+| **Migrations** ← we use this | EF generates the SQL by diffing the current model against a snapshot of the last-applied model. Each migration is committed to git, runs in order on every environment, and history is tracked in a `__EFMigrationsHistory` table inside the database itself. |
+
+A migration is **idempotent on a given database**: EF checks the history table before running each one, so applying twice does nothing. New environments catch up automatically by replaying all migrations in order.
+
+### 6.2 What lives where
+
+Each Infrastructure project's `Migrations/` folder holds three kinds of files, all committed to git:
+
+```
+20260503040949_InitialCreate.cs              ← the migration: Up() applies, Down() reverts
+20260503040949_InitialCreate.Designer.cs     ← FROZEN snapshot of the model AT this migration
+CatalogDbContextModelSnapshot.cs             ← LIVE snapshot of the current model (regenerated every migrations add)
+```
+
+The two snapshot files have different jobs:
+
+- **`*.Designer.cs`** captures the model *as it was when this migration was created*. It's immutable from that point on. EF uses it to know what the model looked like at this version (for, e.g., `--idempotent` script generation).
+- **`CatalogDbContextModelSnapshot.cs`** is the model *as of right now*. `dotnet ef migrations add` regenerates it after every new migration. It's the baseline EF diffs the next entity change against.
+
+Lose or hand-edit either snapshot and `dotnet ef migrations add` will produce wrong SQL (it has no accurate baseline to diff from).
+
+Inside the database, EF maintains:
+
+```sql
+CREATE TABLE __EFMigrationsHistory (
+    MigrationId    nvarchar(150) PRIMARY KEY,   -- e.g. '20260503040949_InitialCreate'
+    ProductVersion nvarchar(32)
+);
+```
+
+Every `Migrate()` call: read this table → find entries in `Migrations/` that aren't there yet → run each one's `Up()` in order → insert a row per applied migration.
+
+### 6.3 The pieces in this repo
 
 Each Infrastructure project has:
 
@@ -276,48 +318,117 @@ Each Infrastructure project has:
    }
    ```
 
-   Reads connection string from env (Aspire injects it) with a localhost fallback for CLI use.
+   Reads connection string from env (Aspire injects it) with a localhost fallback for CLI use. **Why this factory exists at all:** the `dotnet ef` CLI runs in its own process — no Web host, no DI container. It needs *some* way to construct the DbContext. `IDesignTimeDbContextFactory<T>` is the official hook.
 
-3. **`Migrations/` folder** — generated migration class + `*.Designer.cs` snapshot + the live model snapshot file.
+3. **`Migrations/` folder** — see [§6.2](#62-what-lives-where).
 
 4. **`MigrateDatabaseAsync<TContext>` extension** in [NextAurora.ServiceDefaults/Extensions.cs:328](../NextAurora.ServiceDefaults/Extensions.cs#L328) — opens a scope, resolves the context, calls `Database.MigrateAsync(ct)`. Called from each service's `Program.cs` inside `if (app.Environment.IsDevelopment()) { ... }`.
 
-### 6.2 Dev round-trip
+### 6.4 Dev round-trip
 
 ```bash
-# Edit entity / DbContext config
+# 1. Edit entity / DbContext config (add a property, change a length, add an index)
 
-# Generate the migration
+# 2. Generate the migration
 dotnet ef migrations add AddPromotionCodes \
   --project CatalogService/CatalogService.Infrastructure \
   --startup-project CatalogService/CatalogService.Api
 
-# Apply: just restart the service. MigrateDatabaseAsync runs at startup in dev.
+# 3. Apply: just restart the service. MigrateDatabaseAsync runs at startup in dev.
 dotnet run --project NextAurora.AppHost
 ```
 
-`--project` = where migrations live; `--startup-project` = where the host (and `IDesignTimeDbContextFactory`) live.
+`--project` = where migrations live (Infrastructure). `--startup-project` = where the host + `IDesignTimeDbContextFactory` live (Api). Both are required because EF needs Infrastructure for the model and Api for the factory.
 
-### 6.3 Production — *not* in-process
+Behind the scenes, step 2:
+- Uses `CatalogDbContextFactory.CreateDbContext` to construct the context outside the app
+- Compares the current model against `CatalogDbContextModelSnapshot.cs`
+- Emits `AddPromotionCodes.cs` (with `Up()`/`Down()`), `AddPromotionCodes.Designer.cs` (frozen snapshot at this point), and updates `CatalogDbContextModelSnapshot.cs` to match
+- You commit all three to git
 
-`MigrateDatabaseAsync` is gated on `IsDevelopment()`. With multiple replicas behind a load balancer, all replicas would race to call `Database.MigrateAsync` on startup → migration-history-table conflicts.
+### 6.5 `Up()` and `Down()` — and why never `Down()` in production
 
-**Production needs migrations as a separate pre-deploy step** before app pods receive traffic. The tooling exists; the CI automation doesn't. Tracked in [STATUS.md "Open issues"](STATUS.md).
+Every migration is a class with two methods:
 
-### 6.4 The immutable-once-applied rule
+```csharp
+public partial class AddPromotionCodes : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.AddColumn<string>(
+            name: "PromotionCode",
+            table: "Products",
+            type: "nvarchar(50)",
+            nullable: true);
+    }
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropColumn(
+            name: "PromotionCode",
+            table: "Products");
+    }
+}
+```
+
+`Up()` is what gets applied during `Database.MigrateAsync` (or `dotnet ef database update`). `Down()` is what would undo it via `dotnet ef database update <PreviousMigrationName>`.
+
+**`Down()` is for dev convenience only.** In production with real data:
+- `Down()` for a "drop column" migration deletes whatever data was in that column
+- `Down()` for a "rename column" migration only restores the column name, not any data that was written under the new name
+- `Down()` is generated mechanically from `Up()` — it doesn't know about your data semantics
+
+The right way to back out a migration in production is to **write a new migration that re-introduces what you removed**. That keeps the history forward-only and explicit.
+
+### 6.6 Production — *not* in-process
+
+`MigrateDatabaseAsync` is gated on `IsDevelopment()`. **Why never in-process at startup in production:** with multiple replicas behind a load balancer booting at the same time after a deploy:
+
+- Replica A starts → calls `Migrate()` → acquires the `__EFMigrationsLock` → applies the migration
+- Replicas B, C start simultaneously → also call `Migrate()` → block on the lock, then race when A releases
+- Outcome: at best, B and C block startup for the duration of the migration; at worst, one of them sees the history table mid-update and crashes with conflicts. Pods restart-loop, ops gets paged.
+
+**Production needs migrations as a separate pre-deploy step** before app pods receive traffic:
+
+```bash
+# In CI, before deploying the new app image:
+dotnet ef database update \
+  --project CatalogService/CatalogService.Infrastructure \
+  --startup-project CatalogService/CatalogService.Api \
+  --connection "$PROD_CATALOG_DB_CONNECTION"
+```
+
+Then deploy the app image. The pods boot, hit `IsDevelopment() == false`, skip the `MigrateDatabaseAsync` call, and start serving against the already-up-to-date schema.
+
+The tooling for this exists; the CI automation does not yet. Tracked in [STATUS.md "Open issues"](STATUS.md).
+
+### 6.7 The immutable-once-applied rule
 
 From [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules):
 
 > Migrations are immutable once applied: never edit a migration that has run anywhere (dev included). Destructive changes (drop column/table, rename, NOT NULL on existing column) need a multi-step plan, not a single migration.
 
-**Why:** editing an applied migration drifts the model snapshot from the history table. The next generation produces broken output.
+**Why edits break things:** editing an applied migration drifts `CatalogDbContextModelSnapshot.cs` from the `__EFMigrationsHistory` table. The next `dotnet ef migrations add` diffs against a snapshot that doesn't match reality and produces wrong SQL. Worse, deploying the edited version to a DB that already ran the old version either silently no-ops (if the edit was additive) or corrupts schema (if it tries to re-apply changes already in place).
 
-**Destructive change recipe:**
-1. Deploy code that no longer reads the column
-2. Wait one release cycle (so any in-flight requests using the old code are gone)
-3. Drop the column in a follow-up migration
+If a migration was wrong, **write a new migration that fixes it**. The old one stays in git as part of history.
 
-Doing all three steps in one migration is how production outages happen during deploys.
+**Destructive change recipe** — for drop column, drop table, rename, or `NOT NULL` on existing column:
+
+1. **Deploy code that no longer reads the column.** Old pods are replaced; the column still exists in the schema for any in-flight requests.
+2. **Wait one release cycle** so all requests using the old code have completed.
+3. **Generate a new migration that drops the column.** Deploy.
+
+Doing all three steps in one migration is the classic "we shipped at 3pm and the API was down by 3:05" story — during the rolling deploy, old pods crash on the missing column while new pods are still rolling out.
+
+### 6.8 Quick concept checks (interview-style)
+
+- **What does `__EFMigrationsHistory` do?** Tracks which migrations have been applied to *this specific database*, so EF knows what to skip on the next `Migrate()` call.
+- **What's the snapshot file for?** Two different snapshot files. `CatalogDbContextModelSnapshot.cs` is the live model state EF compares against when generating the *next* migration. The per-migration `*.Designer.cs` is the frozen model state at the time of that migration, used for things like `dotnet ef migrations script --idempotent`.
+- **Why not just `EnsureCreated()`?** It creates the schema from the current model in one shot with no history. Fine for tests; fatal in any environment that holds data because you can never *evolve* the schema without dropping it.
+- **What does `IDesignTimeDbContextFactory` do?** Lets `dotnet ef` construct your DbContext *without* running the app. The CLI is a separate process and doesn't have your DI container — it needs an explicit hook.
+- **What happens if two migrations are added concurrently on different branches?** Merge conflict in `CatalogDbContextModelSnapshot.cs`. Resolution: keep one migration, regenerate the second on top via `dotnet ef migrations remove` → re-add. (Don't merge the snapshot by hand — EF's diff baseline ends up wrong.)
+- **When would I use `Down()`?** Local dev only — to undo a migration you're iterating on. Never in production: it's mechanically generated, doesn't understand your data, and silently destroys content.
+- **What if my migration generation produces wrong SQL?** Don't edit the generated file. Either delete-and-regenerate (if no one else has the migration) via `dotnet ef migrations remove`, or override the migration body in C# manually if it has already been shared.
 
 ---
 
