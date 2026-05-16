@@ -320,6 +320,7 @@ If Keycloak isn't configured (no `Authentication:Authority` and no `Keycloak:Url
 | [How It Works](docs/how-it-works.md) | Developer walkthrough — Clean Architecture, CQRS via Wolverine, request lifecycle, outbox, event flow, testing |
 | [Architecture](docs/architecture.md) | Service diagrams, communication matrix, domain model, design patterns |
 | [Performance & Data Correctness](docs/performance-and-data-correctness.md) | Hard rules + decisions: AsNoTracking strategy, optimistic concurrency tokens, Wolverine outbox, HybridCache, Dapper escape hatch |
+| [EF Core: Spec & Practice](docs/ef-core.md) | Interview-ready: how we use EF Core, every decision + trade-off + code example, from concurrency tokens to the Dapper escape hatch |
 | [Observability](docs/observability.md) | Correlation/user/session ID propagation, distributed tracing, Wolverine handler logging, DLQ handling, metrics |
 | [Event Replay](docs/event-replay.md) | Wolverine outbox state, where to inspect outgoing/dead-letter envelopes, `IMessageStore` API |
 | [Business Requirements](docs/BRD.md) | Functional requirements, implementation status, business processes, glossary |

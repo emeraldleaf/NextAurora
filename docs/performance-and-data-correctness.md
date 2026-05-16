@@ -732,6 +732,7 @@ When you need to discuss specific decisions, here's where the source-of-truth li
 | Aggregate invariants & business rules | [docs/architecture.md "Domain Model"](architecture.md#domain-model) |
 | Concurrency token configuration per service | [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs), [OrderDbContext.cs](../OrderService/OrderService.Infrastructure/Data/OrderDbContext.cs), [PaymentDbContext.cs](../PaymentService/PaymentService.Infrastructure/Data/PaymentDbContext.cs), [ShippingDbContext.cs](../ShippingService/ShippingService.Infrastructure/Data/ShippingDbContext.cs) |
 | Read-cache contract & implementation | [IProductCache.cs](../CatalogService/CatalogService.Application/Interfaces/IProductCache.cs), [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) |
+| EF Core spec & practice — interview-ready walkthrough | [docs/ef-core.md](ef-core.md) |
 | Build settings (warnings as errors, analyzers) | [Directory.Build.props](../Directory.Build.props) |
 | Package versions (CPM) | [Directory.Packages.props](../Directory.Packages.props) |
 

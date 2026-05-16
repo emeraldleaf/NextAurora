@@ -1,0 +1,1038 @@
+# EF Core in NextAurora — Specification & Practice
+
+This is the interview-ready guide to how NextAurora uses EF Core: what we do, why we do it, the trade-offs we accepted, and the rules a reviewer should expect to see honored in any PR that touches data access.
+
+The hard rules summarized at the end of this doc are codified in [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules); deeper background lives in [docs/performance-and-data-correctness.md](performance-and-data-correctness.md). When this doc and CLAUDE.md disagree, CLAUDE.md wins.
+
+## Table of Contents
+
+- [1. Overview — where EF Core fits](#1-overview--where-ef-core-fits)
+- [2. Provider matrix — Postgres + SQL Server](#2-provider-matrix--postgres--sql-server)
+- [3. DbContext: registration, lifetime, thread safety](#3-dbcontext-registration-lifetime-thread-safety)
+- [4. Entity configuration patterns](#4-entity-configuration-patterns)
+- [5. Concurrency tokens — `xmin` vs `RowVersion`](#5-concurrency-tokens--xmin-vs-rowversion)
+- [6. Migrations](#6-migrations)
+- [7. Read-side: `AsNoTracking` + projection](#7-read-side-asnotracking--projection)
+- [8. Write-side: tracked load → mutate → SaveChanges](#8-write-side-tracked-load--mutate--savechanges)
+- [9. The shared-method wrinkle — selective tracking](#9-the-shared-method-wrinkle--selective-tracking)
+- [10. Repository pattern — kept, deliberately](#10-repository-pattern--kept-deliberately)
+- [11. N+1, `Include`, projection, `AsSplitQuery`](#11-n1-include-projection-assplitquery)
+- [12. `AsNoTrackingWithIdentityResolution` — the `Include` trap](#12-asnotrackingwithidentityresolution--the-include-trap)
+- [13. Pagination + ordering](#13-pagination--ordering)
+- [14. Bulk operations: `ExecuteUpdateAsync` / `ExecuteDeleteAsync`](#14-bulk-operations-executeupdateasync--executedeleteasync)
+- [15. Wolverine transactional outbox integration](#15-wolverine-transactional-outbox-integration)
+- [16. Optimistic concurrency exception handling](#16-optimistic-concurrency-exception-handling)
+- [17. DbContext is not thread-safe — `IDbContextFactory<T>`](#17-dbcontext-is-not-thread-safe--idbcontextfactoryt)
+- [18. Connection lifetime](#18-connection-lifetime)
+- [19. Dapper escape hatch](#19-dapper-escape-hatch)
+- [20. HybridCache invalidation in the write path](#20-hybridcache-invalidation-in-the-write-path)
+- [21. Hard rules summary (CLAUDE.md)](#21-hard-rules-summary-claudemd)
+- [22. Interview crib sheet](#22-interview-crib-sheet)
+
+---
+
+## 1. Overview — where EF Core fits
+
+EF Core is our **default data-access tool** for every relational write and for most relational reads. It's used through the Infrastructure layer only — Domain and Application never reference EF types. The seam is the repository interface in Domain (e.g. [IProductRepository.cs](../CatalogService/CatalogService.Domain/Interfaces/IProductRepository.cs)) with the EF implementation in Infrastructure ([ProductRepository.cs](../CatalogService/CatalogService.Infrastructure/Repositories/ProductRepository.cs)).
+
+**Version pin:** EF Core 10.0.2, declared centrally in [Directory.Packages.props](../Directory.Packages.props). All projects reference packages **without versions** thanks to Central Package Management.
+
+**What EF Core handles:**
+- All persistence for the four DB-owning services (Catalog, Order, Payment, Shipping)
+- Change tracking + dirty-detection on the write path
+- Projection to DTOs on the read path
+- Migrations
+- Optimistic concurrency tokens
+- Transaction management (in concert with Wolverine's outbox)
+- All the SQL we need *except* the edge cases in §19
+
+**What EF Core does *not* handle:**
+- Provider-specific SQL that doesn't translate cleanly through LINQ → see [§19 Dapper escape hatch](#19-dapper-escape-hatch)
+- Bulk INSERT (we don't have a use case yet; would be a separate consideration)
+- Async-fanout queries from one scope → see [§17 `IDbContextFactory<T>`](#17-dbcontext-is-not-thread-safe--idbcontextfactoryt)
+
+---
+
+## 2. Provider matrix — Postgres + SQL Server
+
+| Service | Provider | DbContext | Concurrency token |
+|---|---|---|---|
+| Catalog | PostgreSQL | [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs) | `xmin` (system column) |
+| Shipping | PostgreSQL | [ShippingDbContext.cs](../ShippingService/ShippingService.Infrastructure/Data/ShippingDbContext.cs) | `xmin` (system column) |
+| Order | SQL Server | [OrderDbContext.cs](../OrderService/OrderService.Infrastructure/Data/OrderDbContext.cs) | `RowVersion` (real column) |
+| Payment | SQL Server | [PaymentDbContext.cs](../PaymentService/PaymentService.Infrastructure/Data/PaymentDbContext.cs) | `RowVersion` (real column) |
+| Notification | none | none | n/a (stateless) |
+
+### Why two providers (the honest answer)
+
+Both Postgres and SQL Server handle every workload here well. We use both because:
+
+1. **Polyglot persistence is the whole point of microservices' "data autonomy" argument.** Different bounded contexts can pick different stores. Mixing providers makes that visible.
+2. **It surfaces real EF Core provider differences side-by-side.** Concurrency tokens are the cleanest example — see §5.
+3. **It mirrors real enterprise reality** where you often inherit mixed stacks.
+
+A production decision would also weigh licensing cost (Postgres free, SQL Server paid), team expertise, and existing infrastructure. The "Postgres for read-heavy" / "SQL Server for transaction-heavy" rationale in [architecture.md:175-178](architecture.md#L175) is *slightly* overstated — both engines handle either workload — but Postgres genuinely fits Catalog's JSONB/array/full-text needs marginally better, and SQL Server fits the Microsoft-shop reality marginally better for Order/Payment.
+
+### Provider packages
+
+```xml
+<!-- Directory.Packages.props -->
+<PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
+<PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.2" />
+<PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+<PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.2" />
+<PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.2" />
+```
+
+---
+
+## 3. DbContext: registration, lifetime, thread safety
+
+Registered as **Scoped** in each service's Infrastructure DI module. Scoped = one instance per HTTP request / per Wolverine message dispatch. Example from [CatalogService.Infrastructure/DependencyInjection.cs](../CatalogService/CatalogService.Infrastructure/DependencyInjection.cs):
+
+```csharp
+public static IServiceCollection AddCatalogInfrastructure(this IServiceCollection services, IConfiguration configuration)
+{
+    // DbContext registered as scoped (default). Each HTTP request / Wolverine message
+    // dispatch gets its own instance. DbContext isn't thread-safe so one-per-scope avoids
+    // accidental sharing, the change tracker stays small (only entities loaded during this
+    // request), and connection pooling means the underlying DB connection is still reused.
+    services.AddDbContext<CatalogDbContext>(options =>
+        options.UseNpgsql(configuration.GetConnectionString("catalog-db")));
+
+    services.AddHealthChecks().AddDbContextCheck<CatalogDbContext>();
+
+    services.AddScoped<IProductRepository, ProductRepository>();
+    services.AddScoped<ICategoryRepository, CategoryRepository>();
+    services.AddScoped<IProductCache, HybridProductCache>();
+
+    return services;
+}
+```
+
+### Why scoped, not transient or singleton
+
+- **Singleton** would share the change tracker across all requests → unbounded memory growth + cross-request entity leakage.
+- **Transient** would create a new DbContext for every constructor that asks for one *within the same request* — the repository's DbContext would be different from a handler's DbContext, so `SaveChanges` on one would never see entities loaded by the other.
+- **Scoped** keeps one DbContext per logical operation. Every collaborator (repository, handler, ambient transaction) sees the same change tracker and connection.
+
+### What "DbContext isn't thread-safe" actually means
+
+The change tracker, the open connection, the command pipeline — none of these are concurrent-safe. **Two `await`-ed queries on the same DbContext in parallel** (e.g. `Task.WhenAll(ctx.Foo.ToListAsync(), ctx.Bar.ToListAsync())`) is the classic crash: you'll get `InvalidOperationException: A second operation was started on this context instance before a previous operation completed.`
+
+If you legitimately need parallel queries → see [§17 `IDbContextFactory<T>`](#17-dbcontext-is-not-thread-safe--idbcontextfactoryt).
+
+### Health check
+
+`.AddDbContextCheck<CatalogDbContext>()` registers a `/health` check that opens a connection and pings the DB. Surfaces in the Aspire dashboard and any orchestrator probing health endpoints.
+
+---
+
+## 4. Entity configuration patterns
+
+Three patterns recur in every DbContext's `OnModelCreating`. Example: [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs).
+
+### 4.1 Explicit precision on money
+
+```csharp
+entity.Property(e => e.Price).HasPrecision(18, 2);
+entity.Property(e => e.Currency).HasMaxLength(3);
+```
+
+**Why:** EF's default decimal mapping is lower precision and silently truncates trailing fractional digits. `HasPrecision(18, 2)` = 18 digits total, 2 after the decimal — fits any realistic price up to 999,999,999,999,999.99.
+
+### 4.2 Backing-field navigation for encapsulated collections
+
+Order's children come up here: [OrderDbContext.cs](../OrderService/OrderService.Infrastructure/Data/OrderDbContext.cs).
+
+```csharp
+entity.HasMany(e => e.Lines).WithOne().HasForeignKey(l => l.OrderId);
+
+// Tells EF: when materializing this navigation, write into the private backing field
+// Order._lines, not through the public read-only Order.Lines property.
+entity.Navigation(e => e.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
+```
+
+**Why:** Order exposes `Lines` as `IReadOnlyList<OrderLine>` so application code can't `order.Lines.Add(...)` and bypass aggregate invariants. EF needs to *populate* that collection on load, but if it tries to mutate the read-only property it fails. `PropertyAccessMode.Field` makes EF write into `_lines` (the private `List<OrderLine>`) directly — the canonical pattern for properly-encapsulated DDD aggregates.
+
+### 4.3 Enum as string for forward compatibility
+
+```csharp
+entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+```
+
+**Why:** Default enum mapping is `int`. If you ever reorder or rename enum members, old rows still resolve to the right name. Cost: ~20 bytes/row vs 4. Readability and migration safety win at our scale.
+
+### 4.4 Required indexes for non-PK lookup columns
+
+```csharp
+entity.HasIndex(e => e.CategoryId);
+entity.HasIndex(e => e.SellerId);
+entity.HasIndex(e => e.BuyerId);
+```
+
+**Why:** Without indexes, `WHERE BuyerId = @id` does a full table scan. Even at 100K rows that's a real perf hit on the buyer-order-history endpoint.
+
+---
+
+## 5. Concurrency tokens — `xmin` vs `RowVersion`
+
+**This is the most-likely-to-be-asked topic in an interview.** Know it cold.
+
+### 5.1 The problem optimistic concurrency solves
+
+Two concurrent handlers read the same row, both mutate, both call `SaveChanges`. Without a token, the second write silently overwrites the first — the classic **lost-update problem**. With a token, the second `SaveChanges` throws `DbUpdateConcurrencyException`.
+
+Concrete saga example: a `PaymentCompletedEvent` and a `ShipmentDispatchedEvent` arrive close together. Both handlers load the Order. Both mutate. Without a token, one transition is silently dropped.
+
+### 5.2 Postgres: `xmin` shadow property — no schema change
+
+Every Postgres row has a system column `xmin` — the transaction ID that last wrote the row. The engine increments it on every write. Map it as an EF shadow property:
+
+From [CatalogDbContext.cs:63](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs#L63):
+
+```csharp
+entity.Property<uint>("xmin")
+    .HasColumnName("xmin")
+    .HasColumnType("xid")
+    .ValueGeneratedOnAddOrUpdate()
+    .IsConcurrencyToken();
+```
+
+EF then includes `WHERE xmin = @originalXmin` on every UPDATE. If another transaction touched the row first, the WHERE matches zero rows and EF throws `DbUpdateConcurrencyException`.
+
+**No schema change required.** The column already exists; we're just binding to it.
+
+**Heads up — old Npgsql API:** `UseXminAsConcurrencyToken()` existed in Npgsql 8 and earlier. It was removed in Npgsql 9+. The manual shadow-property form above is canonical. Blog posts still show the old API; ignore them.
+
+### 5.3 SQL Server: `RowVersion` shadow column — added by migration
+
+SQL Server's equivalent is the `rowversion` (a.k.a. `timestamp`) type. It's a real column the engine auto-increments on insert/update. Unlike `xmin`, this requires a column add.
+
+From [OrderDbContext.cs:58](../OrderService/OrderService.Infrastructure/Data/OrderDbContext.cs#L58):
+
+```csharp
+entity.Property<byte[]>("RowVersion").IsRowVersion();
+```
+
+The `InitialCreate` migration includes the column:
+
+```sql
+CREATE TABLE [Orders] (
+    [Id] uniqueidentifier NOT NULL,
+    -- ... other columns ...
+    [RowVersion] rowversion NULL,
+    CONSTRAINT [PK_Orders] PRIMARY KEY ([Id])
+);
+```
+
+### 5.4 Why different mechanisms per provider
+
+We could use a manual `int Version` property on every entity and increment it ourselves — that would unify the two providers. We chose not to because:
+
+1. It leaks an infrastructure concern (versioning for concurrency) into the Domain entity.
+2. Every mutation method has to remember `Version++`. Forgotten increments = silent bugs.
+3. Each provider has a native, engine-maintained option that's strictly better. Use what the database gives you.
+
+### 5.5 Aggregates with concurrency tokens today
+
+| Service | Aggregate | Token |
+|---|---|---|
+| Catalog | Product, Category | Postgres `xmin` |
+| Shipping | Shipment | Postgres `xmin` |
+| Order | Order | SQL Server `RowVersion` |
+| Payment | Payment, Refund | SQL Server `RowVersion` |
+
+### 5.6 The cost
+
+One column comparison per UPDATE. Negligible. **Last-write-wins is not acceptable** ([CLAUDE.md "Performance Rules" → Optimistic concurrency](../CLAUDE.md#performance-rules)).
+
+### 5.7 Exception handling
+
+`DbUpdateConcurrencyException` bubbles out of `SaveChangesAsync`. See [§16](#16-optimistic-concurrency-exception-handling) for how we route it: HTTP gets 409 via the global handler; Wolverine event handlers retry with backoff.
+
+---
+
+## 6. Migrations
+
+### 6.1 The pieces
+
+Each Infrastructure project has:
+
+1. **`Microsoft.EntityFrameworkCore.Design` package** with `PrivateAssets="all"` — build-time only, never shipped at runtime.
+2. **`IDesignTimeDbContextFactory<T>` implementation** so `dotnet ef` can construct a context outside the running app. Example: [CatalogDbContextFactory.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContextFactory.cs):
+
+   ```csharp
+   public sealed class CatalogDbContextFactory : IDesignTimeDbContextFactory<CatalogDbContext>
+   {
+       public CatalogDbContext CreateDbContext(string[] args)
+       {
+           var cs = Environment.GetEnvironmentVariable("ConnectionStrings__catalog-db")
+               ?? "Host=localhost;Database=catalog-db;Username=postgres;Password=postgres";
+
+           var options = new DbContextOptionsBuilder<CatalogDbContext>().UseNpgsql(cs).Options;
+           return new CatalogDbContext(options);
+       }
+   }
+   ```
+
+   Reads connection string from env (Aspire injects it) with a localhost fallback for CLI use.
+
+3. **`Migrations/` folder** — generated migration class + `*.Designer.cs` snapshot + the live model snapshot file.
+
+4. **`MigrateDatabaseAsync<TContext>` extension** in [NextAurora.ServiceDefaults/Extensions.cs:328](../NextAurora.ServiceDefaults/Extensions.cs#L328) — opens a scope, resolves the context, calls `Database.MigrateAsync(ct)`. Called from each service's `Program.cs` inside `if (app.Environment.IsDevelopment()) { ... }`.
+
+### 6.2 Dev round-trip
+
+```bash
+# Edit entity / DbContext config
+
+# Generate the migration
+dotnet ef migrations add AddPromotionCodes \
+  --project CatalogService/CatalogService.Infrastructure \
+  --startup-project CatalogService/CatalogService.Api
+
+# Apply: just restart the service. MigrateDatabaseAsync runs at startup in dev.
+dotnet run --project NextAurora.AppHost
+```
+
+`--project` = where migrations live; `--startup-project` = where the host (and `IDesignTimeDbContextFactory`) live.
+
+### 6.3 Production — *not* in-process
+
+`MigrateDatabaseAsync` is gated on `IsDevelopment()`. With multiple replicas behind a load balancer, all replicas would race to call `Database.MigrateAsync` on startup → migration-history-table conflicts.
+
+**Production needs migrations as a separate pre-deploy step** before app pods receive traffic. The tooling exists; the CI automation doesn't. Tracked in [STATUS.md "Open issues"](STATUS.md).
+
+### 6.4 The immutable-once-applied rule
+
+From [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules):
+
+> Migrations are immutable once applied: never edit a migration that has run anywhere (dev included). Destructive changes (drop column/table, rename, NOT NULL on existing column) need a multi-step plan, not a single migration.
+
+**Why:** editing an applied migration drifts the model snapshot from the history table. The next generation produces broken output.
+
+**Destructive change recipe:**
+1. Deploy code that no longer reads the column
+2. Wait one release cycle (so any in-flight requests using the old code are gone)
+3. Drop the column in a follow-up migration
+
+Doing all three steps in one migration is how production outages happen during deploys.
+
+---
+
+## 7. Read-side: `AsNoTracking` + projection
+
+The default rule for queries: **`AsNoTracking()` + `.Select(... new Dto ...)`**.
+
+```csharp
+// Application/Handlers/GetAllProductsHandler.cs (returns DTOs, not entities)
+var products = await repository.GetAllAsync(request.Page, request.PageSize, cancellationToken);
+return products.Select(p => new ProductDto
+{
+    Id = p.Id, Name = p.Name, Description = p.Description,
+    Price = p.Price, Currency = p.Currency,
+    Category = p.Category?.Name ?? "",
+    SellerId = p.SellerId, StockQuantity = p.StockQuantity, IsAvailable = p.IsAvailable
+}).ToList();
+```
+
+And inside the repository ([ProductRepository.cs:47](../CatalogService/CatalogService.Infrastructure/Repositories/ProductRepository.cs#L47)):
+
+```csharp
+public async Task<IReadOnlyList<Product>> GetAllAsync(int page, int pageSize, CancellationToken ct = default)
+    => await context.Products.AsNoTracking().Include(p => p.Category)
+        .OrderBy(p => p.Id).Skip((page - 1) * pageSize).Take(pageSize)
+        .ToListAsync(ct);
+```
+
+### 7.1 Why `AsNoTracking`
+
+Tracking has per-row cost: EF builds a change-tracker entry for each entity, stored in the identity map, ready to detect mutations at `SaveChanges`. On a read-only path that's pure overhead — we'll never call `SaveChanges`. Skipping it removes:
+
+- The identity-map insertion cost (hash + lookup)
+- The change-detection snapshot allocation
+- Memory pressure under high read concurrency
+
+For a query returning 50 products with 8 properties each, that's ~50 × 9 (entity + 8 property snapshots) allocations saved per call. Multiplied across hundreds of requests/sec, it's measurable in GC pressure.
+
+### 7.2 Why projection (`Select` to DTO)
+
+Two wins:
+
+1. **EF generates SQL with only the columns we project.** No `SELECT * FROM Products`; instead `SELECT p.Id, p.Name, ...`. Less I/O, smaller result sets, better cache utilization.
+2. **No entity graph materialization.** EF builds the DTO directly from the result rows. No `Product` instance is ever created. No tracked-state metadata. No navigation property setup.
+
+The CLAUDE.md rule says it explicitly:
+
+> EF Core reads: always `AsNoTracking()` + projection (`.Select(...)` to a DTO). Queries return DTOs, never tracked entities.
+
+### 7.3 What this rule looks like in practice
+
+| Anti-pattern | Why it's wrong |
+|---|---|
+| `ctx.Products.ToListAsync()` (no `AsNoTracking`, no projection) | Tracks every row + materializes full entity graph |
+| `ctx.Products.AsNoTracking().ToListAsync()` then map manually in C# | No tracking overhead, but still selects all columns |
+| `ctx.Products.AsNoTracking().Select(p => new ProductDto { ... }).ToListAsync()` | ✅ correct — minimal SQL, no tracker |
+
+### 7.4 Why our repos *partially* break this rule
+
+Look at `ProductRepository.GetAllAsync` above — it returns `IReadOnlyList<Product>` (entities), then the handler does the projection in memory. That's **slightly worse** than projecting in the query, because the entity graph still gets materialized.
+
+We accept this because:
+- The DTO projection is consistent across handlers (one place to change)
+- The query is still `AsNoTracking()` (no tracker overhead)
+- Repository methods are reusable across handlers that need different projections
+
+The strictly-better version is to project inside the repository — see [docs/cqrs-data-access.md "Future: Read/Write Repository Separation"](cqrs-data-access.md) for that direction.
+
+---
+
+## 8. Write-side: tracked load → mutate → SaveChanges
+
+The write path inverts the read pattern: load the aggregate (tracked), mutate via domain methods, save. Example from [UpdateProductHandler.cs](../CatalogService/CatalogService.Application/Handlers/UpdateProductHandler.cs):
+
+```csharp
+public async Task HandleAsync(UpdateProductCommand request, CancellationToken cancellationToken)
+{
+    var product = await repository.GetByIdAsync(request.ProductId, cancellationToken)
+        ?? throw new InvalidOperationException($"Product {request.ProductId} not found");
+
+    product.UpdateDetails(request.Name, request.Description, request.Price);
+    await repository.UpdateAsync(product, cancellationToken);
+
+    await cache.InvalidateAsync(request.ProductId, cancellationToken);
+}
+```
+
+And the repository's update ([ProductRepository.cs:72](../CatalogService/CatalogService.Infrastructure/Repositories/ProductRepository.cs#L72)):
+
+```csharp
+public async Task UpdateAsync(Product product, CancellationToken ct = default)
+{
+    // EF detects changes automatically when the entity was loaded tracked. The explicit
+    // Update() is defensive in case a future refactor accidentally turns on AsNoTracking
+    // for GetByIdAsync — the entity would still save.
+    context.Products.Update(product);
+    await context.SaveChangesAsync(ct);
+}
+```
+
+### Why tracked
+
+Without tracking, EF doesn't know which properties changed. Calling `SaveChanges` on an untracked entity is a silent no-op (unless you explicitly call `.Update()`, which marks all properties as modified).
+
+The handler mutates via a **domain method** (`product.UpdateDetails(...)`) — the domain method enforces invariants (e.g. price > 0). EF detects which scalar properties changed and emits a targeted UPDATE.
+
+### What's actually generated
+
+For a name + price change on a Postgres-backed Product, EF emits:
+
+```sql
+UPDATE products SET name = @p0, price = @p1, updated_at = @p2
+WHERE id = @p3 AND xmin = @originalXmin;
+```
+
+That `AND xmin = @originalXmin` is the concurrency token in action. If another transaction touched this row since we loaded it, the row count is 0 and EF throws `DbUpdateConcurrencyException`.
+
+---
+
+## 9. The shared-method wrinkle — selective tracking
+
+The simple rule "always `AsNoTracking` on reads" breaks when **one repository method is called by both query handlers and command handlers**. Example: `ProductRepository.GetByIdAsync`.
+
+```csharp
+public async Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    => await context.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id, ct);
+```
+
+Tracking is **on** here. Callers:
+
+- `GetProductByIdHandler` (query) — projects to DTO immediately, the tracker overhead is a small per-entity cost
+- `UpdateProductHandler` (command) — needs tracking so the subsequent mutate + save works
+- `ReserveStockHandler` (command) — same
+
+The rule from [docs/cqrs-data-access.md](cqrs-data-access.md):
+
+> Methods called only by query handlers (`GetAllAsync`, `SearchAsync`, `GetByCategoryAsync`) use `AsNoTracking()`. Methods shared between query AND command handlers (`GetByIdAsync`) keep tracking on. Splitting into separate read/write repositories is a planned cleanup.
+
+This is **deliberate** — the perf audit flagged "AsNoTracking missing on `GetByIdAsync`" as a violation, but in context it's the right trade-off until we split the repository interfaces.
+
+### The future cleanup
+
+Per Interface Segregation: split into `IProductReadRepository` (all `AsNoTracking`) and `IProductRepository : IProductReadRepository` (adds writes). Query handlers depend on the read interface; command handlers on the full interface. Doubles the registration surface — deferred until benefit justifies it.
+
+---
+
+## 10. Repository pattern — kept, deliberately
+
+Some teams view the repository pattern as a redundant layer over EF Core's `DbContext` (which is already a Unit of Work + Repository). We keep it because:
+
+1. **Domain stays free of EF.** Domain references `IProductRepository` (defined in `OrderService.Domain.Interfaces`). The concrete `ProductRepository` is in Infrastructure. Without the interface, Domain would have to take a `DbContext` dependency — violating clean-architecture's dependency direction.
+
+2. **Test substitutability.** Handler unit tests substitute `IProductRepository` with NSubstitute. No fake DbContext, no in-memory provider, no SQLite-in-memory trickery.
+
+3. **Selective tracking is a repository concern.** Whether `GetByIdAsync` tracks is a repository decision; whether the calling handler is a query or command is an Application concern. The repository draws that line.
+
+4. **One concept per method.** `GetByCategoryAsync(categoryId)` is more discoverable than scattering `context.Products.Where(p => p.CategoryId == ...)` across handlers.
+
+### When you'd remove it
+
+If your team uses Vertical Slice Architecture, you'd inline the query into each handler and skip the repository abstraction. Both designs are defensible. We picked Clean Architecture; the repository follows.
+
+---
+
+## 11. N+1, `Include`, projection, `AsSplitQuery`
+
+### 11.1 The N+1 anti-pattern
+
+```csharp
+// BAD: 1 query + N queries inside the loop
+var orders = await ctx.Orders.ToListAsync();
+foreach (var o in orders)
+{
+    o.Lines = await ctx.OrderLines.Where(l => l.OrderId == o.Id).ToListAsync();
+}
+```
+
+500 orders → 501 round trips. Database CPU explodes; latency follows.
+
+### 11.2 Two fixes
+
+**Fix A — `Include`:**
+
+```csharp
+var orders = await ctx.Orders.Include(o => o.Lines).ToListAsync();
+```
+
+One SQL query with a JOIN. Cost: row duplication (Cartesian) — each Order row repeats for each Line.
+
+**Fix B — projection (preferred):**
+
+```csharp
+var dtos = await ctx.Orders
+    .Select(o => new OrderDto {
+        Id = o.Id, Total = o.Total,
+        Lines = o.Lines.Select(l => new OrderLineDto {
+            ProductId = l.ProductId, Quantity = l.Quantity
+        }).ToList()
+    })
+    .ToListAsync();
+```
+
+EF generates targeted SQL (often a single query with a subquery or join), materializes only the projected shape. No entity, no tracker, no Cartesian explosion in the C# objects (the database may still produce a Cartesian intermediate, but we don't allocate entities for it).
+
+CLAUDE.md rule:
+
+> No N+1: use `Include` or projection. Never query inside a `foreach` over results from another query.
+
+### 11.3 `AsSplitQuery` — only when measured
+
+When `Include` produces a Cartesian explosion (one Order with 20 lines × 5 navigation collections), `AsSplitQuery()` emits separate queries per collection instead of one giant join:
+
+```csharp
+ctx.Orders.AsSplitQuery().Include(o => o.Lines).Include(o => o.Payments).ToListAsync();
+```
+
+**Cost:** more round trips (one query per Include), and **transactional inconsistency** is possible — between the parent query and the child query, a concurrent transaction could change a row.
+
+**Rule:** never enable `AsSplitQuery` without profiling. The Cartesian cost has to be measurably worse than the round-trip + isolation cost. CLAUDE.md "Measure before optimizing" explicitly names this one.
+
+---
+
+## 12. `AsNoTrackingWithIdentityResolution` — the `Include` trap
+
+The default behavior of `AsNoTracking()` + `Include(...)` has a subtle bug: **shared related entities get materialized multiple times.**
+
+```csharp
+var orders = await ctx.Orders.AsNoTracking().Include(o => o.Customer).ToListAsync();
+```
+
+If 500 orders share the same 1 customer, you get **500 separate `Customer` objects** in memory — one per order. Without the change tracker's identity map, EF has nothing to dedupe against.
+
+### Fix
+
+```csharp
+var orders = await ctx.Orders
+    .AsNoTrackingWithIdentityResolution()
+    .Include(o => o.Customer)
+    .ToListAsync();
+```
+
+This keeps the read-only-no-tracker behavior but enables identity resolution: shared entities get one instance.
+
+**When to use:** any `AsNoTracking + Include` query where the included entity is likely to be shared across multiple parents.
+
+**When to skip:** if you're projecting to a DTO immediately (`.Select(...)`), this is irrelevant — no entities are materialized in the first place.
+
+CLAUDE.md captures this:
+
+> If you must `Include` an entity graph without tracking, use `AsNoTrackingWithIdentityResolution()` (plain `AsNoTracking() + Include` duplicates shared related objects).
+
+---
+
+## 13. Pagination + ordering
+
+Every list endpoint paginates with a **server-side size cap**. Repository methods take `page` + `pageSize` and apply `OrderBy + Skip + Take`. Example from [ProductRepository.cs:46](../CatalogService/CatalogService.Infrastructure/Repositories/ProductRepository.cs#L46):
+
+```csharp
+public async Task<IReadOnlyList<Product>> GetAllAsync(int page, int pageSize, CancellationToken ct = default)
+    => await context.Products.AsNoTracking().Include(p => p.Category)
+        .OrderBy(p => p.Id).Skip((page - 1) * pageSize).Take(pageSize)
+        .ToListAsync(ct);
+```
+
+### `OrderBy` is not optional
+
+Without `OrderBy`, SQL doesn't promise stable row order across queries. Page 2 might overlap or skip rows from page 1. Always include an `OrderBy` on at least the PK before `Skip + Take`.
+
+### Server-side caps
+
+Endpoints clamp `pageSize`:
+
+```csharp
+private static (int page, int pageSize) ClampPaging(int page, int pageSize) =>
+    (page < 1 ? 1 : page, pageSize is < 1 or > 100 ? 50 : pageSize);
+```
+
+**Why:** without a cap, a malicious or buggy caller can request `?pageSize=1000000` and OOM the service.
+
+### `OFFSET` is O(N) at large offsets
+
+`Skip(100000)` makes the DB read 100,000 rows then discard them. For deep pagination, **keyset pagination** is correct:
+
+```csharp
+// instead of Skip(offset), filter by the last-seen ID
+ctx.Orders.OrderBy(o => o.Id).Where(o => o.Id > lastSeenId).Take(pageSize)
+```
+
+We don't have a use case yet, but the rule from CLAUDE.md applies:
+
+> Pagination: every list endpoint must paginate with a server-side size cap (≤ 100). Use keyset pagination for large offsets.
+
+---
+
+## 14. Bulk operations: `ExecuteUpdateAsync` / `ExecuteDeleteAsync`
+
+Loading 10,000 rows just to flip `IsDiscounted = true` is 10,000 entities materialized, 10,000 change-tracker entries, 10,000 SQL UPDATEs at `SaveChanges`. **Use bulk operators instead:**
+
+```csharp
+// Single UPDATE ... SET ... WHERE ...
+await ctx.Products
+    .Where(p => p.Category.Name == "Clearance")
+    .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsDiscounted, true));
+
+// Single DELETE FROM ... WHERE ...
+await ctx.OutboxRows
+    .Where(r => r.PublishedAt < DateTime.UtcNow.AddDays(-30))
+    .ExecuteDeleteAsync();
+```
+
+**100x to 1000x faster** at scale.
+
+### Caveat — runs outside the change tracker
+
+Don't mix `ExecuteUpdate` with `SaveChanges` on the same entities in the same unit of work — the change tracker still holds the pre-update values and your `SaveChanges` will overwrite the bulk-modified columns.
+
+### Where we'd use it (we don't yet)
+
+- Outbox cleanup (delete published rows older than X)
+- Bulk status flips (soft-delete sweeps)
+- Backfills
+
+Not in use today. Listed for completeness because it's CLAUDE.md rule #5.
+
+---
+
+## 15. Wolverine transactional outbox integration
+
+This is the most architecturally important EF Core integration in the project. **The entity write and the event publish commit in the same DB transaction — neither happens without the other.**
+
+### 15.1 The dual-write problem
+
+```csharp
+// BAD: not atomic
+await ctx.SaveChangesAsync();         // Order saved
+await bus.PublishAsync(orderEvent);   // Bus down → event lost → PaymentService never runs
+```
+
+Without atomicity, "save order" and "publish event" can fail independently. Order saved but PaymentService never hears → customer is charged or not charged unpredictably.
+
+### 15.2 The fix: persist outgoing messages to the same DB
+
+Wolverine 5.36+ ships transactional-outbox helpers built on EF Core. Configured in each event-publishing service's `Program.cs`:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    var ordersDb = builder.Configuration.GetConnectionString("orders-db")!;
+    opts.PersistMessagesWithSqlServer(ordersDb, "wolverine");
+    opts.UseEntityFrameworkCoreTransactions();
+    opts.Policies.AutoApplyTransactions();
+    opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+    // ... transports + handlers + middleware
+});
+
+builder.Services.AddResourceSetupOnStartup();
+```
+
+What each line does:
+
+| Call | Effect |
+|---|---|
+| `PersistMessagesWithSqlServer(cs, "wolverine")` | Wolverine stores outgoing/incoming envelopes in tables under the `wolverine` schema in the same DB |
+| `UseEntityFrameworkCoreTransactions()` | Wolverine integrates with EF's transaction so envelope persistence and entity persistence share one transaction |
+| `Policies.AutoApplyTransactions()` | Every handler that touches EF auto-wraps in a transaction |
+| `Policies.UseDurableOutboxOnAllSendingEndpoints()` | All outgoing messages persist to outbox *before* being dispatched to the bus |
+| `AddResourceSetupOnStartup()` | Auto-creates the `wolverine.*` tables on app boot |
+
+### 15.3 What a handler looks like
+
+From [PlaceOrderHandler.cs:140-146](../OrderService/OrderService.Application/Handlers/PlaceOrderHandler.cs#L140-L146):
+
+```csharp
+// Order saved
+var order = Order.Create(request.BuyerId, request.Currency, lines);
+await orderRepository.AddAsync(order, cancellationToken);
+
+// Event published — Wolverine stages this to wolverine.outgoing_envelopes
+// in the SAME transaction as the Order insert above.
+var @event = new OrderPlacedEvent { /* ... */ };
+await eventPublisher.PublishAsync(@event, cancellationToken);
+return order.Id;
+```
+
+After the handler returns: the transaction commits, both rows persist atomically, a background dispatcher reads from `wolverine.outgoing_envelopes` and sends to Service Bus.
+
+### 15.4 Failure modes — all handled
+
+| Failure | Old behavior | New behavior |
+|---|---|---|
+| Bus publish fails after entity save | Order saved, event lost | Both in outbox-row, dispatcher retries |
+| Process crashes between save and publish | Order saved, event lost | Outbox row durable; on restart, dispatcher resumes |
+| Bus publish succeeds, save commit fails | Event sent for an order that doesn't exist | Can't happen — both staged in same tx, both commit or neither does |
+
+Full rationale: [docs/performance-and-data-correctness.md "Resolved: transactional outbox via Wolverine"](performance-and-data-correctness.md#resolved-transactional-outbox-via-wolverine).
+
+---
+
+## 16. Optimistic concurrency exception handling
+
+`DbUpdateConcurrencyException` is thrown by `SaveChangesAsync` when the concurrency token check fails. We handle it on two layers.
+
+### 16.1 HTTP path → 409 Conflict
+
+Shared [GlobalExceptionHandler](../NextAurora.ServiceDefaults/GlobalExceptionHandler.cs) maps the exception to RFC 7807 ProblemDetails:
+
+```csharp
+DbUpdateConcurrencyException => new ProblemDetails
+{
+    Status = StatusCodes.Status409Conflict,
+    Title = "Concurrent modification",
+    Detail = "The resource was modified by another request. Refetch and try again.",
+    Extensions = { [TraceIdKey] = traceId }
+}
+```
+
+The caller refetches and decides what to do.
+
+### 16.2 Service Bus path → Wolverine retry
+
+For event handlers, retry is correct: the event is still valid, the handler just needs to reload state and reapply. Wolverine policy in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/Extensions.cs):
+
+```csharp
+public static WolverineOptions AddConcurrencyRetry(this WolverineOptions opts)
+{
+    opts.OnException<DbUpdateConcurrencyException>()
+        .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+    return opts;
+}
+```
+
+Called from each event-publishing service's `Program.cs`: `opts.AddConcurrencyRetry()`. Three retries with backoff. After exhaustion, the message goes to the DLQ (`messages.abandoned` metric increments).
+
+### 16.3 Concrete saga example
+
+`PaymentCompletedEvent` and `ShipmentDispatchedEvent` both arrive while the order is in `Placed`:
+
+1. Both handlers fetch the order. Both `RowVersion` snapshots are the same.
+2. One commits first. Order is now `Paid`, `RowVersion` bumps.
+3. The other's `SaveChanges` throws `DbUpdateConcurrencyException`.
+4. Wolverine catches, waits 50ms, retries.
+5. Retry refetches — now in `Paid`. Calls `MarkAsShipped()` — status guard passes (Paid → Shipped). Save succeeds.
+
+If it races again: 100ms cooldown. Then 250ms. After three: DLQ.
+
+---
+
+## 17. DbContext is not thread-safe — `IDbContextFactory<T>`
+
+Two parallel queries on the same DbContext = boom:
+
+```csharp
+// CRASH: InvalidOperationException
+await Task.WhenAll(
+    ctx.Orders.ToListAsync(),
+    ctx.Payments.ToListAsync()
+);
+```
+
+The DbContext holds a single connection, a single change-tracker, and a single query pipeline. Concurrent access corrupts all three.
+
+### The fix: `IDbContextFactory<T>`
+
+Register the factory:
+
+```csharp
+services.AddDbContextFactory<OrderDbContext>(options =>
+    options.UseSqlServer(connectionString));
+```
+
+Then in code:
+
+```csharp
+public async Task<DashboardData> Build(IDbContextFactory<OrderDbContext> factory, Guid userId)
+{
+    // Each task gets its own DbContext, its own change tracker, its own connection
+    await using var ctx1 = await factory.CreateDbContextAsync();
+    await using var ctx2 = await factory.CreateDbContextAsync();
+    var ordersTask = ctx1.Orders.Where(o => o.BuyerId == userId).ToListAsync();
+    var paymentsTask = ctx2.Payments.Where(p => p.BuyerId == userId).ToListAsync();
+    await Task.WhenAll(ordersTask, paymentsTask);
+    return new DashboardData(ordersTask.Result, paymentsTask.Result);
+}
+```
+
+CLAUDE.md rule:
+
+> `DbContext` is not thread-safe: parallel queries (`Task.WhenAll`) require `IDbContextFactory<T>` — one context per task. The scoped per-request context handles only sequential work.
+
+**Today we don't fan out queries anywhere** — the audit confirmed it. The moment we do (e.g., a dashboard endpoint loading orders + payments + shipments in parallel), this rule applies.
+
+---
+
+## 18. Connection lifetime
+
+Connections are pooled (Postgres typically 100/instance, SQL Server 100/instance default). Each open connection holds a slot.
+
+### The anti-pattern
+
+```csharp
+public async Task<DataDto> SomeHandler()
+{
+    var data = await ctx.Foo.FirstAsync();
+    await Task.Delay(200);                    // ← BAD: connection sits idle for 200ms
+    var external = await httpClient.GetAsync(...);  // ← BAD: same problem
+    return new DataDto { ... };
+}
+```
+
+The DbContext is scoped per request → the connection is held for the *entire request lifetime*, including any HTTP call you make mid-handler. At even modest concurrency, the pool exhausts.
+
+### The pattern
+
+```csharp
+public async Task<DataDto> SomeHandler()
+{
+    var data = await ctx.Foo.FirstAsync();
+    var dataCopy = new SomeShape(data);          // copy what you need
+
+    // Now do the slow unrelated work — DbContext isn't being used, but it's still scoped
+    // and still holding a pooled connection slot until the scope disposes at request-end.
+    // If you genuinely need to free the slot mid-request, open a sub-scope and dispose
+    // it before the slow await.
+
+    var external = await httpClient.GetAsync(...);
+    return new DataDto { ... };
+}
+```
+
+CLAUDE.md rule:
+
+> DB connection hold time: open → query → dispose. Don't `await` unrelated work (HTTP calls, message publishes) while a connection is open.
+
+In practice with scoped DbContexts, this means **finish all DB work first**, then do external I/O. If a handler genuinely needs to interleave, use a manual sub-scope.
+
+---
+
+## 19. Dapper escape hatch
+
+EF Core handles ~95% of our patterns well. The remaining 5%:
+
+- Provider-specific SQL (Postgres `ILIKE`, full-text search; SQL Server `MERGE`, hint syntax)
+- Hot paths where profiling shows EF as the bottleneck
+- Reporting / aggregate queries where SQL is the natural expression and LINQ obscures intent
+
+For these, **Dapper is the sanctioned escape hatch — not a peer abstraction.** Pattern:
+
+```csharp
+public sealed class ProductReportRepository(CatalogDbContext ctx)
+{
+    public async Task<IReadOnlyList<TopSellerRow>> GetTopSellersAsync(
+        DateOnly since, int limit, CancellationToken ct)
+    {
+        // Same connection EF already opened for this scope — Dapper participates in any
+        // ambient EF transaction. No second pool slot consumed.
+        var connection = ctx.Database.GetDbConnection();
+
+        const string sql = """
+            SELECT p.id AS Id, p.name AS Name, COUNT(*) AS Sold
+            FROM products p
+            JOIN order_lines ol ON ol.product_id = p.id
+            JOIN orders o ON o.id = ol.order_id
+            WHERE o.placed_at >= @Since
+            GROUP BY p.id, p.name
+            ORDER BY Sold DESC
+            LIMIT @Limit;
+            """;
+
+        var rows = await connection.QueryAsync<TopSellerRow>(
+            new CommandDefinition(sql, new { Since = since, Limit = limit }, cancellationToken: ct));
+        return rows.AsList();
+    }
+}
+```
+
+### When to use Dapper
+
+- Provider-specific SQL that doesn't translate cleanly
+- Profiling proves EF is the hot-path bottleneck
+- Aggregations that read more naturally as SQL
+
+### When NOT to use Dapper
+
+- Straightforward CRUD reads — EF projection wins on type-safety
+- Writes — Dapper bypasses concurrency tokens, domain validation, and the outbox
+- Avoiding learning EF projection syntax
+- Speculative perf rewrites without measurement
+
+Full guidance: [docs/performance-and-data-correctness.md "Decision: when to reach past EF Core (Dapper escape hatch)"](performance-and-data-correctness.md#decision-when-to-reach-past-ef-core-dapper-escape-hatch).
+
+CLAUDE.md hard rule:
+
+> Dapper is the sanctioned escape hatch from EF, not a peer abstraction. Always use `ctx.Database.GetDbConnection()` so Dapper shares the EF connection and any ambient transaction.
+
+---
+
+## 20. HybridCache invalidation in the write path
+
+CatalogService uses HybridCache (L1 in-process MemoryCache + L2 Redis) for `GetProductByIdQuery` reads. **Every write that mutates a Product must invalidate the cache in the same handler.**
+
+From [UpdateProductHandler.cs](../CatalogService/CatalogService.Application/Handlers/UpdateProductHandler.cs):
+
+```csharp
+public async Task HandleAsync(UpdateProductCommand request, CancellationToken cancellationToken)
+{
+    var product = await repository.GetByIdAsync(request.ProductId, cancellationToken)
+        ?? throw new InvalidOperationException(...);
+
+    product.UpdateDetails(request.Name, request.Description, request.Price);
+    await repository.UpdateAsync(product, cancellationToken);
+
+    // Invalidate AFTER the save so a concurrent reader can't repopulate the cache with
+    // the pre-update DTO between our invalidate and our save.
+    await cache.InvalidateAsync(request.ProductId, cancellationToken);
+}
+```
+
+### Ordering matters
+
+**Invalidate AFTER save**, not before. If you invalidate first:
+1. You invalidate the cached value
+2. A concurrent reader misses, hits the DB, repopulates the cache with the *old* value
+3. You save your new value to the DB
+4. The cache now has the old value; readers see stale data until TTL
+
+Invalidating after save closes that window. There's still a tiny race window between save and invalidate, but the 5-minute TTL is the safety net.
+
+CLAUDE.md rule:
+
+> Cache invalidation in the write path: if a handler mutates a cached entity, it must invalidate or update the cache in the same handler — not "later" or "via TTL".
+
+Full design: [docs/performance-and-data-correctness.md "Decision: distributed read caching with HybridCache"](performance-and-data-correctness.md#decision-distributed-read-caching-with-hybridcache).
+
+---
+
+## 21. Hard rules summary (CLAUDE.md)
+
+For interview quick-reference. All from [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules).
+
+| # | Rule | Why |
+|---|---|---|
+| 1 | EF Core reads: `AsNoTracking()` + projection (`.Select(...)` to DTO) | No tracker overhead, smaller SQL, no entity graph allocation |
+| 2 | No N+1 — use `Include` or projection, never query inside a `foreach` over query results | 501 queries vs 1 |
+| 3 | `await` everywhere on request paths, never `.Result` / `.Wait()` / `.GetAwaiter().GetResult()`. Propagate `CancellationToken` everywhere | Thread-pool starvation; client disconnects don't waste work |
+| 4 | Every list endpoint paginates with a server-side size cap (≤ 100). Keyset for large offsets | OOM prevention; `OFFSET` is O(N) |
+| 5 | `ExecuteUpdateAsync` / `ExecuteDeleteAsync` for bulk ops | 100-1000x faster than load + change tracker + SaveChanges |
+| 6 | Every updatable aggregate has a concurrency token (`xmin` or `RowVersion`) | Last-write-wins is not acceptable |
+| 7 | Entity write + outbox-row write commit in the same transaction | Dual-write problem solved |
+| 8 | Parallel queries need `IDbContextFactory<T>` (one context per task) | DbContext isn't thread-safe |
+| 9 | Structured logging with message templates, never string concatenation | Skips allocation when log level is filtered out; produces queryable fields |
+| 10 | No logging in tight loops — summarize | I/O bottleneck under load |
+| 11 | Open → query → dispose. Don't `await` unrelated I/O with connection open | Connection pool exhaustion |
+| 12 | Cache invalidation in the write path — same handler, not via TTL | Bounded staleness only |
+| 13 | Migrations are immutable once applied anywhere. Destructive changes need multi-step plan | Snapshot/history drift; deploy outages |
+| 14 | Measure before optimizing — `BenchmarkDotNet`, `dotnet-counters`, `EF.ToQueryString()` | Most "optimizations" without a profiler make things worse |
+
+Plus the Dapper escape-hatch rule:
+
+> Dapper is the sanctioned escape hatch from EF Core, not a peer abstraction. Use `ctx.Database.GetDbConnection()`. Writes always go through aggregates + EF (Dapper bypasses concurrency tokens, domain validation, and the outbox).
+
+---
+
+## 22. Interview crib sheet
+
+Talking points, organized for fluency. Each maps to a section above.
+
+### "How do you handle concurrency in EF Core?"
+
+> Every updatable aggregate has an optimistic concurrency token. Postgres uses the system `xmin` column mapped as a shadow property — no schema change needed. SQL Server uses a `byte[] RowVersion` shadow column added by migration. EF includes the token in the UPDATE's WHERE clause; if the row was touched since we loaded it, the UPDATE matches zero rows and EF throws `DbUpdateConcurrencyException`. HTTP commands get 409 Conflict via the global exception handler; Wolverine event handlers retry three times with backoff before DLQing.
+
+### "How do you handle the dual-write problem?"
+
+> Wolverine's transactional outbox. The entity write and the outgoing message persist to a `wolverine` schema in the same DB, in the same EF transaction. After the handler returns, both commit together — neither happens without the other. A background dispatcher reads from `wolverine.outgoing_envelopes` and sends to Service Bus with retry. So "order saved but event lost" can't happen.
+
+### "Repository pattern over EF Core — isn't that redundant?"
+
+> EF's DbContext is a Unit of Work + repository, yes. We keep the abstraction for three reasons: Domain stays free of EF (Domain has the interface, Infrastructure has the impl — clean architecture); handler unit tests substitute the repository without spinning up a fake DbContext; and the selective-tracking decision (which methods are `AsNoTracking` vs not) is a repository-layer concern. If you used Vertical Slice Architecture you'd inline the queries and skip the abstraction — both are defensible.
+
+### "AsNoTracking everywhere?"
+
+> Almost. Reads default to `AsNoTracking()` + `.Select` projection — no tracker overhead, smaller SQL, no entity allocations. The wrinkle is shared repository methods like `GetByIdAsync` that both query handlers AND command handlers call: those keep tracking on, because without it the subsequent mutate + save would silently no-op. The audit flagged that as a "violation"; in context it's the right trade-off until we split into separate read/write repository interfaces.
+
+### "What's the catch with AsNoTracking + Include?"
+
+> Shared related entities get duplicated. 500 orders sharing one customer → 500 separate Customer instances in memory because there's no identity map to dedupe against. Fix: `AsNoTrackingWithIdentityResolution()` — keeps the read-only behavior but enables dedup. Irrelevant if you're projecting to a DTO (no entity gets materialized).
+
+### "Postgres vs SQL Server — why both?"
+
+> Polyglot persistence is microservices' data-autonomy argument made visible. They surface real EF provider differences side-by-side (xmin vs RowVersion is the cleanest example). And mixing mirrors the enterprise reality of inheriting both stacks. The "Postgres for read-heavy / SQL Server for transaction-heavy" rationale in our docs is slightly overstated — both engines handle either workload well. A production decision would weigh licensing, team expertise, and existing infrastructure more than workload fit.
+
+### "How do you handle bulk updates?"
+
+> `ExecuteUpdateAsync` / `ExecuteDeleteAsync` — single SQL statement, bypasses the change tracker entirely. 100-1000x faster than loading entities, mutating, and SaveChanges. Caveat: it runs outside the change tracker, so don't mix it with SaveChanges on the same entities in the same unit of work — you'll get stale tracked data.
+
+### "What if EF Core isn't fast enough for a specific query?"
+
+> Dapper is the sanctioned escape hatch. We reach for it only when (a) the SQL is provider-specific and doesn't translate cleanly, (b) profiling proves EF is the bottleneck on a hot path, or (c) the query is a SQL aggregation where LINQ obscures intent. Always use `ctx.Database.GetDbConnection()` so Dapper shares the EF connection and ambient transaction — never open a separate one (that'd double the connection pool pressure and lose transaction sharing). Writes always go through aggregates + EF — Dapper bypasses concurrency tokens, domain validation, and the outbox.
+
+### "Migrations in production?"
+
+> Not in-process. `MigrateDatabaseAsync` is dev-only — gated on `IsDevelopment()`. With multiple replicas behind a load balancer, all replicas would race to apply migrations on startup. Production needs migrations as a separate pre-deploy step before app pods take traffic. Tooling exists; deploy automation doesn't (it's on the open-issues list). Hard rule: migrations are immutable once applied anywhere — including dev. Destructive changes need a multi-step plan: deploy reader code that ignores the column → wait one release → drop the column in a follow-up migration.
+
+### "How do you prevent N+1?"
+
+> Projection over Include. `.Select(new Dto { Lines = o.Lines.Select(l => new LineDto { ... }) })` produces one SQL query and materializes only the DTO — no entity, no tracker, no Cartesian explosion in C# objects. `Include` works too but materializes the full entity graph with Cartesian row duplication. `AsSplitQuery` for Cartesian-heavy cases — but never enable it without profiling because it introduces transactional inconsistency between the parent and child queries.
+
+### "How do you handle a connection holding the pool slot too long?"
+
+> Open → query → dispose. With scoped DbContexts, the connection's held for the whole request — so any `await` on unrelated I/O (HTTP, message publish) while still holding the DbContext eats a pool slot for that duration. Pattern: finish all DB work, copy what you need, then do the slow external work. If a handler genuinely needs to interleave, open a sub-scope and dispose it before the slow await.
+
+---
+
+## See also
+
+- [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules) — the canonical hard-rule list
+- [docs/performance-and-data-correctness.md](performance-and-data-correctness.md) — full rationale per decision (concurrency tokens, AsNoTracking, outbox, HybridCache, Dapper, concurrency hazards)
+- [docs/cqrs-data-access.md](cqrs-data-access.md) — handler inventory, repository tracking decisions, future read/write repository split
+- [.claude/skills/dotnet-performance/SKILL.md](../.claude/skills/dotnet-performance/SKILL.md) — deeper EF performance material (compiled queries, query filters, interceptors)
