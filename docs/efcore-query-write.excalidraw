@@ -1,0 +1,444 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "type": "text", "id": "title", "x": 40, "y": 40, "width": 1200, "height": 32,
+      "text": "NextAurora — EF Core query + write lifecycle (with concurrency tokens)",
+      "originalText": "NextAurora — EF Core query + write lifecycle (with concurrency tokens)",
+      "fontSize": 26, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#1e40af", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 100001, "version": 1, "versionNonce": 100002,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.25
+    },
+    {
+      "type": "text", "id": "subtitle", "x": 40, "y": 80, "width": 1450, "height": 50,
+      "text": "READ:  LINQ → expression tree → provider-specific SQL → DataReader → DTO  (no tracker, no entity allocation).\nWRITE:  load tracked → mutate via domain method → SaveChanges → UPDATE ... WHERE Id=@p AND xmin/RowVersion=@orig  (concurrency check). 0 rows matched → DbUpdateConcurrencyException → 409 (HTTP) or Wolverine retry (events).",
+      "originalText": "READ:  LINQ → expression tree → provider-specific SQL → DataReader → DTO  (no tracker, no entity allocation).\nWRITE:  load tracked → mutate via domain method → SaveChanges → UPDATE ... WHERE Id=@p AND xmin/RowVersion=@orig  (concurrency check). 0 rows matched → DbUpdateConcurrencyException → 409 (HTTP) or Wolverine retry (events).",
+      "fontSize": 13, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#64748b", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 100003, "version": 1, "versionNonce": 100004,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.3
+    },
+
+    {
+      "type": "text", "id": "read_col_title", "x": 40, "y": 160, "width": 700, "height": 28,
+      "text": "READ PATH  ▸  AsNoTracking + projection",
+      "originalText": "READ PATH  ▸  AsNoTracking + projection",
+      "fontSize": 18, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#1e40af", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200001, "version": 1, "versionNonce": 200002,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.25
+    },
+
+    {
+      "type": "rectangle", "id": "r_linq", "x": 40, "y": 200, "width": 700, "height": 80,
+      "strokeColor": "#1e293b", "backgroundColor": "#1e293b",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200003, "version": 1, "versionNonce": 200004,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"r_linq_t","type":"text"},{"id":"a_r_1","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "r_linq_t", "x": 50, "y": 215, "width": 680, "height": 50,
+      "text": "var dto = await ctx.Products.AsNoTracking()\n   .Where(p => p.Id == id)\n   .Select(p => new ProductDto { Id = p.Id, Name = p.Name, Price = p.Price, ... }).FirstOrDefaultAsync(ct);",
+      "originalText": "var dto = await ctx.Products.AsNoTracking()\n   .Where(p => p.Id == id)\n   .Select(p => new ProductDto { Id = p.Id, Name = p.Name, Price = p.Price, ... }).FirstOrDefaultAsync(ct);",
+      "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#22c55e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200005, "version": 1, "versionNonce": 200006,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "r_linq", "lineHeight": 1.3
+    },
+
+    {
+      "type": "arrow", "id": "a_r_1", "x": 390, "y": 282, "width": 0, "height": 30,
+      "strokeColor": "#1e3a5f", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200007, "version": 1, "versionNonce": 200008,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,30]],
+      "startBinding": {"elementId":"r_linq","focus":0,"gap":2}, "endBinding": {"elementId":"r_tree","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "rectangle", "id": "r_tree", "x": 40, "y": 314, "width": 700, "height": 60,
+      "strokeColor": "#1e3a5f", "backgroundColor": "#93c5fd",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200009, "version": 1, "versionNonce": 200010,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"r_tree_t","type":"text"},{"id":"a_r_2","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "r_tree_t", "x": 50, "y": 328, "width": 680, "height": 30,
+      "text": "Builds Expression<Func<…>> tree  ·  AsNoTracking sets QueryTrackingBehavior on the IQueryable",
+      "originalText": "Builds Expression<Func<…>> tree  ·  AsNoTracking sets QueryTrackingBehavior on the IQueryable",
+      "fontSize": 13, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
+      "strokeColor": "#1e40af", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200011, "version": 1, "versionNonce": 200012,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "r_tree", "lineHeight": 1.25
+    },
+
+    {
+      "type": "arrow", "id": "a_r_2", "x": 390, "y": 376, "width": 0, "height": 30,
+      "strokeColor": "#1e3a5f", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200013, "version": 1, "versionNonce": 200014,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,30]],
+      "startBinding": {"elementId":"r_tree","focus":0,"gap":2}, "endBinding": {"elementId":"r_sql","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "rectangle", "id": "r_sql", "x": 40, "y": 408, "width": 700, "height": 90,
+      "strokeColor": "#1e293b", "backgroundColor": "#1e293b",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200015, "version": 1, "versionNonce": 200016,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"r_sql_t","type":"text"},{"id":"a_r_3","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "r_sql_t", "x": 50, "y": 422, "width": 680, "height": 62,
+      "text": "Provider-specific SQL generation:\n  Postgres (Npgsql):    SELECT p.\"Id\", p.\"Name\", p.\"Price\", ... FROM \"Products\" p WHERE p.\"Id\" = @__id_0 LIMIT 1\n  SQL Server (SqlClient): SELECT TOP(1) [p].[Id], [p].[Name], [p].[Price], ... FROM [Products] AS [p] WHERE [p].[Id] = @__id_0",
+      "originalText": "Provider-specific SQL generation:\n  Postgres (Npgsql):    SELECT p.\"Id\", p.\"Name\", p.\"Price\", ... FROM \"Products\" p WHERE p.\"Id\" = @__id_0 LIMIT 1\n  SQL Server (SqlClient): SELECT TOP(1) [p].[Id], [p].[Name], [p].[Price], ... FROM [Products] AS [p] WHERE [p].[Id] = @__id_0",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#22c55e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200017, "version": 1, "versionNonce": 200018,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "r_sql", "lineHeight": 1.3
+    },
+
+    {
+      "type": "arrow", "id": "a_r_3", "x": 390, "y": 500, "width": 0, "height": 30,
+      "strokeColor": "#1e3a5f", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200019, "version": 1, "versionNonce": 200020,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,30]],
+      "startBinding": {"elementId":"r_sql","focus":0,"gap":2}, "endBinding": {"elementId":"r_exec","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "rectangle", "id": "r_exec", "x": 40, "y": 532, "width": 700, "height": 60,
+      "strokeColor": "#1e3a5f", "backgroundColor": "#60a5fa",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200021, "version": 1, "versionNonce": 200022,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"r_exec_t","type":"text"},{"id":"a_r_4","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "r_exec_t", "x": 50, "y": 546, "width": 680, "height": 30,
+      "text": "DbConnection.ExecuteReader → DataReader streams rows from the pooled connection",
+      "originalText": "DbConnection.ExecuteReader → DataReader streams rows from the pooled connection",
+      "fontSize": 13, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
+      "strokeColor": "#ffffff", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200023, "version": 1, "versionNonce": 200024,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "r_exec", "lineHeight": 1.25
+    },
+
+    {
+      "type": "arrow", "id": "a_r_4", "x": 390, "y": 594, "width": 0, "height": 30,
+      "strokeColor": "#047857", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200025, "version": 1, "versionNonce": 200026,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,30]],
+      "startBinding": {"elementId":"r_exec","focus":0,"gap":2}, "endBinding": {"elementId":"r_result","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "rectangle", "id": "r_result", "x": 40, "y": 626, "width": 700, "height": 90,
+      "strokeColor": "#047857", "backgroundColor": "#a7f3d0",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200027, "version": 1, "versionNonce": 200028,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"r_result_t","type":"text"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "r_result_t", "x": 50, "y": 640, "width": 680, "height": 62,
+      "text": "Materialize DIRECTLY into ProductDto.\nNO Product entity is constructed.  NO identity-map entry.  NO change-tracking snapshot.\nWhy this matters: at high RPS, the saved allocations are measurable in GC pressure.",
+      "originalText": "Materialize DIRECTLY into ProductDto.\nNO Product entity is constructed.  NO identity-map entry.  NO change-tracking snapshot.\nWhy this matters: at high RPS, the saved allocations are measurable in GC pressure.",
+      "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#065f46", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200029, "version": 1, "versionNonce": 200030,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "r_result", "lineHeight": 1.3
+    },
+
+    {
+      "type": "text", "id": "write_col_title", "x": 780, "y": 160, "width": 700, "height": 28,
+      "text": "WRITE PATH  ▸  load tracked → mutate → SaveChanges → concurrency check",
+      "originalText": "WRITE PATH  ▸  load tracked → mutate → SaveChanges → concurrency check",
+      "fontSize": 18, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#1e40af", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300001, "version": 1, "versionNonce": 300002,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.25
+    },
+
+    {
+      "type": "rectangle", "id": "w_load", "x": 780, "y": 200, "width": 700, "height": 100,
+      "strokeColor": "#1e293b", "backgroundColor": "#1e293b",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300003, "version": 1, "versionNonce": 300004,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"w_load_t","type":"text"},{"id":"a_w_1","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "w_load_t", "x": 790, "y": 215, "width": 680, "height": 70,
+      "text": "var product = await ctx.Products.FirstAsync(p => p.Id == id);     // tracked\n// change tracker stores: { Id, Name, Price, ..., xmin = 12345 (or RowVersion = 0x00000000000007D1) }\nproduct.UpdateDetails(name, description, price);                  // mutate via domain method\nawait ctx.SaveChangesAsync();",
+      "originalText": "var product = await ctx.Products.FirstAsync(p => p.Id == id);     // tracked\n// change tracker stores: { Id, Name, Price, ..., xmin = 12345 (or RowVersion = 0x00000000000007D1) }\nproduct.UpdateDetails(name, description, price);                  // mutate via domain method\nawait ctx.SaveChangesAsync();",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#22c55e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300005, "version": 1, "versionNonce": 300006,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "w_load", "lineHeight": 1.3
+    },
+
+    {
+      "type": "arrow", "id": "a_w_1", "x": 1130, "y": 302, "width": 0, "height": 30,
+      "strokeColor": "#1e3a5f", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300007, "version": 1, "versionNonce": 300008,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,30]],
+      "startBinding": {"elementId":"w_load","focus":0,"gap":2}, "endBinding": {"elementId":"w_sql","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "rectangle", "id": "w_sql", "x": 780, "y": 334, "width": 700, "height": 130,
+      "strokeColor": "#1e293b", "backgroundColor": "#1e293b",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300009, "version": 1, "versionNonce": 300010,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"w_sql_t","type":"text"},{"id":"a_w_2","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "w_sql_t", "x": 790, "y": 348, "width": 680, "height": 100,
+      "text": "// EF emits UPDATE with concurrency-token check in WHERE\n\nPostgres (Npgsql):     UPDATE \"Products\" SET \"Name\" = @p0, \"Price\" = @p1, \"UpdatedAt\" = @p2\n                       WHERE \"Id\" = @p3 AND xmin = @p4;\n\nSQL Server (SqlClient): UPDATE [Products] SET [Name] = @p0, [Price] = @p1, [UpdatedAt] = @p2\n                        OUTPUT INSERTED.[RowVersion] WHERE [Id] = @p3 AND [RowVersion] = @p4;",
+      "originalText": "// EF emits UPDATE with concurrency-token check in WHERE\n\nPostgres (Npgsql):     UPDATE \"Products\" SET \"Name\" = @p0, \"Price\" = @p1, \"UpdatedAt\" = @p2\n                       WHERE \"Id\" = @p3 AND xmin = @p4;\n\nSQL Server (SqlClient): UPDATE [Products] SET [Name] = @p0, [Price] = @p1, [UpdatedAt] = @p2\n                        OUTPUT INSERTED.[RowVersion] WHERE [Id] = @p3 AND [RowVersion] = @p4;",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#22c55e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300011, "version": 1, "versionNonce": 300012,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "w_sql", "lineHeight": 1.3
+    },
+
+    {
+      "type": "arrow", "id": "a_w_2", "x": 1130, "y": 466, "width": 0, "height": 30,
+      "strokeColor": "#1e3a5f", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300013, "version": 1, "versionNonce": 300014,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,30]],
+      "startBinding": {"elementId":"w_sql","focus":0,"gap":2}, "endBinding": {"elementId":"w_decision","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "diamond", "id": "w_decision", "x": 920, "y": 498, "width": 420, "height": 120,
+      "strokeColor": "#b45309", "backgroundColor": "#fef3c7",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300015, "version": 1, "versionNonce": 300016,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"w_decision_t","type":"text"},{"id":"a_w_ok","type":"arrow"},{"id":"a_w_conflict","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 2}
+    },
+    {
+      "type": "text", "id": "w_decision_t", "x": 960, "y": 538, "width": 340, "height": 40,
+      "text": "Rows affected?",
+      "originalText": "Rows affected?",
+      "fontSize": 14, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
+      "strokeColor": "#374151", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300017, "version": 1, "versionNonce": 300018,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "w_decision", "lineHeight": 1.25
+    },
+
+    {
+      "type": "arrow", "id": "a_w_ok", "x": 1340, "y": 558, "width": 100, "height": 100,
+      "strokeColor": "#047857", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300019, "version": 1, "versionNonce": 300020,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[40,0],[40,100]],
+      "startBinding": {"elementId":"w_decision","focus":0,"gap":2}, "endBinding": {"elementId":"w_ok","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+    {
+      "type": "rectangle", "id": "w_ok", "x": 1240, "y": 660, "width": 240, "height": 80,
+      "strokeColor": "#047857", "backgroundColor": "#a7f3d0",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300021, "version": 1, "versionNonce": 300022,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"w_ok_t","type":"text"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "w_ok_t", "x": 1250, "y": 675, "width": 220, "height": 50,
+      "text": "1 row → SUCCESS\nxmin / RowVersion bumps\nfor next read",
+      "originalText": "1 row → SUCCESS\nxmin / RowVersion bumps\nfor next read",
+      "fontSize": 12, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
+      "strokeColor": "#065f46", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300023, "version": 1, "versionNonce": 300024,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "w_ok", "lineHeight": 1.25
+    },
+
+    {
+      "type": "arrow", "id": "a_w_conflict", "x": 920, "y": 558, "width": 100, "height": 100,
+      "strokeColor": "#b91c1c", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300025, "version": 1, "versionNonce": 300026,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[-40,0],[-40,100]],
+      "startBinding": {"elementId":"w_decision","focus":0,"gap":2}, "endBinding": {"elementId":"w_conflict","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+    {
+      "type": "rectangle", "id": "w_conflict", "x": 760, "y": 660, "width": 240, "height": 80,
+      "strokeColor": "#b91c1c", "backgroundColor": "#fecaca",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300027, "version": 1, "versionNonce": 300028,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"w_conflict_t","type":"text"},{"id":"a_conflict_branch","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "w_conflict_t", "x": 770, "y": 675, "width": 220, "height": 50,
+      "text": "0 rows → CONFLICT\nthrow DbUpdate\nConcurrencyException",
+      "originalText": "0 rows → CONFLICT\nthrow DbUpdate\nConcurrencyException",
+      "fontSize": 12, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
+      "strokeColor": "#7f1d1d", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300029, "version": 1, "versionNonce": 300030,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "w_conflict", "lineHeight": 1.25
+    },
+
+    {
+      "type": "arrow", "id": "a_conflict_branch", "x": 880, "y": 742, "width": 0, "height": 28,
+      "strokeColor": "#b91c1c", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300031, "version": 1, "versionNonce": 300032,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,28]],
+      "startBinding": {"elementId":"w_conflict","focus":0,"gap":2}, "endBinding": {"elementId":"branch_decision","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "diamond", "id": "branch_decision", "x": 720, "y": 770, "width": 320, "height": 100,
+      "strokeColor": "#b45309", "backgroundColor": "#fef3c7",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400001, "version": 1, "versionNonce": 400002,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"branch_t","type":"text"},{"id":"a_branch_http","type":"arrow"},{"id":"a_branch_event","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 2}
+    },
+    {
+      "type": "text", "id": "branch_t", "x": 740, "y": 800, "width": 280, "height": 40,
+      "text": "HTTP or async event?",
+      "originalText": "HTTP or async event?",
+      "fontSize": 14, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
+      "strokeColor": "#374151", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400003, "version": 1, "versionNonce": 400004,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "branch_decision", "lineHeight": 1.25
+    },
+
+    {
+      "type": "arrow", "id": "a_branch_http", "x": 720, "y": 820, "width": 100, "height": 80,
+      "strokeColor": "#b91c1c", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400005, "version": 1, "versionNonce": 400006,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[-60,0],[-60,80]],
+      "startBinding": {"elementId":"branch_decision","focus":0,"gap":2}, "endBinding": {"elementId":"http_409","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+    {
+      "type": "rectangle", "id": "http_409", "x": 480, "y": 900, "width": 320, "height": 110,
+      "strokeColor": "#b91c1c", "backgroundColor": "#fecaca",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400007, "version": 1, "versionNonce": 400008,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"http_409_t","type":"text"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "http_409_t", "x": 490, "y": 912, "width": 300, "height": 90,
+      "text": "HTTP PATH\nGlobalExceptionHandler\n→ 409 Conflict ProblemDetails\n\"Refetch and try again.\"\n+ traceId",
+      "originalText": "HTTP PATH\nGlobalExceptionHandler\n→ 409 Conflict ProblemDetails\n\"Refetch and try again.\"\n+ traceId",
+      "fontSize": 12, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
+      "strokeColor": "#7f1d1d", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400009, "version": 1, "versionNonce": 400010,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "http_409", "lineHeight": 1.25
+    },
+
+    {
+      "type": "arrow", "id": "a_branch_event", "x": 1040, "y": 820, "width": 100, "height": 80,
+      "strokeColor": "#b45309", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400011, "version": 1, "versionNonce": 400012,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[60,0],[60,80]],
+      "startBinding": {"elementId":"branch_decision","focus":0,"gap":2}, "endBinding": {"elementId":"event_retry","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+    {
+      "type": "rectangle", "id": "event_retry", "x": 960, "y": 900, "width": 360, "height": 110,
+      "strokeColor": "#b45309", "backgroundColor": "#fef3c7",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400013, "version": 1, "versionNonce": 400014,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"event_retry_t","type":"text"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "event_retry_t", "x": 970, "y": 912, "width": 340, "height": 90,
+      "text": "ASYNC EVENT PATH\nopts.AddConcurrencyRetry()\n→ retry  50ms / 100ms / 250ms\n(refetches, status guard usually no-ops)\nAfter 3: DLQ + messages.abandoned",
+      "originalText": "ASYNC EVENT PATH\nopts.AddConcurrencyRetry()\n→ retry  50ms / 100ms / 250ms\n(refetches, status guard usually no-ops)\nAfter 3: DLQ + messages.abandoned",
+      "fontSize": 12, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
+      "strokeColor": "#92400e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400015, "version": 1, "versionNonce": 400016,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "event_retry", "lineHeight": 1.25
+    },
+
+    {
+      "type": "rectangle", "id": "token_panel", "x": 40, "y": 770, "width": 660, "height": 240,
+      "strokeColor": "#6d28d9", "backgroundColor": "#ede9fe",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "dashed", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 500001, "version": 1, "versionNonce": 500002,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"token_t","type":"text"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "token_t", "x": 60, "y": 785, "width": 620, "height": 28,
+      "text": "Concurrency tokens — different mechanisms per provider",
+      "originalText": "Concurrency tokens — different mechanisms per provider",
+      "fontSize": 15, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#5b21b6", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 500003, "version": 1, "versionNonce": 500004,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "token_panel", "lineHeight": 1.25
+    },
+    {
+      "type": "text", "id": "token_body", "x": 60, "y": 820, "width": 620, "height": 180,
+      "text": "POSTGRES — xmin  (Catalog, Shipping)\n  ▸ System column on every row; engine auto-increments on every write\n  ▸ NO schema change required — just bind to it as a shadow property:\n     entity.Property<uint>(\"xmin\").HasColumnName(\"xmin\").HasColumnType(\"xid\")\n          .ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();\n  ▸ Old API UseXminAsConcurrencyToken() removed in Npgsql 9+ — manual form is canonical\n\nSQL SERVER — RowVersion  (Order, Payment)\n  ▸ Real rowversion column the engine maintains on insert/update\n  ▸ REQUIRES a migration to add the column\n  ▸ entity.Property<byte[]>(\"RowVersion\").IsRowVersion();",
+      "originalText": "POSTGRES — xmin  (Catalog, Shipping)\n  ▸ System column on every row; engine auto-increments on every write\n  ▸ NO schema change required — just bind to it as a shadow property:\n     entity.Property<uint>(\"xmin\").HasColumnName(\"xmin\").HasColumnType(\"xid\")\n          .ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();\n  ▸ Old API UseXminAsConcurrencyToken() removed in Npgsql 9+ — manual form is canonical\n\nSQL SERVER — RowVersion  (Order, Payment)\n  ▸ Real rowversion column the engine maintains on insert/update\n  ▸ REQUIRES a migration to add the column\n  ▸ entity.Property<byte[]>(\"RowVersion\").IsRowVersion();",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#374151", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 500005, "version": 1, "versionNonce": 500006,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.3
+    },
+
+    {
+      "type": "text", "id": "footer", "x": 40, "y": 1030, "width": 1500, "height": 30,
+      "text": "Source: CatalogService.Infrastructure/Data/CatalogDbContext.cs · OrderService.Infrastructure/Data/OrderDbContext.cs · NextAurora.ServiceDefaults/{GlobalExceptionHandler,Extensions}.cs · docs/ef-core.md §5 §8",
+      "originalText": "Source: CatalogService.Infrastructure/Data/CatalogDbContext.cs · OrderService.Infrastructure/Data/OrderDbContext.cs · NextAurora.ServiceDefaults/{GlobalExceptionHandler,Extensions}.cs · docs/ef-core.md §5 §8",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#64748b", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 900001, "version": 1, "versionNonce": 900002,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.3
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": 20
+  },
+  "files": {}
+}

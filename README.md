@@ -327,6 +327,19 @@ If Keycloak isn't configured (no `Authentication:Authority` and no `Keycloak:Url
 | [Business Requirements](docs/BRD.md) | Functional requirements, implementation status, business processes, glossary |
 | [Project Status](docs/STATUS.md) | Cross-session entry point — recently landed, next, open issues |
 
+### Interview-prep diagrams
+
+Open in [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or paste into [excalidraw.com](https://excalidraw.com). Each one is self-contained — title + numbered steps + side annotations explaining the *what* and *why* — designed so you can study one diagram and then describe the flow out loud.
+
+| Diagram | What it teaches |
+|---|---|
+| [nextaurora-architecture.excalidraw](docs/nextaurora-architecture.excalidraw) | The whole system in one view: 5 services, Service Bus topology, databases, 10-step order-placement saga, cache + outbox callouts |
+| [service-request-flow.excalidraw](docs/service-request-flow.excalidraw) | Generic write-command lifecycle — every step from HTTP POST → CorrelationIdMiddleware → versioned routing → auth + buyer-scope check → Wolverine pipeline (validation / context propagation / AutoApplyTransactions) → handler → repo → SaveChanges → 201/202. Plus the GlobalExceptionHandler error-routing sidebar. |
+| [hybridcache-flow.excalidraw](docs/hybridcache-flow.excalidraw) | Catalog's cache flow: GetOrLoadAsync → L1 (μs) → L2 (ms) → factory (once under stampede) → store both tiers. Plus the write/invalidate path (`InvalidateAsync` ordering matters) and the multi-replica L1 caveat (HybridCache 10.x has no backplane). |
+| [transactional-outbox.excalidraw](docs/transactional-outbox.excalidraw) | The most-asked-in-interviews mechanism. Entity write + outbox-row write committed in ONE transaction (visual: dotted "TRANSACTION BOUNDARY" wrapping both). Background dispatcher → Service Bus → delete envelope. All failure modes spelled out. |
+| [efcore-query-write.excalidraw](docs/efcore-query-write.excalidraw) | Side-by-side READ (LINQ → expression tree → provider SQL → DataReader → DTO, no tracker) and WRITE (load tracked → mutate → SaveChanges → UPDATE WHERE Id AND xmin/RowVersion → 0-rows branch → DbUpdateConcurrencyException → 409 or Wolverine retry). With Postgres `xmin` vs SQL Server `RowVersion` callout. |
+| [efcore-migrations.excalidraw](docs/efcore-migrations.excalidraw) | Dev round-trip (`dotnet ef migrations add` → `IDesignTimeDbContextFactory` → snapshot diff → emitted classes → `MigrateDatabaseAsync` at startup) vs prod (separate CI pre-deploy step — *never* in-process at startup, because replicas race). Plus the immutable-once-applied rule with the multi-step destructive-change recipe. |
+
 ## License
 
 [MIT](LICENSE) — Copyright (c) 2026 Joshua Dell. Free to use, modify, and redistribute with attribution.
