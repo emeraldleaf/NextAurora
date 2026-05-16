@@ -16,7 +16,7 @@ This is the interview-ready companion to [docs/ef-core.md](ef-core.md). It walks
 - [10. Error handling — `GlobalExceptionHandler` + RFC 7807](#10-error-handling--globalexceptionhandler--rfc-7807)
 - [11. Rate limiting](#11-rate-limiting)
 - [12. Communication patterns — REST / gRPC / Service Bus](#12-communication-patterns--rest--grpc--service-bus)
-- [13. Wolverine — chosen over MediatR](#13-wolverine--chosen-over-mediatr)
+- [13. Wolverine — covers MediatR + MassTransit, both now commercial](#13-wolverine--covers-mediatr--masstransit-both-now-commercial)
 - [14. Observability — OpenTelemetry + context propagation](#14-observability--opentelemetry--context-propagation)
 - [15. Logging — `Microsoft.Extensions.Logging`, not Serilog](#15-logging--microsoftextensionslogging-not-serilog)
 - [16. HybridCache — chosen over hand-rolled L1/L2](#16-hybridcache--chosen-over-hand-rolled-l1l2)
@@ -599,39 +599,64 @@ CLAUDE.md "Communication Patterns" codifies this. It's the same decision tree ev
 
 ---
 
-## 13. Wolverine — chosen over MediatR
+## 13. Wolverine — covers MediatR + MassTransit, both now commercial
 
-**Wolverine** (Jasper FX) is our command/query dispatcher and async messaging framework. We picked it over MediatR.
+**Wolverine** (Jasper FX) is our command/query dispatcher *and* async messaging framework. To understand why that *and* matters, it helps to clarify what the alternatives actually are — because they're two different libraries solving two different concerns:
+
+| Concern | The traditional .NET pick | What it does |
+|---|---|---|
+| In-process CQRS dispatch + in-process domain events | **MediatR** | Routes commands/queries to handlers in the same process. `INotification` for in-process pub/sub (the "domain events" pattern in DDD). |
+| Cross-service async messaging over a bus | **MassTransit** | RabbitMQ / Azure Service Bus / AWS SQS / etc. Handlers consume events from queues/topics; saga support; transports + transactional outbox. |
+
+Milan Jovanović's book picks **MediatR + MassTransit together** — MediatR for the in-process work, MassTransit for the bus. That's a perfectly fine 2024-era stack. We picked Wolverine because **it covers both concerns in one framework**, and the licensing landscape shifted in 2024–2025:
+
+### The licensing situation (the load-bearing reason)
+
+| Library | Status | Date |
+|---|---|---|
+| **MediatR** | Commercial-license / SponsorLink ("sponsorware") | 2024 — requires paid sponsorship for commercial use |
+| **MassTransit v9** | Going commercial — source-available, paid license required | Announced April 2025; v9 GA Q1 2026; v8 OSS maintenance ends after 2026 |
+| **WolverineFx** | **MIT, free for commercial use** | Current |
+
+So Milan Jovanović's book stack (MediatR + MassTransit) — which was free at the time of writing — is now or soon will be **two commercial dependencies**. Picking Wolverine sidesteps both license transitions in one decision.
 
 ### What Wolverine gives us
 
-1. **Command/query dispatch** — `bus.InvokeAsync(command)` routes to a handler class by convention. No `IRequestHandler<T>` interface.
-2. **Async messaging** — `bus.PublishAsync(@event)` publishes to Azure Service Bus (or any other supported transport).
-3. **Transactional outbox** — the entity write and the message publish commit in the same DB transaction.
-4. **Middleware pipeline** — validation, transactions, logging, retries, our custom context propagation.
-5. **FluentValidation integration** — `opts.UseFluentValidation()` runs validators automatically before handlers.
-6. **Retry policies** — `opts.OnException<DbUpdateConcurrencyException>().RetryWithCooldown(...)`.
+1. **In-process command/query dispatch** (MediatR's job) — `bus.InvokeAsync(command)` routes to a handler class by convention. No `IRequestHandler<T>` interface to implement.
+2. **In-process domain events** (MediatR's `INotification` job) — `bus.PublishAsync(@event)` with local-only routing.
+3. **Distributed async messaging** (MassTransit's job) — same `bus.PublishAsync(@event)` over Azure Service Bus / AWS SQS / RabbitMQ.
+4. **Transactional outbox** — entity write + outgoing message commit in the same DB transaction. MediatR doesn't have this at all; MassTransit has it.
+5. **Middleware pipeline** — validation, transactions, logging, retries, our custom context propagation.
+6. **FluentValidation integration** — `opts.UseFluentValidation()` runs validators automatically before handlers.
+7. **Retry policies** — `opts.OnException<DbUpdateConcurrencyException>().RetryWithCooldown(...)`.
 
-### Why Wolverine over MediatR
+### What Wolverine specifically wins over MassTransit (for the distributed part)
 
-MediatR is the de facto standard for in-process CQRS in .NET. We picked Wolverine because:
-
-| Reason | Detail |
+| Wolverine | MassTransit |
 |---|---|
-| **MediatR is in-process only** | Wolverine bridges in-process + bus seamlessly. Same handler interface, same message contract |
-| **Transactional outbox built-in** | MediatR doesn't have it. With MediatR + Service Bus you hand-roll the outbox or use a separate library |
-| **Convention-based discovery** | No `IRequestHandler<T>` to implement. A class with a `HandleAsync` method whose first parameter is a message type *is* a handler. Less boilerplate |
-| **Cascading messages** | A handler can return an event; Wolverine publishes it automatically with same-transaction outbox semantics |
-| **MediatR's commercial transition** | MediatR went commercial-license (Sponsorware) in 2024. Wolverine is MIT-licensed, free for commercial use |
-| **MassTransit alternative** | MassTransit handles async messaging better than MediatR, but doesn't do in-process command/query. Wolverine does both. Milan Jovanović's book picks MassTransit + MediatR; we picked Wolverine for the unification |
+| MIT license | Commercial from v9 (Q1 2026); v8 maintained for one more year |
+| Convention-based handler discovery — class with `HandleAsync` is a handler | Marker interfaces — `IConsumer<T>` |
+| Cascading messages — a handler returns an event; Wolverine publishes it automatically | Manual `await context.Publish(event)` |
+| Unified with in-process CQRS dispatch | Only async; need MediatR or hand-rolled mediator for in-process |
+| Lighter conceptual surface for simple sagas | Richer state-machine saga support (advantage MassTransit) |
+
+### What Wolverine specifically wins over MediatR (for the in-process part)
+
+| Wolverine | MediatR |
+|---|---|
+| MIT license | Commercial / SponsorLink (2024+) |
+| Same handler shape works for in-process + bus | In-process only — separate framework for bus |
+| Transactional outbox built-in | Not applicable (in-process only); pairs with a bus library for distributed work |
+| Cascading events from handlers | `INotification`s — works, but not transactionally tied to the parent operation |
 
 ### What Wolverine costs
 
 | Cost | Detail |
 |---|---|
-| **Smaller community** | MediatR has 50× the downloads. Stack Overflow answers, blog posts, recipe code are MediatR-flavored. Wolverine docs are excellent but you're sometimes the first person asking a specific question |
+| **Smaller community** | MediatR has historical dominance — 50× the downloads. Stack Overflow answers, blog posts, recipe code are MediatR-flavored. Wolverine docs are excellent but you're sometimes the first person asking a specific question |
 | **Generated handler code** | Wolverine source-generates handler dispatch code at startup ("Dynamic" mode). Faster than reflection but adds a startup phase. Switch to "Static" for AOT-friendly precompiled handlers |
 | **Steeper initial learning curve** | More concepts (envelopes, durability, sagas, middleware policies) than MediatR's `IRequest<T>` shape. Once internalized, the productivity gain is real |
+| **MassTransit's richer state-machine sagas** | MassTransit's saga DSL is more mature for complex long-running workflows. We don't have that scale of saga complexity; choreography (each service reacts to events independently) is enough |
 
 ### What handlers look like
 
@@ -942,7 +967,7 @@ The full inventory of significant non-Microsoft libraries, what they do, why we 
 
 | Package | Version | Role | Why this, not [X] |
 |---|---|---|---|
-| **WolverineFx** | 5.36.2 | Command/query dispatch + async messaging + transactional outbox | vs MediatR (in-process only, going commercial), MassTransit (async-only, no in-process CQRS). Wolverine unifies both, MIT-licensed |
+| **WolverineFx** | 5.36.2 | In-process CQRS dispatch + distributed async messaging + transactional outbox | Covers what **MediatR** (in-process CQRS — commercial since 2024) and **MassTransit** (distributed messaging — commercial in v9, GA Q1 2026) together do, in one MIT-licensed framework. The combined library + license story is the load-bearing reason |
 | **WolverineFx.AzureServiceBus** | 5.36.2 | Wolverine transport for Azure Service Bus | Production target; swappable for `WolverineFx.AmazonSqs` in AWS deploy |
 | **WolverineFx.SqlServer / .Postgresql** | 5.36.2 | Wolverine outbox persistence | Same DB as the service, same transaction as the entity write |
 | **Microsoft.EntityFrameworkCore** | 10.0.2 | ORM | Standard .NET ORM. See [ef-core.md](ef-core.md) for the full decision |
@@ -996,9 +1021,13 @@ Talking points organized for fluency. Each maps to a section above.
 
 > Three reasons: less ceremony per endpoint, ~10-15% better throughput on simple endpoints because there's no MVC pipeline overhead, and cleaner composition via endpoint groups. We have a `MapV1ApiGroup` helper in ServiceDefaults that gives every service the same versioned route shape `/api/v1/...` in one chained call. Controllers still win for heavy model binding or attribute-heavy auth policies, but we don't need either of those.
 
-### "Why Wolverine over MediatR?"
+### "Why Wolverine?"
 
-> Three reasons: MediatR is in-process only and Wolverine bridges in-process + bus seamlessly; Wolverine ships a real transactional outbox while MediatR doesn't; and MediatR went commercial-license in 2024 while Wolverine is MIT. The cost is a smaller community — fewer Stack Overflow answers, fewer recipe blog posts. Once internalized, the productivity gain from the unified model is real.
+> Worth clarifying the alternatives first because they're often confused. MediatR is in-process CQRS dispatch — commands, queries, and in-process domain events via `INotification`. MassTransit is distributed messaging over a bus — RabbitMQ, Azure Service Bus, AWS SQS. They solve different problems and many .NET shops use them together. Wolverine covers both in one framework with one handler shape.
+>
+> Why that matters specifically in 2025-2026: MediatR went commercial in 2024 (sponsorware), and MassTransit v9 is going commercial in Q1 2026 with v8's open-source maintenance ending after 2026. So the traditional "MediatR + MassTransit" stack is now or soon will be two paid commercial dependencies. Wolverine is MIT — picking it sidesteps both license transitions in one decision.
+>
+> Beyond licensing: Wolverine has a built-in transactional outbox (MediatR has none; MassTransit has one), convention-based handler discovery so there's no `IRequestHandler<T>` / `IConsumer<T>` marker interface to implement, and cascading messages — a handler can return an event and Wolverine publishes it inside the same transaction. The cost is a smaller community than MediatR's; you're sometimes the first person asking a specific Stack Overflow question. Worth it for the license and the unified model.
 
 ### "How do you handle the dual-write problem?"
 
