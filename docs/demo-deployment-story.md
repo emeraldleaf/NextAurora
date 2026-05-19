@@ -201,6 +201,75 @@ dotnet ef migrations add AddProductSku \
 
 This generates a new `.cs` file in `Migrations/`. Commit it. Next `fly deploy --remote-only` ships the new code + new migration, the Machine reboots, `Migrate()` notices `AddProductSku` is unapplied, runs the `ALTER TABLE` it contains, and the new boot is serving with the new schema. Zero downtime if the change is backward-compatible (additive columns, new indexes, new tables). Forward-incompatible changes (drop column, rename, NOT NULL on existing column) need the multi-step plan described in [ef-core.md "The immutable-once-applied rule"](ef-core.md#67-the-immutable-once-applied-rule).
 
+## Step 9.5 — Seed data via EF Core `HasData` (and wire up CI/CD)
+
+After the first deploy worked, the catalog was empty (`GET /api/v1/products` returned `[]`). Two ways to fix that: ad-hoc `INSERT` over `fly postgres connect`, or a proper EF Core seed migration. We did the migration so the deploy story also demonstrates CI/CD and the canonical EF Core seeding pattern.
+
+### Adding the seed
+
+In [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs), `OnModelCreating` calls a private `SeedDemoData` method that uses `modelBuilder.Entity<T>().HasData(...)` to declaratively register 3 categories and 7 products. Fixed GUIDs and a fixed `CreatedAt` (not `Guid.NewGuid()` / `DateTime.UtcNow`) so the generated migration is **deterministic** — re-running the model snapshot wouldn't emit a diff.
+
+`HasData` writes via reflection, which **bypasses** the entity's factory method (`Product.Create`) and private setters. That's the right trade for curated design-time data — validation is unnecessary because we control the values. We still set `IsAvailable` explicitly to match the `StockQuantity > 0` invariant the factory would have enforced.
+
+Then generate the migration:
+
+```bash
+dotnet ef migrations add SeedDemoCatalog \
+  --project CatalogService/CatalogService.Infrastructure \
+  --startup-project CatalogService/CatalogService.Api \
+  --context CatalogDbContext
+```
+
+EF Core produced two files:
+- `Migrations/20260518133000_SeedDemoCatalog.cs` — `Up()` with `InsertData` calls (categories first per FK ordering), `Down()` with matching `DeleteData` calls
+- `Migrations/20260518133000_SeedDemoCatalog.Designer.cs` — frozen model snapshot at time of migration
+
+Plus EF updated the live model snapshot (`CatalogDbContextModelSnapshot.cs`) to include the seed data.
+
+### Wiring CI/CD (Fly + GitHub Actions)
+
+Up to this point every deploy was a local `fly deploy --remote-only`. To exercise CI/CD properly:
+
+```bash
+fly tokens create deploy -a catalog-api-demo
+# → prints "FlyV1 fm2_lJ..." token (app-scoped, not org-scoped)
+```
+
+Save the token to GitHub as a **Repository secret** at `Settings → Secrets and variables → Actions`:
+- Name: `FLY_API_TOKEN`
+- Value: the token
+
+The [.github/workflows/deploy-catalog-demo-fly.yml](../.github/workflows/deploy-catalog-demo-fly.yml) workflow reads it via `${{ secrets.FLY_API_TOKEN }}` and runs `flyctl deploy --remote-only --config fly.toml`. The workflow is `workflow_dispatch` only (manual trigger) — by design, demo deploys shouldn't fire on every push.
+
+Trigger from GitHub: **Actions → DEPLOY_CATALOG_DEMO_FLY → Run workflow → Run workflow**.
+
+### What happens end-to-end
+
+1. GitHub Actions runner spins up
+2. Checks out `main` from `origin`
+3. Installs `flyctl` via `superfly/flyctl-actions/setup-flyctl@master`
+4. `flyctl deploy --remote-only` — uploads source to Fly's remote builder, builds image, pushes to Fly registry, creates a new Fly Machine
+5. New Machine boots: DemoMode flag fires → ForwardedHeaders middleware → DemoMode secret bridge → EF Core `Migrate()` — finds `InitialCreate` already applied, applies `SeedDemoCatalog` (the new one), inserts 3 categories + 7 products
+6. Fly's health checker hits `/health` → 200 → old Machine is destroyed → new Machine is the live one
+
+### Verifying
+
+```bash
+curl -sS https://catalog-api-demo.fly.dev/api/v1/products | jq
+```
+
+Returns 7 products: NextAurora Laptop, Wireless Headphones, USB-C Hub, Standing Desk, Ceramic Pour-Over Kettle, *Designing Data-Intensive Applications*, *The Pragmatic Programmer*. Includes one with `stockQuantity: 0` (USB-C Hub) so the `IsAvailable` invariant — `IsAvailable === stockQuantity > 0` — is also visible in the response.
+
+### Future migration deploys
+
+If we change the seed data (or add a real schema migration), the next CI run does the right thing:
+1. `dotnet ef migrations add MyChange` → commit → push to `main`
+2. Trigger **DEPLOY_CATALOG_DEMO_FLY** workflow
+3. New Machine boots, `Migrate()` checks `__EFMigrationsHistory`, sees `MyChange` is unapplied, runs only that one's `Up()`
+4. Old Machine destroyed, new one is serving
+
+Zero downtime if the change is backward-compatible (additive columns, new indexes, INSERT-only). Forward-incompatible changes (drop column, rename, NOT NULL on existing column) need the multi-step plan in [ef-core.md "The immutable-once-applied rule"](ef-core.md#67-the-immutable-once-applied-rule).
+
 ## Step 10 — Verify
 
 Live at https://catalog-api-demo.fly.dev. All five endpoints verified:
@@ -208,7 +277,7 @@ Live at https://catalog-api-demo.fly.dev. All five endpoints verified:
 | Endpoint | Status | Notes |
 |---|---|---|
 | `GET /health` | 200 (`Healthy`) | Cold-start latency ~9s after idle, sub-second once warm |
-| `GET /api/v1/products` | 200 (`[]`) | Empty — we didn't seed data; the empty response proves the API + DB connection work |
+| `GET /api/v1/products` | 200, 7 products | After the `SeedDemoCatalog` migration shipped via CI/CD (see Step 9.5). Pre-seed it was `[]`. |
 | `GET /openapi/v1.json` | 200, valid OpenAPI 3.1.1 | |
 | `GET /openapi/v1.yaml` | 200, valid YAML | |
 | `GET /scalar/v1` | 200, interactive UI | Open this in a browser for the demo |
@@ -241,6 +310,10 @@ When walking someone through this — recruiter, code reviewer, future-you:
 7. **"`.editorconfig` had to be explicitly copied into the Docker build context."** Without it, Roslyn analyzers fall back to defaults and TreatWarningsAsErrors trips on CA1062/CA2007/CA1724/MA0004. Subtle: locally it Just Works because the file is in the repo root; in Docker the build context only contains what `COPY` brings in.
 
 8. **"EF Core migrations run on startup — deliberate violation of a production rule, scoped to DemoMode."** Production would run `dotnet ef database update` as a separate CI step before the deploy job, because (a) multi-replica races make in-process Migrate() noisy, and (b) schema changes deserve human review. Demo runs one replica and uses throwaway data, so the simpler one-step path is the right trade. The flag gates it: production posture (where the rule applies) is unchanged. Full mechanics + the migrations-as-code-vs-data discussion: [Step 9 above](#step-9--ef-core-migrations-run-on-startup-a-demomode-exception) and [ef-core.md §6](ef-core.md#6-migrations).
+
+9. **"Seed data lives in the model config via `HasData`, not in a separate SQL script."** Canonical EF Core seeding pattern — declarative, deterministic (fixed GUIDs / fixed `CreatedAt`), and `dotnet ef migrations add` generates the `InsertData` calls automatically. Future seed changes go through migrations too, so the history is reproducible and reversible (`Down()` is auto-generated). Bypasses the entity's factory method via reflection, which is the right trade for curated design-time data. Full mechanics: [Step 9.5 above](#step-95--seed-data-via-ef-core-hasdata-and-wire-up-cicd).
+
+10. **"End-to-end CI/CD demonstrated."** Code change → `git push` → manual workflow trigger (`workflow_dispatch`, not push-triggered, because demo deploys shouldn't fire on every commit) → GitHub Actions runner → Fly's remote builder builds Dockerfile → Fly Machine boots → EF Core picks up the new seed migration → live data on a public URL. Single token (`FLY_API_TOKEN`, app-scoped, generated with `fly tokens create deploy -a catalog-api-demo`) authorizes the whole thing.
 
 ## Gotchas hit along the way (in case you redo this)
 
