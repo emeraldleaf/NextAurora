@@ -51,7 +51,7 @@ _messagesAbandoned.Add(1,
     new KeyValuePair<string, object?>("service", "OrderService"));
 ```
 
-The counter is defined in `NovaCraftMetrics` (`"NextAurora"` meter) and appears in the Aspire metrics dashboard. Configure an alert when this counter rises above your threshold to catch DLQ pile-ups before they cause user-visible outages.
+The counter is defined in `NextAuroraMetrics` (`"NextAurora"` meter) and appears in the Aspire metrics dashboard. Configure an alert when this counter rises above your threshold to catch DLQ pile-ups before they cause user-visible outages.
 
 ---
 

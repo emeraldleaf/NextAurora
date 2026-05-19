@@ -215,7 +215,7 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 | File | Purpose |
 |------|---------|
 | `NextAurora.ServiceDefaults/Middleware/CorrelationIdMiddleware.cs` | HTTP correlation ID propagation |
-| `NextAurora.ServiceDefaults/Metrics/NovaCraftMetrics.cs` | Business metrics counters |
+| `NextAurora.ServiceDefaults/Metrics/NextAuroraMetrics.cs` | Business metrics counters |
 | `NextAurora.ServiceDefaults/Messaging/ContextPropagationMiddleware.cs` | Wolverine middleware — opens `BeginScope` with CorrelationId/UserId/SessionId for every handler |
 
 ### Modified Files

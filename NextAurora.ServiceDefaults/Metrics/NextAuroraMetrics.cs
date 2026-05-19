@@ -6,7 +6,7 @@ namespace NextAurora.ServiceDefaults.Metrics;
 /// Shared business metrics counters for NextAurora services.
 /// Register as a singleton and inject into handlers that need to record domain events.
 /// </summary>
-public sealed class NovaCraftMetrics : IDisposable
+public sealed class NextAuroraMetrics : IDisposable
 {
     private readonly Meter _meter = new("NextAurora");
 
@@ -21,7 +21,7 @@ public sealed class NovaCraftMetrics : IDisposable
     /// </summary>
     public Counter<long> MessagesAbandoned { get; }
 
-    public NovaCraftMetrics()
+    public NextAuroraMetrics()
     {
         OrdersPlaced = _meter.CreateCounter<long>("orders.placed", description: "Number of orders successfully placed");
         PaymentsProcessed = _meter.CreateCounter<long>("payments.processed", description: "Number of payments successfully processed");

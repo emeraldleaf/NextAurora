@@ -229,7 +229,7 @@ Console: **IAM → Roles → Create role**
 - Trusted entity: **Web identity** → the provider you just added
 - Audience: `sts.amazonaws.com`
 - GitHub organization: *(your GitHub user/org)*
-- GitHub repository: `NovaCraft`
+- GitHub repository: `NextAurora`
 - Branch: `main` (or leave blank to allow any branch — tighter is better)
 
 Attach a policy with these permissions (inline policy named `catalog-demo-deploy`):

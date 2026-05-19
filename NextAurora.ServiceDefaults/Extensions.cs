@@ -39,7 +39,7 @@ public static class Extensions
         builder.Services.AddExceptionHandler<NextAurora.ServiceDefaults.GlobalExceptionHandler>();
         builder.Services.AddProblemDetails();
 
-        builder.Services.AddSingleton<NovaCraftMetrics>();
+        builder.Services.AddSingleton<NextAuroraMetrics>();
 
         builder.Services.AddServiceDiscovery();
 
