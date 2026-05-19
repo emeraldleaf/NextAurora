@@ -1,0 +1,82 @@
+name: DEPLOY_CATALOG_DEMO
+
+# Demo-only deployment pipeline: builds the CatalogService.Api Docker image, pushes it to
+# Amazon ECR, and triggers App Runner to roll the service to the new image. Auth uses
+# GitHub's OIDC provider to assume an AWS role — no long-lived AWS keys live in repo secrets.
+#
+# Manually triggered (workflow_dispatch) so demo deploys don't happen on every push.
+# See docs/STATUS.md "Demo deployment" for the one-time AWS setup checklist.
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag (defaults to short SHA)'
+        required: false
+        default: ''
+
+concurrency:
+  group: deploy-catalog-demo
+  cancel-in-progress: false   # let in-flight deploys finish so App Runner doesn't see a half-pushed image
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: catalog-api
+  APP_RUNNER_SERVICE_NAME: catalog-api-demo
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write          # required for OIDC token exchange with AWS
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve image tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "value=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          docker build -f Dockerfile.catalog \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:latest" \
+            .
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
+
+      # App Runner watches the :latest tag (configured at service-creation time with
+      # AutoDeploymentsEnabled). Pushing a new :latest is enough to kick a deployment.
+      # The explicit start-deployment below is belt-and-braces for the case where auto-deploy
+      # is off, and is idempotent — App Runner queues only one deployment at a time.
+      - name: Trigger App Runner deployment
+        run: |
+          SERVICE_ARN=$(aws apprunner list-services \
+            --query "ServiceSummaryList[?ServiceName=='${{ env.APP_RUNNER_SERVICE_NAME }}'].ServiceArn" \
+            --output text)
+          if [ -z "$SERVICE_ARN" ]; then
+            echo "App Runner service '${{ env.APP_RUNNER_SERVICE_NAME }}' not found in region ${{ env.AWS_REGION }}." >&2
+            exit 1
+          fi
+          aws apprunner start-deployment --service-arn "$SERVICE_ARN"
+          echo "Deployment started for $SERVICE_ARN"

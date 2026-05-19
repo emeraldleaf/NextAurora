@@ -1,0 +1,59 @@
+# Multi-stage build for CatalogService.Api targeting single-service demo deploys (App Runner,
+# Container Apps, Lightsail, etc.). Build context is the repo root because the API project
+# transitively references ServiceDefaults, Contracts, Application, Infrastructure, Domain.
+#
+# Build:   docker build -f Dockerfile.catalog -t catalog-api .
+# Run:     docker run --rm -p 8080:8080 \
+#            -e ASPNETCORE_ENVIRONMENT=Production \
+#            -e ASPNETCORE_URLS=http://+:8080 \
+#            -e DemoMode=true \
+#            -e ConnectionStrings__catalog-db="Host=...;Database=...;Username=...;Password=..." \
+#            catalog-api
+
+# ─── Build stage ──────────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Copy solution-level files first so restores cache cleanly.
+# .editorconfig configures analyzer severities (without it, the Roslyn analyzers fall back to
+# their stricter defaults — CA2007/CA1062/CA1724 etc. become errors under TreatWarningsAsErrors).
+COPY .editorconfig Directory.Build.props Directory.Packages.props BannedSymbols.txt NextAurora.slnx ./
+
+# Copy only the project files needed for the Catalog dependency graph.
+COPY CatalogService/CatalogService.Api/CatalogService.Api.csproj                       CatalogService/CatalogService.Api/
+COPY CatalogService/CatalogService.Application/CatalogService.Application.csproj       CatalogService/CatalogService.Application/
+COPY CatalogService/CatalogService.Domain/CatalogService.Domain.csproj                 CatalogService/CatalogService.Domain/
+COPY CatalogService/CatalogService.Infrastructure/CatalogService.Infrastructure.csproj CatalogService/CatalogService.Infrastructure/
+COPY NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj                      NextAurora.ServiceDefaults/
+COPY NextAurora.Contracts/NextAurora.Contracts.csproj                                  NextAurora.Contracts/
+
+RUN dotnet restore CatalogService/CatalogService.Api/CatalogService.Api.csproj
+
+# Copy the actual source after restore — keeps the dependency-graph layer cached unless a
+# .csproj actually changes.
+COPY CatalogService/                CatalogService/
+COPY NextAurora.ServiceDefaults/    NextAurora.ServiceDefaults/
+COPY NextAurora.Contracts/          NextAurora.Contracts/
+
+RUN dotnet publish CatalogService/CatalogService.Api/CatalogService.Api.csproj \
+    --configuration Release \
+    --output /app/publish \
+    --no-restore \
+    -p:UseAppHost=false
+
+# ─── Runtime stage ────────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+
+# App Runner and most PaaS hosts expect the container to listen on a single HTTP port and
+# handle TLS termination at the edge. 8080 is the App Runner default.
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+# Run as the non-root "app" user that the aspnet image creates by default. Defense-in-depth
+# against container-escape issues — even if something inside the process is compromised,
+# it can't touch root-owned paths.
+USER app
+
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "CatalogService.Api.dll"]

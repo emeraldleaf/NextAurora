@@ -1,0 +1,51 @@
+# Fly.io config for CatalogService.Api demo deploy.
+#
+# First-time provision (from your machine, once you have flyctl installed + auth'd):
+#   fly launch --copy-config --no-deploy --name catalog-api-demo
+#   fly postgres create --name catalog-demo-db --region iad --vm-size shared-cpu-1x --volume-size 1
+#   fly secrets set "ConnectionStrings__catalog-db=Host=...;Port=5432;Database=catalog;Username=...;Password=..." -a catalog-api-demo
+#   fly deploy --remote-only
+#
+# Subsequent deploys go through .github/workflows/deploy-catalog-demo-fly.yml (manual trigger).
+
+app = "catalog-api-demo"
+primary_region = "lax"   # Los Angeles — must match the region your Fly Postgres lives in.
+
+[build]
+  dockerfile = "Dockerfile.catalog"
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://+:8080"
+  DemoMode = "true"
+
+  # Sensitive: ConnectionStrings__catalog-db is set via `fly secrets set` (not committed here).
+
+[http_service]
+  internal_port = 8080
+  force_https = true                # Fly terminates TLS at the edge; HTTPS-only is its default posture
+  auto_stop_machines = "stop"       # Scale to zero when idle — keeps the demo cheap
+  auto_start_machines = true        # Restart on first request after stop
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "120s"   # First boot includes EF Core migrate-on-startup (creates the `catalog`
+                            # database + applies initial migration). Allow up to 2 min before
+                            # health checks start counting failures. Subsequent boots are fast
+                            # because the migration is a no-op.
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -1,0 +1,32 @@
+name: DEPLOY_CATALOG_DEMO_FLY
+
+# Demo-only deployment pipeline (Fly.io): builds the CatalogService.Api Docker image on Fly's
+# remote builders and rolls the app to the new revision. Auth uses a Fly deploy token scoped
+# to this single app (created with `fly tokens create deploy -a catalog-api-demo`).
+#
+# Manually triggered (workflow_dispatch). See docs/demo-deployment.md "Fly.io path" for the
+# one-time setup checklist.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-catalog-demo-fly
+  cancel-in-progress: false   # let in-flight deploys finish so Fly doesn't see a half-rolled revision
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only --config fly.toml
