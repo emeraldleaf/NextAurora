@@ -2,7 +2,7 @@
 
 > **Read this first when picking up work.** It's the cross-session entry point: where the project is right now, what to do next, and where the deeper docs live. Keep it short (~100 lines). Update it at the start or end of each working session.
 
-**Last updated:** 2026-05-09
+**Last updated:** 2026-05-16
 
 ---
 
@@ -29,6 +29,7 @@ These two commits collectively add:
 
 ### Recently landed (since the original architectural commits)
 
+- **Demo deployment LIVE on Fly.io** — `CatalogService.Api` deployed to https://catalog-api-demo.fly.dev with Scalar UI at `/scalar/v1`. Single Fly Machine in `lax`, auto-stops when idle (~$5/mo with $25 prepaid credit cap, no card on file = hard ceiling). Scaffolding: `DemoMode` config flag in [Program.cs](../CatalogService/CatalogService.Api/Program.cs) gates Scalar + OpenAPI + skip-HTTPS-redirect + migrate-on-startup in non-Development environments; Redis registration is conditional on a `cache` connection string so HybridCache degrades to L1-only. New [Dockerfile.catalog](../Dockerfile.catalog), [.dockerignore](../.dockerignore), [fly.toml](../fly.toml), [.github/workflows/deploy-catalog-demo-fly.yml](../.github/workflows/deploy-catalog-demo-fly.yml) (Fly path — primary), and [.github/workflows/deploy-catalog-demo.yml](../.github/workflows/deploy-catalog-demo.yml) (AWS App Runner — alternative). Setup recipe in [docs/demo-deployment.md](demo-deployment.md); narrative + gotchas + EF migration decisions in [docs/demo-deployment-story.md](demo-deployment-story.md).
 - **Smoke-test debugging arc** (commits `1cb5ea8` through `8019891`) — surfaced and captured five Aspire/Wolverine 13.x gotchas: SDK/package version alignment, globally-unique subscription names, `RunAsEmulator()` for Service Bus, `IsPublishMode` gate on App Insights, `WaitFor()` for service-startup gating, Wolverine middleware requires instance methods. Each fix paired with a CLAUDE.md rule update per the Debugging Discipline.
 - **Aspire 13.2.4 → 13.3.0** (commit `6f28e2e`) — minor bump, clean.
 - **Cross-reference automation** (commit `8644ae5`) — PostToolUse hook surfaces "See CLAUDE.md" markers when CLAUDE.md is edited so paraphrases don't drift.

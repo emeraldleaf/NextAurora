@@ -320,14 +320,16 @@ If Keycloak isn't configured (no `Authentication:Authority` and no `Keycloak:Url
 | [How It Works](docs/how-it-works.md) | Developer walkthrough — Clean Architecture, CQRS via Wolverine, request lifecycle, outbox, event flow, testing |
 | [Architecture](docs/architecture.md) | Service diagrams, communication matrix, domain model, design patterns |
 | [Performance & Data Correctness](docs/performance-and-data-correctness.md) | Hard rules + decisions: AsNoTracking strategy, optimistic concurrency tokens, Wolverine outbox, HybridCache, Dapper escape hatch |
-| [EF Core: Spec & Practice](docs/ef-core.md) | Interview-ready: how we use EF Core, every decision + trade-off + code example, from concurrency tokens to the Dapper escape hatch |
-| [Project Decisions — API, Libraries, Architecture](docs/project-decisions.md) | Interview-ready: cross-cutting decisions — Minimal APIs, URL versioning, Wolverine vs MediatR, HybridCache, Keycloak, observability, every library pick + alternative considered |
+| [EF Core: Spec & Practice](docs/ef-core.md) | Reference guide: how we use EF Core, every decision + trade-off + code example, from concurrency tokens to the Dapper escape hatch |
+| [Project Decisions — API, Libraries, Architecture](docs/project-decisions.md) | Reference guide: cross-cutting decisions — Minimal APIs, URL versioning, Wolverine vs MediatR, HybridCache, Keycloak, observability, every library pick + alternative considered |
 | [Observability](docs/observability.md) | Correlation/user/session ID propagation, distributed tracing, Wolverine handler logging, DLQ handling, metrics |
 | [Event Replay](docs/event-replay.md) | Wolverine outbox state, where to inspect outgoing/dead-letter envelopes, `IMessageStore` API |
 | [Business Requirements](docs/BRD.md) | Functional requirements, implementation status, business processes, glossary |
+| [Demo Deployment (recipe)](docs/demo-deployment.md) | One-time setup checklist for deploying CatalogService to Fly.io or AWS App Runner with Scalar exposed |
+| [Demo Deployment (story)](docs/demo-deployment-story.md) | Narrative of what we actually did to deploy live at https://catalog-api-demo.fly.dev — decisions, gotchas, EF migration trade-offs, talking points |
 | [Project Status](docs/STATUS.md) | Cross-session entry point — recently landed, next, open issues |
 
-### Interview-prep diagrams
+### Reference diagrams
 
 Open in [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or paste into [excalidraw.com](https://excalidraw.com). Each one is self-contained — title + numbered steps + side annotations explaining the *what* and *why* — designed so you can study one diagram and then describe the flow out loud.
 
@@ -336,7 +338,7 @@ Open in [VS Code Excalidraw extension](https://marketplace.visualstudio.com/item
 | [nextaurora-architecture.excalidraw](docs/nextaurora-architecture.excalidraw) | The whole system in one view: 5 services, Service Bus topology, databases, 10-step order-placement saga, cache + outbox callouts |
 | [service-request-flow.excalidraw](docs/service-request-flow.excalidraw) | Generic write-command lifecycle — every step from HTTP POST → CorrelationIdMiddleware → versioned routing → auth + buyer-scope check → Wolverine pipeline (validation / context propagation / AutoApplyTransactions) → handler → repo → SaveChanges → 201/202. Plus the GlobalExceptionHandler error-routing sidebar. |
 | [hybridcache-flow.excalidraw](docs/hybridcache-flow.excalidraw) | Catalog's cache flow: GetOrLoadAsync → L1 (μs) → L2 (ms) → factory (once under stampede) → store both tiers. Plus the write/invalidate path (`InvalidateAsync` ordering matters) and the multi-replica L1 caveat (HybridCache 10.x has no backplane). |
-| [transactional-outbox.excalidraw](docs/transactional-outbox.excalidraw) | The most-asked-in-interviews mechanism. Entity write + outbox-row write committed in ONE transaction (visual: dotted "TRANSACTION BOUNDARY" wrapping both). Background dispatcher → Service Bus → delete envelope. All failure modes spelled out. |
+| [transactional-outbox.excalidraw](docs/transactional-outbox.excalidraw) | The load-bearing reliability mechanism behind every cross-service event. Entity write + outbox-row write committed in ONE transaction (visual: dotted "TRANSACTION BOUNDARY" wrapping both). Background dispatcher → Service Bus → delete envelope. All failure modes spelled out. |
 | [efcore-query-write.excalidraw](docs/efcore-query-write.excalidraw) | Side-by-side READ (LINQ → expression tree → provider SQL → DataReader → DTO, no tracker) and WRITE (load tracked → mutate → SaveChanges → UPDATE WHERE Id AND xmin/RowVersion → 0-rows branch → DbUpdateConcurrencyException → 409 or Wolverine retry). With Postgres `xmin` vs SQL Server `RowVersion` callout. |
 | [efcore-migrations.excalidraw](docs/efcore-migrations.excalidraw) | Dev round-trip (`dotnet ef migrations add` → `IDesignTimeDbContextFactory` → snapshot diff → emitted classes → `MigrateDatabaseAsync` at startup) vs prod (separate CI pre-deploy step — *never* in-process at startup, because replicas race). Plus the immutable-once-applied rule with the multi-step destructive-change recipe. |
 

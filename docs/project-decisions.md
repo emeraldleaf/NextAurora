@@ -1,6 +1,6 @@
 # Project Decisions — API, Libraries, Architecture
 
-This is the interview-ready companion to [docs/ef-core.md](ef-core.md). It walks every cross-cutting decision in NextAurora — *why* this stack, *why* this API style, *what trade-offs were accepted*. Every section ties back to the canonical rules in [CLAUDE.md](../CLAUDE.md); the perf-specific decisions live in [performance-and-data-correctness.md](performance-and-data-correctness.md).
+This is the reference companion to [docs/ef-core.md](ef-core.md). It walks every cross-cutting decision in NextAurora — *why* this stack, *why* this API style, *what trade-offs were accepted*. Every section ties back to the canonical rules in [CLAUDE.md](../CLAUDE.md); the perf-specific decisions live in [performance-and-data-correctness.md](performance-and-data-correctness.md).
 
 ## Table of Contents
 
@@ -24,7 +24,7 @@ This is the interview-ready companion to [docs/ef-core.md](ef-core.md). It walks
 - [18. Testing — xUnit + AwesomeAssertions + NSubstitute + Testcontainers](#18-testing--xunit--awesomeassertions--nsubstitute--testcontainers)
 - [19. Build system & static analysis](#19-build-system--static-analysis)
 - [20. Library decisions reference table](#20-library-decisions-reference-table)
-- [21. Interview crib sheet](#21-interview-crib-sheet)
+- [21. Crib sheet](#21-crib-sheet)
 
 ---
 
@@ -38,7 +38,7 @@ NextAurora is a .NET 10 / C# 13 microservices platform. The decisions in this do
 - How EF Core is used specifically → [ef-core.md](ef-core.md)
 - Cross-session state → [STATUS.md](STATUS.md)
 
-This doc is the **map of the technical decisions** with the *rationale* for each. For interview prep, sections 4, 12, 13, 16, and the library table are the most discussion-rich.
+This doc is the **map of the technical decisions** with the *rationale* for each. For a quick deep-dive, sections 4, 12, 13, 16, and the library table are the most discussion-rich.
 
 ---
 
@@ -61,7 +61,7 @@ NextAurora/
 
 ### Why microservices and not modular monolith
 
-Milan Jovanović's book *Modular Monolith Architecture* (which this project shares many tactical patterns with — see the [comparison](#21-interview-crib-sheet)) argues "**always start with at least schema-level data isolation in one process**." Our shape goes further — separate processes, separate databases per service, separate deployment artifacts.
+Milan Jovanović's book *Modular Monolith Architecture* (which this project shares many tactical patterns with — see the [comparison](#21-crib-sheet)) argues "**always start with at least schema-level data isolation in one process**." Our shape goes further — separate processes, separate databases per service, separate deployment artifacts.
 
 **Honest answer:** for a *real* greenfield production system, his recommendation is correct. We picked microservices-from-day-one because the project's *purpose* is demonstrating distributed-system patterns in their natural habitat:
 
@@ -1005,9 +1005,9 @@ The full inventory of significant non-Microsoft libraries, what they do, why we 
 
 ---
 
-## 21. Interview crib sheet
+## 21. Crib sheet
 
-Talking points organized for fluency. Each maps to a section above.
+Talking points organized for fluency — useful as a refresher or for explaining the system out loud. Each maps to a section above.
 
 ### "Walk me through the architecture."
 

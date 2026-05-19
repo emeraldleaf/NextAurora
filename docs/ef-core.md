@@ -1,6 +1,6 @@
 # EF Core in NextAurora — Specification & Practice
 
-This is the interview-ready guide to how NextAurora uses EF Core: what we do, why we do it, the trade-offs we accepted, and the rules a reviewer should expect to see honored in any PR that touches data access.
+This is the reference guide to how NextAurora uses EF Core: what we do, why we do it, the trade-offs we accepted, and the rules a reviewer should expect to see honored in any PR that touches data access.
 
 The hard rules summarized at the end of this doc are codified in [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules); deeper background lives in [docs/performance-and-data-correctness.md](performance-and-data-correctness.md). When this doc and CLAUDE.md disagree, CLAUDE.md wins.
 
@@ -27,7 +27,7 @@ The hard rules summarized at the end of this doc are codified in [CLAUDE.md "Per
 - [19. Dapper escape hatch](#19-dapper-escape-hatch)
 - [20. HybridCache invalidation in the write path](#20-hybridcache-invalidation-in-the-write-path)
 - [21. Hard rules summary (CLAUDE.md)](#21-hard-rules-summary-claudemd)
-- [22. Interview crib sheet](#22-interview-crib-sheet)
+- [22. Crib sheet](#22-crib-sheet)
 
 ---
 
@@ -177,7 +177,7 @@ entity.HasIndex(e => e.BuyerId);
 
 ## 5. Concurrency tokens — `xmin` vs `RowVersion`
 
-**This is the most-likely-to-be-asked topic in an interview.** Know it cold.
+**This is one of the most load-bearing topics in the system.** Know it cold.
 
 ### 5.1 The problem optimistic concurrency solves
 
@@ -420,7 +420,7 @@ If a migration was wrong, **write a new migration that fixes it**. The old one s
 
 Doing all three steps in one migration is the classic "we shipped at 3pm and the API was down by 3:05" story — during the rolling deploy, old pods crash on the missing column while new pods are still rolling out.
 
-### 6.8 Quick concept checks (interview-style)
+### 6.8 Quick concept checks
 
 - **What does `__EFMigrationsHistory` do?** Tracks which migrations have been applied to *this specific database*, so EF knows what to skip on the next `Migrate()` call.
 - **What's the snapshot file for?** Two different snapshot files. `CatalogDbContextModelSnapshot.cs` is the live model state EF compares against when generating the *next* migration. The per-migration `*.Designer.cs` is the frozen model state at the time of that migration, used for things like `dotnet ef migrations script --idempotent`.
@@ -1066,7 +1066,7 @@ Full design: [docs/performance-and-data-correctness.md "Decision: distributed re
 
 ## 21. Hard rules summary (CLAUDE.md)
 
-For interview quick-reference. All from [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules).
+Quick-reference. All from [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules).
 
 | # | Rule | Why |
 |---|---|---|
@@ -1091,9 +1091,9 @@ Plus the Dapper escape-hatch rule:
 
 ---
 
-## 22. Interview crib sheet
+## 22. Crib sheet
 
-Talking points, organized for fluency. Each maps to a section above.
+Talking points, organized for fluency — useful as a refresher or for explaining the system out loud. Each maps to a section above.
 
 ### "How do you handle concurrency in EF Core?"
 
