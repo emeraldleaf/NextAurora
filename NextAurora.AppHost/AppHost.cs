@@ -131,7 +131,7 @@ WithOptionalAppInsights(
 
 // NotificationService is stateless — no DB reference, just messaging + telemetry.
 WithOptionalAppInsights(
-    builder.AddProject<Projects.NotificationService_Api>("notification-service")
+    builder.AddProject<Projects.NotificationService>("notification-service")
         .WithReference(serviceBus).WaitFor(serviceBus), appInsights);
 
 // --- Frontend ---

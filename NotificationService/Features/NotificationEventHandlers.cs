@@ -1,7 +1,6 @@
 using NextAurora.Contracts.Events;
-using NotificationService.Application.Commands;
 
-namespace NotificationService.Application.EventHandlers;
+namespace NotificationService.Features;
 
 /// <summary>
 /// Three event handlers in one class. Each <c>Handle</c> overload converts a domain event from
@@ -10,19 +9,17 @@ namespace NotificationService.Application.EventHandlers;
 ///
 /// <para>
 /// <b>Why merged:</b> each handler is pure event-to-command mapping with no state and no
-/// branching beyond string formatting. Splitting them into separate classes was uniform with
-/// the other services but didn't earn its keep here. If one of these grows real logic
-/// (lookup against a user-prefs cache, channel selection, A/B copy), promote it back into its
-/// own file at that point.
+/// branching beyond string formatting. Splitting them into separate classes would be uniform
+/// with the saga services (OrderService) but doesn't earn its keep here. If one of these grows
+/// real logic (lookup against a user-prefs cache, channel selection, A/B copy), promote it
+/// back into its own file at that point.
 /// </para>
 /// <para>
 /// <b>Placeholder recipient lookup:</b> the emails below are deterministic fakes derived from
 /// the event's IDs. There used to be an <c>IRecipientResolver</c> abstraction with a stub
 /// implementation that returned the same shape — deleted because the stub didn't enforce any
 /// contract that mattered. When a real recipient lookup lands (gRPC to a user service, local
-/// cache hydrated from <c>UserCreated</c> events), introduce the seam then: handlers gain a
-/// constructor dependency and return <c>null</c> when the buyer isn't found (Wolverine treats
-/// null as "no message to dispatch").
+/// cache hydrated from <c>UserCreated</c> events), introduce the seam then.
 /// </para>
 /// </summary>
 public static class NotificationEventHandlers

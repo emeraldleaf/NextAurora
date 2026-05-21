@@ -1,14 +1,22 @@
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
-using NotificationService.Application.Interfaces;
 
-namespace NotificationService.Application.Commands;
+namespace NotificationService.Features;
 
 /// <summary>
-/// The command — produced by every notification event handler in this service. Travels through
-/// Wolverine's pipeline like any other command. Could also be sent directly to the
-/// <c>send-notification</c> Service Bus queue from any other service that wants to trigger an
-/// ad-hoc notification.
+/// The "send notification" vertical slice — command, port, and handler co-located.
+///
+/// <para>
+/// <b>Why everything in one file:</b> VSA puts the things that change together in one place.
+/// The record, its handler, and the port the handler depends on all move together if this
+/// feature changes. There's no project boundary to enforce — discipline does the work that
+/// Clean Architecture's layer-projects used to do. Trade: less compile-time enforcement,
+/// faster orientation on "show me the SendNotification flow."
+/// </para>
+/// <para>
+/// <b>No domain aggregate:</b> stateless service, no persisted state worth protecting. See the
+/// CLAUDE.md "Rich Domain Entities (when warranted)" rule.
+/// </para>
 /// </summary>
 public record SendNotificationRequest(
     Guid RecipientId,
@@ -18,29 +26,20 @@ public record SendNotificationRequest(
     string Channel = "Email");
 
 /// <summary>
-/// Single point of egress for notifications: every <see cref="SendNotificationRequest"/>
-/// (whether produced by an event handler or sent directly to the queue) lands here. One handler
-/// owns the actual delivery, increments the metric, and decides what counts as a permanent
-/// vs transient failure.
-///
-/// <para>
-/// <b>SOLID — Single Responsibility:</b> this handler doesn't know what triggered the request
-/// (order placed? payment failed? admin push?) — that's the calling event handler's concern.
-/// It just delivers. <c>INotificationSender</c> is in turn the abstraction that hides whether
-/// we're using SMTP, SendGrid, or the dev-time console sink.
-/// </para>
-/// <para>
-/// <b>No domain aggregate:</b> earlier this handler created an in-memory <c>NotificationRequest</c>
-/// entity to track Sent/Failed transitions. Since the service is stateless and nothing observed
-/// those transitions, the aggregate was deleted. If persistent delivery audit becomes a real
-/// requirement, reintroduce a real aggregate backed by a DbContext — don't recreate the
-/// in-memory one. See CLAUDE.md ("Rich Domain Entities" — applies to aggregates with
-/// non-trivial, observable invariants).
-/// </para>
-/// <para>
-/// <b>Why we re-throw on failure:</b> Wolverine's retry policy on this handler chain treats a
-/// thrown exception as a transient failure and will redeliver.
-/// </para>
+/// Port for sending a notification through a delivery channel. Dev-time
+/// <c>ConsoleNotificationSender</c> logs instead of dispatching; production adapter (SendGrid,
+/// Twilio, SES) swaps in via DI without touching this feature.
+/// </summary>
+public interface INotificationSender
+{
+    Task SendAsync(string recipientEmail, string subject, string body, string channel, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Single point of egress for notifications. Every <see cref="SendNotificationRequest"/> —
+/// whether produced by an event handler or sent directly to the queue — lands here. Validates
+/// the email shape, delivers via <see cref="INotificationSender"/>, increments the metric,
+/// re-throws so Wolverine can retry on transient failures.
 /// </summary>
 public partial class SendNotificationHandler(
     INotificationSender sender,

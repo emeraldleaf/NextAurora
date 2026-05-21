@@ -19,7 +19,7 @@
     <ProjectReference Include="../OrderService/OrderService.Api/OrderService.Api.csproj" />
     <ProjectReference Include="../PaymentService/PaymentService.Api/PaymentService.Api.csproj" />
     <ProjectReference Include="../ShippingService/ShippingService.Api/ShippingService.Api.csproj" />
-    <ProjectReference Include="../NotificationService/NotificationService.Api/NotificationService.Api.csproj" />
+    <ProjectReference Include="../NotificationService/NotificationService.csproj" />
     <ProjectReference Include="../Storefront/Storefront.csproj" />
     <ProjectReference Include="../SellerPortal/SellerPortal.csproj" />
   </ItemGroup>

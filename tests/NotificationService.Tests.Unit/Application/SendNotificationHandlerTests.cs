@@ -2,8 +2,7 @@ using AwesomeAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using NotificationService.Application.Commands;
-using NotificationService.Application.Interfaces;
+using NotificationService.Features;
 
 namespace NotificationService.Tests.Unit.Application;
 

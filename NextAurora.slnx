@@ -6,9 +6,7 @@
     <Project Path="CatalogService/CatalogService.Infrastructure/CatalogService.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/NotificationService/">
-    <Project Path="NotificationService/NotificationService.Api/NotificationService.Api.csproj" />
-    <Project Path="NotificationService/NotificationService.Application/NotificationService.Application.csproj" />
-    <Project Path="NotificationService/NotificationService.Infrastructure/NotificationService.Infrastructure.csproj" />
+    <Project Path="NotificationService/NotificationService.csproj" />
   </Folder>
   <Folder Name="/OrderService/">
     <Project Path="OrderService/OrderService.Api/OrderService.Api.csproj" />

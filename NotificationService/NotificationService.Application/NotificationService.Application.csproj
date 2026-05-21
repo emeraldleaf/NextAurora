@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../NextAurora.Contracts/NextAurora.Contracts.csproj" />
-  </ItemGroup>
-</Project>

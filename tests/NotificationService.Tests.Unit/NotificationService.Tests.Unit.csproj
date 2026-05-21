@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../NotificationService/NotificationService.Application/NotificationService.Application.csproj" />
+    <ProjectReference Include="../../NotificationService/NotificationService.csproj" />
     <ProjectReference Include="../../NextAurora.Contracts/NextAurora.Contracts.csproj" />
   </ItemGroup>
 

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NextAurora.Contracts.Commands;
 using NextAurora.Contracts.Events;
-using NotificationService.Application.Commands;
+using NotificationService.Features;
 using NotificationService.Infrastructure;
 using Scalar.AspNetCore;
 using Wolverine;
@@ -25,7 +25,8 @@ builder.Host.UseWolverine(opts =>
     // Listen to direct command queue
     opts.ListenToAzureServiceBusQueue("send-notification");
 
-    opts.Discovery.IncludeAssembly(typeof(SendNotificationRequest).Assembly);
+    // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly,
+    // so no explicit IncludeAssembly call is needed.
     opts.Policies.LogMessageStarting(LogLevel.Information);
     opts.AddNextAuroraContextPropagation();
 });

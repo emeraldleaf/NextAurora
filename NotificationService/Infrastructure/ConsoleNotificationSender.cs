@@ -1,17 +1,17 @@
 using Microsoft.Extensions.Logging;
-using NotificationService.Application.Interfaces;
+using NotificationService.Features;
 
-namespace NotificationService.Infrastructure.Senders;
+namespace NotificationService.Infrastructure;
 
 /// <summary>
-/// Development implementation of <see cref="INotificationSender"/> — just logs the notification
-/// instead of dispatching it anywhere. Visible in the Aspire dashboard as structured log lines,
-/// making it easy to verify the saga is producing the right notifications during local runs.
+/// Development adapter for <see cref="INotificationSender"/> — logs the notification instead of
+/// dispatching it anywhere. Visible in the Aspire dashboard as structured log lines, making it
+/// easy to verify the saga is producing the right notifications during local runs.
 ///
 /// <para>
-/// <b>Open/Closed in practice:</b> in production, register a <c>SendGridNotificationSender</c>
-/// or <c>TwilioNotificationSender</c> instead of this — handlers don't change. The
-/// <see cref="INotificationSender"/> abstraction is the seam.
+/// In production, register a <c>SendGridNotificationSender</c>/<c>TwilioNotificationSender</c>
+/// instead — handlers don't change. The <see cref="INotificationSender"/> abstraction is the
+/// seam.
 /// </para>
 /// </summary>
 public partial class ConsoleNotificationSender(ILogger<ConsoleNotificationSender> logger) : INotificationSender

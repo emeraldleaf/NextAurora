@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.AzureServiceBus" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj" />
+    <ProjectReference Include="../NextAurora.Contracts/NextAurora.Contracts.csproj" />
+  </ItemGroup>
+</Project>

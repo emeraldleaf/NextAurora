@@ -1,6 +1,6 @@
 using AwesomeAssertions;
 using NextAurora.Contracts.Events;
-using NotificationService.Application.EventHandlers;
+using NotificationService.Features;
 
 namespace NotificationService.Tests.Unit.Application;
 
