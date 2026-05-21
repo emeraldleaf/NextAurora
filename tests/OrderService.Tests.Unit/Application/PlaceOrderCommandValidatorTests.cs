@@ -1,6 +1,5 @@
 using AwesomeAssertions;
-using OrderService.Application.Commands;
-using OrderService.Application.Validators;
+using OrderService.Features;
 
 namespace OrderService.Tests.Unit.Application;
 

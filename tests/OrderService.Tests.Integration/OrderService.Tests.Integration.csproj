@@ -20,10 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../OrderService/OrderService.Api/OrderService.Api.csproj" />
-    <ProjectReference Include="../../OrderService/OrderService.Application/OrderService.Application.csproj" />
-    <ProjectReference Include="../../OrderService/OrderService.Domain/OrderService.Domain.csproj" />
-    <ProjectReference Include="../../OrderService/OrderService.Infrastructure/OrderService.Infrastructure.csproj" />
+    <ProjectReference Include="../../OrderService/OrderService.csproj" />
     <ProjectReference Include="../../NextAurora.Contracts/NextAurora.Contracts.csproj" />
   </ItemGroup>
 

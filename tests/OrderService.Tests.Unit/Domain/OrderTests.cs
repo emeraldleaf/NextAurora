@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using OrderService.Domain.Entities;
+using OrderService.Domain;
 using OrderService.Tests.Unit.Builders;
 
 namespace OrderService.Tests.Unit.Domain;

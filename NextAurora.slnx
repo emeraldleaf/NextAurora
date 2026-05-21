@@ -9,10 +9,7 @@
     <Project Path="NotificationService/NotificationService.csproj" />
   </Folder>
   <Folder Name="/OrderService/">
-    <Project Path="OrderService/OrderService.Api/OrderService.Api.csproj" />
-    <Project Path="OrderService/OrderService.Application/OrderService.Application.csproj" />
-    <Project Path="OrderService/OrderService.Domain/OrderService.Domain.csproj" />
-    <Project Path="OrderService/OrderService.Infrastructure/OrderService.Infrastructure.csproj" />
+    <Project Path="OrderService/OrderService.csproj" />
   </Folder>
   <Folder Name="/PaymentService/">
     <Project Path="PaymentService/PaymentService.csproj" />

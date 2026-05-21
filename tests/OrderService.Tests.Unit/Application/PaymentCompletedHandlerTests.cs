@@ -1,9 +1,8 @@
 using AwesomeAssertions;
 using NSubstitute;
 using NextAurora.Contracts.Events;
-using OrderService.Application.EventHandlers;
-using OrderService.Domain.Entities;
-using OrderService.Domain.Interfaces;
+using OrderService.Features;
+using OrderService.Domain;
 using OrderService.Tests.Unit.Builders;
 
 namespace OrderService.Tests.Unit.Application;

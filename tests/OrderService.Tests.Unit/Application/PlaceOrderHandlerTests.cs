@@ -3,11 +3,8 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NextAurora.Contracts.DTOs;
 using NextAurora.Contracts.Events;
-using OrderService.Application.Commands;
-using OrderService.Application.Handlers;
-using OrderService.Application.Interfaces;
-using OrderService.Domain.Entities;
-using OrderService.Domain.Interfaces;
+using OrderService.Features;
+using OrderService.Domain;
 
 namespace OrderService.Tests.Unit.Application;
 

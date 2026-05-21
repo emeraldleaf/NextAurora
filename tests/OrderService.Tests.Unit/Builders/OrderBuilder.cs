@@ -1,4 +1,4 @@
-using OrderService.Domain.Entities;
+using OrderService.Domain;
 
 namespace OrderService.Tests.Unit.Builders;
 

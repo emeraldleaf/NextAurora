@@ -16,6 +16,6 @@
 
   <ItemGroup>
     <!-- Reference the projects whose code we want to benchmark. Add more as benchmarks grow. -->
-    <ProjectReference Include="../../OrderService/OrderService.Domain/OrderService.Domain.csproj" />
+    <ProjectReference Include="../../OrderService/OrderService.csproj" />
   </ItemGroup>
 </Project>

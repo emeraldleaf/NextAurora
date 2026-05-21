@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
-using OrderService.Application.Interfaces;
+using OrderService.Domain;
 using Testcontainers.MsSql;
 using Wolverine;
 using Xunit;

@@ -111,7 +111,7 @@ var catalogService = WithOptionalAppInsights(
 // OrderService also references catalogService — that gives it the gRPC client config to call
 // into Catalog for product validation during order placement.
 var orderService = WithOptionalAppInsights(
-    builder.AddProject<Projects.OrderService_Api>("order-service")
+    builder.AddProject<Projects.OrderService>("order-service")
         .WithReference(ordersDb).WaitFor(ordersDb)
         .WithReference(serviceBus).WaitFor(serviceBus)
         .WithReference(catalogService).WaitFor(catalogService), appInsights)

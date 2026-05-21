@@ -1,5 +1,5 @@
 using BenchmarkDotNet.Attributes;
-using OrderService.Domain.Entities;
+using OrderService.Domain;
 
 namespace NextAurora.Benchmarks;
 
