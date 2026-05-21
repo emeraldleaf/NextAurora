@@ -4,8 +4,7 @@ using JasperFx.Resources;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using NextAurora.Contracts.Events;
-using PaymentService.Api.Endpoints;
-using PaymentService.Application.Commands;
+using PaymentService.Endpoints;
 using PaymentService.Infrastructure;
 using PaymentService.Infrastructure.Data;
 using Scalar.AspNetCore;
@@ -51,13 +50,14 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
     opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 
-    opts.Discovery.IncludeAssembly(typeof(ProcessPaymentCommand).Assembly);
+    // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly,
+    // so no explicit IncludeAssembly call is needed.
     opts.UseFluentValidation();
     opts.Policies.LogMessageStarting(LogLevel.Information);
     opts.AddNextAuroraContextPropagation();
     opts.AddConcurrencyRetry();
 });
-builder.Services.AddValidatorsFromAssemblyContaining<ProcessPaymentCommand>();
+builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 builder.Services.AddPaymentInfrastructure(builder.Configuration);
 builder.Services.AddResourceSetupOnStartup();
 

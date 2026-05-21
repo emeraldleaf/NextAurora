@@ -1,4 +1,4 @@
-using PaymentService.Domain.Entities;
+using PaymentService.Domain;
 
 namespace PaymentService.Tests.Unit.Builders;
 

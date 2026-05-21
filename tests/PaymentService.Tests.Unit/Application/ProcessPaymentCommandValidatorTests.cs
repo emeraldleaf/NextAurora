@@ -1,6 +1,5 @@
 using AwesomeAssertions;
-using PaymentService.Application.Commands;
-using PaymentService.Application.Validators;
+using PaymentService.Features;
 
 namespace PaymentService.Tests.Unit.Application;
 

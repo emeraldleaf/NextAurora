@@ -1,18 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using PaymentService.Domain.Interfaces;
+using PaymentService.Domain;
 using PaymentService.Infrastructure.Data;
 using PaymentService.Infrastructure.Gateway;
-using PaymentService.Infrastructure.Messaging;
-using PaymentService.Infrastructure.Repositories;
 
 namespace PaymentService.Infrastructure;
 
 /// <summary>
-/// Composition root for PaymentService's Infrastructure layer. Three concrete adapters are
-/// registered against domain abstractions: the EF repository, the Stripe gateway (anti-corruption
-/// layer — see <see cref="StripePaymentGateway"/>), and the Wolverine event publisher.
+/// Composition root for PaymentService. Three concrete adapters registered against domain
+/// abstractions: the EF repository, the Stripe gateway (anti-corruption layer), and the
+/// Wolverine event publisher.
 /// </summary>
 public static class DependencyInjection
 {

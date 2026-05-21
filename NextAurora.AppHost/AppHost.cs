@@ -118,7 +118,7 @@ var orderService = WithOptionalAppInsights(
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);
 
 WithOptionalAppInsights(
-    builder.AddProject<Projects.PaymentService_Api>("payment-service")
+    builder.AddProject<Projects.PaymentService>("payment-service")
         .WithReference(paymentsDb).WaitFor(paymentsDb)
         .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);

@@ -1,6 +1,4 @@
-using PaymentService.Domain.Entities;
-
-namespace PaymentService.Domain.Interfaces;
+namespace PaymentService.Domain;
 
 public interface IPaymentRepository
 {

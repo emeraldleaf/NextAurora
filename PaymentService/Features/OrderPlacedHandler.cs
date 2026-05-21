@@ -1,7 +1,6 @@
 using NextAurora.Contracts.Events;
-using PaymentService.Application.Commands;
 
-namespace PaymentService.Application.EventHandlers;
+namespace PaymentService.Features;
 
 /// <summary>
 /// PaymentService's reaction to <see cref="OrderPlacedEvent"/>: convert the event into a

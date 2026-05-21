@@ -1,4 +1,4 @@
-namespace PaymentService.Domain.Entities;
+namespace PaymentService.Domain;
 
 /// <summary>
 /// The Payment aggregate root: one Payment per Order (enforced by a unique index in

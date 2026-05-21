@@ -1,13 +1,14 @@
 using System.Diagnostics.Metrics;
+using FluentValidation;
 using NextAurora.Contracts.Events;
-using PaymentService.Application.Commands;
-using PaymentService.Domain.Entities;
-using PaymentService.Domain.Interfaces;
+using PaymentService.Domain;
 
-namespace PaymentService.Application.Handlers;
+namespace PaymentService.Features;
 
 /// <summary>
-/// Handles the <see cref="ProcessPaymentCommand"/>. Two ways into this handler:
+/// "Process payment" vertical slice: command + validator + handler co-located.
+///
+/// <para>Two ways into this handler:</para>
 /// <list type="bullet">
 ///   <item>HTTP endpoint <c>POST /api/v1/payments/process</c> (admin/manual processing).</item>
 ///   <item>The saga: <c>OrderPlacedHandler</c> in this service receives <c>OrderPlacedEvent</c>
@@ -21,19 +22,20 @@ namespace PaymentService.Application.Handlers;
 /// The unique index on <c>OrderId</c> in <c>PaymentDbContext</c> is the database-level backstop
 /// if two redeliveries race past the existence check at the same instant.
 /// </para>
-/// <para>
-/// <b>Anti-corruption layer:</b> <c>IPaymentGateway</c> is our internal abstraction — its
-/// implementation (<c>StripePaymentGateway</c>) is what knows about the third-party API. The
-/// handler depends on the abstraction, not Stripe directly. If we add a second provider or
-/// swap Stripe for Adyen, the handler doesn't change.
-/// </para>
-/// <para>
-/// <b>Outcome split:</b> success and failure both produce events
-/// (<see cref="PaymentCompletedEvent"/> / <see cref="PaymentFailedEvent"/>) so downstream
-/// services (OrderService, ShippingService, NotificationService) can react. The metric counter
-/// is tagged with the <c>outcome</c> dimension for dashboard slicing.
-/// </para>
 /// </summary>
+public record ProcessPaymentCommand(Guid OrderId, decimal Amount, string Currency, Guid BuyerId);
+
+public class ProcessPaymentCommandValidator : AbstractValidator<ProcessPaymentCommand>
+{
+    public ProcessPaymentCommandValidator()
+    {
+        RuleFor(x => x.OrderId).NotEmpty();
+        RuleFor(x => x.Amount).GreaterThan(0);
+        RuleFor(x => x.Currency).NotEmpty().Length(3);
+        RuleFor(x => x.BuyerId).NotEmpty();
+    }
+}
+
 public class ProcessPaymentHandler(
     IPaymentRepository repository,
     IPaymentGateway gateway,

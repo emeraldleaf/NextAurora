@@ -1,9 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using PaymentService.Domain.Entities;
-using PaymentService.Domain.Interfaces;
+using PaymentService.Domain;
 using PaymentService.Infrastructure.Data;
 
-namespace PaymentService.Infrastructure.Repositories;
+namespace PaymentService.Infrastructure;
 
 /// <summary>
 /// EF Core implementation of <see cref="IPaymentRepository"/>. Both <see cref="GetByIdAsync"/>
@@ -17,12 +16,6 @@ public class PaymentRepository(PaymentDbContext context) : IPaymentRepository
     public async Task<Payment?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => await context.Payments.FirstOrDefaultAsync(p => p.Id == id, ct);
 
-    /// <summary>
-    /// Existence check used by the saga: when <c>OrderPlacedEvent</c> redelivers, the handler
-    /// calls this first and short-circuits if a Payment for this order already exists. Tracking
-    /// is on because the same handler path may load and update the entity later if no payment
-    /// existed yet.
-    /// </summary>
     public async Task<Payment?> GetByOrderIdAsync(Guid orderId, CancellationToken ct = default)
         => await context.Payments.FirstOrDefaultAsync(p => p.OrderId == orderId, ct);
 

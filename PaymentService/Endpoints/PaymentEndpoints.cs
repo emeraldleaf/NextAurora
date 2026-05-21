@@ -1,16 +1,14 @@
-using PaymentService.Application.Commands;
+using PaymentService.Features;
 using Wolverine;
 
-namespace PaymentService.Api.Endpoints;
+namespace PaymentService.Endpoints;
 
 /// <summary>
 /// HTTP endpoint for PaymentService. There's only one — most payment processing flows from the
 /// saga (<c>OrderPlacedHandler</c> → <c>ProcessPaymentCommand</c>), not from a direct HTTP call.
 /// This endpoint exists for admin/manual processing scenarios (replay, retry-by-hand).
 ///
-/// <para>
-/// <b>Two protections stacked:</b>
-/// </para>
+/// <para>Two protections stacked:</para>
 /// <list type="bullet">
 ///   <item><c>RequireRateLimiting("payments")</c> — fixed-window limiter (configured in Program.cs)
 ///         to prevent both abuse and the operational mistake of accidentally re-triggering a

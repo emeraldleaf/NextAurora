@@ -1,4 +1,4 @@
-namespace PaymentService.Domain.Interfaces;
+namespace PaymentService.Domain;
 
 public interface IEventPublisher
 {

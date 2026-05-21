@@ -18,9 +18,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../PaymentService/PaymentService.Domain/PaymentService.Domain.csproj" />
-    <ProjectReference Include="../../PaymentService/PaymentService.Application/PaymentService.Application.csproj" />
+    <ProjectReference Include="../../PaymentService/PaymentService.csproj" />
     <ProjectReference Include="../../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../NextAurora.Contracts/NextAurora.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,10 +1,8 @@
 using AwesomeAssertions;
 using NSubstitute;
 using NextAurora.Contracts.Events;
-using PaymentService.Application.Commands;
-using PaymentService.Application.Handlers;
-using PaymentService.Domain.Entities;
-using PaymentService.Domain.Interfaces;
+using PaymentService.Domain;
+using PaymentService.Features;
 
 namespace PaymentService.Tests.Unit.Application;
 

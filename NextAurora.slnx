@@ -15,10 +15,7 @@
     <Project Path="OrderService/OrderService.Infrastructure/OrderService.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/PaymentService/">
-    <Project Path="PaymentService/PaymentService.Api/PaymentService.Api.csproj" />
-    <Project Path="PaymentService/PaymentService.Application/PaymentService.Application.csproj" />
-    <Project Path="PaymentService/PaymentService.Domain/PaymentService.Domain.csproj" />
-    <Project Path="PaymentService/PaymentService.Infrastructure/PaymentService.Infrastructure.csproj" />
+    <Project Path="PaymentService/PaymentService.csproj" />
   </Folder>
   <Folder Name="/ShippingService/">
     <Project Path="ShippingService/ShippingService.csproj" />

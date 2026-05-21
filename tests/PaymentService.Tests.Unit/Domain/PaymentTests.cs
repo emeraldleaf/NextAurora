@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using PaymentService.Domain.Entities;
+using PaymentService.Domain;
 using PaymentService.Tests.Unit.Builders;
 
 namespace PaymentService.Tests.Unit.Domain;
