@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace ShippingService.Domain.Entities;
 
 /// <summary>
@@ -7,10 +9,18 @@ namespace ShippingService.Domain.Entities;
 /// never directly by application code).
 ///
 /// <para>
-/// State machine: <c>Created → Dispatched → InTransit → Delivered</c>. Each transition is one-way
-/// and gated by a status guard, mirroring the pattern used in <see cref="Order"/> and
-/// <see cref="Payment"/>. The <c>OrderId</c> column has a unique index in the DbContext —
-/// one shipment per order, enforced at the database level.
+/// State machine: <c>Created → Dispatched</c> — that's all the *live* transitions today.
+/// <see cref="ShipmentStatus"/> also defines <c>InTransit</c> and <c>Delivered</c> as scaffolding,
+/// and the DB carries a <see cref="DeliveredAt"/> column, but nothing produces those transitions
+/// (no carrier-polling job, no admin endpoint). The previous <c>MarkInTransit</c> /
+/// <c>MarkDelivered</c> methods were dead branches — only their own tests exercised them — so
+/// they were cut. When a real carrier callback or polling loop lands, add the methods back
+/// alongside the producer code, not before. Keeping the enum + column means no DB migration is
+/// needed when that day comes.
+/// </para>
+/// <para>
+/// The <c>OrderId</c> column has a unique index in the DbContext — one shipment per order,
+/// enforced at the database level.
 /// </para>
 /// </summary>
 public class Shipment
@@ -22,11 +32,13 @@ public class Shipment
     public ShipmentStatus Status { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? DispatchedAt { get; private set; }
+    // Schema-only for now — populated when MarkDelivered exists. See class doc.
+    [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "Setter is used by EF Core materialization; the writing call site lives in the not-yet-restored MarkDelivered method. See class-level doc.")]
     public DateTime? DeliveredAt { get; private set; }
 
-    // Mutable list because TrackingEvents are added internally as the shipment progresses
+    // Mutable list because TrackingEvents are added internally on each state transition
     // (see AddTrackingEvent below). Application code outside this aggregate should never
-    // touch this collection directly — go through Dispatch/MarkInTransit/MarkDelivered.
+    // touch this collection directly — go through Dispatch().
     public List<TrackingEvent> TrackingEvents { get; private set; } = [];
 
     private Shipment() { }
@@ -62,23 +74,6 @@ public class Shipment
         Status = ShipmentStatus.Dispatched;
         DispatchedAt = DateTime.UtcNow;
         AddTrackingEvent("Package dispatched");
-    }
-
-    public void MarkInTransit()
-    {
-        if (Status != ShipmentStatus.Dispatched)
-            throw new InvalidOperationException("Cannot mark shipment as in transit in the current status.");
-        Status = ShipmentStatus.InTransit;
-        AddTrackingEvent("Package in transit");
-    }
-
-    public void MarkDelivered()
-    {
-        if (Status != ShipmentStatus.InTransit)
-            throw new InvalidOperationException("Cannot mark shipment as delivered in the current status.");
-        Status = ShipmentStatus.Delivered;
-        DeliveredAt = DateTime.UtcNow;
-        AddTrackingEvent("Package delivered");
     }
 
     // Private helper: state transitions automatically log a tracking event for audit/customer

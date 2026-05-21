@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using NotificationService.Application.Commands;
-using NotificationService.Domain.Interfaces;
+using NotificationService.Application.Interfaces;
 
 namespace NotificationService.Tests.Unit.Application;
 
@@ -21,14 +21,11 @@ public class SendNotificationHandlerTests
     [Fact]
     public async Task Handle_WhenSenderSucceeds_CompletesWithoutError()
     {
-        // Arrange
         var request = new SendNotificationRequest(
             Guid.NewGuid(), "user@test.com", "Subject", "Body", "Email");
 
-        // Act
         var act = () => _sut.HandleAsync(request, CancellationToken.None);
 
-        // Assert
         await act.Should().NotThrowAsync();
         await _sender.Received(1).SendAsync("user@test.com", "Subject", "Body", "Email", Arg.Any<CancellationToken>());
     }
@@ -36,17 +33,31 @@ public class SendNotificationHandlerTests
     [Fact]
     public async Task Handle_WhenSenderThrows_RethrowsForRetry()
     {
-        // Arrange
         var request = new SendNotificationRequest(
             Guid.NewGuid(), "user@test.com", "Subject", "Body", "Email");
         _sender.SendAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("SMTP error"));
 
-        // Act
         var act = () => _sut.HandleAsync(request, CancellationToken.None);
 
-        // Assert — exceptions must propagate so Wolverine can retry or dead-letter
+        // Exceptions must propagate so Wolverine can retry or dead-letter.
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("SMTP error");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("not-an-email")]
+    public async Task Handle_WhenEmailMalformed_Throws(string badEmail)
+    {
+        var request = new SendNotificationRequest(
+            Guid.NewGuid(), badEmail, "Subject", "Body", "Email");
+
+        var act = () => _sut.HandleAsync(request, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentException>();
+        await _sender.DidNotReceive().SendAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

@@ -1,4 +1,5 @@
 using CatalogService.Application.Interfaces;
+using CatalogService.Application.Mappers;
 using CatalogService.Application.Queries;
 using CatalogService.Domain.Interfaces;
 using NextAurora.Contracts.DTOs;
@@ -29,20 +30,7 @@ public class GetProductByIdHandler(IProductRepository repository, IProductCache 
         return cache.GetOrLoadAsync(request.ProductId, async ct =>
         {
             var product = await repository.GetByIdAsync(request.ProductId, ct);
-            if (product is null) return null;
-
-            return new ProductDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Description = product.Description,
-                Price = product.Price,
-                Currency = product.Currency,
-                Category = product.Category?.Name ?? "",
-                SellerId = product.SellerId,
-                StockQuantity = product.StockQuantity,
-                IsAvailable = product.IsAvailable
-            };
+            return product is null ? null : ProductMapper.ToDto(product);
         }, cancellationToken);
     }
 }

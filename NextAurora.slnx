@@ -8,7 +8,6 @@
   <Folder Name="/NotificationService/">
     <Project Path="NotificationService/NotificationService.Api/NotificationService.Api.csproj" />
     <Project Path="NotificationService/NotificationService.Application/NotificationService.Application.csproj" />
-    <Project Path="NotificationService/NotificationService.Domain/NotificationService.Domain.csproj" />
     <Project Path="NotificationService/NotificationService.Infrastructure/NotificationService.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/OrderService/">

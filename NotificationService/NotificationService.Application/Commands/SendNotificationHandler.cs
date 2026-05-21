@@ -1,7 +1,6 @@
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
-using NotificationService.Domain.Entities;
-using NotificationService.Domain.Interfaces;
+using NotificationService.Application.Interfaces;
 
 namespace NotificationService.Application.Commands;
 
@@ -31,15 +30,16 @@ public record SendNotificationRequest(
 /// we're using SMTP, SendGrid, or the dev-time console sink.
 /// </para>
 /// <para>
-/// <b>Why we re-throw on failure:</b> Wolverine's retry policy on this handler chain treats a
-/// thrown exception as a transient failure and will redeliver. The notification is still
-/// marked as Failed in the local <see cref="NotificationRequest"/> aggregate, but since this
-/// service is currently stateless, that audit trail is in-memory only. Once we add a DB,
-/// failed notifications get an audit row that survives the retry.
+/// <b>No domain aggregate:</b> earlier this handler created an in-memory <c>NotificationRequest</c>
+/// entity to track Sent/Failed transitions. Since the service is stateless and nothing observed
+/// those transitions, the aggregate was deleted. If persistent delivery audit becomes a real
+/// requirement, reintroduce a real aggregate backed by a DbContext — don't recreate the
+/// in-memory one. See CLAUDE.md ("Rich Domain Entities" — applies to aggregates with
+/// non-trivial, observable invariants).
 /// </para>
 /// <para>
-/// <b>Source-generated logging</b> for both the success and failure paths — see the
-/// <see cref="StripePaymentGateway"/> notes for why this matters on hot paths.
+/// <b>Why we re-throw on failure:</b> Wolverine's retry policy on this handler chain treats a
+/// thrown exception as a transient failure and will redeliver.
 /// </para>
 /// </summary>
 public partial class SendNotificationHandler(
@@ -51,15 +51,19 @@ public partial class SendNotificationHandler(
 
     public async Task HandleAsync(SendNotificationRequest request, CancellationToken cancellationToken)
     {
-        // Domain validation up-front — bad inputs throw before we hit any delivery infrastructure.
-        var notification = NotificationRequest.Create(
-            request.RecipientId, request.RecipientEmail, request.Channel,
-            request.Subject, request.Body);
+        // Minimal-but-real email shape check. Full RFC 5322 validation isn't necessary or useful
+        // — most "valid" RFC addresses are still wrong in practice. A '@' and a length cap
+        // catches the obviously-broken cases without false positives.
+        if (string.IsNullOrWhiteSpace(request.RecipientEmail)
+            || !request.RecipientEmail.Contains('@', StringComparison.Ordinal)
+            || request.RecipientEmail.Length > 254)
+        {
+            throw new ArgumentException("Invalid email address format.", nameof(request));
+        }
 
         try
         {
             await sender.SendAsync(request.RecipientEmail, request.Subject, request.Body, request.Channel, cancellationToken);
-            notification.MarkAsSent();
 
             // Channel tag on the metric lets us slice success rate by Email/SMS/Push if we
             // ever add other channels.
@@ -68,9 +72,8 @@ public partial class SendNotificationHandler(
         }
         catch (Exception ex)
         {
-            // Mark and re-throw: the retry happens at the Wolverine layer; we just record the
+            // Log and re-throw: the retry happens at the Wolverine layer; we just record the
             // attempt's failure. Without re-throwing, retries wouldn't fire.
-            notification.MarkAsFailed();
             LogNotificationFailed(logger, ex, request.RecipientEmail);
             throw;
         }

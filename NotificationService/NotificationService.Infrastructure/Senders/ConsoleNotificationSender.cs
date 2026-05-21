@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using NotificationService.Domain.Interfaces;
+using NotificationService.Application.Interfaces;
 
 namespace NotificationService.Infrastructure.Senders;
 

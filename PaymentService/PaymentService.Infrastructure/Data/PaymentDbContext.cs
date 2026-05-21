@@ -20,7 +20,6 @@ namespace PaymentService.Infrastructure.Data;
 public class PaymentDbContext(DbContextOptions<PaymentDbContext> options) : DbContext(options)
 {
     public DbSet<Payment> Payments => Set<Payment>();
-    public DbSet<Refund> Refunds => Set<Refund>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,19 +36,6 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options) : DbCo
             // One Payment per Order — see class summary.
             entity.HasIndex(e => e.OrderId).IsUnique();
 
-            entity.Property<byte[]>("RowVersion").IsRowVersion();
-        });
-
-        modelBuilder.Entity<Refund>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Amount).HasPrecision(18, 2);
-            entity.Property(e => e.Reason).HasMaxLength(500);
-            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
-
-            // Refund is its own aggregate (multiple refunds per payment may be valid in the
-            // future — partial refunds), so it gets its own concurrency token rather than
-            // relying on the parent Payment's.
             entity.Property<byte[]>("RowVersion").IsRowVersion();
         });
     }

@@ -41,7 +41,6 @@ public static class DependencyInjection
         // Repository registrations: scoped lifetime so the repository and its DbContext share
         // the same scope and therefore the same DbContext instance.
         services.AddScoped<IProductRepository, ProductRepository>();
-        services.AddScoped<ICategoryRepository, CategoryRepository>();
 
         // Two-tier cache for product reads (L1 MemoryCache + L2 Redis via IDistributedCache,
         // managed together by HybridCache). HybridCache itself is registered in Program.cs via

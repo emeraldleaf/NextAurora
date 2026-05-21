@@ -1,6 +1,7 @@
+using CatalogService.Application.Mappers;
+using CatalogService.Application.Queries;
 using CatalogService.Domain.Interfaces;
 using NextAurora.Contracts.DTOs;
-using CatalogService.Application.Queries;
 
 namespace CatalogService.Application.Handlers;
 
@@ -9,17 +10,6 @@ public class SearchProductsHandler(IProductRepository repository)
     public async Task<IReadOnlyList<ProductDto>> HandleAsync(SearchProductsQuery request, CancellationToken cancellationToken)
     {
         var products = await repository.SearchAsync(request.Query, request.Page, request.PageSize, cancellationToken);
-        return products.Select(p => new ProductDto
-        {
-            Id = p.Id,
-            Name = p.Name,
-            Description = p.Description,
-            Price = p.Price,
-            Currency = p.Currency,
-            Category = p.Category?.Name ?? "",
-            SellerId = p.SellerId,
-            StockQuantity = p.StockQuantity,
-            IsAvailable = p.IsAvailable
-        }).ToList();
+        return products.Select(ProductMapper.ToDto).ToList();
     }
 }

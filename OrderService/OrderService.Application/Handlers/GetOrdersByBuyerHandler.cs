@@ -1,4 +1,5 @@
 using NextAurora.Contracts.DTOs;
+using OrderService.Application.Mappers;
 using OrderService.Application.Queries;
 using OrderService.Domain.Interfaces;
 
@@ -9,21 +10,6 @@ public class GetOrdersByBuyerHandler(IOrderRepository repository)
     public async Task<IReadOnlyList<OrderSummaryDto>> HandleAsync(GetOrdersByBuyerQuery request, CancellationToken cancellationToken)
     {
         var orders = await repository.GetByBuyerIdAsync(request.BuyerId, request.Page, request.PageSize, cancellationToken);
-        return orders.Select(order => new OrderSummaryDto
-        {
-            OrderId = order.Id,
-            BuyerId = order.BuyerId,
-            Status = order.Status.ToString(),
-            TotalAmount = order.TotalAmount,
-            Currency = order.Currency,
-            PlacedAt = order.PlacedAt,
-            Lines = order.Lines.Select(l => new OrderLineSummaryDto
-            {
-                ProductId = l.ProductId,
-                ProductName = l.ProductName,
-                Quantity = l.Quantity,
-                UnitPrice = l.UnitPrice
-            }).ToList()
-        }).ToList();
+        return orders.Select(OrderSummaryMapper.ToDto).ToList();
     }
 }
