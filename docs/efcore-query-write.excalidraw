@@ -427,8 +427,8 @@
 
     {
       "type": "text", "id": "footer", "x": 40, "y": 1030, "width": 1500, "height": 30,
-      "text": "Source: CatalogService.Infrastructure/Data/CatalogDbContext.cs · OrderService.Infrastructure/Data/OrderDbContext.cs · NextAurora.ServiceDefaults/{GlobalExceptionHandler,Extensions}.cs · docs/ef-core.md §5 §8",
-      "originalText": "Source: CatalogService.Infrastructure/Data/CatalogDbContext.cs · OrderService.Infrastructure/Data/OrderDbContext.cs · NextAurora.ServiceDefaults/{GlobalExceptionHandler,Extensions}.cs · docs/ef-core.md §5 §8",
+      "text": "Source: CatalogService.Infrastructure/Data/CatalogDbContext.cs · OrderService/Infrastructure/Data/OrderDbContext.cs · NextAurora.ServiceDefaults/{GlobalExceptionHandler,Extensions}.cs · docs/ef-core.md §5 §8",
+      "originalText": "Source: CatalogService.Infrastructure/Data/CatalogDbContext.cs · OrderService/Infrastructure/Data/OrderDbContext.cs · NextAurora.ServiceDefaults/{GlobalExceptionHandler,Extensions}.cs · docs/ef-core.md §5 §8",
       "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#64748b", "backgroundColor": "transparent",
       "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,

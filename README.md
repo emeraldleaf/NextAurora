@@ -169,34 +169,43 @@ NextAurora/
   NextAurora.AppHost/          # Aspire orchestrator
   NextAurora.ServiceDefaults/  # Shared OpenTelemetry, health checks, resilience
   NextAurora.Contracts/        # Shared events, commands, DTOs
-  CatalogService/
+  CatalogService/             # Clean Architecture (largest service)
     CatalogService.Domain/        # Entities, interfaces
-    CatalogService.Application/   # CQRS handlers
-    CatalogService.Infrastructure/# EF Core, repositories
+    CatalogService.Application/   # CQRS handlers, mappers
+    CatalogService.Infrastructure/# EF Core, repositories, caching
     CatalogService.Api/           # Endpoints, gRPC server
-  OrderService/
-    OrderService.Domain/
-    OrderService.Application/
-    OrderService.Infrastructure/
-    OrderService.Api/             # Endpoints, gRPC client
-  PaymentService/
-    PaymentService.Domain/
-    PaymentService.Application/
-    PaymentService.Infrastructure/
-    PaymentService.Api/
-  ShippingService/
-    ShippingService.Domain/
-    ShippingService.Application/
-    ShippingService.Infrastructure/
-    ShippingService.Api/
-  NotificationService/
-    NotificationService.Domain/
-    NotificationService.Application/
-    NotificationService.Infrastructure/
-    NotificationService.Api/
+  OrderService/               # Vertical Slice Architecture (single project)
+    Features/                     # One file per use case: PlaceOrder.cs, GetOrderById.cs, saga handlers
+    Domain/                       # Order aggregate, OrderLine, ports
+    Infrastructure/               # EF Core (Data/ + Migrations/), repositories, gRPC client
+    Endpoints/                    # Minimal-API HTTP surface
+    Program.cs                    # Composition root
+  PaymentService/             # VSA
+    Features/                     # ProcessPayment.cs (command + validator + handler), OrderPlacedHandler.cs
+    Domain/                       # Payment aggregate, ports (incl. IPaymentGateway)
+    Infrastructure/               # EF Core, repository, Stripe ACL (Gateway/), Wolverine adapter
+    Endpoints/
+    Program.cs
+  ShippingService/            # VSA
+    Features/                     # CreateShipment.cs, GetShipmentByOrder.cs, PaymentCompletedHandler.cs
+    Domain/                       # Shipment aggregate, TrackingEvent, ports
+    Infrastructure/               # EF Core, repository, Wolverine adapter
+    Endpoints/
+    Program.cs
+  NotificationService/        # VSA — smallest service, stateless
+    Features/                     # SendNotification.cs (record + port + handler), NotificationEventHandlers.cs
+    Infrastructure/               # ConsoleNotificationSender, DI
+    Program.cs
   Storefront/                 # Blazor WASM customer app (scaffold)
   SellerPortal/               # ASP.NET Core static-file host scaffold (UI framework TBD)
 ```
+
+**Why two shapes:** the cross-service diff is intentional. CatalogService is
+the largest service (multiple aggregates, caching, gRPC, optimistic concurrency)
+and earns the four-project Clean Architecture split. The other four services
+are smaller (≤2 aggregates each) and got more value from VSA's "find everything
+related to PlaceOrder in one folder" than from build-time layer enforcement.
+See [CLAUDE.md](CLAUDE.md#project-structure) "Project Structure" for the decision rule.
 
 ## Event Flow
 
@@ -321,12 +330,13 @@ If Keycloak isn't configured (no `Authentication:Authority` and no `Keycloak:Url
 | [Architecture](docs/architecture.md) | Service diagrams, communication matrix, domain model, design patterns |
 | [Performance & Data Correctness](docs/performance-and-data-correctness.md) | Hard rules + decisions: AsNoTracking strategy, optimistic concurrency tokens, Wolverine outbox, HybridCache, Dapper escape hatch |
 | [EF Core: Spec & Practice](docs/ef-core.md) | Reference guide: how we use EF Core, every decision + trade-off + code example, from concurrency tokens to the Dapper escape hatch |
+| [Modern .NET 10 / C# 13 Features in Use](docs/dotnet-10-features.md) | Reference of the modern .NET features actively used in NextAurora — HybridCache, primary constructors, collection expressions, Asp.Versioning.Http, IExceptionHandler, Wolverine over MediatR+MassTransit, etc. Anchored in file:line. |
 | [Project Decisions — API, Libraries, Architecture](docs/project-decisions.md) | Reference guide: cross-cutting decisions — Minimal APIs, URL versioning, Wolverine vs MediatR, HybridCache, Keycloak, observability, every library pick + alternative considered |
 | [Observability](docs/observability.md) | Correlation/user/session ID propagation, distributed tracing, Wolverine handler logging, DLQ handling, metrics |
 | [Event Replay](docs/event-replay.md) | Wolverine outbox state, where to inspect outgoing/dead-letter envelopes, `IMessageStore` API |
 | [Business Requirements](docs/BRD.md) | Functional requirements, implementation status, business processes, glossary |
 | [Demo Deployment (recipe)](docs/demo-deployment.md) | One-time setup checklist for deploying CatalogService to Fly.io or AWS App Runner with Scalar exposed |
-| [Demo Deployment (story)](docs/demo-deployment-story.md) | Narrative of what we actually did to deploy live at https://catalog-api-demo.fly.dev — decisions, gotchas, EF migration trade-offs, talking points |
+| [Demo Deployment (story)](docs/demo-deployment-story.md) | Narrative of what we actually did to deploy live at https://catalog-api-demo.fly.dev — decisions, gotchas, EF migration trade-offs |
 | [Project Status](docs/STATUS.md) | Cross-session entry point — recently landed, next, open issues |
 
 ### Reference diagrams

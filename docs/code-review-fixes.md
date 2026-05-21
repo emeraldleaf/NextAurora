@@ -9,7 +9,7 @@ This document describes the 6 issues identified during code review and the fixes
 **Fix:** Added a `GetByOrderIdAsync()` lookup at the start of the handler. If a payment already exists for the order, the handler returns the existing payment's ID without creating a new one or calling the payment gateway.
 
 **Files changed:**
-- `PaymentService/PaymentService.Application/Handlers/ProcessPaymentHandler.cs`
+- `PaymentService/Features/ProcessPayment.cs`
 
 ```csharp
 var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
@@ -26,9 +26,9 @@ if (existing is not null)
 **Fix:** Added a `ReserveStockAsync` gRPC endpoint to the CatalogService that atomically checks and deducts stock. The `PlaceOrderHandler` now calls this after the availability check. If reservation fails (e.g., another request took the last units), the order is rejected.
 
 **Files changed:**
-- `OrderService/OrderService.Application/Interfaces/ICatalogClient.cs` -- added `ReserveStockAsync` method
-- `OrderService/OrderService.Application/Handlers/PlaceOrderHandler.cs` -- calls `ReserveStockAsync` after validation
-- `OrderService/OrderService.Api/GrpcClients/GrpcCatalogClient.cs` -- gRPC client implementation
+- `OrderService/Domain/ICatalogClient.cs` -- added `ReserveStockAsync` method
+- `OrderService/Features/PlaceOrder.cs` -- calls `ReserveStockAsync` after validation
+- `OrderService/Infrastructure/GrpcCatalogClient.cs` -- gRPC client implementation
 - `CatalogService/CatalogService.Api/Protos/catalog.proto` -- added `ReserveStock` RPC definition
 - `CatalogService/CatalogService.Application/Commands/ReserveStockCommand.cs` -- new command
 - `CatalogService/CatalogService.Application/Handlers/ReserveStockHandler.cs` -- handler that calls `Product.AdjustStock()`
@@ -49,11 +49,11 @@ Both handlers now resolve recipient information before sending. If resolution fa
 A `StubRecipientResolver` is registered in infrastructure for development. In production, this would be replaced with a real implementation calling an Identity/User service.
 
 **Files changed:**
-- `NotificationService/NotificationService.Application/Interfaces/IRecipientResolver.cs` -- new interface + `RecipientInfo` record
-- `NotificationService/NotificationService.Infrastructure/Services/StubRecipientResolver.cs` -- stub implementation
-- `NotificationService/NotificationService.Infrastructure/DependencyInjection.cs` -- DI registration
-- `NotificationService/NotificationService.Application/EventHandlers/OrderPlacedNotificationHandler.cs` -- uses `IRecipientResolver`
-- `NotificationService/NotificationService.Application/EventHandlers/ShipmentDispatchedNotificationHandler.cs` -- uses `IRecipientResolver`
+- `NotificationService/Domain/IRecipientResolver.cs` -- new interface + `RecipientInfo` record
+- `NotificationService/Infrastructure/StubRecipientResolver.cs` -- stub implementation
+- `NotificationService/Infrastructure/DependencyInjection.cs` -- DI registration
+- `NotificationService/Features/OrderPlacedNotificationHandler.cs` -- uses `IRecipientResolver`
+- `NotificationService/Features/ShipmentDispatchedNotificationHandler.cs` -- uses `IRecipientResolver`
 
 ---
 
@@ -64,8 +64,8 @@ A `StubRecipientResolver` is registered in infrastructure for development. In pr
 **Fix:** Added status guards before calling the state transition methods. If the order is already in the target state (or beyond), the handler returns without modifying the order.
 
 **Files changed:**
-- `OrderService/OrderService.Application/EventHandlers/PaymentCompletedHandler.cs`
-- `OrderService/OrderService.Application/EventHandlers/ShipmentDispatchedHandler.cs`
+- `OrderService/Features/PaymentCompletedHandler.cs`
+- `OrderService/Features/ShipmentDispatchedHandler.cs`
 
 ```csharp
 // PaymentCompletedHandler
@@ -84,7 +84,7 @@ if (order.Status != OrderStatus.Paid) return;
 **Fix:** Added a `GetByOrderIdAsync()` lookup at the start of the handler. If a shipment already exists for the order, the handler returns the existing shipment's ID.
 
 **Files changed:**
-- `ShippingService/ShippingService.Application/Handlers/CreateShipmentHandler.cs`
+- `ShippingService/Features/CreateShipment.cs`
 
 ```csharp
 var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
@@ -105,9 +105,9 @@ if (existing is not null)
 **Fix:** Added parameter validation to all three factory methods following the patterns established in `Order.cs` and `Payment.cs`. Added state guards to all transition methods that throw `InvalidOperationException` when the entity is not in the expected status.
 
 **Files changed:**
-- `PaymentService/PaymentService.Domain/Entities/Refund.cs`
-- `ShippingService/ShippingService.Domain/Entities/Shipment.cs`
-- `NotificationService/NotificationService.Domain/Entities/NotificationRequest.cs`
+- `PaymentService/Domain/Refund.cs`
+- `ShippingService/Domain/Shipment.cs`
+- `NotificationService/Domain/NotificationRequest.cs`
 
 ### Refund validation added:
 ```csharp

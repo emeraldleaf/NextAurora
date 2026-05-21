@@ -81,7 +81,7 @@ When `OTEL_EXPORTER_OTLP_ENDPOINT` is configured, all traces are exported via OT
 A single trace for an order placement will show spans across:
 
 ```
-[OrderService.Api] POST /orders
+[OrderService] POST /orders
   └─ [OrderService] PlaceOrderCommand handler
        └─ [CatalogService gRPC] GetProduct / ReserveStock
        └─ [Azure.Messaging.ServiceBus] Send → order-events
@@ -230,10 +230,10 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 | `{Order,Payment,Catalog,Shipping}Service.Infrastructure/*.csproj` | Added EF Core health checks package reference |
 | `{Payment,Catalog,Shipping}Service.Application/*.csproj` | Added `Microsoft.Extensions.Logging.Abstractions` |
 | `{Order,Payment,Catalog,Shipping}Service.Api/Program.cs` | Registered `ContextPropagationMiddleware` + `Policies.LogMessageStarting()` in Wolverine pipeline |
-| `OrderService.Application/Handlers/PlaceOrderHandler.cs` | Increments `orders.placed` counter |
-| `PaymentService.Application/Handlers/ProcessPaymentHandler.cs` | Increments `payments.processed` counter with outcome tag |
-| `ShippingService.Application/Handlers/CreateShipmentHandler.cs` | Increments `shipments.dispatched` counter |
-| `NotificationService.Application/Commands/SendNotificationHandler.cs` | Increments `notifications.sent` counter with channel tag |
+| `OrderService/Features/PlaceOrder.cs` | Increments `orders.placed` counter |
+| `PaymentService/Features/ProcessPayment.cs` | Increments `payments.processed` counter with outcome tag |
+| `ShippingService/Features/CreateShipment.cs` | Increments `shipments.dispatched` counter |
+| `NotificationService/Features/SendNotification.cs` | Increments `notifications.sent` counter with channel tag |
 
 ---
 

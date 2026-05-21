@@ -7,7 +7,7 @@ This guide explains how the code is organized, how requests flow through the sys
 ## Table of Contents
 
 1. [Project Layout](#1-project-layout)
-2. [Clean Architecture in Every Service](#2-clean-architecture-in-every-service)
+2. [Per-Service Architecture: Clean Architecture or VSA](#2-per-service-architecture-clean-architecture-or-vsa)
 3. [Domain Model — Rich Entities with Guard Clauses](#3-domain-model--rich-entities-with-guard-clauses)
 4. [CQRS + Wolverine — The Request Pipeline](#4-cqrs--wolverine--the-request-pipeline)
 5. [A Complete Request: Placing an Order](#5-a-complete-request-placing-an-order)
@@ -30,16 +30,20 @@ NextAurora/
   NextAurora.ServiceDefaults/  # Shared middleware, telemetry, exception handling
   NextAurora.Contracts/        # Shared event classes and DTOs (cross-service contracts)
 
-  CatalogService/
+  CatalogService/               # Clean Architecture (largest service)
     CatalogService.Domain/         # Product, Category entities; repository interfaces
     CatalogService.Application/    # Commands, queries, Wolverine handlers, validators
-    CatalogService.Infrastructure/ # EF Core (PostgreSQL), repositories, HybridCache, gRPC server
+    CatalogService.Infrastructure/ # EF Core (PostgreSQL), repositories, HybridCache
     CatalogService.Api/            # ASP.NET Core host, REST endpoints, gRPC server
 
-  OrderService/       (same 4-layer structure, SQL Server)
-  PaymentService/     (same 4-layer structure, SQL Server)
-  ShippingService/    (same 4-layer structure, PostgreSQL)
-  NotificationService/(same 4-layer structure, no database)
+  OrderService/                 # Vertical Slice Architecture (single project, SQL Server)
+    Features/                      # PlaceOrder.cs, GetOrderById.cs, saga handlers
+    Domain/                        # Order aggregate, ports
+    Infrastructure/                # EF Core, repositories, gRPC client to Catalog
+    Endpoints/                     # Minimal-API HTTP surface
+  PaymentService/               # VSA (SQL Server)
+  ShippingService/              # VSA (PostgreSQL)
+  NotificationService/          # VSA (stateless, no database)
 
   Storefront/        # Blazor WASM — customer-facing SPA (scaffold only)
   SellerPortal/      # static-file host scaffold (UI framework not yet chosen)
@@ -54,9 +58,15 @@ NextAurora/
 
 ---
 
-## 2. Clean Architecture in Every Service
+## 2. Per-Service Architecture: Clean Architecture or VSA
 
-Every backend service uses the same four-layer structure. The dependency rule is strict and enforced by project references:
+NextAurora uses **two architectural shapes side-by-side**, calibrated to each service's
+complexity. The cross-service diff is intentional, not an inconsistency to clean up.
+
+### CatalogService — Clean Architecture (4 projects)
+
+The largest service uses the classic four-project split with the dependency rule enforced by
+project references at compile time:
 
 ```
 Domain          →  no dependencies
@@ -65,14 +75,33 @@ Infrastructure  →  Domain + Application
 Api             →  all layers (DI composition root)
 ```
 
-| Layer | What lives here |
+| Project | What lives there |
 |-------|----------------|
-| **Domain** | Entities, value objects, enums, repository interfaces, domain interfaces |
-| **Application** | Commands, queries, Wolverine handlers, FluentValidation validators, application interfaces (e.g. `IProductCache`) |
-| **Infrastructure** | EF Core `DbContext`, repositories, `HybridProductCache` (Catalog), gRPC server, external gateways (Stripe, etc.). Wolverine's transactional outbox and Service Bus transport are wired in `Api/Program.cs`, but the implementation lives transitively in `WolverineFx.AzureServiceBus` and `WolverineFx.{SqlServer,Postgresql}` — we don't hand-roll it. |
-| **Api** | ASP.NET Core `Program.cs`, endpoint mapping, gRPC services/clients, DI wiring, Wolverine bus configuration |
+| **Domain** | `Product`, `Category` entities; `IProductRepository` interface; domain types only — zero framework dependencies |
+| **Application** | `GetProductByIdQuery` + handler, `CreateProductCommand` + validator + handler, `ProductMapper`, `IProductCache` port |
+| **Infrastructure** | `CatalogDbContext`, `ProductRepository`, `HybridProductCache` (the L1+L2 implementation), DI registration |
+| **Api** | `Program.cs`, REST endpoints (`CatalogEndpoints`), gRPC server (`CatalogGrpcService`), rate limiter wiring |
 
-The **Domain** layer has zero dependencies on any framework. The **Application** layer only knows about domain types and its own command/query objects. Infrastructure concerns (databases, message brokers) are injected through interfaces defined in the Domain or Application layer.
+### Order / Payment / Shipping / Notification — Vertical Slice Architecture (1 project each)
+
+Smaller services collapsed to one csproj with code organized by *feature* instead of *layer*:
+
+```
+ServiceName/
+  Features/          # Per use case: command/query record + validator + handler co-located.
+                    # Saga event handlers live here too (they own real state machines).
+  Domain/            # Aggregate roots, value objects, ports (IFooRepository, IEventPublisher).
+  Infrastructure/    # EF Core (Data/ + Migrations/), repositories, gateways, DI composition.
+  Endpoints/         # Minimal-API HTTP surface.
+  Program.cs         # Composition root.
+```
+
+The Domain folder is just a folder (no build-time boundary). Discipline does the work
+compile-time project references used to. **`IFooRepository` and `IEventPublisher` ports stay**
+in both shapes — they're earning their keep through unit-test substitution, not the project
+boundary.
+
+See [CLAUDE.md "Project Structure"](../CLAUDE.md#project-structure) for the decision rule.
 
 ---
 
@@ -138,7 +167,7 @@ All business operations are expressed as either a **Command** (changes state, re
 // Application/Commands/PlaceOrderCommand.cs
 public record PlaceOrderCommand(Guid BuyerId, string Currency, List<OrderLineItem> Lines);
 
-// Application/Validators/PlaceOrderCommandValidator.cs
+// Features/PlaceOrder.cs
 public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
 {
     public PlaceOrderCommandValidator()
@@ -149,7 +178,7 @@ public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
     }
 }
 
-// Application/Handlers/PlaceOrderHandler.cs
+// Features/PlaceOrder.cs
 // No interface to implement. Wolverine discovers public classes whose
 // public *Async method matches a known message type as the parameter.
 public class PlaceOrderHandler(IOrderRepository repo, ICatalogClient catalog, /* ... */)
@@ -220,7 +249,7 @@ Authorization: Bearer <jwt>
 }
 ```
 
-The endpoint in [OrderService.Api/Endpoints/OrderEndpoints.cs](../OrderService/OrderService.Api/Endpoints/OrderEndpoints.cs) receives the request and dispatches the command through Wolverine. Routes are registered under a versioned route group (`/api/v1/...`) via the shared `MapV1ApiGroup` helper from `NextAurora.ServiceDefaults`:
+The endpoint in [OrderService/Endpoints/OrderEndpoints.cs](../OrderService/Endpoints/OrderEndpoints.cs) receives the request and dispatches the command through Wolverine. Routes are registered under a versioned route group (`/api/v1/...`) via the shared `MapV1ApiGroup` helper from `NextAurora.ServiceDefaults`:
 
 ```csharp
 var orders = app.MapV1ApiGroup("Orders", "orders").RequireAuthorization();
@@ -304,7 +333,7 @@ The system uses two different communication patterns depending on whether the ca
 Used when `PlaceOrderHandler` needs to validate products and reserve stock in real time.
 
 ```
-OrderService.Api  →  GrpcCatalogClient  →  (gRPC over HTTP/2)  →  CatalogService.Api  →  CatalogGrpcService
+OrderService  →  GrpcCatalogClient  →  (gRPC over HTTP/2)  →  CatalogService.Api  →  CatalogGrpcService
 ```
 
 **CatalogService** defines the contract in a `.proto` file and implements the gRPC server:
@@ -322,7 +351,7 @@ service CatalogGrpc {
 **OrderService** registers the generated gRPC client and wraps it in `GrpcCatalogClient`:
 
 ```csharp
-// OrderService.Api/Program.cs
+// OrderService/Program.cs
 builder.Services.AddGrpcClient<CatalogGrpc.CatalogGrpcClient>(o =>
 {
     o.Address = new Uri("https+http://catalog-service"); // Aspire service discovery

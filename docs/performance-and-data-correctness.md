@@ -90,7 +90,7 @@ See [decision: optimistic concurrency tokens](#decision-optimistic-concurrency-t
 
 **Spec (per CLAUDE.md):** the entity write and outbox-row write commit in the same transaction. Either both happen or neither does.
 
-**Where it applies:** All three command handlers that publish events ([PlaceOrderHandler](../OrderService/OrderService.Application/Handlers/PlaceOrderHandler.cs), [ProcessPaymentHandler](../PaymentService/PaymentService.Application/Handlers/ProcessPaymentHandler.cs), [CreateShipmentHandler](../ShippingService/ShippingService.Application/Handlers/CreateShipmentHandler.cs)). Implemented via Wolverine's transactional outbox — see [resolved: transactional outbox via Wolverine](#resolved-transactional-outbox-via-wolverine).
+**Where it applies:** All three command handlers that publish events ([PlaceOrderHandler](../OrderService/Features/PlaceOrder.cs), [ProcessPaymentHandler](../PaymentService/Features/ProcessPayment.cs), [CreateShipmentHandler](../ShippingService/Features/CreateShipment.cs)). Implemented via Wolverine's transactional outbox — see [resolved: transactional outbox via Wolverine](#resolved-transactional-outbox-via-wolverine).
 
 ### 8. `DbContext` is not thread-safe
 
@@ -169,7 +169,7 @@ entity.Property<uint>("xmin")
 ```
 - `xmin` is a system column on every Postgres row. The engine increments it on every write.
 - No schema change required. Works against existing tables immediately.
-- Configured in [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs) (Product, Category) and [ShippingDbContext.cs](../ShippingService/ShippingService.Infrastructure/Data/ShippingDbContext.cs) (Shipment).
+- Configured in [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs) (Product, Category) and [ShippingDbContext.cs](../ShippingService/Infrastructure/Data/ShippingDbContext.cs) (Shipment).
 
 **SQL Server services (Order, Payment):** shadow `byte[] RowVersion` column with `IsRowVersion()`.
 ```csharp
@@ -177,7 +177,7 @@ entity.Property<byte[]>("RowVersion").IsRowVersion();
 ```
 - Adds a real `rowversion` column. SQL Server auto-increments on insert/update.
 - **Requires a migration** to add the column. See [open issue: migration tooling](#open-issue-migration-tooling-not-wired-up).
-- Configured in [OrderDbContext.cs](../OrderService/OrderService.Infrastructure/Data/OrderDbContext.cs) (Order) and [PaymentDbContext.cs](../PaymentService/PaymentService.Infrastructure/Data/PaymentDbContext.cs) (Payment, Refund).
+- Configured in [OrderDbContext.cs](../OrderService/Infrastructure/Data/OrderDbContext.cs) (Order) and [PaymentDbContext.cs](../PaymentService/Infrastructure/Data/PaymentDbContext.cs) (Payment, Refund).
 
 ### Why not the same approach in both?
 
@@ -608,7 +608,7 @@ The `RowVersion` columns on Order/Payment (added during the concurrency-token wo
 ### What we set up
 
 - **`Microsoft.EntityFrameworkCore.Design`** package referenced from each `*.Infrastructure` project (and from `CatalogService.Api` directly, since Catalog doesn't transitively pull EF Design via Wolverine like the event-publishing services do).
-- **`IDesignTimeDbContextFactory<T>`** for each context: [OrderDbContextFactory.cs](../OrderService/OrderService.Infrastructure/Data/OrderDbContextFactory.cs), [PaymentDbContextFactory.cs](../PaymentService/PaymentService.Infrastructure/Data/PaymentDbContextFactory.cs), [CatalogDbContextFactory.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContextFactory.cs), [ShippingDbContextFactory.cs](../ShippingService/ShippingService.Infrastructure/Data/ShippingDbContextFactory.cs). Each reads a connection string from `ConnectionStrings__<dbname>` env var with a localhost fallback for design-time use only.
+- **`IDesignTimeDbContextFactory<T>`** for each context: [OrderDbContextFactory.cs](../OrderService/Infrastructure/Data/OrderDbContextFactory.cs), [PaymentDbContextFactory.cs](../PaymentService/Infrastructure/Data/PaymentDbContextFactory.cs), [CatalogDbContextFactory.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContextFactory.cs), [ShippingDbContextFactory.cs](../ShippingService/Infrastructure/Data/ShippingDbContextFactory.cs). Each reads a connection string from `ConnectionStrings__<dbname>` env var with a localhost fallback for design-time use only.
 - **`InitialCreate` migrations** generated for all four services. Concurrency tokens are baked in: `RowVersion` columns for the SQL Server services, `xmin` shadow properties for the Postgres services.
 - **`MigrateDatabaseAsync<T>()`** extension on `IServiceProvider` in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/Extensions.cs) — opens a scope, resolves the context, calls `Database.MigrateAsync`. Wired into each service's `Program.cs` inside the `app.Environment.IsDevelopment()` block.
 - **`.editorconfig`** updated to suppress style/analysis rules in `**/Migrations/**.cs` (generated code shouldn't fail the build on file-scoped namespace, etc.).
@@ -619,8 +619,8 @@ The `RowVersion` columns on Order/Payment (added during the concurrency-token wo
 ```bash
 # Add a migration after editing entity config:
 dotnet ef migrations add AddSomething \
-  --project OrderService/OrderService.Infrastructure \
-  --startup-project OrderService/OrderService.Api
+  --project OrderService \
+  --startup-project OrderService
 
 # Apply it (dev): just restart the service. MigrateDatabaseAsync runs at startup.
 # Apply it (prod, future): run as a deploy step before app traffic resumes.
@@ -639,7 +639,7 @@ For production, migrations should run as a **separate deploy step** before app p
 The hand-rolled `EventLogs` table, the `EventLogEntry` entity, and the `/admin/events/...` endpoints were deleted. Wolverine's transactional outbox now lives in a dedicated `wolverine` schema; replay/audit can be done through Wolverine's `IMessageStore` API or by querying that schema directly.
 
 What was removed:
-- `EventLog.cs` from `OrderService.Infrastructure/EventLog/`, `PaymentService.Infrastructure/EventLog/`, `ShippingService.Infrastructure/EventLog/` (and the directories).
+- `EventLog.cs` from `OrderService/Infrastructure/EventLog/`, `PaymentService/Infrastructure/EventLog/`, `ShippingService/Infrastructure/EventLog/` (and the directories).
 - `EventLogs` `DbSet<>` and `OnModelCreating` config from each DbContext.
 - `AdminEventEndpoints.cs` (admin GET/replay/replay-chain) from each Api project.
 - `app.MapAdminEventEndpoints()` registrations in each `Program.cs`.
@@ -730,7 +730,7 @@ When you need to discuss specific decisions, here's where the source-of-truth li
 | Correlation/User/Session propagation | [docs/context-propagation.md](context-propagation.md), [CLAUDE.md "Observability & Context Propagation"](../CLAUDE.md#observability--context-propagation) |
 | Event replay (admin endpoints) | [docs/event-replay.md](event-replay.md) |
 | Aggregate invariants & business rules | [docs/architecture.md "Domain Model"](architecture.md#domain-model) |
-| Concurrency token configuration per service | [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs), [OrderDbContext.cs](../OrderService/OrderService.Infrastructure/Data/OrderDbContext.cs), [PaymentDbContext.cs](../PaymentService/PaymentService.Infrastructure/Data/PaymentDbContext.cs), [ShippingDbContext.cs](../ShippingService/ShippingService.Infrastructure/Data/ShippingDbContext.cs) |
+| Concurrency token configuration per service | [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs), [OrderDbContext.cs](../OrderService/Infrastructure/Data/OrderDbContext.cs), [PaymentDbContext.cs](../PaymentService/Infrastructure/Data/PaymentDbContext.cs), [ShippingDbContext.cs](../ShippingService/Infrastructure/Data/ShippingDbContext.cs) |
 | Read-cache contract & implementation | [IProductCache.cs](../CatalogService/CatalogService.Application/Interfaces/IProductCache.cs), [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) |
 | EF Core spec & practice — reference walkthrough | [docs/ef-core.md](ef-core.md) |
 | Build settings (warnings as errors, analyzers) | [Directory.Build.props](../Directory.Build.props) |

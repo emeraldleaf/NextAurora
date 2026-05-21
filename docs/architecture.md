@@ -56,17 +56,23 @@ NextAurora is a distributed e-commerce platform built as a microservices archite
 
 ## Service Architecture
 
-Each backend service follows a **Clean Architecture** layered structure:
+The project deliberately uses **two patterns side-by-side**, calibrated to each
+service's complexity:
+
+### CatalogService — Clean Architecture (4 projects)
+
+The largest service: multiple aggregates, two-tier caching, gRPC server, optimistic
+concurrency, integration tests. The four-project split earns its keep here — enough
+aggregates and cross-cutting concerns that build-time layer enforcement protects
+against real violations.
 
 ```
-ServiceName/
-  ServiceName.Domain/          # Entities, enums, repository interfaces
-  ServiceName.Application/     # Commands, queries, handlers (Wolverine)
-  ServiceName.Infrastructure/  # EF Core, repositories, messaging, external gateways
-  ServiceName.Api/             # ASP.NET Core host, endpoints, DI composition
+CatalogService/
+  CatalogService.Domain/          # Entities, enums, repository interfaces
+  CatalogService.Application/     # Commands, queries, handlers, mappers (Wolverine)
+  CatalogService.Infrastructure/  # EF Core, repositories, caching, messaging
+  CatalogService.Api/             # ASP.NET Core host, endpoints, gRPC server, DI composition
 ```
-
-### Layer Responsibilities
 
 | Layer | Responsibility | Dependencies |
 |-------|---------------|-------------|
@@ -74,6 +80,29 @@ ServiceName/
 | **Application** | CQRS commands/queries, Wolverine handler POCOs, application interfaces | Domain |
 | **Infrastructure** | EF Core DbContext, repositories, Service Bus, external gateways | Domain, Application |
 | **Api** | HTTP endpoints, gRPC services, DI registration, host configuration | All layers |
+
+### Order / Payment / Shipping / Notification — Vertical Slice Architecture (1 project)
+
+Smaller services (~250–1400 LOC, ≤2 aggregates each). The four-project split costs
+more than it pays at this scale; collapsed to one project with **feature folders**:
+
+```
+ServiceName/
+  Features/                # One file per use case (command/query + handler co-located).
+                          # Saga event handlers live here too — they own real state machines.
+  Domain/                  # Aggregates, value objects, ports (interfaces consumed by features).
+  Infrastructure/          # EF Core (Data/ + Migrations/), repositories, gateways, DI composition.
+  Endpoints/               # Minimal-API HTTP surface (not always present).
+  Program.cs               # Composition root.
+  ServiceName.csproj       # Single Web SDK project.
+```
+
+The Domain folder is *just a folder* in this shape — not a build-time boundary.
+Discipline enforces what Clean Architecture's project references used to. NotificationService
+is the canonical minimal example: no Domain folder, two Features files, one Infrastructure
+folder, a Program.cs.
+
+See [CLAUDE.md](../CLAUDE.md#project-structure) for the "which pattern when" decision rule.
 
 ### Service Breakdown
 

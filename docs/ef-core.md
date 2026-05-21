@@ -58,9 +58,9 @@ EF Core is our **default data-access tool** for every relational write and for m
 | Service | Provider | DbContext | Concurrency token |
 |---|---|---|---|
 | Catalog | PostgreSQL | [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs) | `xmin` (system column) |
-| Shipping | PostgreSQL | [ShippingDbContext.cs](../ShippingService/ShippingService.Infrastructure/Data/ShippingDbContext.cs) | `xmin` (system column) |
-| Order | SQL Server | [OrderDbContext.cs](../OrderService/OrderService.Infrastructure/Data/OrderDbContext.cs) | `RowVersion` (real column) |
-| Payment | SQL Server | [PaymentDbContext.cs](../PaymentService/PaymentService.Infrastructure/Data/PaymentDbContext.cs) | `RowVersion` (real column) |
+| Shipping | PostgreSQL | [ShippingDbContext.cs](../ShippingService/Infrastructure/Data/ShippingDbContext.cs) | `xmin` (system column) |
+| Order | SQL Server | [OrderDbContext.cs](../OrderService/Infrastructure/Data/OrderDbContext.cs) | `RowVersion` (real column) |
+| Payment | SQL Server | [PaymentDbContext.cs](../PaymentService/Infrastructure/Data/PaymentDbContext.cs) | `RowVersion` (real column) |
 | Notification | none | none | n/a (stateless) |
 
 ### Why two providers (the honest answer)
@@ -143,7 +143,7 @@ entity.Property(e => e.Currency).HasMaxLength(3);
 
 ### 4.2 Backing-field navigation for encapsulated collections
 
-Order's children come up here: [OrderDbContext.cs](../OrderService/OrderService.Infrastructure/Data/OrderDbContext.cs).
+Order's children come up here: [OrderDbContext.cs](../OrderService/Infrastructure/Data/OrderDbContext.cs).
 
 ```csharp
 entity.HasMany(e => e.Lines).WithOne().HasForeignKey(l => l.OrderId);
@@ -209,7 +209,7 @@ EF then includes `WHERE xmin = @originalXmin` on every UPDATE. If another transa
 
 SQL Server's equivalent is the `rowversion` (a.k.a. `timestamp`) type. It's a real column the engine auto-increments on insert/update. Unlike `xmin`, this requires a column add.
 
-From [OrderDbContext.cs:58](../OrderService/OrderService.Infrastructure/Data/OrderDbContext.cs#L58):
+From [OrderDbContext.cs:58](../OrderService/Infrastructure/Data/OrderDbContext.cs#L58):
 
 ```csharp
 entity.Property<byte[]>("RowVersion").IsRowVersion();
@@ -589,7 +589,7 @@ Some teams view the repository pattern as a redundant layer over EF Core's `DbCo
 
 ### When you'd remove it
 
-If your team uses Vertical Slice Architecture, you'd inline the query into each handler and skip the repository abstraction. Both designs are defensible. We picked Clean Architecture; the repository follows.
+If your team uses Vertical Slice Architecture, you'd inline the query into each handler and skip the repository abstraction. Both designs are defensible. **NextAurora actually does both** — CatalogService is on Clean Architecture (the example shown here uses CatalogService), so the repository pattern applies. The other four services (Order/Payment/Shipping/Notification) are on VSA — they still keep their repositories *because the interfaces are substituted by unit tests*, which is the seam earning its keep on its own. See [CLAUDE.md "Interfaces earn their keep through consumer substitution"](../CLAUDE.md#solid).
 
 ---
 
@@ -799,7 +799,7 @@ What each line does:
 
 ### 15.3 What a handler looks like
 
-From [PlaceOrderHandler.cs:140-146](../OrderService/OrderService.Application/Handlers/PlaceOrderHandler.cs#L140-L146):
+From [PlaceOrder.cs:140-146](../OrderService/Features/PlaceOrder.cs#L140-L146):
 
 ```csharp
 // Order saved
@@ -1093,7 +1093,7 @@ Plus the Dapper escape-hatch rule:
 
 ## 22. Crib sheet
 
-Talking points, organized for fluency — useful as a refresher or for explaining the system out loud. Each maps to a section above.
+A condensed walkthrough of the key EF Core decisions in this codebase, each mapped to a section above. Useful as a refresher.
 
 ### "How do you handle concurrency in EF Core?"
 
@@ -1105,7 +1105,7 @@ Talking points, organized for fluency — useful as a refresher or for explainin
 
 ### "Repository pattern over EF Core — isn't that redundant?"
 
-> EF's DbContext is a Unit of Work + repository, yes. We keep the abstraction for three reasons: Domain stays free of EF (Domain has the interface, Infrastructure has the impl — clean architecture); handler unit tests substitute the repository without spinning up a fake DbContext; and the selective-tracking decision (which methods are `AsNoTracking` vs not) is a repository-layer concern. If you used Vertical Slice Architecture you'd inline the queries and skip the abstraction — both are defensible.
+> EF's DbContext is a Unit of Work + repository, yes. We keep the abstraction for three reasons: the Domain layer/folder stays free of EF (Domain owns the interface, Infrastructure has the impl — true under both Clean Architecture *and* VSA in this repo); handler unit tests substitute the repository without spinning up a fake DbContext; and the selective-tracking decision (which methods are `AsNoTracking` vs not) is a repository-layer concern. Pure Vertical Slice Architecture would inline the queries and skip the abstraction — defensible, but we keep the seam *because tests rely on it* (see CLAUDE.md "Interfaces earn their keep through consumer substitution").
 
 ### "AsNoTracking everywhere?"
 

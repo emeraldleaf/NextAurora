@@ -84,19 +84,24 @@ For a learning/portfolio project where the *patterns themselves* are the deliver
 
 ---
 
-## 3. Per-service Clean Architecture (4 layers)
+## 3. Per-service shape: Clean Architecture *or* Vertical Slice Architecture
 
-Every service uses the same 4-project structure:
+**Originally**: every service used the same 4-project Clean Architecture split. **Now**: only
+CatalogService keeps that shape. The other four services collapsed to single-project Vertical
+Slice Architecture (VSA) after an audit found the layered split was costing more than it paid
+at their size.
+
+### CatalogService — Clean Architecture (4 projects)
 
 ```
-{Service}/
-  {Service}.Domain/         # Entities, value objects, enums, repository interfaces — NO dependencies
-  {Service}.Application/    # Commands, queries, handlers, validators, application interfaces — depends on Domain
-  {Service}.Infrastructure/ # EF Core, repositories, external gateways — depends on Domain + Application
-  {Service}.Api/            # Minimal API endpoints, gRPC services, DI wiring — composition root (depends on all)
+CatalogService/
+  CatalogService.Domain/         # Entities, value objects, enums, repository interfaces — NO dependencies
+  CatalogService.Application/    # Commands, queries, handlers, validators, mappers — depends on Domain
+  CatalogService.Infrastructure/ # EF Core, repositories, caching, external gateways — depends on Domain + Application
+  CatalogService.Api/            # Minimal API endpoints, gRPC services, DI wiring — composition root
 ```
 
-### The dependency rule
+Enforced by **project references** at compile time:
 
 ```
 Domain          →  (nothing)
@@ -105,18 +110,40 @@ Infrastructure  →  Domain + Application
 Api             →  all layers
 ```
 
-Enforced by **project references** at compile time. CLAUDE.md "Architecture Principles":
+Why CatalogService kept this shape: multiple aggregates (Product + Category), two-tier
+HybridCache, gRPC server, optimistic concurrency, integration tests. Enough cross-cutting
+concerns that compile-time layer enforcement protects against real violations.
 
-> Domain → nothing. Application → Domain. Infrastructure → Domain + Application. Api → all layers (composition root).
+### Order / Payment / Shipping / Notification — VSA (1 project)
 
-### Why this matters
+```
+{Service}/
+  Features/                # One file per use case (command/query + handler co-located).
+                          # Saga event handlers live here too — they own real state machines.
+  Domain/                  # Aggregates, value objects, ports (interfaces consumed by features).
+  Infrastructure/          # EF Core (Data/ + Migrations/), repositories, gateways, DI.
+  Endpoints/               # Minimal-API HTTP surface.
+  Program.cs               # Composition root.
+  {Service}.csproj         # Single Web SDK project.
+```
 
-- **Domain has zero framework dependencies.** No EF, no Wolverine, no ASP.NET Core. The domain entities can be tested with pure C# — no fixtures, no fakes.
-- **Application owns the use cases.** Commands/queries/handlers/validators are pure C# with interface dependencies. Easily unit-tested with NSubstitute.
-- **Infrastructure adapts to the world.** EF DbContext, repositories, gRPC clients, message bus integration all live here. Swap providers → only Infrastructure changes.
-- **Api is the composition root.** `Program.cs` wires DI; endpoints are thin shims dispatching to handlers. No business logic at the HTTP boundary.
+Why VSA for these: each is ≤2 aggregates and 250–1400 LOC. The four-project ceremony
+(separate csprojs, cross-project `using`s, "find everything related to PlaceOrder is a
+multi-project search") was *taller* than the protection it was offering. VSA collapses the
+internal split: one project, feature folders, Domain folder for what's genuinely shared,
+discipline doing the work compile-time references used to do.
 
-A future modular-monolith extraction would collapse this 4-project structure into module-folders within one project — same dependency rules, just less project granularity.
+### Why two shapes coexists by design
+
+The Clean-Arch–vs–VSA decision is per-service, not per-project. The signal isn't "we prefer
+one pattern" — it's "this service is big enough to earn the layer boundaries / this one
+isn't." See [CLAUDE.md "Project Structure"](../CLAUDE.md#project-structure) for the decision
+table and [CLAUDE.md "Interfaces earn their keep through consumer substitution"](../CLAUDE.md#solid)
+for why the four VSA services *still* keep their `IFooRepository` / `IEventPublisher` /
+`IPaymentGateway` ports despite the lighter shape.
+
+A future modular-monolith extraction of CatalogService would collapse those 4 projects into
+module-folders within one project. The four VSA services are already there.
 
 ---
 
@@ -326,7 +353,7 @@ Two layers of authorization:
 
 At the group level for entire resource groups, at the endpoint level for individual routes.
 
-From [OrderEndpoints.cs:32](../OrderService/OrderService.Api/Endpoints/OrderEndpoints.cs#L32):
+From [OrderEndpoints.cs:32](../OrderService/Endpoints/OrderEndpoints.cs#L32):
 
 ```csharp
 // Group-level: every endpoint below requires a valid JWT.
@@ -391,7 +418,7 @@ Three layers of validation, each catching invalid data at a different point:
 
 ### What a validator looks like
 
-From [PlaceOrderCommandValidator.cs](../OrderService/OrderService.Application/Validators/PlaceOrderCommandValidator.cs):
+From [PlaceOrderCommandValidator.cs](../OrderService/Features/PlaceOrder.cs):
 
 ```csharp
 public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
@@ -416,7 +443,7 @@ public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
 
 Validation runs **before** `ContextPropagationMiddleware` opens the logger scope. That way 400 responses for invalid commands don't pollute the logger scope or the trace. The handler only ever sees valid messages with a correlation ID already restored.
 
-CLAUDE.md "Communication Patterns" + the Wolverine config in [Program.cs](../OrderService/OrderService.Api/Program.cs):
+CLAUDE.md "Communication Patterns" + the Wolverine config in [Program.cs](../OrderService/Program.cs):
 
 ```csharp
 opts.UseFluentValidation();                  // first — invalid commands rejected
@@ -557,7 +584,7 @@ URL-segment versioned (`/api/v1/...`), JSON request/response, RFC 7807 errors. *
 
 For **real-time queries between services** where the caller needs a definitive answer before continuing. Versioned separately via `.proto` `package` declarations.
 
-Example: `PlaceOrderHandler` (OrderService) calls `CatalogGrpcService` (CatalogService) for each line item to validate the product exists and reserve stock — see [PlaceOrderHandler.cs:79](../OrderService/OrderService.Application/Handlers/PlaceOrderHandler.cs#L79):
+Example: `PlaceOrderHandler` (OrderService) calls `CatalogGrpcService` (CatalogService) for each line item to validate the product exists and reserve stock — see [PlaceOrder.cs:79](../OrderService/Features/PlaceOrder.cs#L79):
 
 ```csharp
 var product = await catalogClient.GetProductAsync(lineItem.ProductId, cancellationToken);
@@ -1007,11 +1034,11 @@ The full inventory of significant non-Microsoft libraries, what they do, why we 
 
 ## 21. Crib sheet
 
-Talking points organized for fluency — useful as a refresher or for explaining the system out loud. Each maps to a section above.
+A condensed walkthrough of the key decisions, each mapped to a section above. Useful as a refresher.
 
 ### "Walk me through the architecture."
 
-> NextAurora is a .NET 10 microservices platform with 5 backend services — Catalog, Order, Payment, Shipping, Notification. Each is independently deployable with its own database. Catalog and Shipping run on Postgres; Order and Payment on SQL Server; Notification is stateless. Cross-service communication is gRPC for synchronous queries (Order calls Catalog to validate products) and Azure Service Bus for asynchronous workflow events. Each service uses Clean Architecture — four projects: Domain (entities, zero dependencies), Application (handlers, command/query types), Infrastructure (EF Core, repositories), and Api (the host with Minimal APIs).
+> NextAurora is a .NET 10 microservices platform with 5 backend services — Catalog, Order, Payment, Shipping, Notification. Each is independently deployable with its own database. Catalog and Shipping run on Postgres; Order and Payment on SQL Server; Notification is stateless. Cross-service communication is gRPC for synchronous queries (Order calls Catalog to validate products) and Azure Service Bus for asynchronous workflow events. **The per-service shape varies by complexity**: CatalogService — the largest — uses Clean Architecture (Domain/Application/Infrastructure/Api as four csprojs). The other four are smaller (≤2 aggregates each) and use Vertical Slice Architecture: a single project with feature folders, Domain/, Infrastructure/, Endpoints/. The cross-service diff is intentional and documented in CLAUDE.md.
 
 ### "Why microservices instead of modular monolith?"
 
