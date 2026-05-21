@@ -37,15 +37,61 @@ NextAurora is a .NET 10 microservices e-commerce platform using Aspire, Azure Se
 
 ## Project Structure
 
-Each service follows Clean Architecture:
+**Per-service shape is calibrated to per-service complexity.** Two patterns coexist in this
+repo on purpose, with one rule per pattern:
+
+### Clean Architecture — CatalogService only
+
+The largest service (~2k LOC, multiple aggregates, caching, gRPC, optimistic concurrency,
+integration tests). The four-project split *earns its keep*: enough aggregates that the
+build-time layer enforcement protects against real violations, and the size makes
+"find every handler" / "find every repository" a worthwhile axis to organize on.
+
+```
+CatalogService/
+  CatalogService.Domain/          # Entities, value objects, enums, interfaces (no dependencies)
+  CatalogService.Application/     # Commands, queries, validators, handlers, mappers
+  CatalogService.Infrastructure/  # EF Core, repositories, caching, messaging
+  CatalogService.Api/             # Endpoints, middleware, DI composition root, gRPC service
+```
+
+### Vertical Slice Architecture — Order/Payment/Shipping/Notification
+
+Smaller services (~250–1400 LOC, ≤2 aggregates each). The Clean Architecture project split
+costs more than it pays at this scale — four csprojs, cross-project `using` statements, and
+"find everything related to PlaceOrder" becoming a multi-project search. Collapsed to one
+project per service, organized by *feature* instead of *kind*.
 
 ```
 ServiceName/
-  ServiceName.Domain/          # Entities, value objects, enums, interfaces (no dependencies)
-  ServiceName.Application/     # Commands, queries, validators, handlers (depends on Domain only)
-  ServiceName.Infrastructure/  # EF Core, repositories, messaging (depends on Domain + Application)
-  ServiceName.Api/             # Endpoints, middleware, DI composition root (depends on all)
+  Features/                       # One file per use case: command/query record + validator + handler co-located.
+                                  # Saga event-handler classes also live here (they're features too).
+  Domain/                         # Shared aggregates, value objects, enums, ports (interfaces consumed by features).
+  Infrastructure/                 # EF Core (with /Data/ + /Migrations/), repositories, gateways, DI composition.
+  Endpoints/                      # Minimal-API endpoint registrations (the HTTP surface; not always present).
+  Program.cs                      # Composition root.
+  ServiceName.csproj              # Single Web SDK project.
 ```
+
+**Why feature folders work here:** each service has 1–6 use cases; finding "where does
+PlaceOrder live?" is `Features/PlaceOrder.cs`. The Domain folder holds what's *genuinely
+shared* across features (the `Order` aggregate, `IOrderRepository`); when something is used
+by only one feature (a port, a command), it lives in that feature's file. NotificationService
+is the canonical minimal case: zero Domain folder, two Features files, one Infrastructure
+folder.
+
+### When to use which
+
+| Signal | Shape |
+|---|---|
+| ≤2 aggregates, ≤10 features, single team | VSA |
+| Multiple aggregates with cross-cutting domain rules, heavy caching/gRPC, integration test suite | Clean Architecture |
+| Test-substitution interfaces (`IFooRepository`, `IEventPublisher`) | Either pattern keeps them — the seam is consumer substitution, not the project boundary |
+| Started as VSA but feature folders cross-reference each other 4+ ways | Promote shared concepts to `Domain/`; if `Domain/` is growing fast, that's the signal to consider Clean Architecture |
+
+**Don't apply both patterns uniformly across a single service.** Pick one shape per service
+and commit. The diff between the two patterns *across services* is intentional — it's the
+project's lesson, not an inconsistency to clean up.
 
 ## Coding Standards
 
