@@ -1,4 +1,4 @@
-namespace ShippingService.Domain.Interfaces;
+namespace ShippingService.Domain;
 
 public interface IEventPublisher
 {

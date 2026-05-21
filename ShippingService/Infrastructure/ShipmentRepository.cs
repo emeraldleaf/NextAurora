@@ -1,9 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using ShippingService.Domain.Entities;
-using ShippingService.Domain.Interfaces;
+using ShippingService.Domain;
 using ShippingService.Infrastructure.Data;
 
-namespace ShippingService.Infrastructure.Repositories;
+namespace ShippingService.Infrastructure;
 
 /// <summary>
 /// EF Core implementation of <see cref="IShipmentRepository"/>. <see cref="GetByOrderIdAsync"/>

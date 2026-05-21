@@ -21,10 +21,7 @@
     <Project Path="PaymentService/PaymentService.Infrastructure/PaymentService.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/ShippingService/">
-    <Project Path="ShippingService/ShippingService.Api/ShippingService.Api.csproj" />
-    <Project Path="ShippingService/ShippingService.Application/ShippingService.Application.csproj" />
-    <Project Path="ShippingService/ShippingService.Domain/ShippingService.Domain.csproj" />
-    <Project Path="ShippingService/ShippingService.Infrastructure/ShippingService.Infrastructure.csproj" />
+    <Project Path="ShippingService/ShippingService.csproj" />
   </Folder>
   <Project Path="NextAurora.AppHost/NextAurora.AppHost.csproj" />
   <Project Path="NextAurora.Contracts/NextAurora.Contracts.csproj" />

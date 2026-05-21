@@ -1,8 +1,7 @@
 using JasperFx.Resources;
 using Microsoft.Extensions.Logging;
 using NextAurora.Contracts.Events;
-using ShippingService.Api.Endpoints;
-using ShippingService.Application.Commands;
+using ShippingService.Endpoints;
 using ShippingService.Infrastructure;
 using ShippingService.Infrastructure.Data;
 using Scalar.AspNetCore;
@@ -35,7 +34,8 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
     opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 
-    opts.Discovery.IncludeAssembly(typeof(CreateShipmentCommand).Assembly);
+    // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly,
+    // so no explicit IncludeAssembly call is needed.
     opts.Policies.LogMessageStarting(LogLevel.Information);
     opts.AddNextAuroraContextPropagation();
     opts.AddConcurrencyRetry();

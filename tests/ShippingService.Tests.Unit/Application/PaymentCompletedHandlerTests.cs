@@ -1,7 +1,6 @@
 using AwesomeAssertions;
 using NextAurora.Contracts.Events;
-using ShippingService.Application.Commands;
-using ShippingService.Application.EventHandlers;
+using ShippingService.Features;
 
 namespace ShippingService.Tests.Unit.Application;
 

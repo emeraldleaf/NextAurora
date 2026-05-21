@@ -1,7 +1,7 @@
-using ShippingService.Application.Queries;
+using ShippingService.Features;
 using Wolverine;
 
-namespace ShippingService.Api.Endpoints;
+namespace ShippingService.Endpoints;
 
 /// <summary>
 /// HTTP endpoint for ShippingService. Read-only — shipments are created by the saga
@@ -21,8 +21,6 @@ public static class ShippingEndpoints
         var group = app.MapV1ApiGroup("Shipping", "shipments").RequireAuthorization();
 
         // GET /api/v1/shipments/order/{orderId} — look up shipment by the originating order.
-        // OrderId is the natural identifier here because callers (a buyer's order detail page)
-        // know the order, not the shipment.
         group.MapGet("/order/{orderId:guid}", async (Guid orderId, IMessageBus bus, CancellationToken ct) =>
         {
             var shipment = await bus.InvokeAsync<ShipmentDto?>(new GetShipmentByOrderQuery(orderId), ct);

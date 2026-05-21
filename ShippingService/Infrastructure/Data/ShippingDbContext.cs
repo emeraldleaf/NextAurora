@@ -1,13 +1,13 @@
 using Microsoft.EntityFrameworkCore;
-using ShippingService.Domain.Entities;
+using ShippingService.Domain;
 
 namespace ShippingService.Infrastructure.Data;
 
 /// <summary>
 /// EF Core DbContext for ShippingService — backed by PostgreSQL. Mirrors the patterns used in
 /// the other DbContexts: enums as strings, money/identifier length caps, the Postgres-native
-/// <c>xmin</c> concurrency token (see <c>CatalogDbContext</c> for the full explanation), and
-/// a unique index on <c>OrderId</c> so each order gets at most one shipment.
+/// <c>xmin</c> concurrency token, and a unique index on <c>OrderId</c> so each order gets at
+/// most one shipment.
 /// </summary>
 public class ShippingDbContext(DbContextOptions<ShippingDbContext> options) : DbContext(options)
 {

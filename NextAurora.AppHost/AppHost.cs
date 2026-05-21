@@ -124,7 +124,7 @@ WithOptionalAppInsights(
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);
 
 WithOptionalAppInsights(
-    builder.AddProject<Projects.ShippingService_Api>("shipping-service")
+    builder.AddProject<Projects.ShippingService>("shipping-service")
         .WithReference(shippingDb).WaitFor(shippingDb)
         .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);

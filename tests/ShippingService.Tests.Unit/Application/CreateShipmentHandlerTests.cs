@@ -1,10 +1,8 @@
 using AwesomeAssertions;
 using NSubstitute;
 using NextAurora.Contracts.Events;
-using ShippingService.Application.Commands;
-using ShippingService.Application.Handlers;
-using ShippingService.Domain.Entities;
-using ShippingService.Domain.Interfaces;
+using ShippingService.Domain;
+using ShippingService.Features;
 
 namespace ShippingService.Tests.Unit.Application;
 

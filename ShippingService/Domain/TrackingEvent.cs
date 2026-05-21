@@ -1,4 +1,4 @@
-namespace ShippingService.Domain.Entities;
+namespace ShippingService.Domain;
 
 /// <summary>
 /// A child entity of <see cref="Shipment"/>: a single audit-log entry recorded each time the
@@ -17,8 +17,6 @@ public class TrackingEvent
     private TrackingEvent() { }
 
     // Internal-by-convention factory: only Shipment.AddTrackingEvent should call this.
-    // Marked public because Shipment is in the same assembly and we don't use friend-assembly
-    // tricks here, but treat as if it were `internal`.
     public static TrackingEvent Create(Guid shipmentId, string description, string status)
     {
         return new TrackingEvent

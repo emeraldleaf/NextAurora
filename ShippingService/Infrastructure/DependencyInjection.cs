@@ -1,17 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using ShippingService.Domain.Interfaces;
+using ShippingService.Domain;
 using ShippingService.Infrastructure.Data;
-using ShippingService.Infrastructure.Messaging;
-using ShippingService.Infrastructure.Repositories;
 
 namespace ShippingService.Infrastructure;
 
 /// <summary>
-/// Composition root for ShippingService's Infrastructure layer. Wires up PostgreSQL
-/// (shipping-db), the EF repository, and the Wolverine-backed event publisher. Same scoped
-/// lifetime convention as the other services.
+/// Composition root for ShippingService. Wires up PostgreSQL (shipping-db), the EF repository,
+/// and the Wolverine-backed event publisher.
 /// </summary>
 public static class DependencyInjection
 {

@@ -1,4 +1,4 @@
-namespace ShippingService.Domain.Entities;
+namespace ShippingService.Domain;
 
 public enum ShipmentStatus
 {

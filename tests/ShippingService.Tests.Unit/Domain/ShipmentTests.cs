@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using ShippingService.Domain.Entities;
+using ShippingService.Domain;
 
 namespace ShippingService.Tests.Unit.Domain;
 

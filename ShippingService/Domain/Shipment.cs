@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace ShippingService.Domain.Entities;
+namespace ShippingService.Domain;
 
 /// <summary>
 /// The Shipment aggregate root. Created when <c>PaymentCompletedEvent</c> is received from the
@@ -76,9 +76,6 @@ public class Shipment
         AddTrackingEvent("Package dispatched");
     }
 
-    // Private helper: state transitions automatically log a tracking event for audit/customer
-    // visibility. This is why the public methods don't take a description — keeping the audit
-    // log consistent is the aggregate's job, not the caller's.
     private void AddTrackingEvent(string description)
     {
         TrackingEvents.Add(TrackingEvent.Create(Id, description, Status.ToString()));

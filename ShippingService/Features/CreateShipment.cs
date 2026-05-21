@@ -1,15 +1,13 @@
 using System.Diagnostics.Metrics;
 using NextAurora.Contracts.Events;
-using ShippingService.Application.Commands;
-using ShippingService.Domain.Entities;
-using ShippingService.Domain.Interfaces;
+using ShippingService.Domain;
 
-namespace ShippingService.Application.Handlers;
+namespace ShippingService.Features;
 
 /// <summary>
-/// Handles the <see cref="CreateShipmentCommand"/>, invoked by <c>PaymentCompletedHandler</c> in
-/// this service when payment confirmation arrives. Creates a Shipment, immediately dispatches
-/// it (in our simulated world there's no warehouse step), and publishes
+/// "Create shipment" vertical slice: the command + its handler co-located. Invoked by
+/// <see cref="PaymentCompletedHandler"/> when payment confirmation arrives. Creates a Shipment,
+/// immediately dispatches it (in our simulated world there's no warehouse step), and publishes
 /// <see cref="ShipmentDispatchedEvent"/> for OrderService and NotificationService.
 ///
 /// <para>
@@ -21,6 +19,8 @@ namespace ShippingService.Application.Handlers;
 /// carrier assignment would be a routing decision based on origin, destination, weight, etc.
 /// </para>
 /// </summary>
+public record CreateShipmentCommand(Guid OrderId);
+
 public class CreateShipmentHandler(
     IShipmentRepository repository,
     IEventPublisher eventPublisher)
