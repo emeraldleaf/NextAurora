@@ -4,6 +4,8 @@ A microservices-based e-commerce platform built with .NET 10, Blazor, and .NET A
 
 NextAurora demonstrates a production-style distributed system with event-driven architecture, CQRS, domain-driven design, and gRPC for inter-service communication.
 
+> **Live demo:** [catalog-api-demo.fly.dev/scalar/v1](https://catalog-api-demo.fly.dev/scalar/v1) — CatalogService deployed to Fly.io with an interactive Scalar API explorer. Try `GET /api/v1/products` for the 7 seeded products. Auto-stops when idle, so the first request after a quiet period takes ~10s to wake the machine. *Scope: Catalog only — the full Order → Payment → Shipping → Notification saga runs locally via Aspire (see [Getting Started](#getting-started)).*
+
 [![NextAurora architecture — full system in one view](docs/nextaurora-architecture.svg)](docs/nextaurora-architecture.svg)
 
 *Full system in one view — services, Service Bus topology, databases, and the 10-step order-placement saga. Click to view full-size. Source: [`nextaurora-architecture.excalidraw`](docs/nextaurora-architecture.excalidraw) — open with the [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or [excalidraw.com](https://excalidraw.com) to edit.*
