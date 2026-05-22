@@ -1,6 +1,6 @@
 # Demo Deployment — CatalogService
 
-One-time setup to get [CatalogService.Api](../CatalogService/CatalogService.Api/) running on a public URL with the Scalar UI exposed for a portfolio walkthrough.
+One-time setup to get [CatalogService.Api](../CatalogService/CatalogService.Api/) running on a public URL with the Scalar UI exposed for a public demo.
 
 For a narrative walkthrough of the actual deploy session (what we did, why we made each call, dead ends along the way), see [demo-deployment-story.md](demo-deployment-story.md). This doc is the *recipe*; that one is the *story*.
 
@@ -333,9 +333,9 @@ The IAM role and OIDC provider are free to leave in place for next time.
 
 ---
 
-## Talking points this earns you
+## What this deployment demonstrates
 
-Useful when walking someone through the deployment — a recruiter, a code reviewer, a future-you who forgot why the flag exists.
+Useful when walking someone through the deployment, or as a refresher when you come back to this later.
 
 - **"Cheap single-service demo — the production plan in [architecture.md](architecture.md) targets AWS SNS+SQS for the messaging fabric replacing Azure Service Bus, but that's a 2-3 service deployment that doesn't fit a free-tier budget."**
 - **"Scalar exposed via a `DemoMode` flag — normally dev-only in `Program.cs` because OpenAPI specs are reconnaissance gold. The flag default is off, so production posture is unchanged."**

@@ -291,9 +291,9 @@ curl -sS $URL/api/v1/products
 open $URL/scalar/v1
 ```
 
-## What this demonstrates (talking points)
+## What this demonstrates
 
-When walking someone through this — recruiter, code reviewer, future-you:
+Useful when walking someone through the deployment, or as a refresher when you come back to this later:
 
 1. **"`DemoMode` flag is a deliberate security relaxation."** Production posture (Scalar hidden, OpenAPI hidden, HTTPS redirect on, migrations as separate step) is unchanged because the flag defaults to false. The whole adaptation is gated behind one bool.
 
