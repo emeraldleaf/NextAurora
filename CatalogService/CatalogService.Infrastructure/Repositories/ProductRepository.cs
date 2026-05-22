@@ -18,10 +18,14 @@ namespace CatalogService.Infrastructure.Repositories;
 /// </para>
 /// <para>
 /// Methods that are <b>only ever called by query handlers</b> (<c>GetAllAsync</c>,
-/// <c>SearchAsync</c>, <c>GetByCategoryAsync</c>) use <c>AsNoTracking</c>. Methods called by
-/// command handlers — most importantly <see cref="GetByIdAsync"/> here, used by both query AND
-/// command handlers — keep tracking on. Without tracking, mutating the loaded entity and
-/// calling <c>SaveChanges</c> would be a silent no-op. See <c>docs/cqrs-data-access.md</c>.
+/// <c>SearchAsync</c>, <c>GetByCategoryAsync</c>) use <c>AsNoTrackingWithIdentityResolution</c>.
+/// Plain <c>AsNoTracking</c> paired with <c>Include(p =&gt; p.Category)</c> would duplicate the
+/// shared Category entity per Product row (the canonical EF Core trap — many products share one
+/// category). The identity-resolution variant keeps reference equality without re-enabling change
+/// tracking. Methods called by command handlers — most importantly <see cref="GetByIdAsync"/>
+/// here, used by both query AND command handlers — keep tracking on. Without tracking, mutating
+/// the loaded entity and calling <c>SaveChanges</c> would be a silent no-op.
+/// See <c>docs/cqrs-data-access.md</c>.
 /// </para>
 /// <para>
 /// <b>Pagination:</b> list methods take <c>page</c>/<c>pageSize</c> and apply
@@ -44,12 +48,12 @@ public class ProductRepository(CatalogDbContext context) : IProductRepository
     /// Paginated catalog listing, projected through to the query handler which then maps to a DTO.
     /// </summary>
     public async Task<IReadOnlyList<Product>> GetAllAsync(int page, int pageSize, CancellationToken ct = default)
-        => await context.Products.AsNoTracking().Include(p => p.Category)
+        => await context.Products.AsNoTrackingWithIdentityResolution().Include(p => p.Category)
             .OrderBy(p => p.Id).Skip((page - 1) * pageSize).Take(pageSize)
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Product>> GetByCategoryAsync(Guid categoryId, CancellationToken ct = default)
-        => await context.Products.AsNoTracking().Include(p => p.Category).Where(p => p.CategoryId == categoryId).ToListAsync(ct);
+        => await context.Products.AsNoTrackingWithIdentityResolution().Include(p => p.Category).Where(p => p.CategoryId == categoryId).ToListAsync(ct);
 
     /// <summary>
     /// Substring search on Name or Description. <c>Contains</c> on a string column translates to
@@ -58,7 +62,7 @@ public class ProductRepository(CatalogDbContext context) : IProductRepository
     /// a bottleneck.
     /// </summary>
     public async Task<IReadOnlyList<Product>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default)
-        => await context.Products.AsNoTracking().Include(p => p.Category)
+        => await context.Products.AsNoTrackingWithIdentityResolution().Include(p => p.Category)
             .Where(p => p.Name.Contains(query) || p.Description.Contains(query))
             .OrderBy(p => p.Id).Skip((page - 1) * pageSize).Take(pageSize)
             .ToListAsync(ct);

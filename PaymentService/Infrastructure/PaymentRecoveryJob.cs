@@ -139,42 +139,56 @@ public sealed class PaymentRecoveryJob(
             return;
         }
 
+        // Outbox atomicity: MarkAsFailed (DB write) and PaymentFailedEvent (outbox row write) must
+        // commit or roll back together. Without this transaction, a crash between SaveChanges and
+        // PublishAsync would leave the Payment Failed in-DB but the event never enqueued — the
+        // saga would stall. The sweeper runs outside Wolverine's handler pipeline so it doesn't
+        // get AutoApplyTransactions; we wrap it explicitly here. Wolverine's
+        // UseEntityFrameworkCoreTransactions() bridges IMessageBus into the ambient EF tx.
+        var legacyRow = false;
         try
         {
-            payment.MarkAsFailed("Payment timed out — recovery sweep marked as failed past stale threshold.");
-            await repository.UpdateAsync(payment, ct);
+            await repository.ExecuteInTransactionAsync(async (txCt) =>
+            {
+                payment.MarkAsFailed("Payment timed out — recovery sweep marked as failed past stale threshold.");
+                await repository.UpdateAsync(payment, txCt);
+
+                // Skip the event publish for legacy rows lacking a denormalized BuyerId — these
+                // are payments created before the AddBuyerIdToPayment migration and carry
+                // Guid.Empty, which downstream consumers won't accept. The MarkAsFailed write
+                // still commits as best-effort recovery so an operator can reconcile manually.
+                if (payment.BuyerId == Guid.Empty)
+                {
+                    legacyRow = true;
+                    return;
+                }
+
+                await eventPublisher.PublishAsync(new PaymentFailedEvent
+                {
+                    PaymentId = payment.Id,
+                    OrderId = payment.OrderId,
+                    BuyerId = payment.BuyerId,
+                    Reason = "Payment timed out. Please retry checkout.",
+                    FailedAt = timeProvider.GetUtcNow().UtcDateTime
+                }, txCt);
+            }, ct);
         }
         catch (DbUpdateConcurrencyException ex)
         {
             // Another process won the RowVersion race. That's fine — the row is either Failed
-            // or Completed by whoever raced past us; no further action needed here.
+            // or Completed by whoever raced past us; no further action needed here. Transaction
+            // rolls back on dispose so our partial work doesn't persist.
             logger.LogDebug(ex, "Payment {PaymentId} updated by another process during sweep; skipping", paymentId);
             return;
         }
 
-        // Publish PaymentFailedEvent so the rest of the saga (OrderService transitions Order
-        // Placed → Failed, NotificationService informs the buyer) reacts to the explicit
-        // failure rather than leaving the order silently stuck.
-        //
-        // BuyerId guard: pre-denormalize rows (migrated from before AddBuyerIdToPayment) carry
-        // Guid.Empty. We refuse to publish for those — the downstream consumers expect a real
-        // buyer id. Marking the payment Failed in-DB is the most we can do; an operator can
-        // reconcile the order manually.
-        if (payment.BuyerId == Guid.Empty)
+        // Past this point the transaction committed successfully.
+        if (legacyRow)
         {
             logger.LogWarning("Payment {PaymentId} has no BuyerId (legacy row); marked Failed but skipping event publish", paymentId);
             RecoveredPayments.Add(1, new KeyValuePair<string, object?>("outcome", "marked-failed-no-event"));
             return;
         }
-
-        await eventPublisher.PublishAsync(new PaymentFailedEvent
-        {
-            PaymentId = payment.Id,
-            OrderId = payment.OrderId,
-            BuyerId = payment.BuyerId,
-            Reason = "Payment timed out. Please retry checkout.",
-            FailedAt = timeProvider.GetUtcNow().UtcDateTime
-        }, ct);
 
         RecoveredPayments.Add(1, new KeyValuePair<string, object?>("outcome", "recovered"));
         logger.LogInformation("Payment {PaymentId} recovered (Pending → Failed)", paymentId);

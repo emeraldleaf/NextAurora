@@ -39,6 +39,18 @@ public class PaymentRecoveryJobTests
         // CreateLock(name).TryAcquireAsync(timeout, ct). Stub the first hop here; each test
         // controls the second hop via AcquireLockSucceeds() / AcquireLockFails().
         _lockProvider.CreateLock(_options.LockName).Returns(_distributedLock);
+
+        // ExecuteInTransactionAsync wraps the recovery work in an EF transaction in production
+        // (see PaymentRepository). For unit tests we pass through — the work delegate executes
+        // directly so we can assert against the mocked repository/publisher. The transactional
+        // semantics themselves are EF's concern, not ours to re-verify here.
+        _repository.ExecuteInTransactionAsync(Arg.Any<Func<CancellationToken, Task>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var work = callInfo.Arg<Func<CancellationToken, Task>>();
+                var ct = callInfo.Arg<CancellationToken>();
+                return work(ct);
+            });
     }
 
     private PaymentRecoveryJob CreateJob()

@@ -38,4 +38,11 @@ public class PaymentRepository(PaymentDbContext context) : IPaymentRepository
             .OrderBy(p => p.CreatedAt)
             .Select(p => p.Id)
             .ToListAsync(ct);
+
+    public async Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default)
+    {
+        await using var tx = await context.Database.BeginTransactionAsync(ct);
+        await work(ct);
+        await tx.CommitAsync(ct);
+    }
 }
