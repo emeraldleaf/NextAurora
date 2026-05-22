@@ -971,11 +971,16 @@
       "opacity": 100,
       "angle": 0,
       "seed": 500011,
-      "version": 3,
-      "versionNonce": 1590054701,
+      "version": 4,
+      "versionNonce": 1894504859,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "order_to_orderbus",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "containerId": null,
@@ -983,7 +988,7 @@
       "index": "aP",
       "frameId": null,
       "roundness": null,
-      "updated": 1779414651421,
+      "updated": 1779457045075,
       "autoResize": true
     },
     {
@@ -1075,11 +1080,20 @@
       "opacity": 100,
       "angle": 0,
       "seed": 500017,
-      "version": 4,
-      "versionNonce": 1729286317,
+      "version": 6,
+      "versionNonce": 875315995,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "payment_to_paymentbus",
+          "type": "arrow"
+        },
+        {
+          "id": "orderbus_to_payment",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "containerId": null,
@@ -1087,7 +1101,7 @@
       "index": "aS",
       "frameId": null,
       "roundness": null,
-      "updated": 1779414653322,
+      "updated": 1779457038923,
       "autoResize": true
     },
     {
@@ -1106,11 +1120,20 @@
       "opacity": 100,
       "angle": 0,
       "seed": 500019,
-      "version": 3,
-      "versionNonce": 540388301,
+      "version": 5,
+      "versionNonce": 1189425115,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "paymentbus_to_shipping",
+          "type": "arrow"
+        },
+        {
+          "id": "shipping_to_shipbus",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "roundness": {
@@ -1118,7 +1141,7 @@
       },
       "index": "aT",
       "frameId": null,
-      "updated": 1779414671491
+      "updated": 1779456926065
     },
     {
       "id": "shipping_svc_title",
@@ -1179,11 +1202,20 @@
       "opacity": 100,
       "angle": 0,
       "seed": 500023,
-      "version": 3,
-      "versionNonce": 361172963,
+      "version": 9,
+      "versionNonce": 13647483,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "shipping_to_shipbus",
+          "type": "arrow"
+        },
+        {
+          "id": "paymentbus_to_shipping",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "containerId": null,
@@ -1191,7 +1223,7 @@
       "index": "aV",
       "frameId": null,
       "roundness": null,
-      "updated": 1779414654452,
+      "updated": 1779457069523,
       "autoResize": true
     },
     {
@@ -1210,11 +1242,16 @@
       "opacity": 100,
       "angle": 0,
       "seed": 500025,
-      "version": 53,
-      "versionNonce": 1949125389,
+      "version": 54,
+      "versionNonce": 725502869,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "shipbus_to_notify",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "roundness": {
@@ -1222,7 +1259,7 @@
       },
       "index": "aW",
       "frameId": null,
-      "updated": 1779414668791
+      "updated": 1779456926898
     },
     {
       "id": "notify_svc_title",
@@ -1283,8 +1320,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 500029,
-      "version": 4,
-      "versionNonce": 101261347,
+      "version": 8,
+      "versionNonce": 811711701,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1295,7 +1332,7 @@
       "index": "aY",
       "frameId": null,
       "roundness": null,
-      "updated": 1779414665144,
+      "updated": 1779456926898,
       "autoResize": true
     },
     {
@@ -1304,7 +1341,7 @@
       "x": 215,
       "y": 560,
       "width": 1780,
-      "height": 320,
+      "height": 348.44966574047083,
       "strokeColor": "#1e3a5f",
       "backgroundColor": "#dbeafe",
       "fillStyle": "solid",
@@ -1314,11 +1351,16 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600001,
-      "version": 2,
-      "versionNonce": 1923227949,
+      "version": 99,
+      "versionNonce": 1496690837,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "shipbus_to_notify",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "roundness": {
@@ -1326,13 +1368,13 @@
       },
       "index": "aZ",
       "frameId": null,
-      "updated": 1779411358330
+      "updated": 1779457083908
     },
     {
       "id": "bus_title",
       "type": "text",
-      "x": 235,
-      "y": 575,
+      "x": 199.11161517319692,
+      "y": 850.1639108992975,
       "width": 1740,
       "height": 25,
       "text": "Azure Service Bus  ·  topics & subscriptions  ·  Wolverine outbox dispatcher publishes here",
@@ -1350,8 +1392,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600003,
-      "version": 2,
-      "versionNonce": 418223139,
+      "version": 68,
+      "versionNonce": 765557915,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1362,14 +1404,14 @@
       "index": "aa",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330,
+      "updated": 1779456988348,
       "autoResize": true
     },
     {
       "id": "bus_subtitle",
       "type": "text",
-      "x": 235,
-      "y": 600,
+      "x": 194.58753931726142,
+      "y": 876.6948346162736,
       "width": 1740,
       "height": 22,
       "text": "(local: Aspire emulator container · prod target: Amazon SNS topics + SQS queues — see Deployment section)",
@@ -1387,8 +1429,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600005,
-      "version": 2,
-      "versionNonce": 1702851469,
+      "version": 117,
+      "versionNonce": 936389755,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1399,14 +1441,14 @@
       "index": "ab",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330,
+      "updated": 1779457006431,
       "autoResize": true
     },
     {
       "id": "topic_orders",
       "type": "rectangle",
-      "x": 245,
-      "y": 640,
+      "x": 550.0080261227401,
+      "y": 621.6976106912804,
       "width": 320,
       "height": 220,
       "strokeColor": "#047857",
@@ -1418,11 +1460,16 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600007,
-      "version": 2,
-      "versionNonce": 1259149251,
+      "version": 880,
+      "versionNonce": 1806679355,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "orderbus_to_payment",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "roundness": {
@@ -1430,13 +1477,13 @@
       },
       "index": "ac",
       "frameId": null,
-      "updated": 1779411358330
+      "updated": 1779457065209
     },
     {
       "id": "topic_orders_label",
       "type": "text",
-      "x": 255,
-      "y": 650,
+      "x": 560.0080261227401,
+      "y": 632.9243123875752,
       "width": 300,
       "height": 28,
       "text": "topic: order-events",
@@ -1454,11 +1501,20 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600009,
-      "version": 2,
-      "versionNonce": 163805677,
+      "version": 877,
+      "versionNonce": 79623259,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "orderbus_to_payment",
+          "type": "arrow"
+        },
+        {
+          "id": "order_to_orderbus",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "containerId": null,
@@ -1466,14 +1522,14 @@
       "index": "ad",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330,
+      "updated": 1779457045074,
       "autoResize": true
     },
     {
       "id": "topic_orders_publisher",
       "type": "text",
-      "x": 255,
-      "y": 678,
+      "x": 560.0080261227401,
+      "y": 660.9243123875752,
       "width": 300,
       "height": 22,
       "text": "publisher: OrderService",
@@ -1491,8 +1547,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600011,
-      "version": 2,
-      "versionNonce": 29042531,
+      "version": 875,
+      "versionNonce": 1995673397,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1503,14 +1559,14 @@
       "index": "ae",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330,
+      "updated": 1779456974698,
       "autoResize": true
     },
     {
       "id": "topic_orders_subs",
       "type": "text",
-      "x": 255,
-      "y": 705,
+      "x": 560.0080261227401,
+      "y": 687.3256819597833,
       "width": 198.046875,
       "height": 118.30000000000001,
       "text": "Event: OrderPlacedEvent\n──────────────────────────\nsub: payment-orders-sub\n  →  PaymentService\n\nsub: notify-orders-sub\n  →  NotificationService",
@@ -1528,8 +1584,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600013,
-      "version": 3,
-      "versionNonce": 1231060813,
+      "version": 878,
+      "versionNonce": 1350951061,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1540,14 +1596,14 @@
       "index": "af",
       "frameId": null,
       "roundness": null,
-      "updated": 1779414648839,
+      "updated": 1779456974698,
       "autoResize": true
     },
     {
       "id": "topic_payments",
       "type": "rectangle",
-      "x": 580,
-      "y": 640,
+      "x": 885.0080261227401,
+      "y": 621.6976106912804,
       "width": 380,
       "height": 220,
       "strokeColor": "#047857",
@@ -1559,11 +1615,16 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600015,
-      "version": 2,
-      "versionNonce": 1128678147,
+      "version": 880,
+      "versionNonce": 1518798325,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "paymentbus_to_shipping",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "roundness": {
@@ -1571,13 +1632,13 @@
       },
       "index": "ag",
       "frameId": null,
-      "updated": 1779411358330
+      "updated": 1779456974698
     },
     {
       "id": "topic_payments_label",
       "type": "text",
-      "x": 590,
-      "y": 650,
+      "x": 895.0080261227401,
+      "y": 631.9920190983912,
       "width": 360,
       "height": 28,
       "text": "topic: payment-events",
@@ -1595,11 +1656,20 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600017,
-      "version": 2,
-      "versionNonce": 762684077,
+      "version": 882,
+      "versionNonce": 1250499515,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "payment_to_paymentbus",
+          "type": "arrow"
+        },
+        {
+          "id": "paymentbus_to_shipping",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "containerId": null,
@@ -1607,14 +1677,14 @@
       "index": "ah",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330,
+      "updated": 1779457069523,
       "autoResize": true
     },
     {
       "id": "topic_payments_publisher",
       "type": "text",
-      "x": 590,
-      "y": 678,
+      "x": 895.0080261227401,
+      "y": 659.9920190983912,
       "width": 360,
       "height": 22,
       "text": "publisher: PaymentService",
@@ -1632,8 +1702,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600019,
-      "version": 2,
-      "versionNonce": 1210903203,
+      "version": 878,
+      "versionNonce": 1072328213,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1644,14 +1714,14 @@
       "index": "ai",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330,
+      "updated": 1779456974699,
       "autoResize": true
     },
     {
       "id": "topic_payments_subs",
       "type": "text",
-      "x": 590,
-      "y": 705,
+      "x": 895.0080261227401,
+      "y": 686.3933886705993,
       "width": 388.4765625,
       "height": 84.50000000000001,
       "text": "Events: PaymentCompleted, PaymentFailed\n──────────────────────────────────\nsub: order-payments-sub      →  OrderService\nsub: shipping-payments-sub  →  ShippingService\nsub: notify-payments-sub     →  NotificationService",
@@ -1669,8 +1739,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600021,
-      "version": 3,
-      "versionNonce": 593549603,
+      "version": 881,
+      "versionNonce": 1493033845,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1681,14 +1751,14 @@
       "index": "aj",
       "frameId": null,
       "roundness": null,
-      "updated": 1779414647201,
+      "updated": 1779456974699,
       "autoResize": true
     },
     {
       "id": "topic_shipping",
       "type": "rectangle",
-      "x": 975,
-      "y": 640,
+      "x": 1280.0080261227401,
+      "y": 622.9341260011456,
       "width": 350,
       "height": 220,
       "strokeColor": "#047857",
@@ -1700,11 +1770,20 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600023,
-      "version": 2,
-      "versionNonce": 891133507,
+      "version": 877,
+      "versionNonce": 1589357781,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "shipping_to_shipbus",
+          "type": "arrow"
+        },
+        {
+          "id": "shipbus_to_notify",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "roundness": {
@@ -1712,13 +1791,13 @@
       },
       "index": "ak",
       "frameId": null,
-      "updated": 1779411358330
+      "updated": 1779456974699
     },
     {
       "id": "topic_shipping_label",
       "type": "text",
-      "x": 985,
-      "y": 650,
+      "x": 1290.0080261227401,
+      "y": 632.9341260011456,
       "width": 330,
       "height": 28,
       "text": "topic: shipping-events",
@@ -1736,11 +1815,20 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600025,
-      "version": 2,
-      "versionNonce": 1808046957,
+      "version": 883,
+      "versionNonce": 586698581,
       "isDeleted": false,
       "groupIds": [],
-      "boundElements": [],
+      "boundElements": [
+        {
+          "id": "shipping_to_shipbus",
+          "type": "arrow"
+        },
+        {
+          "id": "shipbus_to_notify",
+          "type": "arrow"
+        }
+      ],
       "link": null,
       "locked": false,
       "containerId": null,
@@ -1748,14 +1836,14 @@
       "index": "al",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330,
+      "updated": 1779457083909,
       "autoResize": true
     },
     {
       "id": "topic_shipping_publisher",
       "type": "text",
-      "x": 985,
-      "y": 678,
+      "x": 1290.0080261227401,
+      "y": 660.6200903668941,
       "width": 330,
       "height": 22,
       "text": "publisher: ShippingService",
@@ -1773,8 +1861,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600027,
-      "version": 2,
-      "versionNonce": 351722979,
+      "version": 876,
+      "versionNonce": 330832469,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1785,14 +1873,14 @@
       "index": "am",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330,
+      "updated": 1779456974699,
       "autoResize": true
     },
     {
       "id": "topic_shipping_subs",
       "type": "text",
-      "x": 985,
-      "y": 705,
+      "x": 1290.0080261227401,
+      "y": 687.6397175940349,
       "width": 358.0078125,
       "height": 67.60000000000001,
       "text": "Event: ShipmentDispatchedEvent\n──────────────────────────────────\nsub: order-shipping-sub  →  OrderService\nsub: notify-shipping-sub →  NotificationService",
@@ -1810,8 +1898,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600029,
-      "version": 3,
-      "versionNonce": 1352221549,
+      "version": 877,
+      "versionNonce": 1993082805,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1822,14 +1910,14 @@
       "index": "an",
       "frameId": null,
       "roundness": null,
-      "updated": 1779414645988,
+      "updated": 1779456974699,
       "autoResize": true
     },
     {
       "id": "queue_send",
       "type": "rectangle",
-      "x": 1340,
-      "y": 640,
+      "x": 1645.0080261227401,
+      "y": 622.9341260011456,
       "width": 320,
       "height": 220,
       "strokeColor": "#b45309",
@@ -1841,8 +1929,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600031,
-      "version": 2,
-      "versionNonce": 315042179,
+      "version": 875,
+      "versionNonce": 532367637,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1853,13 +1941,13 @@
       },
       "index": "ao",
       "frameId": null,
-      "updated": 1779411358330
+      "updated": 1779456974699
     },
     {
       "id": "queue_send_label",
       "type": "text",
-      "x": 1350,
-      "y": 650,
+      "x": 1655.0080261227401,
+      "y": 632.9341260011456,
       "width": 300,
       "height": 28,
       "text": "queue: send-notification",
@@ -1877,8 +1965,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600033,
-      "version": 2,
-      "versionNonce": 1069311021,
+      "version": 875,
+      "versionNonce": 1610309237,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1889,14 +1977,14 @@
       "index": "ap",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330,
+      "updated": 1779456974699,
       "autoResize": true
     },
     {
       "id": "queue_send_body",
       "type": "text",
-      "x": 1350,
-      "y": 685,
+      "x": 1655.0080261227401,
+      "y": 667.9341260011456,
       "width": 225,
       "height": 156,
       "text": "Direct queue (not topic).\nFan-in only — single consumer.\n\nNotificationService consumes\nin addition to its 3 topic\nsubscriptions.\n\nUse: ad-hoc \"send a notification\nright now\" requests from any\nservice or admin tool.",
@@ -1914,8 +2002,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 600035,
-      "version": 3,
-      "versionNonce": 513874691,
+      "version": 876,
+      "versionNonce": 1045546965,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -1926,7 +2014,7 @@
       "index": "aq",
       "frameId": null,
       "roundness": null,
-      "updated": 1779414645007,
+      "updated": 1779456974699,
       "autoResize": true
     },
     {
@@ -2076,8 +2164,8 @@
     {
       "id": "orders_db",
       "type": "rectangle",
-      "x": 580,
-      "y": 920,
+      "x": 580.0098136135704,
+      "y": 919.6957779793188,
       "width": 340,
       "height": 120,
       "strokeColor": "#1e40af",
@@ -2089,8 +2177,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 700009,
-      "version": 2,
-      "versionNonce": 1182062413,
+      "version": 3,
+      "versionNonce": 1207514779,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [
@@ -2106,13 +2194,13 @@
       },
       "index": "av",
       "frameId": null,
-      "updated": 1779411358330
+      "updated": 1779456816263
     },
     {
       "id": "orders_db_text",
       "type": "text",
-      "x": 595.3125,
-      "y": 942.5,
+      "x": 595.3223136135704,
+      "y": 942.1957779793188,
       "width": 309.375,
       "height": 75,
       "text": "orders-db  (SQL Server 2022)\n\nOrders · OrderLines · RowVersion concurrency\n+ wolverine schema (outgoing_envelopes,\n  scheduled_envelopes, dead_letters)",
@@ -2130,8 +2218,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 700011,
-      "version": 4,
-      "versionNonce": 1673944035,
+      "version": 5,
+      "versionNonce": 913156923,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -2142,7 +2230,7 @@
       "index": "aw",
       "frameId": null,
       "roundness": null,
-      "updated": 1779414640603,
+      "updated": 1779456816263,
       "autoResize": true
     },
     {
@@ -2547,8 +2635,8 @@
       "type": "arrow",
       "x": 750,
       "y": 510,
-      "width": 345,
-      "height": 130,
+      "width": 0.3949594768419047,
+      "height": 98.08612866919236,
       "strokeColor": "#047857",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -2558,8 +2646,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 800009,
-      "version": 2,
-      "versionNonce": 14694797,
+      "version": 100,
+      "versionNonce": 613445339,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -2571,19 +2659,19 @@
           0
         ],
         [
-          -345,
-          130
+          -0.3949594768419047,
+          98.08612866919236
         ]
       ],
       "startBinding": {
-        "elementId": "order_svc",
-        "focus": 0,
-        "gap": 2
+        "elementId": "order_svc_body",
+        "focus": -0.013598687660488676,
+        "gap": 3.3999999999999773
       },
       "endBinding": {
-        "elementId": "topic_orders",
-        "focus": 0,
-        "gap": 2
+        "elementId": "topic_orders_label",
+        "focus": 0.2628387278330706,
+        "gap": 14
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -2591,15 +2679,15 @@
       "index": "b07",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330
+      "updated": 1779457059677
     },
     {
       "id": "orderbus_to_payment",
       "type": "arrow",
-      "x": 405,
-      "y": 640,
-      "width": 710,
-      "height": 130,
+      "x": 814.4435853825205,
+      "y": 606.5061368843645,
+      "width": 144.47426620178703,
+      "height": 90.51238149196718,
       "strokeColor": "#047857",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -2609,8 +2697,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 800011,
-      "version": 2,
-      "versionNonce": 662942147,
+      "version": 269,
+      "versionNonce": 1495788155,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -2622,19 +2710,19 @@
           0
         ],
         [
-          710,
-          -130
+          144.47426620178703,
+          -90.51238149196718
         ]
       ],
       "startBinding": {
         "elementId": "topic_orders",
-        "focus": 0,
-        "gap": 2
+        "focus": -0.28426260621953653,
+        "gap": 15.191473806915837
       },
       "endBinding": {
-        "elementId": "payment_svc",
-        "focus": 0,
-        "gap": 2
+        "elementId": "payment_svc_body",
+        "focus": -0.018008916767287674,
+        "gap": 9.704645757531864
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -2642,7 +2730,7 @@
       "index": "b08",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330
+      "updated": 1779457066510
     },
     {
       "id": "payment_to_stripe",
@@ -2712,8 +2800,8 @@
       "type": "arrow",
       "x": 1115,
       "y": 510,
-      "width": 345,
-      "height": 130,
+      "width": 1.0132171317743541,
+      "height": 94.523786943152,
       "strokeColor": "#047857",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -2723,8 +2811,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 800015,
-      "version": 2,
-      "versionNonce": 139362659,
+      "version": 117,
+      "versionNonce": 108139547,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -2736,19 +2824,19 @@
           0
         ],
         [
-          -345,
-          130
+          -1.0132171317743541,
+          94.523786943152
         ]
       ],
       "startBinding": {
-        "elementId": "payment_svc",
-        "focus": 0,
-        "gap": 2
+        "elementId": "payment_svc_body",
+        "focus": -0.06435338490878757,
+        "gap": 3.710890365134503
       },
       "endBinding": {
-        "elementId": "topic_payments",
-        "focus": 0,
-        "gap": 2
+        "elementId": "topic_payments_label",
+        "focus": 0.21390084269284745,
+        "gap": 14
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -2756,15 +2844,15 @@
       "index": "b0A",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330
+      "updated": 1779457027828
     },
     {
       "id": "paymentbus_to_shipping",
       "type": "arrow",
-      "x": 960,
-      "y": 640,
-      "width": 520,
-      "height": 130,
+      "x": 1210.8889040096262,
+      "y": 620.6898686402321,
+      "width": 105.34042158732291,
+      "height": 99.8644520735412,
       "strokeColor": "#047857",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -2774,8 +2862,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 800017,
-      "version": 2,
-      "versionNonce": 1256127053,
+      "version": 786,
+      "versionNonce": 1931192571,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -2787,19 +2875,19 @@
           0
         ],
         [
-          520,
-          -130
+          105.34042158732291,
+          -99.8644520735412
         ]
       ],
       "startBinding": {
-        "elementId": "topic_payments",
-        "focus": 0,
-        "gap": 2
+        "elementId": "topic_payments_label",
+        "focus": 0.5606233582475852,
+        "gap": 11.302150458159076
       },
       "endBinding": {
-        "elementId": "shipping_svc",
-        "focus": 0,
-        "gap": 2
+        "elementId": "shipping_svc_body",
+        "focus": 0.1765038368672142,
+        "gap": 30.062825197084603
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -2807,15 +2895,15 @@
       "index": "b0B",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330
+      "updated": 1779457070041
     },
     {
       "id": "shipping_to_shipbus",
       "type": "arrow",
-      "x": 1480,
-      "y": 510,
-      "width": 330,
-      "height": 130,
+      "x": 1471.6666072361636,
+      "y": 511.09134634287483,
+      "width": 0.28691261895164644,
+      "height": 109.82143655546548,
       "strokeColor": "#047857",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -2825,8 +2913,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 800019,
-      "version": 2,
-      "versionNonce": 308174083,
+      "version": 711,
+      "versionNonce": 1623121243,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -2838,19 +2926,19 @@
           0
         ],
         [
-          -330,
-          130
+          -0.28691261895164644,
+          109.82143655546548
         ]
       ],
       "startBinding": {
-        "elementId": "shipping_svc",
-        "focus": 0,
-        "gap": 2
+        "elementId": "shipping_svc_body",
+        "focus": -0.004961164760016017,
+        "gap": 20.09134634287483
       },
       "endBinding": {
-        "elementId": "topic_shipping",
-        "focus": 0,
-        "gap": 2
+        "elementId": "topic_shipping_label",
+        "focus": 0.09878832439741765,
+        "gap": 12.021343102805304
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -2858,15 +2946,15 @@
       "index": "b0C",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330
+      "updated": 1779457032361
     },
     {
       "id": "shipbus_to_notify",
       "type": "arrow",
-      "x": 1325,
-      "y": 640,
-      "width": 510,
-      "height": 130,
+      "x": 1589.7473757239607,
+      "y": 621.864703414665,
+      "width": 76.31801536419198,
+      "height": 91.49797753926623,
       "strokeColor": "#047857",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
@@ -2876,8 +2964,8 @@
       "opacity": 100,
       "angle": 0,
       "seed": 800021,
-      "version": 2,
-      "versionNonce": 251930797,
+      "version": 770,
+      "versionNonce": 1244806677,
       "isDeleted": false,
       "groupIds": [],
       "boundElements": [],
@@ -2889,19 +2977,19 @@
           0
         ],
         [
-          510,
-          -130
+          76.31801536419198,
+          -91.49797753926623
         ]
       ],
       "startBinding": {
-        "elementId": "topic_shipping",
-        "focus": 0,
-        "gap": 2
+        "elementId": "topic_shipping_label",
+        "focus": 0.6442765799213221,
+        "gap": 11.069422586480641
       },
       "endBinding": {
-        "elementId": "notify_svc",
+        "elementId": "bus_container",
         "focus": 0,
-        "gap": 2
+        "gap": 29.633274124601257
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
@@ -2909,7 +2997,7 @@
       "index": "b0D",
       "frameId": null,
       "roundness": null,
-      "updated": 1779411358330
+      "updated": 1779457084439
     },
     {
       "id": "saga_panel_title",
@@ -3770,7 +3858,7 @@
       "version": 3,
       "versionNonce": 2122883299,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1779414010090,
       "link": null,
       "locked": false,
@@ -3786,10 +3874,7 @@
       ],
       "pressures": [],
       "simulatePressure": true,
-      "lastCommittedPoint": [
-        0.0001,
-        0.0001
-      ]
+      "lastCommittedPoint": null
     }
   ],
   "appState": {
