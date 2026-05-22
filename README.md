@@ -6,6 +6,12 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 
 > **Live demo:** [catalog-api-demo.fly.dev/scalar/v1](https://catalog-api-demo.fly.dev/scalar/v1) — CatalogService deployed to Fly.io with an interactive Scalar API explorer. Try `GET /api/v1/products` for the 7 seeded products. Auto-stops when idle, so the first request after a quiet period takes ~10s to wake the machine. *Scope: Catalog only — the full Order → Payment → Shipping → Notification saga runs locally via Aspire (see [Getting Started](#getting-started)).*
 
+> **About this repo — two design choices to read before judging consistency:**
+> - **Monorepo.** All five services live in this repo. Sized for one developer to navigate; a polyrepo split is sketched in [docs/STATUS.md](docs/STATUS.md) but unwarranted at this scale.
+> - **Mixed per-service architecture (deliberate, not transitional).** **CatalogService** uses **Clean Architecture** (4-project split: Domain / Application / Infrastructure / Api) because its complexity earns it — multiple aggregates, gRPC server, HybridCache + Redis, optimistic concurrency, integration tests. The other four services (**Order, Payment, Shipping, Notification**) use **Vertical Slice Architecture** (single project, feature folders) because at ≤2 aggregates each, the project-split ceremony costs more than it pays. The diff *between* services is the lesson — see [CLAUDE.md "Project Structure"](CLAUDE.md#project-structure) for the per-service decision rule and signals for when to promote VSA → Clean.
+>
+> Status is otherwise active: zero analyzer warnings, build clean, 134/134 unit tests pass, two integration test slices (Catalog + Order) covering migrations, caching, concurrency tokens, and Wolverine outbox + saga handlers. Open issues and deferred cleanups are tracked in [docs/STATUS.md](docs/STATUS.md).
+
 [![NextAurora architecture — full system in one view](docs/nextaurora-architecture.svg)](docs/nextaurora-architecture.svg)
 
 *Full system in one view — services, Service Bus topology, databases, and the 10-step order-placement saga. Click to view full-size. Source: [`nextaurora-architecture.excalidraw`](docs/nextaurora-architecture.excalidraw) — open with the [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or [excalidraw.com](https://excalidraw.com) to edit.*
