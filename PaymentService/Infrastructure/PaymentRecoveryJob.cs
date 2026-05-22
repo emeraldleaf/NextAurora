@@ -42,8 +42,14 @@ namespace PaymentService.Infrastructure;
 /// (via <see cref="DistributedLock.SqlServer"/>) gives us leader election against the existing
 /// DB — no new infrastructure. See docs/project-decisions.md §22.
 /// </para>
+/// <para>
+/// <b>Source-generated logging.</b> Every log call goes through a <c>[LoggerMessage]</c>
+/// partial method declared at the bottom of the class. This compiles to zero-allocation, fully
+/// templated logging that the analyzer (CA1873) is happy with — the alternative would be
+/// gating each call with <c>logger.IsEnabled(...)</c> branches, which clutter the read.
+/// </para>
 /// </summary>
-public sealed class PaymentRecoveryJob(
+public sealed partial class PaymentRecoveryJob(
     IServiceScopeFactory scopeFactory,
     IDistributedLockProvider lockProvider,
     IOptionsMonitor<PaymentRecoveryOptions> optionsMonitor,
@@ -55,8 +61,8 @@ public sealed class PaymentRecoveryJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("PaymentRecoveryJob started. Sweep interval: {Interval}, stale threshold: {Threshold}",
-            optionsMonitor.CurrentValue.SweepInterval, optionsMonitor.CurrentValue.StaleThreshold);
+        var initial = optionsMonitor.CurrentValue;
+        LogStarted(logger, initial.SweepInterval, initial.StaleThreshold);
 
         // First-iteration jitter so multi-replica startups don't all hit the lock at the same
         // millisecond. Cheap, just a few seconds of randomization off the SweepInterval base.
@@ -76,7 +82,7 @@ public sealed class PaymentRecoveryJob(
             catch (Exception ex)
 #pragma warning restore CA1031
             {
-                logger.LogError(ex, "PaymentRecoveryJob sweep failed; continuing to next iteration");
+                LogSweepFailed(logger, ex);
             }
 
             try
@@ -89,7 +95,7 @@ public sealed class PaymentRecoveryJob(
             }
         }
 
-        logger.LogInformation("PaymentRecoveryJob stopping");
+        LogStopping(logger);
     }
 
     internal async Task SweepAsync(CancellationToken ct)
@@ -101,7 +107,7 @@ public sealed class PaymentRecoveryJob(
         await using var handle = await lockProvider.TryAcquireLockAsync(options.LockName, TimeSpan.Zero, ct);
         if (handle is null)
         {
-            logger.LogDebug("Another instance holds the recovery lock; skipping this sweep");
+            LogLockUnavailable(logger);
             return;
         }
 
@@ -114,11 +120,11 @@ public sealed class PaymentRecoveryJob(
 
         if (staleIds.Count == 0)
         {
-            logger.LogDebug("No stale Pending payments to recover");
+            LogNoStalePayments(logger);
             return;
         }
 
-        logger.LogInformation("Recovering {Count} stale Pending payments older than {Threshold:o}", staleIds.Count, threshold);
+        LogRecovering(logger, staleIds.Count, threshold);
 
         foreach (var id in staleIds)
         {
@@ -135,7 +141,7 @@ public sealed class PaymentRecoveryJob(
         // ID query and this load, and (b) a previous sweeper iteration already recovered it.
         if (payment is null || payment.Status != PaymentStatus.Pending)
         {
-            logger.LogDebug("Payment {PaymentId} no longer Pending (current: {Status}); skipping", paymentId, payment?.Status);
+            LogNoLongerPending(logger, paymentId, payment?.Status);
             return;
         }
 
@@ -178,19 +184,60 @@ public sealed class PaymentRecoveryJob(
             // Another process won the RowVersion race. That's fine — the row is either Failed
             // or Completed by whoever raced past us; no further action needed here. Transaction
             // rolls back on dispose so our partial work doesn't persist.
-            logger.LogDebug(ex, "Payment {PaymentId} updated by another process during sweep; skipping", paymentId);
+            LogConcurrencyConflict(logger, ex, paymentId);
             return;
         }
 
         // Past this point the transaction committed successfully.
         if (legacyRow)
         {
-            logger.LogWarning("Payment {PaymentId} has no BuyerId (legacy row); marked Failed but skipping event publish", paymentId);
+            LogLegacyRow(logger, paymentId);
             RecoveredPayments.Add(1, new KeyValuePair<string, object?>("outcome", "marked-failed-no-event"));
             return;
         }
 
         RecoveredPayments.Add(1, new KeyValuePair<string, object?>("outcome", "recovered"));
-        logger.LogInformation("Payment {PaymentId} recovered (Pending → Failed)", paymentId);
+        LogRecovered(logger, paymentId);
     }
+
+    // --- Source-generated logging ------------------------------------------------------------
+    // CA1873 (Avoid potentially expensive logging) requires that any log argument that isn't
+    // a literal or trivially-cheap expression go through compile-time templated logging. The
+    // [LoggerMessage] source generator emits zero-allocation, IsEnabled-guarded implementations
+    // of each partial method below, which is the canonical .NET 10 fix.
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information,
+        Message = "PaymentRecoveryJob started. Sweep interval: {Interval}, stale threshold: {Threshold}")]
+    private static partial void LogStarted(ILogger logger, TimeSpan interval, TimeSpan threshold);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "PaymentRecoveryJob stopping")]
+    private static partial void LogStopping(ILogger logger);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Error, Message = "PaymentRecoveryJob sweep failed; continuing to next iteration")]
+    private static partial void LogSweepFailed(ILogger logger, Exception ex);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Debug, Message = "Another instance holds the recovery lock; skipping this sweep")]
+    private static partial void LogLockUnavailable(ILogger logger);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Debug, Message = "No stale Pending payments to recover")]
+    private static partial void LogNoStalePayments(ILogger logger);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Information,
+        Message = "Recovering {Count} stale Pending payments older than {Threshold:o}")]
+    private static partial void LogRecovering(ILogger logger, int count, DateTime threshold);
+
+    [LoggerMessage(EventId = 7, Level = LogLevel.Debug,
+        Message = "Payment {PaymentId} no longer Pending (current: {Status}); skipping")]
+    private static partial void LogNoLongerPending(ILogger logger, Guid paymentId, PaymentStatus? status);
+
+    [LoggerMessage(EventId = 8, Level = LogLevel.Debug,
+        Message = "Payment {PaymentId} updated by another process during sweep; skipping")]
+    private static partial void LogConcurrencyConflict(ILogger logger, Exception ex, Guid paymentId);
+
+    [LoggerMessage(EventId = 9, Level = LogLevel.Warning,
+        Message = "Payment {PaymentId} has no BuyerId (legacy row); marked Failed but skipping event publish")]
+    private static partial void LogLegacyRow(ILogger logger, Guid paymentId);
+
+    [LoggerMessage(EventId = 10, Level = LogLevel.Information, Message = "Payment {PaymentId} recovered (Pending → Failed)")]
+    private static partial void LogRecovered(ILogger logger, Guid paymentId);
 }
