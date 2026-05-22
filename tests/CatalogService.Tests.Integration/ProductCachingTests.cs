@@ -75,7 +75,10 @@ public sealed class ProductCachingTests(CatalogApiFactory factory) : IClassFixtu
 
         // Update through the real write path — UpdateProductHandler must call
         // IProductCache.InvalidateAsync, or the next read would still see 10.00.
-        var update = new { ProductId = productId, Name = "Updated Name", Description = "Updated", Price = 42.50m };
+        // SellerId must match TestAuthHandler's stamped NameIdentifier claim ("test-seller")
+        // so the PUT endpoint's seller-ownership check (added by the PR #14 security review)
+        // returns 204 NoContent rather than 403 Forbid.
+        var update = new { ProductId = productId, SellerId = "test-seller", Name = "Updated Name", Description = "Updated", Price = 42.50m };
         var putResponse = await client.PutAsJsonAsync($"/api/v1/products/{productId}", update);
         putResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
