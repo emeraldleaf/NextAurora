@@ -30,4 +30,12 @@ public class PaymentRepository(PaymentDbContext context) : IPaymentRepository
         context.Payments.Update(payment);
         await context.SaveChangesAsync(ct);
     }
+
+    public async Task<IReadOnlyList<Guid>> GetStalePendingPaymentIdsAsync(DateTime olderThan, CancellationToken ct = default)
+        => await context.Payments
+            .AsNoTracking()
+            .Where(p => p.Status == PaymentStatus.Pending && p.CreatedAt < olderThan)
+            .OrderBy(p => p.CreatedAt)
+            .Select(p => p.Id)
+            .ToListAsync(ct);
 }

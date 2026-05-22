@@ -7,8 +7,16 @@ namespace ShippingService.Features;
 /// shipment was created by the saga (PaymentCompletedEvent → CreateShipmentCommand). OrderId is
 /// the natural identifier because callers (a buyer's order detail page) know the order, not the
 /// shipment.
+///
+/// <para>
+/// <b>Ownership check.</b> <see cref="GetShipmentByOrderQuery.RequestingBuyerId"/> is filled by
+/// the endpoint from the JWT subject claim. If the loaded shipment's <c>BuyerId</c> does not
+/// match, the handler returns <c>null</c> — indistinguishable from "shipment not found" — so
+/// the API does not leak the existence of other buyers' shipments to non-owners. The endpoint
+/// translates <c>null</c> to 404.
+/// </para>
 /// </summary>
-public record GetShipmentByOrderQuery(Guid OrderId);
+public record GetShipmentByOrderQuery(Guid OrderId, Guid RequestingBuyerId);
 
 public record ShipmentDto(
     Guid Id,
@@ -28,6 +36,11 @@ public class GetShipmentByOrderHandler(IShipmentRepository repository)
     {
         var shipment = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
         if (shipment is null) return null;
+
+        // Ownership guard: caller must be the buyer who placed the originating order. Returning
+        // null (translated to 404 by the endpoint) hides the shipment's existence from non-owners.
+        if (shipment.BuyerId != request.RequestingBuyerId)
+            return null;
 
         return new ShipmentDto(
             shipment.Id,

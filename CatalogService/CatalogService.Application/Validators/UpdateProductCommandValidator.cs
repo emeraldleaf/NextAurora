@@ -10,6 +10,9 @@ public class UpdateProductCommandValidator : AbstractValidator<UpdateProductComm
         RuleFor(x => x.ProductId)
             .NotEmpty();
 
+        RuleFor(x => x.SellerId)
+            .NotEmpty();
+
         RuleFor(x => x.Name)
             .NotEmpty()
             .MaximumLength(200);

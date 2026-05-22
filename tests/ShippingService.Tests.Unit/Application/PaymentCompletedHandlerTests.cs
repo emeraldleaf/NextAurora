@@ -7,12 +7,14 @@ namespace ShippingService.Tests.Unit.Application;
 public class PaymentCompletedHandlerTests
 {
     [Fact]
-    public void Handle_ReturnsCreateShipmentCommandWithCorrectOrderId()
+    public void Handle_ReturnsCreateShipmentCommandWithCorrectOrderIdAndBuyerId()
     {
         var orderId = Guid.NewGuid();
+        var buyerId = Guid.NewGuid();
         var @event = new PaymentCompletedEvent
         {
             OrderId = orderId,
+            BuyerId = buyerId,
             PaymentId = Guid.NewGuid(),
             Amount = 100m,
             Provider = "Stripe",
@@ -23,6 +25,7 @@ public class PaymentCompletedHandlerTests
 
         result.Should().BeOfType<CreateShipmentCommand>();
         result.OrderId.Should().Be(orderId);
+        result.BuyerId.Should().Be(buyerId);
     }
 
     [Fact]

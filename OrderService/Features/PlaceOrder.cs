@@ -70,13 +70,25 @@ public class PlaceOrderHandler(
     {
         var lines = new List<OrderLine>();
 
-        // Validate each line independently. Three checks per line:
-        // 1) does the product exist?  2) is it available?  3) is there enough stock?
-        // Then a 4th call reserves the stock atomically on the Catalog side.
-        // Any failure throws — order is never persisted partially.
-        foreach (var lineItem in request.Lines)
+        // Two-phase: validate all lines in parallel first, then reserve in parallel. The phase
+        // split is intentional — if validation fails on any line, NO reservation happens. The
+        // previous sequential code could reserve N-1 items before line N failed validation,
+        // leaving stranded reservations on Catalog. This shape eliminates that partial-commit
+        // path. Parallel reservation can still leave partial state if some reservations succeed
+        // before another fails on Catalog's optimistic-concurrency check — that compensation
+        // path is a known gap, see STATUS.md "Open issues".
+        //
+        // Safety note: parallelism here is over gRPC client calls only. The OrderService DbContext
+        // is NOT touched in this block (no order is persisted yet), so the CLAUDE.md
+        // "DbContext is not thread-safe" rule is satisfied — each gRPC call hits Catalog where
+        // it gets its own per-request DbContext scope.
+        var products = await Task.WhenAll(request.Lines.Select(line =>
+            catalogClient.GetProductAsync(line.ProductId, cancellationToken)));
+
+        for (int i = 0; i < request.Lines.Count; i++)
         {
-            var product = await catalogClient.GetProductAsync(lineItem.ProductId, cancellationToken);
+            var lineItem = request.Lines[i];
+            var product = products[i];
 
             if (product is null)
             {
@@ -96,20 +108,30 @@ public class PlaceOrderHandler(
                     lineItem.ProductId, lineItem.Quantity, product.StockQuantity);
                 throw new InvalidOperationException("Insufficient stock for one or more requested products.");
             }
+        }
 
-            // Stock reservation is the side effect that matters most: this decrements Catalog's
-            // stock count. Optimistic concurrency on the Catalog side ensures exactly one of
-            // two simultaneous reservations wins.
-            var reserved = await catalogClient.ReserveStockAsync(lineItem.ProductId, lineItem.Quantity, cancellationToken);
-            if (!reserved)
+        // Stock reservation phase — runs only if every line validated above. Optimistic
+        // concurrency on the Catalog side ensures exactly one of two simultaneous reservations
+        // wins per product.
+        var reservations = await Task.WhenAll(request.Lines.Select(line =>
+            catalogClient.ReserveStockAsync(line.ProductId, line.Quantity, cancellationToken)));
+
+        for (int i = 0; i < reservations.Length; i++)
+        {
+            if (!reservations[i])
             {
-                logger.LogWarning("Failed to reserve stock for product {ProductId}", lineItem.ProductId);
+                logger.LogWarning("Failed to reserve stock for product {ProductId}", request.Lines[i].ProductId);
                 throw new InvalidOperationException("Failed to reserve stock for one or more requested products.");
             }
+        }
 
-            // Notice: we use `product.Price` from CatalogService, NOT a price the client sent.
-            // Server-side pricing — never trust client-submitted prices for money calculations.
-            // See CLAUDE.md.
+        // Build OrderLine entities. Notice: we use `product.Price` from CatalogService, NOT a
+        // price the client sent. Server-side pricing — never trust client-submitted prices for
+        // money calculations. See CLAUDE.md.
+        for (int i = 0; i < request.Lines.Count; i++)
+        {
+            var product = products[i]!; // null-forgiving: throw-on-null check above
+            var lineItem = request.Lines[i];
             lines.Add(OrderLine.Create(product.Id, product.Name, lineItem.Quantity, product.Price));
         }
 

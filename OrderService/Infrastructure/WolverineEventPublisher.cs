@@ -25,5 +25,12 @@ namespace OrderService.Infrastructure;
 public sealed class WolverineEventPublisher(IMessageBus bus) : IEventPublisher
 {
     public Task PublishAsync<T>(T @event, CancellationToken ct = default) where T : class
-        => bus.PublishAsync(@event).AsTask();
+    {
+        // Wolverine 5.36 IMessageBus.PublishAsync has no CancellationToken overload — the call
+        // stages into the outbox transactionally and the actual dispatch is background work
+        // owned by Wolverine. We honor the request-scoped ct by refusing to enqueue once it
+        // has been cancelled. A cancelled request shouldn't be silently writing to the outbox.
+        ct.ThrowIfCancellationRequested();
+        return bus.PublishAsync(@event).AsTask();
+    }
 }

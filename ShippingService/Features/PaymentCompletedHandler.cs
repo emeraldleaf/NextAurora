@@ -16,5 +16,5 @@ namespace ShippingService.Features;
 public static class PaymentCompletedHandler
 {
     public static CreateShipmentCommand Handle(PaymentCompletedEvent @event)
-        => new(@event.OrderId);
+        => new(@event.OrderId, @event.BuyerId);
 }

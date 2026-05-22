@@ -19,7 +19,7 @@ namespace ShippingService.Features;
 /// carrier assignment would be a routing decision based on origin, destination, weight, etc.
 /// </para>
 /// </summary>
-public record CreateShipmentCommand(Guid OrderId);
+public record CreateShipmentCommand(Guid OrderId, Guid BuyerId);
 
 public class CreateShipmentHandler(
     IShipmentRepository repository,
@@ -43,7 +43,7 @@ public class CreateShipmentHandler(
         // (Created → Dispatched). Both before persisting — a single SaveChanges captures the
         // full state transition. Note Dispatch() also adds a TrackingEvent automatically, so
         // the audit trail is in place from the first save.
-        var shipment = Shipment.Create(request.OrderId, carrier);
+        var shipment = Shipment.Create(request.OrderId, request.BuyerId, carrier);
         shipment.Dispatch();
 
         await repository.AddAsync(shipment, cancellationToken);

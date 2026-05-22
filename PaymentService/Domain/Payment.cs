@@ -18,6 +18,7 @@ public class Payment
 {
     public Guid Id { get; private set; }
     public Guid OrderId { get; private set; }
+    public Guid BuyerId { get; private set; }
     public decimal Amount { get; private set; }
     public string Currency { get; private set; } = "USD";
     public PaymentStatus Status { get; private set; }
@@ -33,7 +34,7 @@ public class Payment
 
     private Payment() { }
 
-    public static Payment Create(Guid orderId, decimal amount, string currency, string provider)
+    public static Payment Create(Guid orderId, Guid buyerId, decimal amount, string currency, string provider)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
@@ -42,10 +43,14 @@ public class Payment
         if (orderId == Guid.Empty)
             throw new ArgumentException("Order ID must not be empty.", nameof(orderId));
 
+        if (buyerId == Guid.Empty)
+            throw new ArgumentException("Buyer ID must not be empty.", nameof(buyerId));
+
         return new Payment
         {
             Id = Guid.NewGuid(),
             OrderId = orderId,
+            BuyerId = buyerId,
             Amount = amount,
             Currency = currency,
             Status = PaymentStatus.Pending,
