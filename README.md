@@ -142,6 +142,12 @@ This starts all services, databases (PostgreSQL, SQL Server), Redis, and Azure S
 | CatalogService API | Shown in Aspire Dashboard |
 | OrderService API | Shown in Aspire Dashboard |
 
+5. **Verify it's working** — once every resource in the Aspire dashboard reaches `Running` (first boot is slow; SQL Server + Service Bus emulator take 60–90s to be healthy on cold runs):
+
+   - Click `catalog-service` in the Resources tab and open its `/scalar/v1` URL
+   - Run `GET /api/v1/products` — you should see 7 seeded products
+   - For the full saga walk (auth → place order → payment → ship → notify): see [scripts/smoke-test.sh](scripts/smoke-test.sh)
+
 ## API Endpoints
 
 🔒 = requires JWT Bearer authentication. Pagination params apply to list endpoints (`?page=1&pageSize=50`, server cap 100).
