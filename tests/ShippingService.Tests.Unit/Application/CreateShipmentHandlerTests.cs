@@ -21,7 +21,7 @@ public class CreateShipmentHandlerTests
     public async Task Handle_CreatesShipmentAndDispatches()
     {
         // Arrange
-        var command = new CreateShipmentCommand(Guid.NewGuid());
+        var command = new CreateShipmentCommand(Guid.NewGuid(), Guid.NewGuid());
 
         // Act
         var result = await _sut.HandleAsync(command, CancellationToken.None);
@@ -34,11 +34,28 @@ public class CreateShipmentHandlerTests
     }
 
     [Fact]
+    public async Task Handle_PersistsBuyerIdFromCommand()
+    {
+        // Arrange — denormalized BuyerId carries through to the persisted Shipment so the
+        // GetShipmentByOrder query can perform a buyer-scope check without a cross-service call.
+        var buyerId = Guid.NewGuid();
+        var command = new CreateShipmentCommand(Guid.NewGuid(), buyerId);
+
+        // Act
+        await _sut.HandleAsync(command, CancellationToken.None);
+
+        // Assert
+        await _repository.Received(1).AddAsync(
+            Arg.Is<Shipment>(s => s.BuyerId == buyerId),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_PublishesShipmentDispatchedEvent()
     {
         // Arrange
         var orderId = Guid.NewGuid();
-        var command = new CreateShipmentCommand(orderId);
+        var command = new CreateShipmentCommand(orderId, Guid.NewGuid());
 
         // Act
         await _sut.HandleAsync(command, CancellationToken.None);
@@ -53,7 +70,7 @@ public class CreateShipmentHandlerTests
     public async Task Handle_EventContainsTrackingNumber()
     {
         // Arrange
-        var command = new CreateShipmentCommand(Guid.NewGuid());
+        var command = new CreateShipmentCommand(Guid.NewGuid(), Guid.NewGuid());
 
         // Act
         await _sut.HandleAsync(command, CancellationToken.None);
@@ -69,8 +86,8 @@ public class CreateShipmentHandlerTests
     {
         // Arrange
         var orderId = Guid.NewGuid();
-        var command = new CreateShipmentCommand(orderId);
-        var existingShipment = Shipment.Create(orderId, "FedEx");
+        var command = new CreateShipmentCommand(orderId, Guid.NewGuid());
+        var existingShipment = Shipment.Create(orderId, Guid.NewGuid(), "FedEx");
         _repository.GetByOrderIdAsync(orderId, Arg.Any<CancellationToken>()).Returns(existingShipment);
 
         // Act

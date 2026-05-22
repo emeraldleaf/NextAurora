@@ -12,5 +12,10 @@ namespace PaymentService.Infrastructure;
 public sealed class WolverineEventPublisher(IMessageBus bus) : IEventPublisher
 {
     public Task PublishAsync<T>(T @event, CancellationToken ct = default) where T : class
-        => bus.PublishAsync(@event).AsTask();
+    {
+        // Wolverine's IMessageBus.PublishAsync has no CancellationToken overload; we honor the
+        // request-scoped ct by refusing to stage outbox work for an already-cancelled request.
+        ct.ThrowIfCancellationRequested();
+        return bus.PublishAsync(@event).AsTask();
+    }
 }

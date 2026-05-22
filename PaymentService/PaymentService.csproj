@@ -15,9 +15,15 @@
     <PackageReference Include="WolverineFx.EntityFrameworkCore" />
     <PackageReference Include="WolverineFx.FluentValidation" />
     <PackageReference Include="WolverineFx.SqlServer" />
+    <PackageReference Include="DistributedLock.SqlServer" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj" />
     <ProjectReference Include="../NextAurora.Contracts/NextAurora.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Expose internal SweepAsync to the unit test project so the BackgroundService loop's
+         core logic can be exercised directly, without the timing loop. -->
+    <InternalsVisibleTo Include="PaymentService.Tests.Unit" />
   </ItemGroup>
 </Project>

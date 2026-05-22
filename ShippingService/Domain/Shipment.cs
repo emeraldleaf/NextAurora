@@ -27,6 +27,7 @@ public class Shipment
 {
     public Guid Id { get; private set; }
     public Guid OrderId { get; private set; }
+    public Guid BuyerId { get; private set; }
     public string Carrier { get; private set; } = "";
     public string TrackingNumber { get; private set; } = "";
     public ShipmentStatus Status { get; private set; }
@@ -48,10 +49,13 @@ public class Shipment
     /// usually come from the carrier's API after a label-creation call; we generate here as a
     /// placeholder so the domain remains decoupled from carrier integration code.
     /// </summary>
-    public static Shipment Create(Guid orderId, string carrier)
+    public static Shipment Create(Guid orderId, Guid buyerId, string carrier)
     {
         if (orderId == Guid.Empty)
             throw new ArgumentException("Order ID must not be empty.", nameof(orderId));
+
+        if (buyerId == Guid.Empty)
+            throw new ArgumentException("Buyer ID must not be empty.", nameof(buyerId));
 
         ArgumentException.ThrowIfNullOrWhiteSpace(carrier);
 
@@ -60,6 +64,7 @@ public class Shipment
         {
             Id = Guid.NewGuid(),
             OrderId = orderId,
+            BuyerId = buyerId,
             Carrier = carrier,
             TrackingNumber = trackingNumber,
             Status = ShipmentStatus.Created,

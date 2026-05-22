@@ -22,6 +22,13 @@ public class UpdateProductHandler(IProductRepository repository, IProductCache c
         var product = await repository.GetByIdAsync(request.ProductId, cancellationToken)
             ?? throw new InvalidOperationException($"Product {request.ProductId} not found");
 
+        // Ownership guard, defense in depth. The endpoint already verifies the principal matches the
+        // command's SellerId. This second check confirms the stored product actually belongs to that
+        // seller — closing the gap where a caller submits their own seller id paired with someone
+        // else's product id, which the endpoint check alone cannot catch.
+        if (!string.Equals(product.SellerId, request.SellerId, StringComparison.Ordinal))
+            throw new UnauthorizedAccessException();
+
         product.UpdateDetails(request.Name, request.Description, request.Price);
         await repository.UpdateAsync(product, cancellationToken);
 

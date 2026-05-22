@@ -106,6 +106,7 @@ public class ProcessPaymentHandlerTests
         await _eventPublisher.Received(1).PublishAsync(
             Arg.Is<PaymentCompletedEvent>(e =>
                 e.OrderId == command.OrderId &&
+                e.BuyerId == command.BuyerId &&
                 e.Amount == command.Amount &&
                 e.Provider == "Stripe"),
             Arg.Any<CancellationToken>());
@@ -116,7 +117,7 @@ public class ProcessPaymentHandlerTests
     {
         // Arrange
         var command = ValidCommand();
-        var existingPayment = Payment.Create(command.OrderId, command.Amount, command.Currency, "Stripe");
+        var existingPayment = Payment.Create(command.OrderId, command.BuyerId, command.Amount, command.Currency, "Stripe");
         _repository.GetByOrderIdAsync(command.OrderId, Arg.Any<CancellationToken>()).Returns(existingPayment);
 
         // Act

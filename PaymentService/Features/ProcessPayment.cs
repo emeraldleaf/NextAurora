@@ -58,7 +58,7 @@ public class ProcessPaymentHandler(
         // that's stuck (the process died mid-gateway-call) will never advance. Real-world fix
         // would be a sweeper job that picks up Pendings older than N minutes and either retries
         // or marks them Failed. Out of scope today.
-        var payment = Payment.Create(request.OrderId, request.Amount, request.Currency, "Stripe");
+        var payment = Payment.Create(request.OrderId, request.BuyerId, request.Amount, request.Currency, "Stripe");
         await repository.AddAsync(payment, cancellationToken);
 
         var result = await gateway.ProcessPaymentAsync(request.Amount, request.Currency, cancellationToken);
@@ -75,6 +75,7 @@ public class ProcessPaymentHandler(
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
+                BuyerId = request.BuyerId,
                 Amount = payment.Amount,
                 Provider = payment.Provider,
                 CompletedAt = payment.CompletedAt!.Value

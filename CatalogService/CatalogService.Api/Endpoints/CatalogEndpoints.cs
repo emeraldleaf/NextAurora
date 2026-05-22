@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CatalogService.Application.Commands;
 using CatalogService.Application.Queries;
 using Wolverine;
@@ -62,19 +63,33 @@ public static class CatalogEndpoints
             return Results.Ok(products);
         }).RequireRateLimiting("search");
 
-        // POST /api/v1/products — seller writes. Auth required.
-        group.MapPost("/", async (CreateProductCommand command, IMessageBus bus, CancellationToken ct) =>
+        // POST /api/v1/products — seller writes. Auth required, plus seller-scope check
+        // mirroring OrderService's buyer-scope pattern: JWT subject must equal command.SellerId.
+        group.MapPost("/", async (CreateProductCommand command, HttpContext context, IMessageBus bus, CancellationToken ct) =>
         {
+            var jwtSub = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (jwtSub is null || !string.Equals(jwtSub, command.SellerId, StringComparison.Ordinal))
+                return Results.Forbid();
+
             var productId = await bus.InvokeAsync<Guid>(command, ct);
             return Results.Created($"/api/v1/products/{productId}", new { Id = productId });
         }).RequireAuthorization();
 
-        // PUT /api/v1/products/{id} — seller edit.
-        group.MapPut("/{id:guid}", async (Guid id, UpdateProductCommand command, IMessageBus bus, CancellationToken ct) =>
+        // PUT /api/v1/products/{id} — seller edit. Two-tier ownership check:
+        //  1. Endpoint here: JWT subject must equal command.SellerId.
+        //  2. Handler: stored product.SellerId must equal command.SellerId.
+        // Both are required: (1) alone lets a caller pair their own seller id with someone else's
+        // product id; (2) alone trusts the principal claim from a non-authenticated entry point.
+        group.MapPut("/{id:guid}", async (Guid id, UpdateProductCommand command, HttpContext context, IMessageBus bus, CancellationToken ct) =>
         {
             // Defense-in-depth: if route ID and body ID disagree, refuse rather than guess.
             // Prevents accidental cross-resource updates.
             if (id != command.ProductId) return Results.BadRequest();
+
+            var jwtSub = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (jwtSub is null || !string.Equals(jwtSub, command.SellerId, StringComparison.Ordinal))
+                return Results.Forbid();
+
             await bus.InvokeAsync(command, ct);
             return Results.NoContent();
         }).RequireAuthorization();
