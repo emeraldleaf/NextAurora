@@ -12,7 +12,11 @@
       "Bash(git branch *)",
       "Bash(git checkout *)",
       "Bash(git pull *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(awk '{print $9, $7, $8}')",
+      "Bash(git ls-tree *)",
+      "Bash(cd /Users/joshuadell/NovaCraft *)",
+      "Read(//Applications/**)"
     ],
     "additionalDirectories": [
       "/Users/joshuadell/NovaCraft/.claude/skills"
