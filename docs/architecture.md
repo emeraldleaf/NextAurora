@@ -1,6 +1,8 @@
 # NextAurora Architecture
 
-> **Visual diagram:** [docs/nextaurora-architecture.excalidraw](nextaurora-architecture.excalidraw) — full system, services, Service Bus topology, databases, and the 10-step order-placement saga in one view. Open in VSCode (Excalidraw plugin) or drag onto [excalidraw.com](https://excalidraw.com).
+[![NextAurora architecture — full system, services, Service Bus topology, databases, and the 10-step order-placement saga](nextaurora-architecture.svg)](nextaurora-architecture.svg)
+
+*Full system in one view. Click for full-size. Source: [`nextaurora-architecture.excalidraw`](nextaurora-architecture.excalidraw) — edit with the [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or [excalidraw.com](https://excalidraw.com).*
 
 ## Table of Contents
 

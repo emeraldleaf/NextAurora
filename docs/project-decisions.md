@@ -25,6 +25,7 @@ This is the reference companion to [docs/ef-core.md](ef-core.md). It walks every
 - [19. Build system & static analysis](#19-build-system--static-analysis)
 - [20. Library decisions reference table](#20-library-decisions-reference-table)
 - [21. Crib sheet](#21-crib-sheet)
+- [22. Dapr — considered, not adopted (and distributed locks)](#22-dapr--considered-not-adopted-and-distributed-locks)
 
 ---
 
@@ -1096,9 +1097,117 @@ A condensed walkthrough of the key decisions, each mapped to a section above. Us
 
 > `TreatWarningsAsErrors=true` + `AnalysisMode=All` makes every analyzer warning a build error. Five analyzer packages: built-in CA*, Meziantou (cancellation token propagation), SonarAnalyzer (cognitive complexity, sync-in-async), Roslynator (style/perf micro-optimizations), and BannedApiAnalyzers with a repo-root `BannedSymbols.txt` that compile-rejects `Task.WaitAll`, `Parallel.For`, `Thread.Sleep`, etc. with custom error messages pointing at the right replacement. One concurrency hazard the analyzers can't catch — shared static mutable collections — is enforced by a CI grep step.
 
+### "Why not Dapr?"
+
+> Dapr's pitch — one runtime that covers service invocation, pub/sub, state, secrets, and distributed locks — is real for the right shop, but it's not us. Three of the five building blocks already have *better* equivalents here: Wolverine's pub/sub has a transactional outbox (Dapr's doesn't), gRPC gives us typed contracts (Dapr invocation is stringly-typed), and HybridCache has stampede protection. Secrets are covered by the standard `IConfiguration` chain (env locally, Key Vault in prod). The only building block we don't have is distributed locks — and we don't need them today: every aggregate has optimistic concurrency, every event handler is idempotent, no service runs a singleton background job. When we eventually do need a lock (likely for a scheduled sweep job on a multi-replica service), the natural answer is the `DistributedLock` library against our existing Postgres/SQL Server/Redis — no new runtime, no sidecar. Dapr makes sense for polyglot teams or hard multi-cloud portability requirements; we're neither. Section 22 has the full analysis.
+
 ### "How would you scale this?"
 
 > Three layers. **Vertically:** each service can scale to a larger VM. **Horizontally:** add replicas — but Catalog needs FusionCache before we deploy multi-replica because HybridCache 10.x lacks a backplane. **Database:** move from Aspire-managed local containers to RDS / managed Postgres / Azure SQL. The whole deployment story (AWS via SNS+SQS replacing Azure Service Bus) is laid out in [architecture.md "Deployment"](architecture.md). Wolverine's transport-agnostic design means swapping `WolverineFx.AzureServiceBus` for `WolverineFx.AmazonSqs` is a Program.cs change — handlers, contracts, the outbox all stay the same.
+
+---
+
+## 22. Dapr — considered, not adopted (and distributed locks)
+
+A recurring question for any .NET microservices project: **should we use Dapr?** The pitch — one runtime that abstracts messaging, state, secrets, service invocation, and distributed locks behind a unified client+sidecar model — is genuinely appealing for the right shop. **For NextAurora it isn't a fit**, and this section walks the analysis so the next time someone reads a Dapr post we don't relitigate from scratch.
+
+### What Dapr is
+
+Sidecar-pattern building blocks. Every service deploys with a `daprd` process alongside it (localhost ↔ sidecar over HTTP/gRPC). The app calls into the sidecar; the sidecar talks to the chosen backend (broker, store, secrets vault, lock provider) via a YAML-configured *component*. The marketing pitch: one client API across all backends, swap backends by editing one YAML file.
+
+### The 5 problems Dapr claims to solve, mapped to NextAurora
+
+| Dapr building block | What NextAurora uses today | Verdict |
+|---|---|---|
+| **Service invocation** | gRPC client factory + `.proto`-defined contracts (Order → Catalog product validation) | Covered with typed contracts |
+| **Pub/sub** | Wolverine + Azure Service Bus + transactional outbox (§13) | Covered — and *more capable* (outbox atomicity) |
+| **State store** | EF Core (aggregates with concurrency tokens) + HybridCache (L1+L2 with stampede protection, §16) | Covered |
+| **Secrets** | Standard `IConfiguration` provider chain — env vars locally, Azure Key Vault in prod | Covered |
+| **Distributed locks** | None today | Not needed today — see below |
+
+### Why Dapr would *regress* what we have
+
+1. **The transactional outbox isn't replaceable.** Dapr pub/sub gives you at-least-once delivery from the broker, but no atomicity between the entity write and the message send. The hard CLAUDE.md "Outbox atomicity" rule is a floor we'd lose — we'd either rebuild the outbox on top of Dapr (ugly; Dapr's component model fights against it) or accept dual-write data loss. Wolverine's `PersistMessagesWithSqlServer` + `AutoApplyTransactions` solves this *by construction* in one place we already own.
+2. **The "swap brokers via YAML" claim oversells portability.** Broker semantics differ — Service Bus topic+subscription with sessions, FIFO, dead-lettering, and the globally-unique-subscription-name constraint doesn't map to a Kafka swap by editing one YAML line. The portability is real only for trivial fire-and-forget publishes. The real cross-cloud swap (ASB → SQS) is already in scope and handled by switching `WolverineFx.AzureServiceBus` to `WolverineFx.AmazonSqs` in `Program.cs` — same handler shape, same outbox guarantees.
+3. **Typed contracts become stringly-typed Dapr invocations.** gRPC's compile-time safety and `.proto`-based versioning would disappear behind generic `InvokeMethodAsync<T>(appId, method, payload)` calls.
+4. **Sidecar adds a hop on every call.** localhost → sidecar → network → sidecar → service. For gRPC product validation on the order hot path, measurable cost we don't pay today.
+5. **Speculative coupling at a runtime level.** The CLAUDE.md "interfaces earn their keep through consumer substitution" rule applies to runtimes too. Dapr adds an abstraction layer to enable swaps we've never needed and aren't planning. The five SDKs Dapr "replaces" in the marketing pitch are largely a strawman for our stack: Wolverine is *one* SDK covering messaging + outbox + middleware; secrets are stock .NET config; caching is HybridCache; service-to-service is gRPC. That's a coherent .NET-native stack, not five disconnected concerns.
+
+### When Dapr WOULD make sense (not us)
+
+- **Polyglot microservices** — half your services are Go or Python and you need a single ops story for messaging/secrets/state.
+- **Hard multi-cloud portability** — broker/secrets-store portability is a hard requirement, not a "nice to have".
+- **Greenfield without an opinionated stack** — Dapr's batteries-included story is real if you don't already have Wolverine + Aspire + EF + Microsoft.Identity wired up.
+- **Teams without deep .NET expertise** wanting runtime-level abstractions.
+
+NextAurora is none of these.
+
+### Distributed locks — what they are, when you need them
+
+The one Dapr building block we don't have a direct equivalent for. Walking through it honestly:
+
+#### What distributed locks are for
+
+Mutual exclusion across process boundaries when the database alone can't guard the critical section:
+
+1. **Leader election for singleton workers** — a cron-style job that must run on exactly one instance at a time (e.g. "every 5 min, expire abandoned carts").
+2. **Cache stampede prevention** — when a hot cache key expires and 50 requests hit, only one rebuilds it. (HybridCache already solves this for our case — see §16.)
+3. **Cross-aggregate critical sections** — operations spanning multiple aggregates where you can't wrap them in a single transaction (rare, usually a design smell).
+4. **External-resource coordination** — calling a non-idempotent third-party API where you must serialize calls per-key.
+
+#### What people reach for distributed locks for, but shouldn't
+
+The database almost always solves the problem first:
+
+| Goal | Use this, not a distributed lock |
+|---|---|
+| Concurrent updates to the same row | Optimistic concurrency (`xmin` / `RowVersion`) — every NextAurora aggregate has this |
+| Prevent duplicate creation | Unique constraint |
+| "Reserve a seat / room / SKU for 10 min" | Reservation row with TTL + status column, unique constraint on the scarce dimension |
+| Idempotent event processing | Idempotency-key column + unique constraint, *or* Wolverine envelope-id deduplication |
+| Serialize a critical section in one DB | `SELECT ... FOR UPDATE` / Postgres advisory lock |
+| Atomic entity-write + event-publish | Transactional outbox — Wolverine gives us this |
+
+The "3 instances race for room 101" hotel-booking example in Dapr marketing is the textbook case people cite, but in production you'd model it as a `Reservation` row with a unique constraint on `(roomId, dateRange)` — the database rejects the loser. No distributed lock needed, no extra runtime.
+
+#### Walking each NextAurora service
+
+| Service | Concurrent-access concern | How it's handled today |
+|---|---|---|
+| CatalogService | Stock updates from concurrent orders | Optimistic concurrency (Postgres `xmin`) |
+| OrderService | Concurrent updates to the same Order | Optimistic concurrency (SQL Server `RowVersion`) |
+| PaymentService | Duplicate payment processing | Idempotency key on the command + idempotent handler |
+| ShippingService | Duplicate event processing | Idempotent handlers (Wolverine envelope ID dedup) |
+| NotificationService | Stateless — no shared mutable state | N/A |
+
+None of them need distributed locks today.
+
+#### When we might need them (future)
+
+The most plausible trigger: a **scheduled background job that must run on exactly one instance** when we scale a service past a single replica. Plausible candidates:
+
+- "Every 5 minutes, expire abandoned orders" (background sweep in OrderService)
+- "Nightly, rebuild bestseller cache" (CatalogService)
+- "Every minute, retry failed notifications" (NotificationService — if we ever add a retry queue)
+
+When that need appears, the .NET-native answer is **[DistributedLock](https://github.com/madelson/DistributedLock)** — a library that gives `IDistributedLock` over a backend we already run:
+
+- `DistributedLock.Postgres` — Postgres advisory locks via the existing connection (zero new infra; CatalogService, ShippingService)
+- `DistributedLock.SqlServer` — `sp_getapplock` via the existing connection (OrderService, PaymentService)
+- `DistributedLock.Redis` — Redlock pattern over the existing Redis instance (any service)
+
+The migration path is: add the library, pick the backend matching the service's existing DB, wrap the job in `await using (await _lock.AcquireAsync(...))`. No new runtime, no new ops surface, no sidecar. **We'd only reach for Dapr if we also needed three or four of its other building blocks simultaneously — and we don't.**
+
+For cross-replica cache invalidation specifically (the other place "distributed coordination" could in principle appear), the answer is FusionCache's backplane, not a lock — see [performance-and-data-correctness.md §"Distributed lock for invalidation"](performance-and-data-correctness.md) and §16 of this doc.
+
+### Verdict
+
+Dapr stays in the **"considered, not adopted"** column. Revisit if any of the following becomes true:
+- We add non-.NET services to the stack (polyglot trigger).
+- A hard multi-cloud portability requirement appears that the Wolverine transport swap doesn't already cover.
+- We find ourselves wanting three or more Dapr building blocks simultaneously, not just one.
+
+For distributed locks specifically: not needed today, `DistributedLock` library is the natural future fit when (not if) a singleton-job requirement appears.
 
 ---
 

@@ -46,7 +46,7 @@ These two commits collectively add:
 - **AWS deployment section** in architecture.md (commits `ea24c6e` + `029c8b8`) — SNS+SQS as the planned production target with a 1:1 topology mapping and a four-phase migration plan. **Status callout at the top: planning, not implemented — the codebase still runs on Azure Service Bus.** System overview diagrams made transport-agnostic.
 - **`Handle` → `HandleAsync` rename** across all async handlers (commit `15e11c1`) — CLAUDE.md naming rule compliance.
 - **Naming rule fix in `.editorconfig`** (commit `e706edd`) — scoped the `_camelCase` underscore-prefix rule to instance fields only. Constants and `static readonly` use PascalCase per .NET convention. CLAUDE.md "Coding Standards" clarified.
-- **Excalidraw architecture diagram** (commit `8dfc5f5`) — 99-element visual at [nextaurora-architecture.excalidraw](nextaurora-architecture.excalidraw). Shows full system, Service Bus topology, databases, 10-step order-placement saga timeline, plus cache-aside and Wolverine outbox callouts. Linked from architecture.md and README.
+- **Excalidraw architecture diagram** (commit `8dfc5f5`) — 99-element visual, rendered at [nextaurora-architecture.svg](nextaurora-architecture.svg); source at [nextaurora-architecture.excalidraw](nextaurora-architecture.excalidraw). Shows full system, Service Bus topology, databases, 10-step order-placement saga timeline, plus cache-aside and Wolverine outbox callouts. All six diagrams now exported to SVG and embedded in README/architecture.md/how-it-works.md for GitHub rendering.
 
 ### Build / test state
 - `dotnet build` — clean, 0 warnings, 0 errors.
@@ -152,7 +152,7 @@ This is filed here, not in "After the smoke run," because it's *conditional* —
 | Always-on rules every PR follows | [CLAUDE.md](../CLAUDE.md) |
 | Performance / data correctness — *why* every rule exists | [docs/performance-and-data-correctness.md](performance-and-data-correctness.md) |
 | Architecture, services, communication patterns | [docs/architecture.md](architecture.md) |
-| Visual: full system + 10-step saga in one view | [docs/nextaurora-architecture.excalidraw](nextaurora-architecture.excalidraw) |
+| Visual: full system + 10-step saga in one view | [docs/nextaurora-architecture.svg](nextaurora-architecture.svg) (source: [`.excalidraw`](nextaurora-architecture.excalidraw)) |
 | CQRS handler inventory + AsNoTracking strategy | [docs/cqrs-data-access.md](cqrs-data-access.md) |
 | Functional & non-functional requirements | [docs/BRD.md](BRD.md) |
 | Context propagation (CorrelationId/UserId/SessionId) | [docs/context-propagation.md](context-propagation.md) |

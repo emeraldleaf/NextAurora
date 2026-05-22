@@ -1,0 +1,281 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "type": "text", "id": "title", "x": 40, "y": 40, "width": 1100, "height": 32,
+      "text": "NextAurora — EF Core migrations (dev vs prod split)",
+      "originalText": "NextAurora — EF Core migrations (dev vs prod split)",
+      "fontSize": 26, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#1e40af", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 100001, "version": 1, "versionNonce": 100002,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.25
+    },
+    {
+      "type": "text", "id": "subtitle", "x": 40, "y": 80, "width": 1450, "height": 50,
+      "text": "DEV:  in-process MigrateDatabaseAsync<T>() at startup applies pending migrations.\nPROD:  separate pre-deploy step (multiple replicas would race if it ran in-process). The IMMUTABLE-ONCE-APPLIED rule is the load-bearing invariant.\nSource: each service's Infrastructure/Data/{Service}DbContextFactory.cs · NextAurora.ServiceDefaults/Extensions.cs (MigrateDatabaseAsync) · each Api/Program.cs",
+      "originalText": "DEV:  in-process MigrateDatabaseAsync<T>() at startup applies pending migrations.\nPROD:  separate pre-deploy step (multiple replicas would race if it ran in-process). The IMMUTABLE-ONCE-APPLIED rule is the load-bearing invariant.\nSource: each service's Infrastructure/Data/{Service}DbContextFactory.cs · NextAurora.ServiceDefaults/Extensions.cs (MigrateDatabaseAsync) · each Api/Program.cs",
+      "fontSize": 13, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#64748b", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 100003, "version": 1, "versionNonce": 100004,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.3
+    },
+
+    {
+      "type": "text", "id": "dev_title", "x": 40, "y": 170, "width": 700, "height": 28,
+      "text": "DEV ROUND-TRIP",
+      "originalText": "DEV ROUND-TRIP",
+      "fontSize": 18, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#1e40af", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200001, "version": 1, "versionNonce": 200002,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.25
+    },
+
+    {
+      "type": "rectangle", "id": "d1", "x": 40, "y": 210, "width": 700, "height": 60,
+      "strokeColor": "#c2410c", "backgroundColor": "#fed7aa",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200003, "version": 1, "versionNonce": 200004,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"d1_t","type":"text"},{"id":"a_d1","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "d1_t", "x": 50, "y": 225, "width": 680, "height": 30,
+      "text": "1.  Edit entity / DbContext config  (e.g., add a Property, change MaxLength, add an Index)",
+      "originalText": "1.  Edit entity / DbContext config  (e.g., add a Property, change MaxLength, add an Index)",
+      "fontSize": 13, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#374151", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200005, "version": 1, "versionNonce": 200006,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "d1", "lineHeight": 1.25
+    },
+
+    {
+      "type": "arrow", "id": "a_d1", "x": 390, "y": 272, "width": 0, "height": 28,
+      "strokeColor": "#1e3a5f", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200007, "version": 1, "versionNonce": 200008,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,28]],
+      "startBinding": {"elementId":"d1","focus":0,"gap":2}, "endBinding": {"elementId":"d2","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "rectangle", "id": "d2", "x": 40, "y": 302, "width": 700, "height": 90,
+      "strokeColor": "#1e293b", "backgroundColor": "#1e293b",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200009, "version": 1, "versionNonce": 200010,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"d2_t","type":"text"},{"id":"a_d2","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "d2_t", "x": 50, "y": 318, "width": 680, "height": 62,
+      "text": "2.  dotnet ef migrations add AddPromotionCodes \\\n      --project CatalogService/CatalogService.Infrastructure \\\n      --startup-project CatalogService/CatalogService.Api",
+      "originalText": "2.  dotnet ef migrations add AddPromotionCodes \\\n      --project CatalogService/CatalogService.Infrastructure \\\n      --startup-project CatalogService/CatalogService.Api",
+      "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#22c55e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200011, "version": 1, "versionNonce": 200012,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "d2", "lineHeight": 1.3
+    },
+
+    {
+      "type": "arrow", "id": "a_d2", "x": 390, "y": 394, "width": 0, "height": 28,
+      "strokeColor": "#1e3a5f", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200013, "version": 1, "versionNonce": 200014,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,28]],
+      "startBinding": {"elementId":"d2","focus":0,"gap":2}, "endBinding": {"elementId":"d3","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "rectangle", "id": "d3", "x": 40, "y": 424, "width": 700, "height": 110,
+      "strokeColor": "#1e3a5f", "backgroundColor": "#93c5fd",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200015, "version": 1, "versionNonce": 200016,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"d3_t","type":"text"},{"id":"a_d3","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "d3_t", "x": 50, "y": 440, "width": 680, "height": 80,
+      "text": "3.  EF CLI uses IDesignTimeDbContextFactory to construct the DbContext OUTSIDE the running app.\n     CatalogDbContextFactory.CreateDbContext():\n        reads ConnectionStrings__catalog-db from env (Aspire injects this)\n        falls back to localhost dev string if env not set\n        returns new CatalogDbContext(options) — same context the app uses",
+      "originalText": "3.  EF CLI uses IDesignTimeDbContextFactory to construct the DbContext OUTSIDE the running app.\n     CatalogDbContextFactory.CreateDbContext():\n        reads ConnectionStrings__catalog-db from env (Aspire injects this)\n        falls back to localhost dev string if env not set\n        returns new CatalogDbContext(options) — same context the app uses",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#1e40af", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200017, "version": 1, "versionNonce": 200018,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "d3", "lineHeight": 1.3
+    },
+
+    {
+      "type": "arrow", "id": "a_d3", "x": 390, "y": 536, "width": 0, "height": 28,
+      "strokeColor": "#1e3a5f", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200019, "version": 1, "versionNonce": 200020,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,28]],
+      "startBinding": {"elementId":"d3","focus":0,"gap":2}, "endBinding": {"elementId":"d4","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "rectangle", "id": "d4", "x": 40, "y": 566, "width": 700, "height": 120,
+      "strokeColor": "#1e3a5f", "backgroundColor": "#dbeafe",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200021, "version": 1, "versionNonce": 200022,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"d4_t","type":"text"},{"id":"a_d4","type":"arrow"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "d4_t", "x": 50, "y": 580, "width": 680, "height": 90,
+      "text": "4.  EF diffs current model against ModelSnapshot.cs (the last-committed model state) and emits:\n     • {timestamp}_AddPromotionCodes.cs       — Up()/Down() with provider-specific SQL fragments\n     • {timestamp}_AddPromotionCodes.Designer.cs — frozen model snapshot at this migration\n     • CatalogDbContextModelSnapshot.cs        — updated live snapshot for the next diff\n     All three are added to git so the model history is reproducible.",
+      "originalText": "4.  EF diffs current model against ModelSnapshot.cs (the last-committed model state) and emits:\n     • {timestamp}_AddPromotionCodes.cs       — Up()/Down() with provider-specific SQL fragments\n     • {timestamp}_AddPromotionCodes.Designer.cs — frozen model snapshot at this migration\n     • CatalogDbContextModelSnapshot.cs        — updated live snapshot for the next diff\n     All three are added to git so the model history is reproducible.",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#1e40af", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200023, "version": 1, "versionNonce": 200024,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "d4", "lineHeight": 1.3
+    },
+
+    {
+      "type": "arrow", "id": "a_d4", "x": 390, "y": 688, "width": 0, "height": 28,
+      "strokeColor": "#1e3a5f", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200025, "version": 1, "versionNonce": 200026,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "points": [[0,0],[0,28]],
+      "startBinding": {"elementId":"d4","focus":0,"gap":2}, "endBinding": {"elementId":"d5","focus":0,"gap":2},
+      "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "rectangle", "id": "d5", "x": 40, "y": 718, "width": 700, "height": 130,
+      "strokeColor": "#047857", "backgroundColor": "#a7f3d0",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200027, "version": 1, "versionNonce": 200028,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"d5_t","type":"text"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "d5_t", "x": 50, "y": 730, "width": 680, "height": 110,
+      "text": "5.  dotnet run --project NextAurora.AppHost\n     App boots → Program.cs hits:  if (app.Environment.IsDevelopment()) await app.Services.MigrateDatabaseAsync<CatalogDbContext>();\n     MigrateDatabaseAsync resolves the context from DI, calls Database.MigrateAsync(ct)\n     → EF reads __EFMigrationsHistory table → finds AddPromotionCodes not applied → runs Up() → INSERT into __EFMigrationsHistory\n     Pending migrations apply in order. Done.",
+      "originalText": "5.  dotnet run --project NextAurora.AppHost\n     App boots → Program.cs hits:  if (app.Environment.IsDevelopment()) await app.Services.MigrateDatabaseAsync<CatalogDbContext>();\n     MigrateDatabaseAsync resolves the context from DI, calls Database.MigrateAsync(ct)\n     → EF reads __EFMigrationsHistory table → finds AddPromotionCodes not applied → runs Up() → INSERT into __EFMigrationsHistory\n     Pending migrations apply in order. Done.",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#065f46", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 200029, "version": 1, "versionNonce": 200030,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "d5", "lineHeight": 1.3
+    },
+
+    {
+      "type": "text", "id": "prod_title", "x": 800, "y": 170, "width": 700, "height": 28,
+      "text": "PROD (NOT in-process)",
+      "originalText": "PROD (NOT in-process)",
+      "fontSize": 18, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#b91c1c", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300001, "version": 1, "versionNonce": 300002,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.25
+    },
+
+    {
+      "type": "rectangle", "id": "prod_problem", "x": 800, "y": 210, "width": 700, "height": 140,
+      "strokeColor": "#b91c1c", "backgroundColor": "#fecaca",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300003, "version": 1, "versionNonce": 300004,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"prod_problem_t","type":"text"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "prod_problem_t", "x": 810, "y": 222, "width": 680, "height": 110,
+      "text": "❌  Why NOT in-process at startup:\n\nWith multiple replicas behind a load balancer:\n• replica A starts → calls Migrate → acquires the __EFMigrationsLock → applies migration\n• replicas B, C start at the same time → also call Migrate → BLOCK on the lock,\n  THEN race: one ends up applying the same migration twice / sees the history table in flux\n• Outcome: random startup failures, migration-history corruption, retry storms.\nThe IsDevelopment() gate exists to prevent this.",
+      "originalText": "❌  Why NOT in-process at startup:\n\nWith multiple replicas behind a load balancer:\n• replica A starts → calls Migrate → acquires the __EFMigrationsLock → applies migration\n• replicas B, C start at the same time → also call Migrate → BLOCK on the lock,\n  THEN race: one ends up applying the same migration twice / sees the history table in flux\n• Outcome: random startup failures, migration-history corruption, retry storms.\nThe IsDevelopment() gate exists to prevent this.",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#7f1d1d", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300005, "version": 1, "versionNonce": 300006,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "prod_problem", "lineHeight": 1.3
+    },
+
+    {
+      "type": "rectangle", "id": "prod_flow", "x": 800, "y": 370, "width": 700, "height": 320,
+      "strokeColor": "#047857", "backgroundColor": "#dcfce7",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300007, "version": 1, "versionNonce": 300008,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"prod_flow_t","type":"text"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "prod_flow_t", "x": 810, "y": 385, "width": 680, "height": 300,
+      "text": "✓  Correct prod flow — SEPARATE PRE-DEPLOY STEP:\n\n  1.  CI builds + tests + packages the app image\n\n  2.  CI runs migrations as a one-shot job (NOT inside the app):\n       dotnet ef database update \\\n          --project CatalogService.Infrastructure \\\n          --startup-project CatalogService.Api \\\n          --connection \"$PROD_CATALOG_DB_CONNECTION\"\n      This connects from CI's runner, applies pending migrations, exits.\n      Same EF tooling as dev — just run from a different host.\n\n  3.  CI deploys the new app image to k8s / ECS / wherever.\n      App pods start with NO migration call (the IsDevelopment gate is false in prod).\n\n  4.  Each app replica boots cleanly, schema already up-to-date.\n\nTracked in STATUS.md → \"Production migration deploy step\" (tooling exists; the\nCI step is not yet automated since we don't have a deploy target).",
+      "originalText": "✓  Correct prod flow — SEPARATE PRE-DEPLOY STEP:\n\n  1.  CI builds + tests + packages the app image\n\n  2.  CI runs migrations as a one-shot job (NOT inside the app):\n       dotnet ef database update \\\n          --project CatalogService.Infrastructure \\\n          --startup-project CatalogService.Api \\\n          --connection \"$PROD_CATALOG_DB_CONNECTION\"\n      This connects from CI's runner, applies pending migrations, exits.\n      Same EF tooling as dev — just run from a different host.\n\n  3.  CI deploys the new app image to k8s / ECS / wherever.\n      App pods start with NO migration call (the IsDevelopment gate is false in prod).\n\n  4.  Each app replica boots cleanly, schema already up-to-date.\n\nTracked in STATUS.md → \"Production migration deploy step\" (tooling exists; the\nCI step is not yet automated since we don't have a deploy target).",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "middle",
+      "strokeColor": "#065f46", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 300009, "version": 1, "versionNonce": 300010,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "prod_flow", "lineHeight": 1.3
+    },
+
+    {
+      "type": "rectangle", "id": "immut", "x": 40, "y": 880, "width": 1460, "height": 240,
+      "strokeColor": "#b45309", "backgroundColor": "#fef3c7",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "dashed", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400001, "version": 1, "versionNonce": 400002,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"immut_t","type":"text"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "immut_t", "x": 60, "y": 895, "width": 1420, "height": 28,
+      "text": "⚠  THE IMMUTABLE-ONCE-APPLIED RULE  (CLAUDE.md \"Performance Rules\")",
+      "originalText": "⚠  THE IMMUTABLE-ONCE-APPLIED RULE  (CLAUDE.md \"Performance Rules\")",
+      "fontSize": 15, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#92400e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400003, "version": 1, "versionNonce": 400004,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": "immut", "lineHeight": 1.25
+    },
+    {
+      "type": "text", "id": "immut_body", "x": 60, "y": 930, "width": 1420, "height": 180,
+      "text": "Once a migration has run anywhere (including dev), it is FROZEN. Never edit it. Why: editing drifts the ModelSnapshot.cs from\nthe history table → next migration generation produces broken output OR (worse) deploying the edited migration to a DB that already\nran the old version either no-ops or corrupts schema.\n\nDestructive changes (drop column / drop table / rename / NOT NULL on existing column) — DO NOT do in one migration:\n\n   Step A:  Deploy code that no longer reads the column.   ← deploy + wait one release cycle\n   Step B:  Wait until all in-flight requests using the old code have completed.\n   Step C:  Generate a new migration that drops the column.  Deploy.\n\nDoing all three in one migration is how production outages happen during deploys: old pods crash on the missing column\nwhile new pods are still rolling out.",
+      "originalText": "Once a migration has run anywhere (including dev), it is FROZEN. Never edit it. Why: editing drifts the ModelSnapshot.cs from\nthe history table → next migration generation produces broken output OR (worse) deploying the edited migration to a DB that already\nran the old version either no-ops or corrupts schema.\n\nDestructive changes (drop column / drop table / rename / NOT NULL on existing column) — DO NOT do in one migration:\n\n   Step A:  Deploy code that no longer reads the column.   ← deploy + wait one release cycle\n   Step B:  Wait until all in-flight requests using the old code have completed.\n   Step C:  Generate a new migration that drops the column.  Deploy.\n\nDoing all three in one migration is how production outages happen during deploys: old pods crash on the missing column\nwhile new pods are still rolling out.",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#374151", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 400005, "version": 1, "versionNonce": 400006,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.3
+    },
+
+    {
+      "type": "rectangle", "id": "history", "x": 40, "y": 1150, "width": 1460, "height": 130,
+      "strokeColor": "#1e293b", "backgroundColor": "#1e293b",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 500001, "version": 1, "versionNonce": 500002,
+      "isDeleted": false, "groupIds": [], "boundElements": [{"id":"history_t","type":"text"}], "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "history_t", "x": 55, "y": 1165, "width": 1440, "height": 110,
+      "text": "// What lives in each Infrastructure project's Migrations/ folder (committed to git)\n\n20260503040949_InitialCreate.cs              -- the migration class with Up() + Down() methods\n20260503040949_InitialCreate.Designer.cs     -- snapshot of the model AT this migration (immutable once applied)\nCatalogDbContextModelSnapshot.cs             -- LIVE snapshot of the current model (regenerated each migration add)\n\n// And in the DB:\nCREATE TABLE __EFMigrationsHistory ( MigrationId nvarchar(150) PK, ProductVersion nvarchar(32) );\n-- Each Migrate() call: read this table, find unapplied entries, run their Up(), INSERT into this table.",
+      "originalText": "// What lives in each Infrastructure project's Migrations/ folder (committed to git)\n\n20260503040949_InitialCreate.cs              -- the migration class with Up() + Down() methods\n20260503040949_InitialCreate.Designer.cs     -- snapshot of the model AT this migration (immutable once applied)\nCatalogDbContextModelSnapshot.cs             -- LIVE snapshot of the current model (regenerated each migration add)\n\n// And in the DB:\nCREATE TABLE __EFMigrationsHistory ( MigrationId nvarchar(150) PK, ProductVersion nvarchar(32) );\n-- Each Migrate() call: read this table, find unapplied entries, run their Up(), INSERT into this table.",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#22c55e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 500003, "version": 1, "versionNonce": 500004,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.3
+    },
+
+    {
+      "type": "text", "id": "footer", "x": 40, "y": 1300, "width": 1500, "height": 30,
+      "text": "Related: docs/ef-core.md §6 (Migrations)  ·  docs/performance-and-data-correctness.md \"Resolved: migration tooling wired up\"  ·  CLAUDE.md \"Performance Rules\" → \"Migrations are immutable once applied\"",
+      "originalText": "Related: docs/ef-core.md §6 (Migrations)  ·  docs/performance-and-data-correctness.md \"Resolved: migration tooling wired up\"  ·  CLAUDE.md \"Performance Rules\" → \"Migrations are immutable once applied\"",
+      "fontSize": 11, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#64748b", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 900001, "version": 1, "versionNonce": 900002,
+      "isDeleted": false, "groupIds": [], "boundElements": null, "link": null, "locked": false, "containerId": null, "lineHeight": 1.3
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": 20
+  },
+  "files": {}
+}

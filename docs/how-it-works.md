@@ -641,7 +641,7 @@ All tests in the solution run. Each test project targets the unit tests for one 
 | Add a new gRPC method to CatalogService | `CatalogService.Api/Protos/catalog.proto` + `CatalogService.Api/Services/CatalogGrpcService.cs` (regenerate clients in OrderService) |
 | Add a cached read query in Catalog | `IProductCache.GetOrLoadAsync(id, factory)` — see [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) |
 | Reach for raw SQL via Dapper | `ctx.Database.GetDbConnection()` so it shares the EF transaction — see [Dapper escape hatch](performance-and-data-correctness.md#decision-when-to-reach-past-ef-core-dapper-escape-hatch) |
-| Understand the full order lifecycle | This guide, [architecture.md](./architecture.md), the [Excalidraw diagram](./nextaurora-architecture.excalidraw), and the event flow diagram in [README.md](../README.md) |
+| Understand the full order lifecycle | This guide, [architecture.md](./architecture.md), the [architecture diagram](./nextaurora-architecture.svg) ([source](./nextaurora-architecture.excalidraw)), and the event flow diagram in [README.md](../README.md) |
 | Understand performance + correctness rules (outbox, concurrency tokens, caching) | [performance-and-data-correctness.md](./performance-and-data-correctness.md) |
 | Understand observability/logging/tracing | [observability.md](./observability.md), [context-propagation.md](./context-propagation.md) |
 | Understand event-replay / outbox tooling | [event-replay.md](./event-replay.md) |

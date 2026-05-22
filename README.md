@@ -4,7 +4,11 @@ A microservices-based e-commerce platform built with .NET 10, Blazor, and .NET A
 
 NextAurora demonstrates a production-style distributed system with event-driven architecture, CQRS, domain-driven design, and gRPC for inter-service communication.
 
-> **Want the full picture in one view?** See [docs/nextaurora-architecture.excalidraw](docs/nextaurora-architecture.excalidraw) — services, Service Bus topology, databases, and the 10-step order-placement saga in a single diagram. Open in VSCode (Excalidraw plugin) or drag onto [excalidraw.com](https://excalidraw.com).
+[![NextAurora architecture — full system in one view](docs/nextaurora-architecture.svg)](docs/nextaurora-architecture.svg)
+
+*Full system in one view — services, Service Bus topology, databases, and the 10-step order-placement saga. Click to view full-size. Source: [`nextaurora-architecture.excalidraw`](docs/nextaurora-architecture.excalidraw) — open with the [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or [excalidraw.com](https://excalidraw.com) to edit.*
+
+**Drill down into specific subsystems:** [service request lifecycle](#service-request-lifecycle) · [HybridCache flow](#hybridcache-flow) · [transactional outbox](#transactional-outbox) · [EF Core read and write](#ef-core-read-and-write) · [EF Core migrations](#ef-core-migrations) — all six diagrams in the [Reference diagrams](#reference-diagrams) section below.
 
 ## Architecture Overview
 
@@ -341,16 +345,51 @@ If Keycloak isn't configured (no `Authentication:Authority` and no `Keycloak:Url
 
 ### Reference diagrams
 
-Open in [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or paste into [excalidraw.com](https://excalidraw.com). Each one is self-contained — title + numbered steps + side annotations explaining the *what* and *why* — designed so you can study one diagram and then describe the flow out loud.
+Six diagrams break the system down — one concept per visual. Each is self-contained: title + numbered steps + side annotations explaining the *what* and *why*, designed so you can study one diagram and then describe the flow out loud. SVGs render inline on GitHub (click any image for full-size); the source `.excalidraw` files alongside open in the [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or at [excalidraw.com](https://excalidraw.com) for editing.
 
-| Diagram | What it teaches |
-|---|---|
-| [nextaurora-architecture.excalidraw](docs/nextaurora-architecture.excalidraw) | The whole system in one view: 5 services, Service Bus topology, databases, 10-step order-placement saga, cache + outbox callouts |
-| [service-request-flow.excalidraw](docs/service-request-flow.excalidraw) | Generic write-command lifecycle — every step from HTTP POST → CorrelationIdMiddleware → versioned routing → auth + buyer-scope check → Wolverine pipeline (validation / context propagation / AutoApplyTransactions) → handler → repo → SaveChanges → 201/202. Plus the GlobalExceptionHandler error-routing sidebar. |
-| [hybridcache-flow.excalidraw](docs/hybridcache-flow.excalidraw) | Catalog's cache flow: GetOrLoadAsync → L1 (μs) → L2 (ms) → factory (once under stampede) → store both tiers. Plus the write/invalidate path (`InvalidateAsync` ordering matters) and the multi-replica L1 caveat (HybridCache 10.x has no backplane). |
-| [transactional-outbox.excalidraw](docs/transactional-outbox.excalidraw) | The load-bearing reliability mechanism behind every cross-service event. Entity write + outbox-row write committed in ONE transaction (visual: dotted "TRANSACTION BOUNDARY" wrapping both). Background dispatcher → Service Bus → delete envelope. All failure modes spelled out. |
-| [efcore-query-write.excalidraw](docs/efcore-query-write.excalidraw) | Side-by-side READ (LINQ → expression tree → provider SQL → DataReader → DTO, no tracker) and WRITE (load tracked → mutate → SaveChanges → UPDATE WHERE Id AND xmin/RowVersion → 0-rows branch → DbUpdateConcurrencyException → 409 or Wolverine retry). With Postgres `xmin` vs SQL Server `RowVersion` callout. |
-| [efcore-migrations.excalidraw](docs/efcore-migrations.excalidraw) | Dev round-trip (`dotnet ef migrations add` → `IDesignTimeDbContextFactory` → snapshot diff → emitted classes → `MigrateDatabaseAsync` at startup) vs prod (separate CI pre-deploy step — *never* in-process at startup, because replicas race). Plus the immutable-once-applied rule with the multi-step destructive-change recipe. |
+#### Full system architecture
+
+5 services, Service Bus topology, databases, 10-step order-placement saga, cache + outbox callouts — embedded above in the overview. Source: [`nextaurora-architecture.excalidraw`](docs/nextaurora-architecture.excalidraw).
+
+#### Service request lifecycle
+
+Generic write-command lifecycle — every step from HTTP POST → CorrelationIdMiddleware → versioned routing → auth + buyer-scope check → Wolverine pipeline (validation / context propagation / AutoApplyTransactions) → handler → repo → SaveChanges → 201/202. Plus the GlobalExceptionHandler error-routing sidebar.
+
+[![Service request lifecycle](docs/service-request-flow.svg)](docs/service-request-flow.svg)
+
+Source: [`service-request-flow.excalidraw`](docs/service-request-flow.excalidraw)
+
+#### HybridCache flow
+
+Catalog's cache flow: GetOrLoadAsync → L1 (μs) → L2 (ms) → factory (once under stampede) → store both tiers. Plus the write/invalidate path (`InvalidateAsync` ordering matters) and the multi-replica L1 caveat (HybridCache 10.x has no backplane).
+
+[![HybridCache flow](docs/hybridcache-flow.svg)](docs/hybridcache-flow.svg)
+
+Source: [`hybridcache-flow.excalidraw`](docs/hybridcache-flow.excalidraw)
+
+#### Transactional outbox
+
+The load-bearing reliability mechanism behind every cross-service event. Entity write + outbox-row write committed in ONE transaction (visual: dotted "TRANSACTION BOUNDARY" wrapping both). Background dispatcher → Service Bus → delete envelope. All failure modes spelled out.
+
+[![Transactional outbox](docs/transactional-outbox.svg)](docs/transactional-outbox.svg)
+
+Source: [`transactional-outbox.excalidraw`](docs/transactional-outbox.excalidraw)
+
+#### EF Core read and write
+
+Side-by-side READ (LINQ → expression tree → provider SQL → DataReader → DTO, no tracker) and WRITE (load tracked → mutate → SaveChanges → UPDATE WHERE Id AND xmin/RowVersion → 0-rows branch → DbUpdateConcurrencyException → 409 or Wolverine retry). With Postgres `xmin` vs SQL Server `RowVersion` callout.
+
+[![EF Core read and write paths](docs/efcore-query-write.svg)](docs/efcore-query-write.svg)
+
+Source: [`efcore-query-write.excalidraw`](docs/efcore-query-write.excalidraw)
+
+#### EF Core migrations
+
+Dev round-trip (`dotnet ef migrations add` → `IDesignTimeDbContextFactory` → snapshot diff → emitted classes → `MigrateDatabaseAsync` at startup) vs prod (separate CI pre-deploy step — *never* in-process at startup, because replicas race). Plus the immutable-once-applied rule with the multi-step destructive-change recipe.
+
+[![EF Core migrations](docs/efcore-migrations.svg)](docs/efcore-migrations.svg)
+
+Source: [`efcore-migrations.excalidraw`](docs/efcore-migrations.excalidraw)
 
 ## License
 
