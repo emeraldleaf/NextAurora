@@ -8,7 +8,11 @@
       "Bash(dotnet script *)",
       "Bash(dotnet build *)",
       "Bash(dotnet test *)",
-      "Bash(dotnet ef *)"
+      "Bash(dotnet ef *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "Bash(git rm *)"
     ],
     "additionalDirectories": [
       "/Users/joshuadell/NovaCraft/.claude/skills"
