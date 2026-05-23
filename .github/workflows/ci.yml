@@ -80,6 +80,18 @@ jobs:
             -reporttypes:'MarkdownSummaryGithub'
           cat coverage-report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
+      # Upload Cobertura coverage to Codecov so the README badge + dashboard get the
+      # current run's data. Free for public OSS repos; needs no token for public repos
+      # using GitHub Actions (Codecov reads the GITHUB_TOKEN claim automatically).
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./test-results/**/coverage.cobertura.xml
+          flags: unit
+          fail_ci_if_error: false       # coverage upload failure shouldn't fail the build
+          verbose: false
+
       # Concurrency hazard #5 from docs/performance-and-data-correctness.md — the one
       # the build can't catch via analyzers because the distinction between
       # "type-init-immutable lookup table" and "shared mutable state" is structural.

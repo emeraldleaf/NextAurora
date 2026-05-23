@@ -1,0 +1,115 @@
+# CodeRabbit configuration for NextAurora.
+# Docs: https://docs.coderabbit.ai/getting-started/configure-coderabbit
+#
+# Philosophy: CodeRabbit is the *second* reviewer (after the architecture-reviewer agent
+# and the local build/analyzer pass). It catches what those miss — cross-file consistency,
+# subtle naming drift, missing test coverage on new logic. Tuned to be opinionated about
+# THIS project's conventions (loaded from CLAUDE.md), not generic .NET nits.
+
+language: en
+
+reviews:
+  # Profile "assertive" surfaces more findings; "chill" only flags clear issues. Assertive
+  # is the right choice given this repo demonstrates AI workflow rigor — over-flagging is
+  # acceptable, missed real issues are not.
+  profile: assertive
+
+  # Request changes when blocking issues are found, instead of approving with comments.
+  request_changes_workflow: true
+
+  # Generate a high-level summary as the PR description if missing.
+  high_level_summary: true
+  high_level_summary_in_walkthrough: false
+
+  # Auto-generate a poem? No. Wastes reviewer attention.
+  poem: false
+
+  # Walkthrough section: ON. Useful for reviewers to orient before reading the diff.
+  collapse_walkthrough: false
+
+  # Tell CodeRabbit what THIS project values. The instructions here are the bridge between
+  # CLAUDE.md (which CodeRabbit doesn't load automatically) and the review pass.
+  path_instructions:
+    - path: "**/*.cs"
+      instructions: |
+        Apply CLAUDE.md "Architecture Principles" (SOLID, DDD, layer dependencies) and
+        "Performance Rules" (AsNoTracking + projection for reads, await everywhere on
+        request paths, CancellationToken propagation, pagination caps at 100,
+        optimistic concurrency tokens on aggregates, outbox atomicity).
+        File-scoped namespaces required. Async methods MUST be suffixed Async and called
+        HandleAsync (NOT Handle). Private instance fields prefixed with _; constants and
+        static readonly use PascalCase. Sync-over-async patterns (.Result, .Wait(),
+        .GetAwaiter().GetResult()) are banned at build time — flag any sneak-through.
+        Interfaces earn their keep through consumer substitution (test mock or 2+ impls
+        today, OR concrete near-term roadmap) — flag speculative interfaces.
+
+    - path: "**/Features/**/*.cs"
+      instructions: |
+        This is a VSA service. The file should be a single vertical slice: command/query
+        record + validator + handler, co-located. If multiple feature concerns are
+        appearing in one file, flag the split. Handlers take CancellationToken and return
+        Task<T>. Use primary-constructor DI. Look at OrderService/Features/PlaceOrder.cs
+        for the canonical shape including Tier-1 teaching comments.
+
+    - path: "CatalogService/**/*.cs"
+      instructions: |
+        This service uses Clean Architecture (Domain / Application / Infrastructure / Api).
+        Domain depends on nothing; Application on Domain; Infrastructure on both; Api is
+        the composition root. Flag any cross-layer leak. Domain entities use factory
+        methods (static Create()) with validation, never public setters. Queries return
+        DTOs via projection (.Select(...)), never tracked entities.
+
+    - path: "**/Endpoints/**/*.cs"
+      instructions: |
+        Every endpoint must use MapV1ApiGroup(tag, name) from NextAurora.ServiceDefaults —
+        never hand-roll NewVersionedApi().MapGroup().HasApiVersion() chains. All non-public
+        endpoints get .RequireAuthorization(). All list endpoints paginate (cap 100). All
+        error responses go through GlobalExceptionHandler — never expose internal state,
+        entity IDs, or stack traces to clients.
+
+    - path: "**/*Migration*.cs"
+      instructions: |
+        EF Core migrations are IMMUTABLE once applied anywhere (dev included). Never edit
+        an existing migration. Destructive changes (drop column/table, rename, NOT NULL on
+        existing column) need a multi-step plan, not a single migration. Flag any edit to
+        an existing migration file.
+
+    - path: "**/*Test*.cs"
+      instructions: |
+        Integration tests use Testcontainers with real DB / messaging — never mocks for
+        infrastructure. Unit tests use NSubstitute for ports (IRepository, IEventPublisher,
+        etc.). AwesomeAssertions (not FluentAssertions) for assertions.
+
+    - path: "CLAUDE.md"
+      instructions: |
+        This is the canonical rules file. When this changes, every paraphrase ending in
+        "See CLAUDE.md" elsewhere in the repo may need updating. Flag the CLAUDE.md
+        change with a note: "Run /check-rules locally to audit paraphrases against this
+        diff."
+
+    - path: "docs/STATUS.md"
+      instructions: |
+        STATUS.md is the cross-session entry point. When this changes, the "Last updated:"
+        date should be today. Flag if the date is stale relative to the diff.
+
+# Tools: enable static-analysis layers CodeRabbit can pipe in. Most of these we already
+# run elsewhere; enabling here lets CodeRabbit cross-reference findings.
+tools:
+  # Roslyn already runs in CI. CodeRabbit can ingest its output if uploaded.
+  github-checks:
+    enabled: true
+    timeout_ms: 90000
+
+# Chat: allow @coderabbitai mentions to ask follow-up questions on a PR.
+chat:
+  auto_reply: true
+
+# Knowledge base: feed CodeRabbit relevant docs so its review reasoning uses project
+# context, not generic .NET assumptions.
+knowledge_base:
+  learnings:
+    scope: "auto"
+  issues:
+    scope: "auto"
+  pull_requests:
+    scope: "auto"
