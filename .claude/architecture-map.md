@@ -1,0 +1,226 @@
+# Architecture Map
+
+A structured, AI-consumable map of NextAurora. Read this when you need orientation:
+which service does what, what shape it uses, where ports and entities live, and how
+services talk to each other.
+
+This file is canonical for **structure** (services, files, dependencies). For **rules**
+(SOLID, DDD, performance), CLAUDE.md is canonical. When the codebase changes, regenerate
+this map (the build commands at the bottom show how).
+
+---
+
+## Services
+
+| Service | Shape | Database | Project layout |
+|---|---|---|---|
+| **CatalogService** | Clean Architecture | Postgres | 4 projects: `Api`, `Application`, `Domain`, `Infrastructure` |
+| **OrderService** | VSA | SQL Server | Single project, `Features/` + `Domain/` + `Infrastructure/` + `Endpoints/` |
+| **PaymentService** | VSA | SQL Server | Single project, `Features/` + `Domain/` + `Infrastructure/` + `Endpoints/` |
+| **ShippingService** | VSA | Postgres | Single project, `Features/` + `Domain/` + `Infrastructure/` + `Endpoints/` |
+| **NotificationService** | VSA, no Domain | — | Single project, `Features/` + `Infrastructure/` only |
+| **Storefront** | Static-file host | — | Frontend scaffold |
+| **SellerPortal** | Static-file host | — | Frontend scaffold |
+
+Shared infrastructure projects:
+
+| Project | Role |
+|---|---|
+| **NextAurora.AppHost** | Aspire composition root — wires up containers, services, and Azure resources |
+| **NextAurora.Contracts** | Event contracts (`Events/`), command DTOs (`Commands/`), shared DTOs (`DTOs/`) |
+| **NextAurora.ServiceDefaults** | Shared middleware: `MapV1ApiGroup`, `GlobalExceptionHandler`, `AddNextAuroraContextPropagation`, `MigrateDatabaseAsync`, JWT/Keycloak wiring |
+
+---
+
+## Event flow
+
+```
+PlaceOrder (HTTP POST → OrderService)
+    │
+    │ 1. gRPC → CatalogService (validate + reserve stock per line)
+    │
+    │ 2. Order aggregate saved + OrderPlacedEvent staged in outbox (same tx)
+    │
+    └─→ OrderPlacedEvent (Service Bus topic)
+            ├─→ PaymentService consumes (OrderPlacedHandler → ProcessPayment)
+            │       │
+            │       │ Payment aggregate saved + PaymentCompletedEvent staged in outbox
+            │       │
+            │       └─→ PaymentCompletedEvent
+            │               ├─→ OrderService consumes (PaymentCompletedHandler → mark Order paid)
+            │               ├─→ ShippingService consumes (PaymentCompletedHandler → CreateShipment)
+            │               │       │
+            │               │       │ Shipment saved + ShipmentDispatchedEvent staged in outbox
+            │               │       │
+            │               │       └─→ ShipmentDispatchedEvent
+            │               │               ├─→ OrderService consumes (ShipmentDispatchedHandler → mark Order shipped)
+            │               │               └─→ NotificationService consumes (NotificationEventHandlers)
+            │               └─→ NotificationService consumes (NotificationEventHandlers)
+            │
+            ├─→ PaymentFailedEvent (on payment decline)
+            │       ├─→ OrderService consumes (PaymentFailedHandler → mark Order failed)
+            │       └─→ NotificationService consumes
+            │
+            └─→ NotificationService consumes (NotificationEventHandlers)
+```
+
+Every publisher uses Wolverine's transactional outbox: the aggregate write and the event
+stage commit in the same DB transaction. See CLAUDE.md "Transactional Outbox" + the
+"Observability & Context Propagation" section for the wire-level details.
+
+---
+
+## Event contracts
+
+All events live in `NextAurora.Contracts/Events/`:
+
+- `OrderPlacedEvent` — published by OrderService
+- `PaymentCompletedEvent` — published by PaymentService
+- `PaymentFailedEvent` — published by PaymentService
+- `ShipmentDispatchedEvent` — published by ShippingService
+
+Service Bus topology: one topic per event type, one subscription per consumer-source pair.
+Subscription names are globally unique within the namespace (Aspire 13+ rule).
+Convention: `{consumer}-{source-events}-sub` (e.g. `notify-orders-sub`).
+
+---
+
+## Ports (interfaces consumed by handlers)
+
+VSA services keep ports in `Domain/` (where the interface lives next to the aggregate it
+operates on); the Clean service splits them between Domain and Application.
+
+### OrderService — `OrderService/Domain/`
+- `IOrderRepository` — load/save Order aggregate
+- `IEventPublisher` — publish events (Wolverine-backed)
+- `ICatalogClient` — gRPC client for CatalogService (product validation, stock reservation)
+
+### PaymentService — `PaymentService/Domain/`
+- `IPaymentRepository` — load/save Payment aggregate
+- `IEventPublisher` — publish events
+- `IPaymentGateway` — external payment provider port (currently a stub)
+
+### ShippingService — `ShippingService/Domain/`
+- `IShipmentRepository` — load/save Shipment aggregate
+- `IEventPublisher` — publish events
+
+### NotificationService
+- No ports — stateless event-to-email pump. No persistence, no aggregates, no Domain folder.
+
+### CatalogService — `CatalogService.Domain/` (interfaces) + `CatalogService.Application/` (handlers)
+- `IProductRepository`, `ICategoryRepository`
+- `IProductCache` (HybridCache-backed: L1 in-process + L2 Redis)
+- `IEventPublisher`
+
+Per CLAUDE.md "Interfaces earn their keep through consumer substitution": every port
+above is substituted in tests (NSubstitute) or has multiple implementations today.
+Speculative interfaces have been deleted (see the deleted `IRecipientResolver` /
+`StubRecipientResolver` in NotificationService — kept here as a cautionary footnote).
+
+---
+
+## Aggregates
+
+| Service | Aggregate | Concurrency token |
+|---|---|---|
+| OrderService | `Order` (with `OrderLine` child entities) | SQL Server `RowVersion` shadow column |
+| PaymentService | `Payment`, `Refund` | SQL Server `RowVersion` |
+| ShippingService | `Shipment` (with `TrackingEvent` children) | Postgres `xmin` |
+| CatalogService | `Product`, `Category` | Postgres `xmin` |
+| NotificationService | — (no persistence) | — |
+
+Every aggregate uses factory methods (`static Create(...)`) with validation, not public
+constructors. Private setters. State changes go through methods (e.g. `Order.MarkPaid()`).
+
+---
+
+## Endpoints
+
+VSA services register endpoints in `Endpoints/{Service}Endpoints.cs`. Catalog registers
+in `CatalogService.Api/Endpoints/`.
+
+All endpoints use `MapV1ApiGroup("Tag", "resource")` from ServiceDefaults — that returns
+a `RouteGroupBuilder` rooted at `/api/v1/resource` with the version + tag applied. Never
+hand-roll `NewVersionedApi().MapGroup().HasApiVersion()` chains; drift across services is
+the failure mode.
+
+---
+
+## Cross-service communication
+
+- **REST (HTTP)** — frontend ↔ services only. URL-segment versioned `/api/v1/...`.
+- **gRPC (sync)** — OrderService → CatalogService for real-time product validation + stock reservation. Versioned via `.proto` `package` declarations.
+- **Service Bus (async)** — all workflow events. Wolverine transports + transactional outbox.
+
+---
+
+## CatalogService internals (Clean Architecture detail)
+
+```
+CatalogService.Api              ← Composition root: endpoints, DI, gRPC, OpenAPI/Scalar, middleware
+    │
+    ├── depends on Application + Infrastructure + Domain
+    │
+CatalogService.Application      ← Commands, queries, validators, handlers, mappers
+    │
+    ├── depends on Domain only
+    │
+CatalogService.Infrastructure   ← EF Core (ProductDbContext), repositories, HybridCache impl
+    │
+    ├── depends on Domain + Application
+    │
+CatalogService.Domain           ← Entities, value objects, enums, port interfaces
+    │
+    └── depends on nothing
+```
+
+The build-time layer enforcement (project references in `.csproj`) is what makes this
+shape earn its keep. Trying to `using CatalogService.Infrastructure;` from a Domain
+file is a compile error, not a code-review nit.
+
+---
+
+## Demo deployment
+
+CatalogService.Api is deployed to Fly.io at https://catalog-api-demo.fly.dev. Single Fly
+Machine in `lax` region, auto-stops when idle. `DemoMode` config flag gates Scalar UI,
+OpenAPI exposure, skip-HTTPS-redirect, and migrate-on-startup in non-Development
+environments. Redis registration is conditional on a `cache` connection string so
+HybridCache degrades to L1-only when there's no Redis. See `docs/demo-deployment.md`.
+
+Other services are not currently deployed.
+
+---
+
+## Regenerate this map
+
+When services / aggregates / events change materially, refresh this file. The structural
+parts come from these commands:
+
+```bash
+# Services
+find . -name "*.csproj" -not -path "*/bin/*" -not -path "*/obj/*" -not -path "*/tests/*" | sort
+
+# Features (VSA services)
+for svc in OrderService PaymentService ShippingService NotificationService; do
+    echo "--- $svc ---"
+    ls $svc/Features/
+done
+
+# Events
+ls NextAurora.Contracts/Events/
+
+# Ports
+grep -rln '^public interface I' --include='*.cs' OrderService PaymentService ShippingService CatalogService NotificationService
+```
+
+For the *narrative* parts (event flow, why a service is shaped a certain way), update
+by hand — those don't regenerate cleanly from grep.
+
+---
+
+## Use cases for this map
+
+- **`architecture-reviewer` agent** loads this to orient itself before reviewing a target.
+- **New session starts** — a human or AI assistant skims this to find their bearings.
+- **Onboarding** — pair this with CLAUDE.md and STATUS.md for the three-file orientation set: STATUS.md ("where we are right now"), CLAUDE.md ("how we do things"), architecture-map.md ("what's where").

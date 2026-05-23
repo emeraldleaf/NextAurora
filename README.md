@@ -1,5 +1,9 @@
 # NextAurora
 
+[![CI](https://github.com/emeraldleaf/NextAurora/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/emeraldleaf/NextAurora/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/emeraldleaf/NextAurora/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/emeraldleaf/NextAurora/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/gh/emeraldleaf/NextAurora/branch/main/graph/badge.svg)](https://codecov.io/gh/emeraldleaf/NextAurora)
+
 A microservices-based e-commerce platform built with .NET 10, Blazor, and .NET Aspire.
 
 NextAurora demonstrates a production-style distributed system with event-driven architecture, CQRS, domain-driven design, and gRPC for inter-service communication.
