@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1500" font-family="'Cascadia Code', 'Consolas', monospace">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1750" width="1800" height="1750" font-family="'Cascadia Code', 'Consolas', monospace">
+  <!-- Explicit white background so the diagram is readable on GitHub's dark theme. -->
+  <rect width="1800" height="1750" fill="#ffffff"/>
   <style>
-    .title { font-size: 32px; fill: #1e40af; font-weight: 600; }
-    .subtitle { font-size: 16px; fill: #64748b; }
-    .stage-label { font-size: 18px; font-weight: 600; }
-    .section-title { font-size: 18px; fill: #1e40af; font-weight: 600; }
-    .tool { font-size: 13px; fill: #374151; }
-    .tool-bold { font-size: 13px; fill: #374151; font-weight: 600; }
-    .tool-muted { font-size: 12px; fill: #64748b; font-style: italic; }
-    .gap-title { font-size: 14px; fill: #b91c1c; font-weight: 600; }
-    .gap-fix { font-size: 12px; fill: #374151; }
-    .legend { font-size: 12px; fill: #64748b; }
+    .title { font-size: 36px; fill: #1e40af; font-weight: 700; }
+    .subtitle { font-size: 18px; fill: #64748b; }
+    .stage-label { font-size: 22px; font-weight: 700; }
+    .section-title { font-size: 22px; fill: #1e40af; font-weight: 700; }
+    .tool { font-size: 16px; fill: #374151; }
+    .tool-bold { font-size: 16px; fill: #374151; font-weight: 700; }
+    .tool-muted { font-size: 14px; fill: #64748b; font-style: italic; }
+    .gap-title { font-size: 17px; fill: #b91c1c; font-weight: 700; }
+    .gap-fix { font-size: 14px; fill: #374151; }
+    .legend { font-size: 14px; fill: #64748b; }
     rect { stroke-width: 2; }
   </style>
 
@@ -199,47 +201,42 @@
   <text x="40" y="930" class="legend">━━━  flow from edit to runtime    ╌╌╌  iteration loop (review findings)    Bold = autonomous    Italic = manual    ◯ = gap with sized fix</text>
 
   <!-- ============================================================== -->
-  <!-- Gaps section -->
+  <!-- Gaps section — single column so fix lines don't bleed across.   -->
   <!-- ============================================================== -->
-  <rect x="40" y="970" width="1720" height="490" rx="8" fill="none" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="8,4"/>
+  <rect x="40" y="970" width="1720" height="710" rx="8" fill="none" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="8,4"/>
   <text x="60" y="1005" class="title" fill="#b91c1c" font-size="22">Gaps — and the pragmatic fix for each</text>
   <text x="60" y="1030" class="subtitle">Each gap is sized to the actual problem, not maximum theoretical coverage. Full rationale in dev-loop.md.</text>
 
-  <!-- Gap row 1 -->
   <text x="60" y="1075" class="gap-title">1. Cross-service E2E over real Azure Service Bus wire not tested</text>
-  <text x="60" y="1095" class="gap-fix">Fix: defer. Stubbed-transport tests cover load-bearing correctness. When this lands, gate as manual nightly (workflow_dispatch:), not per-PR.</text>
+  <text x="60" y="1097" class="gap-fix">Fix: defer. Stubbed-transport tests cover load-bearing correctness. When this lands, gate as manual nightly (workflow_dispatch:), not per-PR.</text>
 
-  <text x="900" y="1075" class="gap-title">6. AppHost smoke run is manual</text>
-  <text x="900" y="1095" class="gap-fix">Fix: workflow_dispatch: against the Fly demo OR self-hosted Aspire. Skip per-PR; Aspire boot is 60+ seconds and most PRs don't change smoke surface.</text>
-
-  <!-- Gap row 2 -->
   <text x="60" y="1135" class="gap-title">2. No production performance baselines</text>
-  <text x="60" y="1155" class="gap-fix">Fix: baseline exactly 2 endpoints (GET /products/{id}, POST /orders) at 100 concurrent. Capture P50/P95/P99 + GC + cache hit ratio. Re-measure quarterly.</text>
+  <text x="60" y="1157" class="gap-fix">Fix: baseline exactly 2 endpoints (GET /products/{id}, POST /orders) at 100 concurrent. Capture P50/P95/P99 + GC + cache hit ratio. Re-measure quarterly.</text>
 
-  <text x="900" y="1135" class="gap-title">7. No secret scanning beyond CodeQL</text>
-  <text x="900" y="1155" class="gap-fix">Fix: add gitleaks/gitleaks-action@v2 (5 lines, free for public). Pair with quarterly `dotnet list package --vulnerable`.</text>
-
-  <!-- Gap row 3 -->
   <text x="60" y="1195" class="gap-title">3. .claude/settings.json accumulates session cruft</text>
-  <text x="60" y="1215" class="gap-fix">Fix: don't build a hook. `git restore .claude/settings.json` periodically. If friction grows, add an 8-line Stop hook that strips non-whitelist entries.</text>
+  <text x="60" y="1217" class="gap-fix">Fix: don't build a hook. `git restore .claude/settings.json` periodically. If friction grows, add an 8-line Stop hook that strips non-whitelist entries.</text>
 
-  <text x="900" y="1195" class="gap-title">8. Production migration deploy not automated</text>
-  <text x="900" y="1215" class="gap-fix">Fix: separate deploy-migrate job with `environment: production-migration` requiring manual approval. Auto-migrating on prod startup is dangerous.</text>
-
-  <!-- Gap row 4 -->
   <text x="60" y="1255" class="gap-title">4. GitHub Actions version-pinned, not SHA-pinned</text>
-  <text x="60" y="1275" class="gap-fix">Fix: stick with @vN + Dependabot Actions weekly (tag-move detected within ~24h). If higher assurance needed, run pin-github-action on ALL actions in one PR.</text>
+  <text x="60" y="1277" class="gap-fix">Fix: stick with @vN + Dependabot Actions weekly (tag-move detected within ~24h). If higher assurance needed, run pin-github-action on ALL actions in one PR.</text>
 
-  <text x="900" y="1255" class="gap-title">9. CodeRabbit + architecture-reviewer feel redundant</text>
-  <text x="900" y="1275" class="gap-fix">Fix: keep both — complementary. CodeRabbit = rules-based, every PR. arch-reviewer = rule-application using CLAUDE.md, manual for non-trivial architectural changes.</text>
-
-  <!-- Gap row 5 -->
   <text x="60" y="1315" class="gap-title">5. No coverage gate</text>
-  <text x="60" y="1335" class="gap-fix">Fix: codecov.yml with `coverage.status.project: target: auto, threshold: 1%`. Relative gate prevents regressions without perverse incentives of absolute thresholds.</text>
+  <text x="60" y="1337" class="gap-fix">Fix: codecov.yml with `coverage.status.project: target: auto, threshold: 1%`. Relative gate prevents regressions without perverse incentives of absolute thresholds.</text>
 
-  <text x="900" y="1315" class="gap-title">10. No "AI-generated" commit tagging</text>
-  <text x="900" y="1335" class="gap-fix">Fix: don't add a tag. The PR template covers the disclosure layer; Co-Authored-By line that Claude Code adds is sufficient signal where it's used.</text>
+  <text x="60" y="1375" class="gap-title">6. AppHost smoke run is manual</text>
+  <text x="60" y="1397" class="gap-fix">Fix: workflow_dispatch: against the Fly demo OR self-hosted Aspire. Skip per-PR; Aspire boot is 60+ seconds and most PRs don't change smoke surface.</text>
+
+  <text x="60" y="1435" class="gap-title">7. No secret scanning beyond CodeQL</text>
+  <text x="60" y="1457" class="gap-fix">Fix: add gitleaks/gitleaks-action@v2 (5 lines, free for public). Pair with quarterly `dotnet list package --vulnerable`.</text>
+
+  <text x="60" y="1495" class="gap-title">8. Production migration deploy not automated</text>
+  <text x="60" y="1517" class="gap-fix">Fix: separate deploy-migrate job with `environment: production-migration` requiring manual approval. Auto-migrating on prod startup is dangerous.</text>
+
+  <text x="60" y="1555" class="gap-title">9. CodeRabbit + architecture-reviewer feel redundant</text>
+  <text x="60" y="1577" class="gap-fix">Fix: keep both — complementary. CodeRabbit = rules-based, every PR. arch-reviewer = rule-application using CLAUDE.md, manual for non-trivial architectural changes.</text>
+
+  <text x="60" y="1615" class="gap-title">10. No "AI-generated" commit tagging</text>
+  <text x="60" y="1637" class="gap-fix">Fix: don't add a tag. The PR template covers the disclosure layer; Co-Authored-By line that Claude Code adds is sufficient signal where it's used.</text>
 
   <!-- Bottom footer -->
-  <text x="60" y="1410" class="subtitle" font-style="italic">Full source in docs/dev-loop.md. Source .excalidraw at docs/dev-loop.excalidraw (open in Excalidraw to edit).</text>
+  <text x="60" y="1715" class="subtitle" font-style="italic">Full source in docs/dev-loop.md. Source .excalidraw at docs/dev-loop.excalidraw (open in Excalidraw to edit).</text>
 </svg>
