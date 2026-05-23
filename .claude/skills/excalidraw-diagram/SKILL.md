@@ -404,9 +404,36 @@ Guide the eye: typically left→right or top→bottom for sequences, radial for 
 ### Connections Required
 Position alone doesn't show relationships. If A relates to B, there must be an arrow.
 
----
+### Text Width Validation (Prevent Overlap)
 
-## Text Rules
+**The #1 cause of unreadable diagrams is text rendered wider than its container.** SVG `<text>` does NOT wrap automatically — long strings spill into adjacent elements and produce overlapping garbage. This is especially common in multi-column layouts where each cell's available width is narrower than authors anticipate.
+
+**Compute width before placing.** For monospace fonts at typical sizes:
+
+| Font size | Approx. px per character |
+|-----------|--------------------------|
+| 12px | ~7.2 |
+| 14px | ~8.4 |
+| 16px | ~9.6 |
+| 18px | ~10.8 |
+| 22px | ~13.2 |
+
+So a 150-character explanatory line at 14px is ≈ **1260 px wide**. If your two-column layout gives each column only 840 px, that line overflows by ~420 px directly into the adjacent column's title.
+
+**For every long text element, before committing it to JSON or SVG:**
+
+1. Count the string length (characters).
+2. Multiply by the per-character width for the chosen font size.
+3. Compare against the available container width.
+4. If it overflows, pick one:
+   - **Shorten the string** until it fits with ~10% margin.
+   - **Break the text into multiple `<text>` elements** at explicit line breaks (each element = one wrapped line at a stepped `y`).
+   - **Restructure to a wider container** — collapse a 2-column layout into 1 column if all the long content sits in one section.
+   - **Use `<foreignObject>` with HTML `<div>`** so the browser handles wrapping. Adds complexity, but works.
+
+**Multi-column layout rule of thumb:** only use multi-column when *every* text element in a column is ≤ ~80 characters at the chosen font. Tool names, short labels, and short notes are fine. Paragraph-length explanations belong in a single column.
+
+**Caught-in-the-wild example.** A "Gaps" section put 10 items in two 840-px-wide columns. Each gap had a one-line "Fix" description averaging 140 characters at 14px (≈ 1175 px wide). Result: left-column fix lines streamed into right-column titles, producing visually garbled text on GitHub. Fix was restructuring to a single full-width column — everything fit on one line each with 1690 px of room. **The cost of computing widths up front is one minute; the cost of fixing it after the fact is reflow + re-render + screenshot review.**
 
 **CRITICAL**: The JSON `text` property contains ONLY readable words.
 
@@ -441,6 +468,63 @@ Settings: `fontSize: 16`, `fontFamily: 3`, `textAlign: "center"`, `verticalAlign
 ## Element Templates
 
 See `references/element-templates.md` for copy-paste JSON templates for each element type (text, line, dot, rectangle, arrow). Pull colors from `references/color-palette.md` based on each element's semantic purpose.
+
+---
+
+## SVG Output for GitHub Embedding
+
+When a diagram is destined for GitHub markdown (README, `docs/*.md`), the `.excalidraw` source alone isn't enough — you need a sibling `.svg` because GitHub renders SVG inline in markdown views. PNG is fine for screenshots, but SVG is what scales/zooms in the browser without quality loss. Two paths to producing the SVG:
+
+### Path A — Render via Playwright (preferred)
+
+The `references/render_excalidraw.py` script writes both `.png` and `.svg` output side-by-side:
+
+```bash
+cd .claude/skills/excalidraw-diagram/references
+uv run python render_excalidraw.py docs/diagram.excalidraw
+# produces docs/diagram.png AND docs/diagram.svg
+```
+
+Path A's SVG output goes through Excalidraw's own `exportToSvg()`, so layout/fonts/colors are guaranteed to match the source. Use this whenever it works.
+
+### Path B — Hand-written SVG (fallback when Playwright fails)
+
+When the render script can't run (`esm.sh` module-load timeout on slow networks, no Playwright dependency available, etc.), hand-write the SVG. **GitHub renders SVG with three failure modes that you must counter:**
+
+**1. Explicit `width` and `height` attributes are mandatory.** Without them, GitHub downscales the SVG to fit the markdown column width (~900 px on desktop). An 1800-px-wide design becomes 50% scale, and 14 px text becomes 7 px on screen — unreadable. Fix:
+```xml
+<svg viewBox="0 0 1800 1500" width="1800" height="1500" ...>
+```
+Trade-off: the SVG renders at natural size with a horizontal scroll bar instead of fitting the column. Worth it — text readability beats single-screen viewing.
+
+**2. Explicit white background rect is mandatory.** Without it, the SVG renders with a transparent background. On GitHub's dark theme, text colored for white background (typical `#374151`, `#64748b`) becomes nearly invisible. Fix — put this as the first child of `<svg>`:
+```xml
+<rect width="1800" height="1500" fill="#ffffff"/>
+```
+
+**3. Single-column for any text >80 chars.** SVG `<text>` doesn't wrap. See the **Text Width Validation** section earlier — multi-column layouts only work for short labels. If your content has paragraph-length lines, stack vertically.
+
+**4. Font sizes in hand-written SVG should be 16-22 px range** (title 22-36 px). Below 14 px tends to be illegible at GitHub's render size even with explicit `width`/`height`.
+
+### When the `.excalidraw` and `.svg` drift
+
+If the `.excalidraw` source is one design and the `.svg` is a different, hand-written design (because the render kept failing while you needed to ship), **document the drift inline in the doc that references them**, e.g.:
+
+> Source: `dev-loop.excalidraw` is the highway skeleton; `dev-loop.svg` is the full hand-written diagram (Playwright was unavailable when this was authored).
+
+Don't pretend they match when they don't — that becomes a future debugging tax.
+
+### Rebuilding diagrams in bulk
+
+To keep all sibling `.png`/`.svg` outputs in sync with their `.excalidraw` sources, use the rebuild script:
+
+```bash
+.claude/scripts/rebuild-diagrams.sh           # incremental (only regenerates stale outputs)
+.claude/scripts/rebuild-diagrams.sh --force   # rebuild every diagram regardless of mtime
+.claude/scripts/rebuild-diagrams.sh docs/specific-diagram.excalidraw   # single file
+```
+
+The script walks `docs/*.excalidraw`, checks each source's mtime against its `.png` and `.svg` outputs, and only re-renders the stale ones. Useful after editing `.excalidraw` files in the Excalidraw VS Code extension (which updates the source but not the sibling outputs).
 
 ---
 
@@ -544,9 +628,15 @@ uv run playwright install chromium
 
 ### Visual Validation (Render Required)
 21. **Rendered to PNG**: Diagram has been rendered and visually inspected
-22. **No text overflow**: All text fits within its container
+22. **No text overflow**: All text fits within its container — width computed up front per "Text Width Validation"
 23. **No overlapping elements**: Shapes and text don't overlap unintentionally
 24. **Even spacing**: Similar elements have consistent spacing
 25. **Arrows land correctly**: Arrows connect to intended elements without crossing others
 26. **Readable at export size**: Text is legible in the rendered PNG
 27. **Balanced composition**: No large empty voids or overcrowded regions
+
+### GitHub SVG (if the diagram is referenced from markdown)
+28. **Sibling `.svg` exists**: Markdown that references the `.excalidraw` also has a `.svg` (either Playwright-rendered or hand-written) — GitHub renders SVG inline in markdown views
+29. **Explicit `width` and `height` attributes**: SVG has `width="X" height="Y"` matching the viewBox so GitHub doesn't downscale text below readable size
+30. **Explicit white background rect**: First child of `<svg>` is `<rect width="X" height="Y" fill="#ffffff"/>` so text is readable on GitHub's dark theme
+31. **Fonts ≥ 14 px in body text, ≥ 16 px preferred**: smaller becomes illegible at GitHub's render
