@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1500" font-family="'Cascadia Code', 'Consolas', monospace">
+  <style>
+    .title { font-size: 32px; fill: #1e40af; font-weight: 600; }
+    .subtitle { font-size: 16px; fill: #64748b; }
+    .stage-label { font-size: 18px; font-weight: 600; }
+    .section-title { font-size: 18px; fill: #1e40af; font-weight: 600; }
+    .tool { font-size: 13px; fill: #374151; }
+    .tool-bold { font-size: 13px; fill: #374151; font-weight: 600; }
+    .tool-muted { font-size: 12px; fill: #64748b; font-style: italic; }
+    .gap-title { font-size: 14px; fill: #b91c1c; font-weight: 600; }
+    .gap-fix { font-size: 12px; fill: #374151; }
+    .legend { font-size: 12px; fill: #64748b; }
+    rect { stroke-width: 2; }
+  </style>
+
+  <!-- Title -->
+  <text x="40" y="65" class="title">Dev loop &amp; tooling</text>
+  <text x="40" y="100" class="subtitle">Five stages from edit to runtime. Bold = fires autonomously. Italic = invoked manually.</text>
+
+  <!-- Stage 1: Edit-time (purple, AI/LLM color) -->
+  <rect x="40" y="140" width="320" height="70" rx="12" fill="#ddd6fe" stroke="#6d28d9"/>
+  <text x="200" y="175" text-anchor="middle" class="stage-label" fill="#6d28d9">1. Edit-time</text>
+  <text x="200" y="197" text-anchor="middle" font-size="14" fill="#6d28d9">IDE + Claude Code</text>
+
+  <!-- Stage 2: Build-time (blue) -->
+  <rect x="390" y="140" width="320" height="70" rx="12" fill="#60a5fa" stroke="#1e3a5f"/>
+  <text x="550" y="175" text-anchor="middle" class="stage-label" fill="#ffffff">2. Build-time</text>
+  <text x="550" y="197" text-anchor="middle" font-size="14" fill="#ffffff">dotnet build</text>
+
+  <!-- Stage 3: Test-time (lighter blue) -->
+  <rect x="740" y="140" width="320" height="70" rx="12" fill="#93c5fd" stroke="#1e3a5f"/>
+  <text x="900" y="175" text-anchor="middle" class="stage-label" fill="#1e3a5f">3. Test-time</text>
+  <text x="900" y="197" text-anchor="middle" font-size="14" fill="#1e3a5f">dotnet test</text>
+
+  <!-- Stage 4: PR-time (yellow/decision) -->
+  <rect x="1090" y="140" width="320" height="70" rx="12" fill="#fef3c7" stroke="#b45309"/>
+  <text x="1250" y="175" text-anchor="middle" class="stage-label" fill="#b45309">4. PR-time</text>
+  <text x="1250" y="197" text-anchor="middle" font-size="14" fill="#b45309">GitHub Actions + reviewers</text>
+
+  <!-- Stage 5: Runtime (green/success) -->
+  <rect x="1440" y="140" width="320" height="70" rx="12" fill="#a7f3d0" stroke="#047857"/>
+  <text x="1600" y="175" text-anchor="middle" class="stage-label" fill="#047857">5. Merge / Runtime</text>
+  <text x="1600" y="197" text-anchor="middle" font-size="14" fill="#047857">Aspire + Fly.io</text>
+
+  <!-- Arrows between stages -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 9 3, 0 6" fill="#64748b"/>
+    </marker>
+  </defs>
+  <line x1="362" y1="175" x2="386" y2="175" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="712" y1="175" x2="736" y2="175" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="1062" y1="175" x2="1086" y2="175" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="1412" y1="175" x2="1436" y2="175" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- Iteration loop arrow: PR back to Edit (review findings → fix) -->
+  <path d="M 1250 220 Q 1250 280, 1100 280 Q 700 280, 200 280 Q 200 250, 200 218"
+        stroke="#dc2626" stroke-width="1.5" stroke-dasharray="6,4" fill="none" marker-end="url(#arrowhead)"/>
+  <text x="700" y="270" text-anchor="middle" font-size="12" fill="#dc2626" font-style="italic">CodeRabbit / arch-reviewer findings → fix → push → re-review</text>
+
+  <!-- ============================================================== -->
+  <!-- Stage 1 detail: Edit-time tools -->
+  <!-- ============================================================== -->
+  <line x1="40" y1="320" x2="360" y2="320" stroke="#6d28d9" stroke-width="1"/>
+  <text x="40" y="345" class="section-title" fill="#6d28d9">Edit-time</text>
+
+  <text x="40" y="375" class="tool-muted">Canonical rules</text>
+  <text x="55" y="395" class="tool">CLAUDE.md (25 KB)</text>
+  <text x="55" y="413" class="tool">.editorconfig</text>
+  <text x="55" y="431" class="tool">BannedSymbols.txt</text>
+
+  <text x="40" y="460" class="tool-muted">Hooks (autonomous)</text>
+  <text x="55" y="480" class="tool-bold">PreToolUse: block-sync-over-async.sh</text>
+  <text x="55" y="498" class="tool-bold">SessionStart: inject-status.sh</text>
+  <text x="55" y="516" class="tool-bold">PostToolUse: check-claude-md-refs.sh</text>
+
+  <text x="40" y="545" class="tool-muted">Slash commands (manual)</text>
+  <text x="55" y="565" class="tool">/new-feature-slice</text>
+  <text x="55" y="583" class="tool">/sync-status</text>
+  <text x="55" y="601" class="tool">/check-rules</text>
+
+  <text x="40" y="630" class="tool-muted">Agents (manual)</text>
+  <text x="55" y="650" class="tool">architecture-reviewer</text>
+
+  <text x="40" y="679" class="tool-muted">Skills (auto-trigger on intent)</text>
+  <text x="55" y="699" class="tool-bold">verification-before-completion</text>
+  <text x="55" y="717" class="tool-bold">systematic-debugging</text>
+  <text x="55" y="735" class="tool-bold">test-driven-development</text>
+  <text x="55" y="753" class="tool">variant-analysis</text>
+  <text x="55" y="771" class="tool">writing-plans + executing-plans</text>
+  <text x="55" y="789" class="tool">using-git-worktrees</text>
+  <text x="55" y="807" class="tool">skill-security-auditor</text>
+  <text x="55" y="825" class="tool">dotnet-performance, excalidraw-diagram</text>
+
+  <text x="40" y="854" class="tool-muted">Secondary reviewer (in-editor)</text>
+  <text x="55" y="874" class="tool">GitHub Copilot (GPT-5)</text>
+
+  <!-- ============================================================== -->
+  <!-- Stage 2 detail: Build-time -->
+  <!-- ============================================================== -->
+  <line x1="390" y1="320" x2="710" y2="320" stroke="#1e3a5f" stroke-width="1"/>
+  <text x="390" y="345" class="section-title" fill="#1e3a5f">Build-time</text>
+
+  <text x="390" y="375" class="tool-muted">Analyzers (zero warnings allowed)</text>
+  <text x="405" y="395" class="tool-bold">Meziantou.Analyzer</text>
+  <text x="405" y="413" class="tool-bold">SonarAnalyzer.CSharp</text>
+  <text x="405" y="431" class="tool-bold">Roslynator.Analyzers</text>
+  <text x="405" y="449" class="tool-bold">BannedApiAnalyzers</text>
+  <text x="405" y="467" class="tool">+ BannedSymbols.txt</text>
+  <text x="405" y="485" class="tool-bold">C# nullability (NRT)</text>
+
+  <text x="390" y="514" class="tool-muted">Build config</text>
+  <text x="405" y="534" class="tool">TreatWarningsAsErrors</text>
+  <text x="405" y="552" class="tool">Directory.Build.props</text>
+  <text x="405" y="570" class="tool">Directory.Packages.props</text>
+  <text x="405" y="588" class="tool-muted">  (central package management)</text>
+
+  <!-- ============================================================== -->
+  <!-- Stage 3 detail: Test-time -->
+  <!-- ============================================================== -->
+  <line x1="740" y1="320" x2="1060" y2="320" stroke="#1e3a5f" stroke-width="1"/>
+  <text x="740" y="345" class="section-title" fill="#1e3a5f">Test-time</text>
+
+  <text x="740" y="375" class="tool-muted">Unit tests</text>
+  <text x="755" y="395" class="tool">xunit</text>
+  <text x="755" y="413" class="tool">AwesomeAssertions</text>
+  <text x="755" y="431" class="tool">NSubstitute</text>
+
+  <text x="740" y="460" class="tool-muted">Integration tests</text>
+  <text x="755" y="480" class="tool">WebApplicationFactory&lt;Program&gt;</text>
+  <text x="755" y="498" class="tool">Testcontainers (Docker)</text>
+  <text x="755" y="516" class="tool-muted">  Catalog: Postgres + Redis</text>
+  <text x="755" y="534" class="tool-muted">  Order: SQL Server + Wolverine</text>
+
+  <text x="740" y="563" class="tool-muted">Coverage + benchmarks</text>
+  <text x="755" y="583" class="tool">Coverlet (Cobertura XML)</text>
+  <text x="755" y="601" class="tool">reportgenerator</text>
+  <text x="755" y="619" class="tool">BenchmarkDotNet</text>
+  <text x="755" y="637" class="tool">k6 (load smoke)</text>
+
+  <!-- ============================================================== -->
+  <!-- Stage 4 detail: PR-time -->
+  <!-- ============================================================== -->
+  <line x1="1090" y1="320" x2="1410" y2="320" stroke="#b45309" stroke-width="1"/>
+  <text x="1090" y="345" class="section-title" fill="#b45309">PR-time</text>
+
+  <text x="1090" y="375" class="tool-muted">GitHub Actions workflows</text>
+  <text x="1105" y="395" class="tool-bold">BUILD_AND_TEST</text>
+  <text x="1105" y="413" class="tool-muted">  build + unit + integration + Codecov</text>
+  <text x="1105" y="431" class="tool-bold">CodeQL (SAST)</text>
+  <text x="1105" y="449" class="tool-bold">Dependabot</text>
+  <text x="1105" y="467" class="tool-muted">  NuGet weekly + Actions monthly</text>
+  <text x="1105" y="485" class="tool">deploy-catalog-demo-fly.yml</text>
+
+  <text x="1090" y="514" class="tool-muted">PR-side config</text>
+  <text x="1105" y="534" class="tool">PULL_REQUEST_TEMPLATE.md</text>
+  <text x="1105" y="552" class="tool">AI_WORKFLOW.md</text>
+  <text x="1105" y="570" class="tool">copilot-instructions.md</text>
+  <text x="1105" y="588" class="tool">.coderabbit.yaml</text>
+
+  <text x="1090" y="617" class="tool-muted">Reviewers</text>
+  <text x="1105" y="637" class="tool-bold">CodeRabbit (LLM, autonomous)</text>
+  <text x="1105" y="655" class="tool-bold">Codecov (coverage trend)</text>
+  <text x="1105" y="673" class="tool-bold">CodeQL findings</text>
+  <text x="1105" y="691" class="tool-bold">dorny/test-reporter</text>
+  <text x="1105" y="709" class="tool">architecture-reviewer agent</text>
+  <text x="1105" y="727" class="tool-muted">  (manual invocation)</text>
+
+  <!-- ============================================================== -->
+  <!-- Stage 5 detail: Merge / Runtime -->
+  <!-- ============================================================== -->
+  <line x1="1440" y1="320" x2="1760" y2="320" stroke="#047857" stroke-width="1"/>
+  <text x="1440" y="345" class="section-title" fill="#047857">Merge / Runtime</text>
+
+  <text x="1440" y="375" class="tool-muted">Local dev orchestration</text>
+  <text x="1455" y="395" class="tool-bold">.NET Aspire</text>
+  <text x="1455" y="413" class="tool-muted">  AppHost wires everything</text>
+  <text x="1455" y="431" class="tool">Aspire dashboard (:18888)</text>
+
+  <text x="1440" y="460" class="tool-muted">Messaging + data</text>
+  <text x="1455" y="480" class="tool-bold">Wolverine (outbox + saga)</text>
+  <text x="1455" y="498" class="tool">Azure Service Bus emulator</text>
+  <text x="1455" y="516" class="tool">Postgres + SQL Server + Redis</text>
+  <text x="1455" y="534" class="tool">Keycloak (auth)</text>
+
+  <text x="1440" y="563" class="tool-muted">Observability</text>
+  <text x="1455" y="583" class="tool-bold">OpenTelemetry (traces/metrics/logs)</text>
+  <text x="1455" y="601" class="tool-bold">CorrelationId / UserId / SessionId</text>
+  <text x="1455" y="619" class="tool-muted">  propagated HTTP + Service Bus</text>
+  <text x="1455" y="637" class="tool">Application Insights (prod)</text>
+
+  <text x="1440" y="666" class="tool-muted">API surface + deploy</text>
+  <text x="1455" y="686" class="tool">Scalar UI (/scalar/v1)</text>
+  <text x="1455" y="704" class="tool-bold">Fly.io (CatalogService demo)</text>
+  <text x="1455" y="722" class="tool-muted">  catalog-api-demo.fly.dev</text>
+
+  <!-- Legend -->
+  <text x="40" y="930" class="legend">━━━  flow from edit to runtime    ╌╌╌  iteration loop (review findings)    Bold = autonomous    Italic = manual    ◯ = gap with sized fix</text>
+
+  <!-- ============================================================== -->
+  <!-- Gaps section -->
+  <!-- ============================================================== -->
+  <rect x="40" y="970" width="1720" height="490" rx="8" fill="none" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="8,4"/>
+  <text x="60" y="1005" class="title" fill="#b91c1c" font-size="22">Gaps — and the pragmatic fix for each</text>
+  <text x="60" y="1030" class="subtitle">Each gap is sized to the actual problem, not maximum theoretical coverage. Full rationale in dev-loop.md.</text>
+
+  <!-- Gap row 1 -->
+  <text x="60" y="1075" class="gap-title">1. Cross-service E2E over real Azure Service Bus wire not tested</text>
+  <text x="60" y="1095" class="gap-fix">Fix: defer. Stubbed-transport tests cover load-bearing correctness. When this lands, gate as manual nightly (workflow_dispatch:), not per-PR.</text>
+
+  <text x="900" y="1075" class="gap-title">6. AppHost smoke run is manual</text>
+  <text x="900" y="1095" class="gap-fix">Fix: workflow_dispatch: against the Fly demo OR self-hosted Aspire. Skip per-PR; Aspire boot is 60+ seconds and most PRs don't change smoke surface.</text>
+
+  <!-- Gap row 2 -->
+  <text x="60" y="1135" class="gap-title">2. No production performance baselines</text>
+  <text x="60" y="1155" class="gap-fix">Fix: baseline exactly 2 endpoints (GET /products/{id}, POST /orders) at 100 concurrent. Capture P50/P95/P99 + GC + cache hit ratio. Re-measure quarterly.</text>
+
+  <text x="900" y="1135" class="gap-title">7. No secret scanning beyond CodeQL</text>
+  <text x="900" y="1155" class="gap-fix">Fix: add gitleaks/gitleaks-action@v2 (5 lines, free for public). Pair with quarterly `dotnet list package --vulnerable`.</text>
+
+  <!-- Gap row 3 -->
+  <text x="60" y="1195" class="gap-title">3. .claude/settings.json accumulates session cruft</text>
+  <text x="60" y="1215" class="gap-fix">Fix: don't build a hook. `git restore .claude/settings.json` periodically. If friction grows, add an 8-line Stop hook that strips non-whitelist entries.</text>
+
+  <text x="900" y="1195" class="gap-title">8. Production migration deploy not automated</text>
+  <text x="900" y="1215" class="gap-fix">Fix: separate deploy-migrate job with `environment: production-migration` requiring manual approval. Auto-migrating on prod startup is dangerous.</text>
+
+  <!-- Gap row 4 -->
+  <text x="60" y="1255" class="gap-title">4. GitHub Actions version-pinned, not SHA-pinned</text>
+  <text x="60" y="1275" class="gap-fix">Fix: stick with @vN + Dependabot Actions weekly (tag-move detected within ~24h). If higher assurance needed, run pin-github-action on ALL actions in one PR.</text>
+
+  <text x="900" y="1255" class="gap-title">9. CodeRabbit + architecture-reviewer feel redundant</text>
+  <text x="900" y="1275" class="gap-fix">Fix: keep both — complementary. CodeRabbit = rules-based, every PR. arch-reviewer = rule-application using CLAUDE.md, manual for non-trivial architectural changes.</text>
+
+  <!-- Gap row 5 -->
+  <text x="60" y="1315" class="gap-title">5. No coverage gate</text>
+  <text x="60" y="1335" class="gap-fix">Fix: codecov.yml with `coverage.status.project: target: auto, threshold: 1%`. Relative gate prevents regressions without perverse incentives of absolute thresholds.</text>
+
+  <text x="900" y="1315" class="gap-title">10. No "AI-generated" commit tagging</text>
+  <text x="900" y="1335" class="gap-fix">Fix: don't add a tag. The PR template covers the disclosure layer; Co-Authored-By line that Claude Code adds is sufficient signal where it's used.</text>
+
+  <!-- Bottom footer -->
+  <text x="60" y="1410" class="subtitle" font-style="italic">Full source in docs/dev-loop.md. Source .excalidraw at docs/dev-loop.excalidraw (open in Excalidraw to edit).</text>
+</svg>
