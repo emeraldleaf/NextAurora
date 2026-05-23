@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # CodeRabbit configuration for NextAurora.
 # Docs: https://docs.coderabbit.ai/getting-started/configure-coderabbit
 #
@@ -91,14 +92,6 @@ reviews:
       instructions: |
         STATUS.md is the cross-session entry point. When this changes, the "Last updated:"
         date should be today. Flag if the date is stale relative to the diff.
-
-# Tools: enable static-analysis layers CodeRabbit can pipe in. Most of these we already
-# run elsewhere; enabling here lets CodeRabbit cross-reference findings.
-tools:
-  # Roslyn already runs in CI. CodeRabbit can ingest its output if uploaded.
-  github-checks:
-    enabled: true
-    timeout_ms: 90000
 
 # Chat: allow @coderabbitai mentions to ask follow-up questions on a PR.
 chat:
