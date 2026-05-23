@@ -155,7 +155,7 @@ The gaps below are real. Each one is sized for how much the *actual* problem war
 
 **What's missing:** BenchmarkDotNet + k6 harness exists but has never run under realistic concurrent traffic. We can't tell the difference between "fast enough" and "lucky so far."
 
-**Pragmatic solution:** Pick exactly two endpoints to baseline — `GET /api/v1/products/{id}` (read-heavy hot path) and `POST /api/v1/orders` (the saga entry point). Run a k6 profile at 100 concurrent users, capture P50/P95/P99 + GC-pause distribution (`dotnet-counters` for `System.Runtime`) + HybridCache hit ratio. Commit the numbers to [docs/perf-baselines.md](#) as the baseline. Re-measure quarterly or on perf-sensitive PRs. Don't try to baseline everything — pick the two highest-traffic endpoints, baseline once, move on.
+**Pragmatic solution:** Pick exactly two endpoints to baseline — `GET /api/v1/products/{id}` (read-heavy hot path) and `POST /api/v1/orders` (the saga entry point). Run a k6 profile at 100 concurrent users, capture P50/P95/P99 + GC-pause distribution (`dotnet-counters` for `System.Runtime`) + HybridCache hit ratio. Commit the numbers to `docs/perf-baselines.md` (file not yet created) as the baseline. Re-measure quarterly or on perf-sensitive PRs. Don't try to baseline everything — pick the two highest-traffic endpoints, baseline once, move on.
 
 ### Gap 3 — `.claude/settings.json` accumulates session cruft
 
@@ -173,7 +173,7 @@ The gaps below are real. Each one is sized for how much the *actual* problem war
 
 **What's missing:** Codecov shows the badge + trend, but doesn't fail PRs when coverage drops.
 
-**Pragmatic solution:** Add a [codecov.yml](#) at repo root with `coverage.status.project: target: auto, threshold: 1%`. That lets normal PRs through but fails ones that drop coverage by >1%. Don't set absolute thresholds (e.g. "must be 80%") — they create perverse incentives (delete uncovered code instead of testing it). Relative threshold = "don't make it worse."
+**Pragmatic solution:** Add a `codecov.yml` at repo root (file not yet created) with `coverage.status.project: target: auto, threshold: 1%`. That lets normal PRs through but fails ones that drop coverage by >1%. Don't set absolute thresholds (e.g. "must be 80%") — they create perverse incentives (delete uncovered code instead of testing it). Relative threshold = "don't make it worse."
 
 ### Gap 6 — AppHost smoke run is manual
 
