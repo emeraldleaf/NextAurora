@@ -32,8 +32,17 @@ builder.Services.AddRateLimiter(options =>
 builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
-    opts.UseAzureServiceBus(connectionString)
-        .AutoProvision();
+    var azureServiceBus = opts.UseAzureServiceBus(connectionString);
+
+    // AutoProvision creates topics/subscriptions at host startup. Test harnesses use a
+    // fake ASB connection string that would hang the connection attempt. Gate on a config
+    // flag so tests can disable provisioning while leaving the rest of the
+    // Development-gated code (EF migration, OpenAPI) intact. See OrderService/Program.cs
+    // for the full rationale.
+    if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
+    {
+        azureServiceBus.AutoProvision();
+    }
 
     // Publish outgoing events to their topics
     opts.PublishMessage<PaymentCompletedEvent>().ToAzureServiceBusTopic("payment-events");

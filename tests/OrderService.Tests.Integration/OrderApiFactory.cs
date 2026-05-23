@@ -61,13 +61,28 @@ public sealed class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLife
 
     public override async ValueTask DisposeAsync()
     {
-        await _sqlServer.DisposeAsync();
+        // Dispose the host BEFORE the SQL container. Wolverine's DurableReceiver
+        // background service polls the wolverine.* outbox tables on a heartbeat; if SQL
+        // Server is torn down while the receiver is still running, every heartbeat hits
+        // "connection refused" and the unhandled exceptions crash the test host AFTER
+        // all tests passed. base.DisposeAsync() runs the host's StopAsync, which lets
+        // Wolverine's background services exit gracefully before we yank the DB.
         await base.DisposeAsync();
+        await _sqlServer.DisposeAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+
+        // Disable Wolverine's .AutoProvision() in Program.cs. AutoProvision tries to
+        // create topics/subscriptions on the configured Service Bus namespace at host
+        // startup; against our fake "sb://fake.servicebus.windows.net/..." connection
+        // string it hangs trying to resolve/connect, eventually killing the test job
+        // at the runner's job limit. DisableAllExternalWolverineTransports() below
+        // handles the message-routing path; this handles broker-provisioning, which
+        // runs *before* ConfigureTestServices fires.
+        builder.UseSetting("Wolverine:AutoProvision", "false");
 
         // Real SQL Server for the order DB + Wolverine outbox tables.
         builder.UseSetting("ConnectionStrings:orders-db", _sqlServer.GetConnectionString());
