@@ -178,9 +178,15 @@ def render(
         #   1. explicit width + height (so GitHub doesn't downscale text below readable)
         #   2. white background rect (so text is readable on dark theme)
         svg_markup = page.evaluate("document.querySelector('#root svg').outerHTML")
-        svg_output_path = output_path.with_suffix(".svg")
-        svg_markup = _make_github_friendly(svg_markup)
-        svg_output_path.write_text(svg_markup, encoding="utf-8")
+        if not svg_markup or not svg_markup.strip():
+            # Earlier `query_selector` already proved the SVG element exists, so
+            # an empty outerHTML here would be unexpected — warn loudly but don't
+            # fail the run (PNG was still written above).
+            print("WARNING: outerHTML was empty; .svg sibling not written", file=sys.stderr)
+        else:
+            svg_output_path = output_path.with_suffix(".svg")
+            svg_markup = _make_github_friendly(svg_markup)
+            svg_output_path.write_text(svg_markup, encoding="utf-8")
 
         browser.close()
 

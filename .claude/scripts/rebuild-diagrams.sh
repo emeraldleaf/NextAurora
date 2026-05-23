@@ -27,6 +27,15 @@ if [ ! -f "$RENDER_SCRIPT" ]; then
     exit 1
 fi
 
+# Fail fast if `uv` isn't on PATH. The render script invokes `uv run python ...`
+# at line ~78; without `uv` installed, the first render attempt fails with a
+# cryptic "command not found" inside a `>` redirect, hiding the real cause.
+if ! command -v uv >/dev/null 2>&1; then
+    echo "ERROR: 'uv' command not found in PATH" >&2
+    echo "Install: https://github.com/astral-sh/uv" >&2
+    exit 1
+fi
+
 FORCE=0
 TARGETS=()
 for arg in "$@"; do
@@ -37,11 +46,12 @@ for arg in "$@"; do
     esac
 done
 
-# If no explicit targets, walk every .excalidraw under docs/.
+# If no explicit targets, walk every .excalidraw under docs/ (recursively — no
+# maxdepth, so diagrams nested in docs/subdir/sub/... are also discovered).
 if [ ${#TARGETS[@]} -eq 0 ]; then
     while IFS= read -r -d '' f; do
         TARGETS+=("$f")
-    done < <(find "$DOCS_DIR" -maxdepth 2 -name "*.excalidraw" -type f -print0 2>/dev/null)
+    done < <(find "$DOCS_DIR" -name "*.excalidraw" -type f -print0 2>/dev/null)
 fi
 
 if [ ${#TARGETS[@]} -eq 0 ]; then
@@ -68,18 +78,26 @@ skipped=0
 failed=0
 cd "$REPO_ROOT/.claude/skills/excalidraw-diagram/references"
 for src in "${TARGETS[@]}"; do
-    rel="${src#$REPO_ROOT/}"
+    # Quote $REPO_ROOT in the parameter expansion so shellcheck SC2295 is happy
+    # and the substring strip doesn't accidentally glob-interpret the prefix.
+    rel="${src#"$REPO_ROOT"/}"
     if [ "$FORCE" -eq 0 ] && ! is_stale "$src"; then
         echo "  [skip] $rel (up-to-date)"
         skipped=$((skipped + 1))
         continue
     fi
     echo "  [build] $rel"
-    if uv run python "$RENDER_SCRIPT" "$src" >/dev/null 2>&1; then
+    # Capture render output to a temp file so we can show it on failure.
+    # On success the file is discarded; on failure we print it so the user
+    # sees the actual error instead of having to re-run the command manually.
+    err_file=$(mktemp)
+    if uv run python "$RENDER_SCRIPT" "$src" >"$err_file" 2>&1; then
         rebuilt=$((rebuilt + 1))
+        rm -f "$err_file"
     else
-        echo "    FAILED — try running the command directly to see the error:"
-        echo "    uv run python $RENDER_SCRIPT $src"
+        echo "    FAILED — render output:"
+        sed 's/^/      /' "$err_file" | tail -20
+        rm -f "$err_file"
         failed=$((failed + 1))
     fi
 done

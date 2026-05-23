@@ -433,7 +433,7 @@ So a 150-character explanatory line at 14px is ≈ **1260 px wide**. If your two
 
 **Multi-column layout rule of thumb:** only use multi-column when *every* text element in a column is ≤ ~80 characters at the chosen font. Tool names, short labels, and short notes are fine. Paragraph-length explanations belong in a single column.
 
-**Caught-in-the-wild example.** A "Gaps" section put 10 items in two 840-px-wide columns. Each gap had a one-line "Fix" description averaging 140 characters at 14px (≈ 1175 px wide). Result: left-column fix lines streamed into right-column titles, producing visually garbled text on GitHub. Fix was restructuring to a single full-width column — everything fit on one line each with 1690 px of room. **The cost of computing widths up front is one minute; the cost of fixing it after the fact is reflow + re-render + screenshot review.**
+**Caught-in-the-wild example (PR #20).** A "Gaps" section put 10 items in two 840-px-wide columns. Each gap had a one-line "Fix" description averaging 140 characters at 14px (≈ 1175 px wide). Result: left-column fix lines streamed into right-column titles, producing visually garbled text on GitHub. Fix was restructuring to a single full-width column — everything fit on one line each with 1690 px of room. **The cost of computing widths up front is one minute; the cost of fixing it after the fact is reflow + re-render + screenshot review.**
 
 **CRITICAL**: The JSON `text` property contains ONLY readable words.
 
@@ -492,12 +492,15 @@ Path A's SVG output goes through Excalidraw's own `exportToSvg()`, so layout/fon
 When the render script can't run (`esm.sh` module-load timeout on slow networks, no Playwright dependency available, etc.), hand-write the SVG. **GitHub renders SVG with three failure modes that you must counter:**
 
 **1. Explicit `width` and `height` attributes are mandatory.** Without them, GitHub downscales the SVG to fit the markdown column width (~900 px on desktop). An 1800-px-wide design becomes 50% scale, and 14 px text becomes 7 px on screen — unreadable. Fix:
+
 ```xml
 <svg viewBox="0 0 1800 1500" width="1800" height="1500" ...>
 ```
+
 Trade-off: the SVG renders at natural size with a horizontal scroll bar instead of fitting the column. Worth it — text readability beats single-screen viewing.
 
 **2. Explicit white background rect is mandatory.** Without it, the SVG renders with a transparent background. On GitHub's dark theme, text colored for white background (typical `#374151`, `#64748b`) becomes nearly invisible. Fix — put this as the first child of `<svg>`:
+
 ```xml
 <rect width="1800" height="1500" fill="#ffffff"/>
 ```
@@ -604,39 +607,45 @@ uv run playwright install chromium
 5. **Educational value**: Could someone learn something concrete from this?
 
 ### Conceptual
-6. **Isomorphism**: Does each visual structure mirror its concept's behavior?
-7. **Argument**: Does the diagram SHOW something text alone couldn't?
-8. **Variety**: Does each major concept use a different visual pattern?
-9. **No uniform containers**: Avoided card grids and equal boxes?
+
+1. **Isomorphism**: Does each visual structure mirror its concept's behavior?
+2. **Argument**: Does the diagram SHOW something text alone couldn't?
+3. **Variety**: Does each major concept use a different visual pattern?
+4. **No uniform containers**: Avoided card grids and equal boxes?
 
 ### Container Discipline
-10. **Minimal containers**: Could any boxed element work as free-floating text instead?
-11. **Lines as structure**: Are tree/timeline patterns using lines + text rather than boxes?
-12. **Typography hierarchy**: Are font size and color creating visual hierarchy (reducing need for boxes)?
+
+1. **Minimal containers**: Could any boxed element work as free-floating text instead?
+2. **Lines as structure**: Are tree/timeline patterns using lines + text rather than boxes?
+3. **Typography hierarchy**: Are font size and color creating visual hierarchy (reducing need for boxes)?
 
 ### Structural
-13. **Connections**: Every relationship has an arrow or line
-14. **Flow**: Clear visual path for the eye to follow
-15. **Hierarchy**: Important elements are larger/more isolated
+
+1. **Connections**: Every relationship has an arrow or line
+2. **Flow**: Clear visual path for the eye to follow
+3. **Hierarchy**: Important elements are larger/more isolated
 
 ### Technical
-16. **Text clean**: `text` contains only readable words
-17. **Font**: `fontFamily: 3`
-18. **Roughness**: `roughness: 0` for clean/modern (unless hand-drawn style requested)
-19. **Opacity**: `opacity: 100` for all elements (no transparency)
-20. **Container ratio**: <30% of text elements should be inside containers
+
+1. **Text clean**: `text` contains only readable words
+2. **Font**: `fontFamily: 3`
+3. **Roughness**: `roughness: 0` for clean/modern (unless hand-drawn style requested)
+4. **Opacity**: `opacity: 100` for all elements (no transparency)
+5. **Container ratio**: <30% of text elements should be inside containers
 
 ### Visual Validation (Render Required)
-21. **Rendered to PNG**: Diagram has been rendered and visually inspected
-22. **No text overflow**: All text fits within its container — width computed up front per "Text Width Validation"
-23. **No overlapping elements**: Shapes and text don't overlap unintentionally
-24. **Even spacing**: Similar elements have consistent spacing
-25. **Arrows land correctly**: Arrows connect to intended elements without crossing others
-26. **Readable at export size**: Text is legible in the rendered PNG
-27. **Balanced composition**: No large empty voids or overcrowded regions
+
+1. **Rendered to PNG**: Diagram has been rendered and visually inspected
+2. **No text overflow**: All text fits within its container — width computed up front per "Text Width Validation"
+3. **No overlapping elements**: Shapes and text don't overlap unintentionally
+4. **Even spacing**: Similar elements have consistent spacing
+5. **Arrows land correctly**: Arrows connect to intended elements without crossing others
+6. **Readable at export size**: Text is legible in the rendered PNG
+7. **Balanced composition**: No large empty voids or overcrowded regions
 
 ### GitHub SVG (if the diagram is referenced from markdown)
-28. **Sibling `.svg` exists**: Markdown that references the `.excalidraw` also has a `.svg` (either Playwright-rendered or hand-written) — GitHub renders SVG inline in markdown views
-29. **Explicit `width` and `height` attributes**: SVG has `width="X" height="Y"` matching the viewBox so GitHub doesn't downscale text below readable size
-30. **Explicit white background rect**: First child of `<svg>` is `<rect width="X" height="Y" fill="#ffffff"/>` so text is readable on GitHub's dark theme
-31. **Fonts ≥ 14 px in body text, ≥ 16 px preferred**: smaller becomes illegible at GitHub's render
+
+1. **Sibling `.svg` exists**: Markdown that references the `.excalidraw` also has a `.svg` (either Playwright-rendered or hand-written) — GitHub renders SVG inline in markdown views
+2. **Explicit `width` and `height` attributes**: SVG has `width="X" height="Y"` matching the viewBox so GitHub doesn't downscale text below readable size
+3. **Explicit white background rect**: First child of `<svg>` is `<rect width="X" height="Y" fill="#ffffff"/>` so text is readable on GitHub's dark theme
+4. **Fonts ≥ 14 px in body text, ≥ 16 px preferred**: smaller becomes illegible at GitHub's render
