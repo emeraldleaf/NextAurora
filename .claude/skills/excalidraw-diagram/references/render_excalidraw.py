@@ -1,4 +1,10 @@
-"""Render Excalidraw JSON to PNG using Playwright + headless Chromium.
+"""Render Excalidraw JSON to PNG (and a GitHub-ready SVG) using Playwright + headless Chromium.
+
+For each input .excalidraw file, writes:
+  - <name>.png — the screenshot, for embedding via Markdown <img> or direct viewing
+  - <name>.svg — the same diagram as SVG markup, post-processed for GitHub rendering
+                 (explicit width/height attrs + white background rect — see SKILL.md
+                 "SVG Output for GitHub Embedding")
 
 Usage:
     cd .claude/skills/excalidraw-diagram/references
@@ -156,7 +162,7 @@ def render(
         # Wait for render completion signal
         page.wait_for_function("window.__renderComplete === true", timeout=15000)
 
-        # Screenshot the SVG element
+        # Screenshot the SVG element to PNG
         svg_el = page.query_selector("#root svg")
         if svg_el is None:
             print("ERROR: No SVG element found after render.", file=sys.stderr)
@@ -164,9 +170,64 @@ def render(
             sys.exit(1)
 
         svg_el.screenshot(path=str(output_path))
+
+        # Also save the SVG markup as a sibling file. GitHub renders SVG inline in
+        # markdown views (PNG must be embedded with <img>; SVG can also be linked).
+        # Post-process to add the GitHub-friendly attributes documented in
+        # SKILL.md "SVG Output for GitHub Embedding":
+        #   1. explicit width + height (so GitHub doesn't downscale text below readable)
+        #   2. white background rect (so text is readable on dark theme)
+        svg_markup = page.evaluate("document.querySelector('#root svg').outerHTML")
+        if not svg_markup or not svg_markup.strip():
+            # Earlier `query_selector` already proved the SVG element exists, so
+            # an empty outerHTML here would be unexpected — warn loudly but don't
+            # fail the run (PNG was still written above).
+            print("WARNING: outerHTML was empty; .svg sibling not written", file=sys.stderr)
+        else:
+            svg_output_path = output_path.with_suffix(".svg")
+            svg_markup = _make_github_friendly(svg_markup)
+            svg_output_path.write_text(svg_markup, encoding="utf-8")
+
         browser.close()
 
     return output_path
+
+
+def _make_github_friendly(svg_markup: str) -> str:
+    """Post-process Excalidraw's exportToSvg output so it renders well on GitHub.
+
+    Two adjustments (see SKILL.md "SVG Output for GitHub Embedding"):
+      1. Ensure the root <svg> has explicit width/height attributes matching the
+         viewBox — without them, GitHub downscales to fit the markdown column and
+         text becomes illegible.
+      2. Insert a white <rect> as the first child of <svg> so text colored for a
+         light background stays readable on GitHub's dark theme.
+    """
+    import re
+
+    # Parse the root <svg> tag attributes.
+    match = re.match(r"<svg([^>]*)>", svg_markup)
+    if not match:
+        return svg_markup  # malformed; leave alone
+    attrs = match.group(1)
+
+    # Extract viewBox dimensions. Excalidraw always emits a viewBox.
+    vb_match = re.search(r'viewBox="\s*([\d.\-]+)\s+([\d.\-]+)\s+([\d.\-]+)\s+([\d.\-]+)"', attrs)
+    if vb_match:
+        _, _, vb_w, vb_h = vb_match.groups()
+        # Add width/height if missing.
+        if 'width=' not in attrs:
+            attrs += f' width="{vb_w}"'
+        if 'height=' not in attrs:
+            attrs += f' height="{vb_h}"'
+        # Build the white bg rect using viewBox dimensions.
+        bg_rect = f'<rect width="{vb_w}" height="{vb_h}" fill="#ffffff"/>'
+    else:
+        bg_rect = '<rect width="100%" height="100%" fill="#ffffff"/>'
+
+    # Reconstruct: open tag with merged attrs, then inject bg rect as first child.
+    new_open = f"<svg{attrs}>{bg_rect}"
+    return svg_markup.replace(match.group(0), new_open, 1)
 
 
 def main() -> None:
@@ -182,7 +243,10 @@ def main() -> None:
         sys.exit(1)
 
     png_path = render(args.input, args.output, args.scale, args.width)
+    svg_path = png_path.with_suffix(".svg")
     print(str(png_path))
+    if svg_path.exists():
+        print(str(svg_path))
 
 
 if __name__ == "__main__":
