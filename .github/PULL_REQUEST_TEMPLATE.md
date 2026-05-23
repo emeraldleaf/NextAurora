@@ -9,7 +9,12 @@ Full context: .github/AI_WORKFLOW.md | CLAUDE.md
 
 ## How it was built
 
-<!-- AI-assisted, hand-written, or a mix? Linking the conversation/issue is welcome. -->
+<!--
+AI-assisted, hand-written, or a mix? Claude Code adds a `Co-Authored-By: Claude` line
+to commits it helps make — so that's already the durable marker. Add an extra link
+only if there's a real artifact: GitHub issue, gist, or a docs/decisions/ entry.
+Don't link a Claude Code chat URL — those don't exist.
+-->
 
 ## Verification
 
