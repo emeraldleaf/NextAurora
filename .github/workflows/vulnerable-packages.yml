@@ -1,0 +1,55 @@
+# Weekly + on-demand scan for NuGet packages with known CVEs.
+#
+# Why this exists when Dependabot already opens vulnerability PRs:
+#   - Dependabot opens PRs once a vuln is in its database AND a fix version exists
+#   - This workflow surfaces any vulnerable package (including transitives) right
+#     now, even if no fix version is published yet — useful for triage decisions
+#     (replace package, downgrade, or accept risk with a comment)
+#   - Faster signal than waiting for Dependabot's indexing cadence
+#
+# Failure mode: job fails if ANY vulnerable package is reported. Triage the
+# output, decide whether to bump, replace, or document the accepted risk.
+name: VULNERABLE_PACKAGES
+
+on:
+  schedule:
+    # Monday 06:00 UTC — same cadence as codeql.yml, before the work week starts
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: vulnerable-packages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      # --include-transitive surfaces vulns in indirect deps too — most CVE
+      # exposure comes through transitives, not top-level package refs.
+      # The grep+exit is the gate: if any "has the following vulnerable packages"
+      # line appears, fail the job so the scheduled run pings via email/UI.
+      - name: List vulnerable packages
+        run: |
+          set -uo pipefail
+          output=$(dotnet list package --vulnerable --include-transitive 2>&1)
+          echo "$output"
+          if echo "$output" | grep -q "has the following vulnerable packages"; then
+            echo "::error::Vulnerable NuGet packages found. Triage above output: bump, replace, or document accepted risk."
+            exit 1
+          fi
+          echo "No vulnerable packages reported."

@@ -1,0 +1,37 @@
+# Scans diffs (PR + push) for hardcoded secrets that GitHub's native secret
+# scanning might miss — custom patterns, accidentally committed .env files,
+# private keys, etc. Belt-and-suspenders alongside GitHub's built-in scanning
+# + push protection (configured in Settings → Code security).
+#
+# Free for public OSS repos. No token required for public repos.
+# Surfaces findings as a check run on the PR; blocks merge if anything found.
+name: SECRET_SCAN
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: secret-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history so gitleaks can scan the diff context, not just the surface.
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # GITLEAKS_LICENSE only required for private/org repos; public OSS is free.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
