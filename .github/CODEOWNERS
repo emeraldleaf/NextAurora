@@ -1,0 +1,14 @@
+# CODEOWNERS — who owns what in this repo.
+# Reference: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-customization/customizing-your-repository/about-code-owners
+#
+# This file is a *passive* signal until paired with the branch protection rule on `main`:
+#   Settings → Branches → Branch protection rules → main
+#   ✅ Require a pull request before merging
+#   ✅ Require review from Code Owners
+#   ✅ Restrict who can push to matching branches  →  emeraldleaf
+#
+# Once that branch rule is on, every PR to main needs approval from the listed owner
+# (you), and only you can push directly to main.
+
+# Default owner for everything in the repo.
+* @emeraldleaf
