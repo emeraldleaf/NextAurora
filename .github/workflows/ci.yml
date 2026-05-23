@@ -138,11 +138,16 @@ jobs:
 
       # Each integration project runs in its own step so a failure in one doesn't mask the
       # other, and the TRX filenames stay distinct for the reporter step's glob.
+      # --collect "XPlat Code Coverage" emits Cobertura XML alongside the TRX so Codecov
+      # sees integration-layer coverage too. Without it, Codecov reports unit-only and
+      # the badge undersells what the repo actually exercises (Wolverine outbox + saga
+      # handlers, EF migration application, HybridCache invalidation — all integration-only).
       - name: Integration tests — Catalog (Postgres + Redis)
         run: >
           dotnet test tests/CatalogService.Tests.Integration/CatalogService.Tests.Integration.csproj
           --logger "trx;LogFileName=catalog-integration.trx"
           --results-directory ./test-results
+          --collect:"XPlat Code Coverage"
 
       - name: Integration tests — Order (SQL Server, Wolverine outbox + saga)
         if: ${{ !cancelled() }}
@@ -150,6 +155,7 @@ jobs:
           dotnet test tests/OrderService.Tests.Integration/OrderService.Tests.Integration.csproj
           --logger "trx;LogFileName=order-integration.trx"
           --results-directory ./test-results
+          --collect:"XPlat Code Coverage"
 
       - name: Publish integration test results
         uses: dorny/test-reporter@v3
@@ -158,3 +164,17 @@ jobs:
           name: Integration Tests
           path: test-results/**/*.trx
           reporter: dotnet-trx
+
+      # Upload integration-layer coverage to Codecov. Flagged "integration" so the
+      # dashboard can distinguish unit vs integration contributions. Combined with the
+      # "unit" flag from the build job, the overall % reflects what the codebase
+      # actually exercises end-to-end (currently ~58% line, ~57% branch per
+      # reportgenerator's aggregation in CLAUDE.md).
+      - name: Upload integration coverage to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./test-results/**/coverage.cobertura.xml
+          flags: integration
+          fail_ci_if_error: false
+          verbose: false
