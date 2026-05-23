@@ -67,7 +67,7 @@ These two commits collectively add:
 - `dotnet build` — clean, 0 warnings, 0 errors.
 - `dotnet test` — 134/134 unit tests pass.
 - **Integration tests** — two slices live now, *both verified green*. **Catalog** (`tests/CatalogService.Tests.Integration`, 4 tests, Postgres + Redis): migrations apply, HybridCache caches + invalidates, `xmin` token fires. **Order** (`tests/OrderService.Tests.Integration`, 4 tests, SQL Server + stubbed Wolverine transport): Wolverine outbox + saga handlers verified — `OrderPlacedEvent` flows through the durable pipeline, `PaymentCompletedEvent` consumer transitions the Order through real EF, idempotency guards work, `RowVersion` token fires. Local run 2026-05-23: 4/4 pass in 16.2s with clean shutdown. CI confirmation pending the fix PR merge (see Recently Landed). **Cross-service choreography over the real Azure Service Bus wire** is still uncovered — that's the deferred ASB-emulator slice.
-- **Coverage** — Codecov badge currently 18.28% (unit-tests only). The CI fix in the in-flight PR adds integration-coverage upload, which should bring the aggregate up to the ~58% baseline already cited in CLAUDE.md.
+- **Coverage** — Codecov badge currently reflects unit tests only. Integration-coverage upload is now configured in `.github/workflows/ci.yml` (both `dotnet test` steps in the integration-tests job emit Cobertura XML; both flagged uploads land in Codecov). The badge + dashboard will reflect the combined aggregate (~58% line / 57% branch per reportgenerator's prior measurement) after the next successful CI run on main with the integration-tests job green.
 - **Performance baselines not measured yet** — harness exists; no recorded baseline numbers.
 
 ---
