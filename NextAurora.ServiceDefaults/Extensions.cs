@@ -134,10 +134,16 @@ public static class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        app.UseMiddleware<CorrelationIdMiddleware>();
+        // ORDER MATTERS. UseAuthentication must run BEFORE CorrelationIdMiddleware
+        // because the middleware reads ClaimTypes.NameIdentifier from context.User to
+        // populate the UserId scope key. If it runs pre-auth, context.User is empty
+        // and UserId is silently always null for every authenticated request —
+        // defeating half the point of the context propagation pipeline.
+        // UseExceptionHandler stays first so it wraps everything below.
         app.UseExceptionHandler();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseMiddleware<CorrelationIdMiddleware>();
 
         // All health checks must pass for app to be considered ready to accept traffic after starting
         app.MapHealthChecks(HealthEndpointPath);
@@ -176,6 +182,16 @@ public static class Extensions
                     ValidateAudience = true,
                     ValidateIssuer = true,
                     ValidateLifetime = true,
+                    // Explicit — JWT Bearer's implicit default already validates the
+                    // signature against JWKS-discovered keys, but making it explicit
+                    // makes the security posture auditable + prevents a future config
+                    // change from accidentally disabling signature validation.
+                    ValidateIssuerSigningKey = true,
+                    // Default ClockSkew is 5 minutes — revoked/expired tokens remain
+                    // accepted for 5 extra minutes, which is material on a 15-minute
+                    // access-token lifetime. 30 seconds covers reasonable inter-server
+                    // clock drift without giving attackers a long replay window.
+                    ClockSkew = TimeSpan.FromSeconds(30),
                     NameClaimType = "preferred_username",
                     RoleClaimType = "realm_access.roles",
                 };
