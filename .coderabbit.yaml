@@ -135,6 +135,38 @@ reviews:
         infrastructure. Unit tests use NSubstitute for ports (IRepository, IEventPublisher,
         etc.). AwesomeAssertions (not FluentAssertions) for assertions.
 
+        TEST STRUCTURE — AAA WITH NARRATIVE COMMENTS (canonical per CLAUDE.md "Testing"):
+        Every test must follow the Arrange → Act → Assert structure with `// ARRANGE`,
+        `// ACT`, `// ASSERT` markers (all caps; em-dash explanation on the same line is
+        the convention). Each phase carries a *story comment*: what's being set up and
+        WHY, what's being called, and what each assertion verifies. A junior dev should
+        be able to read a single test top-to-bottom and understand the contract +
+        failure mode without needing to read the SUT first.
+
+        When the ASSERT phase verifies multiple invariants, number them and explain
+        why each matters — especially for:
+          - Security boundaries (IDOR / ownership checks): explain that returning null →
+            404 is intentional (not 403), to avoid leaking existence.
+          - Idempotency guards under at-least-once delivery: explain that a no-op (not a
+            throw) keeps the message off the DLQ for benign late deliveries.
+          - Ordering-sensitive operations (cache invalidate AFTER save): explain the race
+            window the ordering protects against.
+
+        Trivial happy-path tests can be shorter; security/concurrency/idempotency tests
+        get the full story. Flag tests that:
+          - Use lowercase `// arrange` markers or omit them entirely.
+          - Have ASSERT phases with multiple invariants and no rationale.
+          - Test a security/idempotency/ordering invariant without explaining the
+            failure mode being guarded against.
+
+        Reference templates:
+          - tests/CatalogService.Tests.Unit/Application/UpdateProductHandlerTests.cs
+            (security boundary + cache-after-save ordering)
+          - tests/OrderService.Tests.Unit/Application/PaymentFailedHandlerTests.cs
+            (idempotency under at-least-once delivery)
+          - tests/ShippingService.Tests.Unit/Application/GetShipmentByOrderHandlerTests.cs
+            (IDOR-prevention pattern with null → 404)
+
     - path: "CLAUDE.md"
       instructions: |
         This is the canonical rules file. When this changes, every paraphrase ending in

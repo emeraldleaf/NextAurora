@@ -96,6 +96,13 @@ Specific bug-classes that have bitten this repo before. When the target file mat
 - **Layer dependencies.** Domain depends on nothing — no EF, no logging, no Wolverine.
 - **Concurrency token present** (Postgres `xmin` shadow or SQL Server `RowVersion` shadow byte[] property in DbContext config — entity itself stays clean).
 
+### When reviewing tests (`tests/**/*.cs`)
+
+- **AAA structure with narrative comments (per CLAUDE.md "Testing").** Every test must have `// ARRANGE`, `// ACT`, `// ASSERT` markers (all caps, em-dash explanation on the same line is the canonical form). Each phase carries a *story comment* a junior dev can follow: what's being set up and WHY, what's being called, what each assertion verifies. Lowercase markers (`// arrange`) or missing markers are a Must-fix style regression. ASSERT phases with multiple invariants must number them and explain why each matters — especially for security boundaries, idempotency guards, and ordering-sensitive operations. Reference templates: [UpdateProductHandlerTests.cs](../../tests/CatalogService.Tests.Unit/Application/UpdateProductHandlerTests.cs), [PaymentFailedHandlerTests.cs](../../tests/OrderService.Tests.Unit/Application/PaymentFailedHandlerTests.cs), [GetShipmentByOrderHandlerTests.cs](../../tests/ShippingService.Tests.Unit/Application/GetShipmentByOrderHandlerTests.cs).
+- **Coverage for the contract, not just the happy path.** When a handler has security guards, idempotency short-circuits, ordering invariants, or status transitions, there must be a test for each branch. A single happy-path test on a handler with three branches is a Should-consider finding — name the missing scenarios explicitly.
+- **IDOR-test paired with scoped endpoints.** Any new endpoint that returns or mutates a buyer/seller-scoped entity must land with a test that authenticates as buyer X, requests buyer Y's resource, and asserts 404 (NOT 200, NOT 403). The absence of such a test is exactly how the original `GET /api/v1/orders/{id}` IDOR survived undetected — Must-fix when the PR adds a scoped endpoint without it. (Unit test for the handler returning null is one half; integration test for the endpoint returning 404 is the other half — call out which is missing.)
+- **NSubstitute + AwesomeAssertions** (not Moq + FluentAssertions). Plain `Substitute.For<T>` for ports, `Should().Be()` / `Should().Throw<>()` for assertions.
+
 ### When reviewing `.github/workflows/*.yml`
 
 - **`set -euo pipefail`** at top of every bash `run:` block.

@@ -9,6 +9,12 @@ public class PaymentCompletedHandlerTests
     [Fact]
     public void Handle_ReturnsCreateShipmentCommandWithCorrectOrderIdAndBuyerId()
     {
+        // ARRANGE — ShippingService's saga entry point. Like PaymentService.OrderPlacedHandler,
+        // this is a *Wolverine cascading message* — a static method that translates an event
+        // into the next command, returned for Wolverine to dispatch. The whole class exists
+        // for one reason: CreateShipmentCommand is reachable from two paths (saga + admin
+        // endpoint), so we keep one handler that owns the work and a thin event-translator
+        // on top. Open/Closed — a third trigger dispatches the same command unchanged.
         var orderId = Guid.NewGuid();
         var buyerId = Guid.NewGuid();
         var @event = new PaymentCompletedEvent
@@ -21,8 +27,16 @@ public class PaymentCompletedHandlerTests
             CompletedAt = DateTime.UtcNow
         };
 
+        // ACT — Pure function: same input → same output. No async, no I/O.
         var result = PaymentCompletedHandler.Handle(@event);
 
+        // ASSERT — Three invariants:
+        //  1) Result type is correct (Wolverine routes by message type — the wrong type
+        //     would simply fail to dispatch with no clear error).
+        //  2) OrderId round-trips so the shipment can be attached to the right order.
+        //  3) BuyerId round-trips so the Shipment carries it for the IDOR-prevention
+        //     check on GET /api/v1/shipments/order/{orderId}. If this regressed, the
+        //     buyer-scope check would have nothing to compare against.
         result.Should().BeOfType<CreateShipmentCommand>();
         result.OrderId.Should().Be(orderId);
         result.BuyerId.Should().Be(buyerId);
@@ -31,6 +45,11 @@ public class PaymentCompletedHandlerTests
     [Fact]
     public void Handle_AlwaysReturnsNewCommand()
     {
+        // ARRANGE — Edge case: what if BuyerId on the event is Guid.Empty (legacy or
+        // malformed event)? The translator must not crash — validation lives in
+        // CreateShipmentCommandValidator downstream. This test pins the contract: the
+        // translator is allocation-only, no defensive checks; validation is the next
+        // layer's job.
         var orderId = Guid.NewGuid();
         var @event = new PaymentCompletedEvent
         {
@@ -41,10 +60,11 @@ public class PaymentCompletedHandlerTests
             CompletedAt = DateTime.UtcNow
         };
 
+        // ACT
         var result = PaymentCompletedHandler.Handle(@event);
 
+        // ASSERT
         result.Should().NotBeNull();
         result.OrderId.Should().Be(orderId);
     }
 }
-
