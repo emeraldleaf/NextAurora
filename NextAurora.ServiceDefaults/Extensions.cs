@@ -134,16 +134,25 @@ public static class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        // ORDER MATTERS. UseAuthentication must run BEFORE CorrelationIdMiddleware
-        // because the middleware reads ClaimTypes.NameIdentifier from context.User to
-        // populate the UserId scope key. If it runs pre-auth, context.User is empty
-        // and UserId is silently always null for every authenticated request —
-        // defeating half the point of the context propagation pipeline.
-        // UseExceptionHandler stays first so it wraps everything below.
+        // ORDER MATTERS. CorrelationIdMiddleware sits BETWEEN UseAuthentication and
+        // UseAuthorization for two reasons:
+        //
+        //   1. It reads ClaimTypes.NameIdentifier from context.User to populate the
+        //      UserId scope key. UseAuthentication populates context.User, so the
+        //      middleware must run AFTER it. Otherwise UserId is silently always null.
+        //
+        //   2. Placing it BEFORE UseAuthorization (rather than after) means the
+        //      UserId scope is active during the Authorization step itself. Any
+        //      401/403 denials get logged with the authenticated user's ID —
+        //      preserving the audit trail for "user X tried to access resource they
+        //      shouldn't." Running after Authorization would drop that signal,
+        //      losing visibility into unauthorized-attempt patterns.
+        //
+        // UseExceptionHandler stays first so it wraps every error below.
         app.UseExceptionHandler();
         app.UseAuthentication();
-        app.UseAuthorization();
         app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseAuthorization();
 
         // All health checks must pass for app to be considered ready to accept traffic after starting
         app.MapHealthChecks(HealthEndpointPath);
