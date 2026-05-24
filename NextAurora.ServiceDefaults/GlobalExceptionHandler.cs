@@ -13,7 +13,13 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        var traceId = Activity.Current?.Id ?? httpContext.TraceIdentifier;
+        // Use TraceId, NOT Activity.Current?.Id. Activity.Id is the full W3C
+        // traceparent ("00-<trace>-<span>-<flags>") — returning that to clients
+        // leaks the span ID, which is information about server-side handler call
+        // structure that clients have no business seeing. Trace ID alone is the
+        // correlation token clients legitimately need. See CLAUDE.md "Security
+        // Requirements — Error Handling: Never expose internal state".
+        var traceId = Activity.Current?.TraceId.ToString() ?? httpContext.TraceIdentifier;
 
         logger.LogError(exception, "Unhandled exception occurred. TraceId: {TraceId}", traceId);
 
