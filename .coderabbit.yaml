@@ -68,6 +68,60 @@ reviews:
         error responses go through GlobalExceptionHandler — never expose internal state,
         entity IDs, or stack traces to clients.
 
+        IDOR PREVENTION (highest-stakes finding category for this repo): every endpoint that
+        returns OR mutates a scoped entity (Order, Payment, Shipment, Product update, etc.)
+        must enforce scope. The canonical shape:
+          1. Endpoint reads ClaimTypes.NameIdentifier from JWT → requestingBuyerId/sellerId
+          2. Query/command carries the requesting principal as a field (NOT trusted from body)
+          3. Handler compares entity.BuyerId/SellerId to request.RequestingBuyerId/SellerId
+          4. Handler returns null on mismatch; endpoint translates null → 404 (NOT 403 —
+             403 leaks existence, 404 is indistinguishable from "not found")
+        Flag any GET-by-id, GET-by-scope, PATCH, PUT, or DELETE endpoint missing this pattern.
+        Reference templates: OrderEndpoints.cs:GET /orders/{id}, ShippingEndpoints.cs:GET
+        /shipments/order/{orderId}, CatalogEndpoints.cs:PUT /products/{id} (seller variant).
+
+    - path: "**/*RecoveryJob*.cs"
+      instructions: |
+        BackgroundService sweepers + recovery jobs run OUTSIDE Wolverine's handler pipeline,
+        so AutoApplyTransactions does NOT wrap them. The outbox-atomicity trap: PublishAsync
+        stages an envelope to the tracker, but it's only persisted when SaveChangesAsync runs.
+        If a wrapper does BeginTransactionAsync → entity write + publish → Commit *without*
+        an explicit SaveChangesAsync between publish and commit, the staged envelope never
+        reaches wolverine.outgoing_envelopes — event is silently dropped, saga stalls.
+
+        Flag any non-handler code path that publishes events without an explicit
+        SaveChangesAsync after the publish and before the transaction commit. Reference:
+        PaymentRepository.ExecuteInTransactionAsync (canonical safe wrapper).
+
+        Also: BackgroundService sweepers should create a fresh DI scope per iteration of
+        their sweep loop, NOT reuse one scope across the whole sweep — change tracker
+        bloat for the duration of the sweep + future parallel-refactor footgun.
+
+    - path: "NextAurora.ServiceDefaults/**/*.cs"
+      instructions: |
+        Security-critical infrastructure. Specific things to flag:
+
+        - HTTP middleware order in MapDefaultEndpoints must be:
+            UseExceptionHandler → UseAuthentication → CorrelationIdMiddleware → UseAuthorization
+          CorrelationIdMiddleware MUST run after UseAuthentication (else context.User is empty
+          and UserId scope is always null) AND before UseAuthorization (so 401/403 denials
+          get UserId in their log scope for audit). Any other ordering is a regression.
+
+        - JWT TokenValidationParameters must explicitly set:
+            ValidateIssuerSigningKey = true
+            ClockSkew = TimeSpan.FromSeconds(30)   // NOT the 5-minute default
+            ValidateAudience/Issuer/Lifetime = true
+          Default ClockSkew (5 min) makes revoked tokens valid for 5 extra minutes —
+          material on short-lived access tokens.
+
+        - GlobalExceptionHandler must use Activity.Current?.TraceId.ToString() (32 hex chars),
+          NOT Activity.Current?.Id (the full W3C traceparent with span — leaks server-side
+          call structure to clients).
+
+        - Tests: changes to this project warrant unit-test coverage of the changed lines.
+          ServiceDefaults has historically been undertested; bumping coverage of new lines is
+          worth the small effort to keep codecov/patch from regressing repo-wide.
+
     - path: "**/*Migration*.cs"
       instructions: |
         EF Core migrations are IMMUTABLE once applied anywhere (dev included). Never edit

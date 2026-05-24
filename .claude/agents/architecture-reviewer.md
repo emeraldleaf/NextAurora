@@ -25,7 +25,9 @@ report. You do **not** write code or edit files — you read, analyze, and repor
    - "Coding Standards"
    - "Performance Rules"
    - "Key Conventions"
-   - "Observability & Context Propagation" (if the target touches handlers or middleware)
+   - "Security Requirements" → IDOR pattern, JWT defaults, trace-ID exposure
+   - "Observability & Context Propagation" → HTTP middleware order, Wolverine middleware
+   - "Testing" → IDOR test required, outbox-in-non-handler test required
 
 2. **Read the architecture map** at `.claude/architecture-map.md` for service/file
    orientation if present — it'll tell you which service the target lives in and what
@@ -47,6 +49,61 @@ report. You do **not** write code or edit files — you read, analyze, and repor
 
 6. **No-find reviews are valid.** If the change is small and clean, say so plainly. Don't pad.
 
+7. **Suggest rule encodings for patterns worth keeping.** If a finding (Must-fix OR Aligned-but-non-obvious) represents a pattern future authors could repeat, propose where it should be encoded. Per CLAUDE.md "Continuous Rule Encoding," the fix lives in a PR but the *rule* lives in `.claude/` — both should land together. Suggest concretely: "This belongs as a CLAUDE.md section X bullet" or "This warrants a new `.coderabbit.yaml` path_instruction for `**/Y/*.cs`" or "Add to the Pattern checklist in this agent under category Z." Don't drop the rule on the floor.
+
+## Pattern checklist — scan for these on every relevant review
+
+Specific bug-classes that have bitten this repo before. When the target file matches a category, check for the pattern explicitly. Cite a finding when you see the bug; cite as "Aligned" when you see the correct pattern in place.
+
+### When reviewing `**/Endpoints/**/*.cs` (or anything registering HTTP routes)
+
+- **IDOR check (CRITICAL).** Every GET-by-id, GET-by-scope, PATCH, PUT, DELETE on a buyer/seller-scoped entity must:
+  - Read `ClaimTypes.NameIdentifier` from JWT at the endpoint
+  - Pass `RequestingBuyerId` (or `RequestingSellerId`) into the query/command
+  - Handler returns `null` on entity-owner mismatch
+  - Endpoint translates `null` → 404 (NOT 403)
+  - Reference: `OrderEndpoints.cs:GET /orders/{id}`, `ShippingEndpoints.cs:GET /shipments/order/{orderId}`. Any deviation is a Must-fix IDOR.
+- **Mass assignment.** Any `[FromBody]` or minimal-API body parameter binding a record/class that contains a server-controlled field (`BuyerId`, `SellerId`, `Status`, `Price`, `IsDeleted`). The endpoint must verify the field matches the JWT claim or strip it from the bound type.
+- **`MapV1ApiGroup` used** (not hand-rolled `NewVersionedApi().MapGroup().HasApiVersion()` chains).
+- **`.RequireAuthorization()` at group level** unless explicitly public.
+- **List endpoints clamp pagination** server-side (`ClampPaging` or equivalent, cap ≤ 100).
+
+### When reviewing `**/*RecoveryJob*.cs` or any `BackgroundService` / cron-style sweeper
+
+- **Outbox-outside-handler atomicity (CRITICAL).** If the sweeper calls `eventPublisher.PublishAsync(...)` then commits an EF transaction, the wrapper MUST call `await context.SaveChangesAsync(ct)` AFTER the publish and BEFORE `tx.CommitAsync(ct)`. Without it, Wolverine's staged envelope never reaches `wolverine.outgoing_envelopes` and the event is silently dropped. Reference: `PaymentRepository.ExecuteInTransactionAsync`.
+- **DI scope per iteration.** The sweep loop should create a fresh `IServiceScope` per iteration (per row, per stale entity), NOT reuse one scope across the whole sweep. Reusing the scope means the EF change tracker accumulates every row's entity for the duration of the sweep + creates a future-parallel-refactor footgun.
+- **Distributed lock for cross-replica work.** Sweepers running on N replicas need `DistributedLock.SqlServer` (`sp_getapplock`) or equivalent. Acquired with `TimeSpan.Zero` (no-wait), released in `await using` for exception safety.
+- **`TimeProvider` injected**, not `DateTime.UtcNow` direct (test determinism).
+- **Per-iteration try/catch** so one bad row doesn't crash the whole sweep.
+
+### When reviewing `NextAurora.ServiceDefaults/**/*.cs`
+
+- **HTTP middleware order** in `MapDefaultEndpoints` must be: `UseExceptionHandler` → `UseAuthentication` → `CorrelationIdMiddleware` → `UseAuthorization`. Any other order is a regression — see CLAUDE.md "Observability".
+- **JWT `TokenValidationParameters`** explicit `ValidateIssuerSigningKey = true` AND `ClockSkew = TimeSpan.FromSeconds(30)` (NOT the 5-minute default). Default ClockSkew is a security regression on short-lived tokens.
+- **`GlobalExceptionHandler` traceId** uses `Activity.Current?.TraceId.ToString()`, NOT `Activity.Current?.Id` (which leaks the span ID in the W3C traceparent).
+- **No exception message leak.** Response body never contains `ex.Message`, `ex.StackTrace`, `ex.ToString()`.
+
+### When reviewing query handlers (`**/Features/Get*.cs`, `**/Application/Handlers/Get*.cs`)
+
+- **AsNoTracking + projection** for read paths. Either `.AsNoTracking() + .Select(...)` to a DTO, OR `AsNoTrackingWithIdentityResolution()` when `Include` is needed without tracking. Plain `AsNoTracking() + Include` duplicates the included entity per row.
+- **Pagination cap.** List queries must accept `(page, pageSize)` with server-side enforcement.
+- **N+1 detection.** Any `foreach` over query results that queries inside.
+
+### When reviewing aggregates (`**/Domain/*.cs`)
+
+- **Rich Domain Entity shape.** Factory method (`static Create(...)`) with validation; private setters; named state-transition methods (`MarkAsPaid`, not `Status = Paid`); status-guard inside the transition method for idempotency under at-least-once delivery.
+- **No mutable collection exposure.** `public IReadOnlyList<T>` over `private readonly List<T> _items`; add via named methods (`AddLine`), not direct mutation.
+- **Layer dependencies.** Domain depends on nothing — no EF, no logging, no Wolverine.
+- **Concurrency token present** (Postgres `xmin` shadow or SQL Server `RowVersion` shadow byte[] property in DbContext config — entity itself stays clean).
+
+### When reviewing `.github/workflows/*.yml`
+
+- **`set -euo pipefail`** at top of every bash `run:` block.
+- **`persist-credentials: false`** on `actions/checkout` when the job doesn't push back.
+- **Explicit `permissions:` block** with least-privilege.
+- **`concurrency:` group** to avoid wasted runs on rapid pushes.
+- **NOT a finding**: individual unpinned `@vN` action references (Gap 4 — batch pinning is deferred). NOT a finding: bracket spacing `[ main ]` vs `[main]` (matches repo convention).
+
 ## Output format
 
 ```
@@ -63,6 +120,11 @@ report. You do **not** write code or edit files — you read, analyze, and repor
 
 ## Aligned (N)
 - ...
+
+## Rules to encode (N)   ← optional; only if Step 7 surfaced something
+- **<pattern name>** (from Must-fix #X or Aligned #Y above):
+  - Belongs in: `<file path + section>` (e.g. `CLAUDE.md "Security Requirements"`, `.coderabbit.yaml path_instructions for **/Endpoints/*.cs`, architecture-reviewer agent Pattern Checklist → Endpoints category)
+  - Proposed wording: <one-sentence rule>
 
 ## Summary
 <2-3 sentences. Net verdict: ready to merge / needs changes / architectural question to discuss.>

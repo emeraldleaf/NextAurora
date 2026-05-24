@@ -141,6 +141,43 @@ Two integration slices today: **CatalogService** (Postgres + Redis) and **OrderS
 
 ---
 
+## Continuous Rule Encoding (the compounding feedback loop)
+
+The five stages above describe how code *flows forward* from edit to runtime. This section describes how the loop *closes* — how findings discovered at any later stage become rules that prevent the same finding from appearing in the next cycle.
+
+Per CLAUDE.md "Continuous Rule Encoding," when a review surface (PR-time CodeRabbit, architecture-reviewer agent pass, integration-test failure, prod incident, security audit) surfaces a pattern or antipattern worth keeping, it gets encoded the same session — across as many of these surfaces as apply:
+
+| Encoding surface | What goes here | Catches violations at... |
+|---|---|---|
+| [`CLAUDE.md`](../CLAUDE.md) | Canonical hard/soft rule with reference templates | Code-generation time (Claude reads CLAUDE.md every session) |
+| [`.coderabbit.yaml`](../.coderabbit.yaml) `path_instructions` | File-pattern-scoped guidance for CodeRabbit | PR-time review |
+| [`.claude/agents/architecture-reviewer.md`](../.claude/agents/architecture-reviewer.md) Pattern Checklist | Per-file-category scan rules | Local agent invocation (any time) |
+| [`.claude/skills/`](../.claude/skills/) | Procedural knowledge worth a dedicated bundle | On-demand or auto-trigger when the user describes the right intent |
+| [`.coderabbit.yaml`](../.coderabbit.yaml) global instructions | Cross-file conventions | PR-time, all paths |
+| [`.claude/scripts/`](../.claude/scripts/) hook + `settings.json` registration | Mechanical guardrails (block bad edits, inject context) | Pre/Post Edit, SessionStart, etc. |
+| [`docs/STATUS.md`](STATUS.md) "Open issues" | Deferred work | Cross-session pickup |
+| Supporting docs ([architecture.md](architecture.md), [performance-and-data-correctness.md](performance-and-data-correctness.md), this file) | The *why* behind a rule when it's longer than one line | Onboarding, future-you |
+
+**For invocation patterns** — when to use an agent vs a slash command vs a skill, and how each is triggered — see [`.claude/README.md`](../.claude/README.md). The decision tree there is the single source of truth.
+
+**Load-bearing rule** (from CLAUDE.md "Continuous Rule Encoding"): *a merged fix PR without the corresponding `.claude/` encoding is a half-finished job.* The fix lives in the PR but the rule lives in `.claude/` — both should land together (single PR with both, or paired PRs when separation is cleaner).
+
+**The architecture-reviewer agent now prompts for encodings.** Step 7 of its workflow surfaces a "Rules to encode" section in its output report, asking concretely *which CLAUDE.md section / `.coderabbit.yaml` path / Pattern Checklist category* a finding belongs to. So the encoding doesn't get dropped between "found in review" and "fixed in PR."
+
+```
+              ┌──── encode in .claude/ + docs ────┐
+              ↓                                    │
+  Edit → Build → Test → PR → Merge → Runtime       │
+                       │                           │
+                       └─── review surface ────────┘
+                            (CodeRabbit / agent /
+                             test failure / incident)
+```
+
+The compounding effect: each finding fixed-and-encoded reduces the probability that the next instance ever reaches PR review.
+
+---
+
 ## Gaps — and the pragmatic solution for each
 
 The gaps below are real. Each one is sized for how much the *actual* problem warrants — not how much could theoretically be done.
