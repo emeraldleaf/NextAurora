@@ -43,6 +43,18 @@ public class PaymentRepository(PaymentDbContext context) : IPaymentRepository
     {
         await using var tx = await context.Database.BeginTransactionAsync(ct);
         await work(ct);
+
+        // CRITICAL: SaveChangesAsync after work() is what flushes Wolverine's staged
+        // outbox envelopes. Wolverine's UseEntityFrameworkCoreTransactions bridge
+        // intercepts SaveChanges to persist the wolverine.outgoing_envelopes rows
+        // *in the same transaction* as the entity write. Without this call,
+        // PublishAsync(...) inside work() stages envelopes in the change tracker
+        // but they never reach the DB — entity commits, event is silently dropped.
+        // The intermediate UpdateAsync inside work() flushes the entity, but the
+        // outbox row is staged *after* that point and needs a second flush here.
+        // See CLAUDE.md "Performance Rules — Outbox atomicity" + Wolverine outbox docs.
+        await context.SaveChangesAsync(ct);
+
         await tx.CommitAsync(ct);
     }
 }
