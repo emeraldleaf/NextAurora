@@ -134,9 +134,24 @@ public static class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        app.UseMiddleware<CorrelationIdMiddleware>();
+        // ORDER MATTERS. CorrelationIdMiddleware sits BETWEEN UseAuthentication and
+        // UseAuthorization for two reasons:
+        //
+        //   1. It reads ClaimTypes.NameIdentifier from context.User to populate the
+        //      UserId scope key. UseAuthentication populates context.User, so the
+        //      middleware must run AFTER it. Otherwise UserId is silently always null.
+        //
+        //   2. Placing it BEFORE UseAuthorization (rather than after) means the
+        //      UserId scope is active during the Authorization step itself. Any
+        //      401/403 denials get logged with the authenticated user's ID —
+        //      preserving the audit trail for "user X tried to access resource they
+        //      shouldn't." Running after Authorization would drop that signal,
+        //      losing visibility into unauthorized-attempt patterns.
+        //
+        // UseExceptionHandler stays first so it wraps every error below.
         app.UseExceptionHandler();
         app.UseAuthentication();
+        app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseAuthorization();
 
         // All health checks must pass for app to be considered ready to accept traffic after starting
@@ -176,6 +191,16 @@ public static class Extensions
                     ValidateAudience = true,
                     ValidateIssuer = true,
                     ValidateLifetime = true,
+                    // Explicit — JWT Bearer's implicit default already validates the
+                    // signature against JWKS-discovered keys, but making it explicit
+                    // makes the security posture auditable + prevents a future config
+                    // change from accidentally disabling signature validation.
+                    ValidateIssuerSigningKey = true,
+                    // Default ClockSkew is 5 minutes — revoked/expired tokens remain
+                    // accepted for 5 extra minutes, which is material on a 15-minute
+                    // access-token lifetime. 30 seconds covers reasonable inter-server
+                    // clock drift without giving attackers a long replay window.
+                    ClockSkew = TimeSpan.FromSeconds(30),
                     NameClaimType = "preferred_username",
                     RoleClaimType = "realm_access.roles",
                 };
