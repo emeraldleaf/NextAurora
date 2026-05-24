@@ -28,9 +28,19 @@ NextAurora is a .NET 10 microservices e-commerce platform using Aspire, Azure Se
 ### Security Requirements
 
 - **Authentication**: All non-public endpoints must use `.RequireAuthorization()`. JWT Bearer authentication.
-- **Authorization**: Users can only access their own resources. Validate `buyerId` matches authenticated user.
+- **Authorization (the concrete pattern, not just the principle)**: Users can only access their own resources. The canonical shape for buyer-scoped reads — applied because a missing scope check is an IDOR (CWE-639), and IDORs slip through tests-by-omission:
+  - Endpoint reads `ClaimTypes.NameIdentifier` from the JWT → passes as `RequestingBuyerId` into the query/command.
+  - Handler loads the entity, then **returns null** on owner mismatch (NOT throws, NOT returns 403).
+  - Endpoint translates `null` to **404**. Returning **403 is wrong** here — it leaks existence ("this resource exists, just not yours"). 404 is indistinguishable from "not found."
+  - Reference templates: `OrderEndpoints.cs:GET /orders/{id}` (commit-on-record after fix), `ShippingEndpoints.cs:GET /shipments/order/{orderId}`, `CatalogEndpoints.cs:PUT /products/{id}` (seller-scope variant — defense in depth at endpoint AND handler).
+  - **An integration test asserting buyer X cannot read buyer Y's entity is required** when adding any scoped-entity endpoint. The absence of such a test is how IDORs survive — see CLAUDE.md "Testing" rule.
+- **JWT validation (explicit, not implicit)**: `TokenValidationParameters` must explicitly set:
+  - `ValidateIssuerSigningKey = true` (default validates via JWKS, but explicit is auditable).
+  - `ClockSkew = TimeSpan.FromSeconds(30)` — default is **5 minutes**, which means revoked/expired tokens stay accepted for 5 extra minutes. Material on typical 15-minute access-token lifetimes.
+  - `ValidateAudience`, `ValidateIssuer`, `ValidateLifetime` all `true`. See [Extensions.cs `AddDefaultAuthentication`](NextAurora.ServiceDefaults/Extensions.cs).
 - **Input Validation**: All commands must have FluentValidation validators. Validate at the API boundary before reaching handlers.
 - **Error Handling**: Never expose internal state, stack traces, or entity IDs in API responses. Log details server-side, return generic errors with correlation IDs to clients.
+  - **Response `traceId` field uses `Activity.TraceId.ToString()` only** (32 hex chars), NOT `Activity.Id` (the full W3C traceparent `00-<trace>-<span>-<flags>` — span ID leaks server-side handler call structure to clients). See [GlobalExceptionHandler.cs](NextAurora.ServiceDefaults/GlobalExceptionHandler.cs).
 - **HTTPS**: Enforce HTTPS redirection in production.
 - **CORS**: Explicit CORS policy allowing only known frontend origins.
 - **Rate Limiting**: Applied to search and payment endpoints at minimum.
@@ -178,6 +188,8 @@ These are always-on. Deeper guidance (modern EF features, transactions, caching 
 - Unit tests for domain logic and handlers
 - Integration tests with Testcontainers for infrastructure — `tests/{Service}.Tests.Integration`, booting the real API via `WebApplicationFactory<Program>`. **CatalogService** slice (Postgres + Redis: caching + concurrency token) and **OrderService** slice (SQL Server + Wolverine stubbed transport: outbox, saga handlers, `RowVersion` token) exist; pattern documented in each project's README.
 - **Integration tests need Docker.** On macOS, Docker Desktop's socket is at `~/.docker/run/docker.sock`, not `/var/run/docker.sock` — Testcontainers fails fast with `DockerUnavailableException` unless `DOCKER_HOST` points there (or Docker Desktop's "default Docker socket" toggle is on). CI runners have it at the standard path.
+- **IDOR test is required for every new endpoint that returns or mutates a scoped entity.** Add an integration test that authenticates as buyer X, requests a resource owned by buyer Y, and asserts the response is 404 (NOT 200, NOT 403 — see Security Requirements). The absence of such a test is exactly how the original `GET /api/v1/orders/{id}` IDOR survived undetected for the lifetime of the codebase. A `dotnet build` clean and unit tests passing aren't sufficient — *authorization behavior is only proven by an authorization-failure test*.
+- **Outbox-in-non-handler test.** Code paths that publish events from outside a Wolverine handler (BackgroundService sweepers, recovery jobs) need an integration test that asserts a row appears in `wolverine.outgoing_envelopes` in the same transaction as the entity write. See the outbox-outside-handler trap in Observability → Transactional Outbox. The PaymentRecoveryJob outbox bug survived because no test asserted that the staged envelope actually persisted.
 - Run `dotnet build` to verify - all analyzer warnings are errors
 
 ## Build & Run
@@ -206,6 +218,17 @@ Every HTTP request and Service Bus message carries three context identifiers:
 - `session.id` — from `X-Session-Id` request header (client-generated browser/app session UUID); null if not provided
 
 All three are set by `CorrelationIdMiddleware` (HTTP entry point) and by `ContextPropagationMiddleware` (Wolverine incoming-message middleware, async entry point). All three are propagated onto outgoing Wolverine messages by `OutgoingContextMiddleware`. Both middlewares are wired via the `opts.AddNextAuroraContextPropagation()` extension in each service's `Program.cs`.
+
+**HTTP middleware order — strict.** `CorrelationIdMiddleware` reads `ClaimTypes.NameIdentifier` from `context.User` to populate the `UserId` scope. That requires running AFTER `UseAuthentication` (otherwise `context.User` is empty and `UserId` is silently always null — defeats the audit pipeline). It also must run BEFORE `UseAuthorization` so the `UserId` scope is active during the authorization decision — any 401/403 denial gets logged with the authenticated user's ID, preserving the audit trail for "user X tried to access resource they shouldn't." Canonical order in `MapDefaultEndpoints`:
+
+```csharp
+app.UseExceptionHandler();                          // wraps every error below
+app.UseAuthentication();                            // populates context.User
+app.UseMiddleware<CorrelationIdMiddleware>();       // reads User, opens log scope
+app.UseAuthorization();                             // 401/403 attributed to UserId
+```
+
+Reference: [Extensions.cs `MapDefaultEndpoints`](NextAurora.ServiceDefaults/Extensions.cs).
 
 ### Wolverine middleware classes must use instance methods
 
@@ -237,6 +260,20 @@ opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 ```
 
 `builder.Services.AddResourceSetupOnStartup()` auto-creates outbox tables on app startup. This means the entity write and the event publish either both commit or neither does — no more lost events on bus failure or process crash. See [docs/performance-and-data-correctness.md](docs/performance-and-data-correctness.md) for the full rationale and failure modes addressed.
+
+**Outbox outside a Wolverine handler — atomicity trap.** `AutoApplyTransactions` only wraps Wolverine handler chains. Code that runs OUTSIDE a handler (`BackgroundService` sweepers, cron-style recovery jobs, admin endpoints, anything publishing events from a non-handler context) does NOT get the outbox-atomic transaction wrap for free. The trap: `IMessageBus.PublishAsync(...)` stages an envelope into the `wolverine.outgoing_envelopes` tracker, but **the envelope is only persisted when `SaveChangesAsync` runs after the publish call**. Wolverine's `UseEntityFrameworkCoreTransactions` intercepts `SaveChanges` to bridge the staged envelope into the DB transaction. If your wrapper does `BeginTransactionAsync` → entity write + publish → `Commit` *without an explicit `SaveChangesAsync` between the publish and the commit*, the envelope stays in the tracker, the transaction commits without it, and the event is silently dropped.
+
+The canonical safe wrapper:
+```csharp
+public async Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default)
+{
+    await using var tx = await context.Database.BeginTransactionAsync(ct);
+    await work(ct);                          // entity write + PublishAsync inside here
+    await context.SaveChangesAsync(ct);      // flushes Wolverine's staged envelope
+    await tx.CommitAsync(ct);
+}
+```
+Reference: [PaymentRepository.ExecuteInTransactionAsync](PaymentService/Infrastructure/PaymentRepository.cs) (fixed in the commit captured by docs/STATUS.md). When adding a non-handler code path that publishes events, **either** wrap it in this pattern **or** factor the publish back into a Wolverine handler triggered by an internal scheduled message.
 
 ### Event Replay
 
