@@ -137,6 +137,25 @@ The bar isn't "document every bug fix." It's: **if the failure mode would surpri
 
 This rule is for everyone working in this repo (humans, AI assistants, future-you). Don't wait to be asked.
 
+## Continuous Rule Encoding (the compounding loop)
+
+The Debugging Discipline rule above covers failures discovered while *debugging*. The same discipline applies to patterns + antipatterns discovered via *any* review surface — architecture-reviewer agent passes, CodeRabbit findings, manual code review, integration-test failures, prod incidents, security audits. **Anything that earns the label "we should never write this again" or "we should always do this when" belongs encoded in `.claude/` config + supporting docs, the same session it's identified.** Otherwise the same finding resurfaces in a future review and the cycle wastes attention.
+
+When you find an antipattern, rule, or specification worth encoding, write to ALL of these that apply:
+
+1. **CLAUDE.md** — the canonical hard/soft rule. The most relevant existing section. New section only if no fit.
+2. **`.coderabbit.yaml`** `path_instructions` — file-pattern-scoped guidance so CodeRabbit catches future violations at PR-review time without re-deriving the rule. Use the existing `path:` glob entries; add a new one if no fit.
+3. **[`.claude/agents/architecture-reviewer.md`](.claude/agents/architecture-reviewer.md)** "Pattern checklist" — a scan rule the agent applies on every review touching the relevant file category. So the next architectural pass catches it before code lands.
+4. **[`.claude/skills/`](.claude/skills/)** — if the pattern is non-trivial enough to warrant a procedure (multi-step reasoning, specialized vocabulary), it becomes a skill. Otherwise the path_instructions + CLAUDE.md rule is enough.
+5. **[`docs/STATUS.md`](docs/STATUS.md) "Open issues"** — if the finding is deferred or partial.
+6. **Supporting docs** ([`docs/architecture.md`](docs/architecture.md), [`docs/performance-and-data-correctness.md`](docs/performance-and-data-correctness.md), [`docs/dev-loop.md`](docs/dev-loop.md)) — when the *why* deserves more than a CLAUDE.md one-liner.
+
+The threshold for encoding is the same as the Debugging Discipline rule: **if the next person could repeat the mistake (or re-derive the rule from first principles), the rule belongs in writing.** Don't encode trivial style nits or one-off mistakes; do encode security patterns, performance traps, concurrency hazards, distributed-systems gotchas, anti-IDOR patterns, anti-IDOR-test patterns, outbox traps, anything cross-cutting.
+
+When you push a fix PR for a real finding, the *fix itself* lives in the PR but the *rule* lives in `.claude/`. The two should land together when feasible (single PR with both), or as paired PRs when separation is cleaner. **A merged fix PR without the corresponding rule is a half-finished job** — the next instance of the same antipattern will slip through.
+
+This rule is for humans, AI assistants, and future-you. Don't wait to be asked.
+
 ## Package Management
 
 - Central Package Management via `Directory.Packages.props` - all versions defined there

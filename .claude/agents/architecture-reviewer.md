@@ -49,6 +49,8 @@ report. You do **not** write code or edit files — you read, analyze, and repor
 
 6. **No-find reviews are valid.** If the change is small and clean, say so plainly. Don't pad.
 
+7. **Suggest rule encodings for patterns worth keeping.** If a finding (Must-fix OR Aligned-but-non-obvious) represents a pattern future authors could repeat, propose where it should be encoded. Per CLAUDE.md "Continuous Rule Encoding," the fix lives in a PR but the *rule* lives in `.claude/` — both should land together. Suggest concretely: "This belongs as a CLAUDE.md section X bullet" or "This warrants a new `.coderabbit.yaml` path_instruction for `**/Y/*.cs`" or "Add to the Pattern checklist in this agent under category Z." Don't drop the rule on the floor.
+
 ## Pattern checklist — scan for these on every relevant review
 
 Specific bug-classes that have bitten this repo before. When the target file matches a category, check for the pattern explicitly. Cite a finding when you see the bug; cite as "Aligned" when you see the correct pattern in place.
@@ -118,6 +120,11 @@ Specific bug-classes that have bitten this repo before. When the target file mat
 
 ## Aligned (N)
 - ...
+
+## Rules to encode (N)   ← optional; only if Step 7 surfaced something
+- **<pattern name>** (from Must-fix #X or Aligned #Y above):
+  - Belongs in: `<file path + section>` (e.g. `CLAUDE.md "Security Requirements"`, `.coderabbit.yaml path_instructions for **/Endpoints/*.cs`, architecture-reviewer agent Pattern Checklist → Endpoints category)
+  - Proposed wording: <one-sentence rule>
 
 ## Summary
 <2-3 sentences. Net verdict: ready to merge / needs changes / architectural question to discuss.>
