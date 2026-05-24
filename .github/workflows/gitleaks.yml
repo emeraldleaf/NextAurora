@@ -29,6 +29,9 @@ jobs:
         with:
           # Full history so gitleaks can scan the diff context, not just the surface.
           fetch-depth: 0
+          # This job only scans the diff; no later step needs the GITHUB_TOKEN
+          # checkout left in .git/config. Drop it to avoid the artipacked finding.
+          persist-credentials: false
 
       - name: gitleaks
         uses: gitleaks/gitleaks-action@v2
