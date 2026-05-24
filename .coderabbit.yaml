@@ -93,6 +93,27 @@ reviews:
         STATUS.md is the cross-session entry point. When this changes, the "Last updated:"
         date should be today. Flag if the date is stale relative to the diff.
 
+    - path: ".github/workflows/*.yml"
+      instructions: |
+        GitHub Actions in this repo are version-pinned (@vN), NOT SHA-pinned, by
+        deliberate convention. Per docs/dev-loop.md "Gap 4 — GitHub Actions
+        version-pinned, not SHA-pinned", SHA-pinning is deferred to a single
+        workflow-wide hardening pass using pin-github-action — NOT done per
+        individual workflow PR. Pinning one workflow while six others remain on
+        floating tags creates inconsistency theater. Do NOT flag individual
+        actions/checkout@v6, actions/setup-dotnet@v5, etc. as "unpinned" on
+        new workflows. The hardening pass will pin all actions at once.
+
+        Bracket spacing in `branches: [ main ]` matches the existing repo
+        convention (ci.yml, codeql.yml). Don't flag `[ main ]` → `[main]`
+        style nits — uniformity across the five workflows matters more than
+        either bracket style individually.
+
+        DO flag: missing `persist-credentials: false` on actions/checkout when
+        the job doesn't push back to the repo, missing `set -euo pipefail`
+        in bash run blocks, missing `permissions:` blocks, missing
+        `concurrency:` groups, secrets in plaintext, hardcoded tokens.
+
 # Chat: allow @coderabbitai mentions to ask follow-up questions on a PR.
 chat:
   auto_reply: true
