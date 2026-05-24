@@ -50,7 +50,9 @@ jobs:
       # would break if the human-readable wording ever changed.
       - name: List vulnerable packages
         run: |
-          set -uo pipefail
+          # -e fails-fast on any unhandled command error; -u catches unset
+          # vars; -o pipefail propagates failures through pipes.
+          set -euo pipefail
           # Two-step: human-readable copy goes to the log for diagnosis; JSON
           # copy feeds the gate. Reusing one invocation would mean stripping
           # the table from the JSON output, which is messier.
