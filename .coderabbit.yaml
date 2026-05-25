@@ -99,12 +99,17 @@ reviews:
         the composition root. Flag any cross-layer leak. Domain entities use factory
         methods (static Create()) with validation, never public setters.
 
-        DATA-ACCESS SHAPE (Clean variant): query handlers depend on IProductReadStore
-        (Application/Interfaces/) for reads; command handlers take CatalogDbContext
-        directly (Application references Microsoft.EntityFrameworkCore — that's the
-        Clean trade). Domain-layer IProductRepository was removed; the write-side
-        repository wrapper added layers without adding capability. Flag any
-        re-introduction of IProductRepository or similar Domain-layer wrapper around EF.
+        DATA-ACCESS SHAPE (Clean variant — CARVE-OUT vs the project-wide
+        "no repository wrappers" rule): CatalogService keeps both IProductRepository
+        (Domain port, write-side) and IProductReadStore (Application port, read-side).
+        CatalogDbContext lives in Infrastructure; Application cannot reference
+        Infrastructure (would create a circular project reference), so Application
+        handlers can't take CatalogDbContext directly — they need the abstractions.
+        Both repositories pass the consumer-substitution test through the Clean layer
+        rules, unlike the VSA services where the wrapper added no capability and was
+        removed. See CLAUDE.md "Interfaces earn their keep" / "Exception — CatalogService".
+        Flag attempts to ADD additional repository wrappers, but DON'T flag the
+        existing IProductRepository/IProductReadStore as speculative coupling.
 
     - path: "**/Endpoints/**/*.cs"
       instructions: |
