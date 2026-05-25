@@ -2,7 +2,7 @@
 
 > **Read this first when picking up work.** It's the cross-session entry point: where the project is right now, what to do next, and where the deeper docs live. Keep it short (~100 lines). Update it at the start or end of each working session.
 
-**Last updated:** 2026-05-25
+**Last updated:** 2026-05-25 (per-service code-flow walkthroughs + cache-backplane reframing)
 
 ---
 
@@ -138,11 +138,12 @@ Conditional follow-up — only matters once we deploy more than one replica of a
 
 **The problem.** `Microsoft.Extensions.Caching.Hybrid` 10.x has no backplane. When replica A invalidates a `ProductDto`, replicas B/C continue serving the stale value from their own in-process L1 for up to `LocalCacheExpiration` (currently 5 min). The API proposal for a pluggable backplane ([dotnet/extensions#5517](https://github.com/dotnet/extensions/issues/5517)) was closed as "NOT ready for implementation" — not coming soon.
 
-**Mitigation, cheapest first:**
-1. **Drop `LocalCacheExpiration` to 60s** in [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs). One-line change. Bounds cross-replica staleness at 60s. We lose part of the L1 win for the warm-but-aging tail of entries but keep the hot-entry win and the L2 win. **This is the right move for "ship multi-replica with reasonable consistency."**
-2. **Migrate to [FusionCache](https://github.com/ZiggyCreatures/FusionCache)** if 60s isn't tight enough. FusionCache ships a Redis pub/sub backplane that publishes invalidations to all replicas — drop-in functional replacement with the consistency story we originally wanted from HybridCache. Wiring change is moderate: swap package, retarget the `IProductCache` adapter, verify metrics still flow through OTel. Estimate ~half day plus a chaos test. The cache *seam* (`IProductCache`) stays the same; handlers don't change.
+**Mitigations, cheapest band-aid first → proper fix last:**
+1. **(Band-aid) Drop `LocalCacheExpiration` to 60s** in [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs). One-line change, bounds cross-replica staleness at 60s. Trade: lose part of the L1 win for the warm-but-aging tail of entries, keep the hot-entry win and the L2 win. **Acceptable for "ship multi-replica with reasonable consistency this sprint," but explicitly a band-aid** — per [Milan Jovanović: *Solving the distributed cache invalidation problem with Redis and HybridCache*](https://www.milanjovanovic.tech/blog/solving-the-distributed-cache-invalidation-problem-with-redis-and-hybridcache), shorter TTL doesn't fix the problem, it just shrinks the inconsistency window. For permissions, pricing, or feature flags the residual staleness is not OK. For product catalog reads it's tolerable.
+2. **(Proper fix, custom backplane) Hand-roll Redis Pub/Sub backplane**, ~50-100 lines. Add an `ICacheInvalidator` registered alongside `IProductCache`; its impl publishes the cleared cache key to a `cache-invalidation` Redis channel via the existing `IConnectionMultiplexer`. An `IHostedService` subscribes, calls `HybridCache.RemoveAsync(key)` locally on every replica when a message arrives, ignores its own publishes. Reuses our existing Redis dependency — no new infrastructure. Self-publishes are redundant but harmless. Walks the same shape as the article's panel 3-4.
+3. **(Proper fix, migrate) Swap to [FusionCache](https://github.com/ZiggyCreatures/FusionCache)** if we want the backplane out-of-the-box. FusionCache ships a built-in Redis Pub/Sub backplane and `.AsHybridCache()` shim so call sites that depend on `Microsoft.Extensions.Caching.Hybrid.HybridCache` keep working. Cleaner long-term; heavier short-term (new package, OTel re-verify, chaos test). Estimate ~half day.
 
-**Filed here, not in "After the smoke run,"** because this only matters once there's an actual multi-replica deployment. Don't pre-optimize for cross-replica before there's a real cross-replica. Background reading: [Tim Deschryver: FusionCache backplane synchronizing HybridCache](https://timdeschryver.dev/blog/hybridcache-sync-with-fusioncache-backplane).
+**Filed here, not in "After the smoke run,"** because this only matters once there's an actual multi-replica deployment. Don't pre-optimize for cross-replica before there's a real cross-replica. Background reading: [Milan Jovanović: *Distributed cache invalidation with Redis + HybridCache*](https://www.milanjovanovic.tech/blog/solving-the-distributed-cache-invalidation-problem-with-redis-and-hybridcache) (the rationale for #2 and against #1 as a permanent solution); [Tim Deschryver: FusionCache backplane synchronizing HybridCache](https://timdeschryver.dev/blog/hybridcache-sync-with-fusioncache-backplane) (the rationale for #3).
 
 ---
 
