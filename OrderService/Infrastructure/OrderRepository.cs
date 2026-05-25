@@ -52,10 +52,22 @@ public class OrderRepository(OrderDbContext context) : IOrderRepository
 
     public async Task<IReadOnlyList<OrderSummaryDto>> GetSummariesByBuyerIdAsync(
         Guid buyerId, int page, int pageSize, CancellationToken ct = default)
-        => await context.Orders.AsNoTracking()
+    {
+        // Defense-in-depth pagination clamp. The HTTP endpoint's ClampPaging already
+        // bounds (page >= 1, pageSize 1..100), so under normal call flow this branch
+        // is a no-op. The clamp here protects against future non-endpoint callers
+        // (admin tools, background jobs, gRPC handlers) that bypass the endpoint and
+        // could otherwise issue an oversized query (pageSize=10000 = full-table scan)
+        // or a malformed one (page=0 → negative offset → EF throws at execution time).
+        // CLAUDE.md "Performance Rules" caps list endpoints at 100; this enforces the
+        // same cap at the repository so the cap holds regardless of entry point.
+        var safePage = page < 1 ? 1 : page;
+        var safePageSize = pageSize is < 1 or > 100 ? 50 : pageSize;
+
+        return await context.Orders.AsNoTracking()
             .Where(o => o.BuyerId == buyerId)
             .OrderByDescending(o => o.PlacedAt)
-            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Skip((safePage - 1) * safePageSize).Take(safePageSize)
             .Select(o => new OrderSummaryDto
             {
                 OrderId = o.Id,
@@ -73,6 +85,7 @@ public class OrderRepository(OrderDbContext context) : IOrderRepository
                 }).ToList()
             })
             .ToListAsync(ct);
+    }
 
     public async Task AddAsync(Order order, CancellationToken ct = default)
     {

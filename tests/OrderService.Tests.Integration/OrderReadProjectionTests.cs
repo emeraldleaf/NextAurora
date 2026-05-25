@@ -130,23 +130,26 @@ public sealed class OrderReadProjectionTests(OrderApiFactory factory) : IClassFi
         // ACT — Page 1, size 50. Plenty of room for buyer A's three orders.
         var dtos = await repository.GetSummariesByBuyerIdAsync(buyerA, page: 1, pageSize: 50);
 
-        // ASSERT — Four invariants:
-        //  1) Exactly buyer A's three orders are returned — proves the WHERE
-        //     o.BuyerId == buyerId filter holds. If it were broken, buyer B's order
-        //     (or other tests' orders) would leak in.
-        //  2) Zero of buyer B's orders appear — the negative half of the leak check.
-        //     A WHERE clause built with the wrong operator (== buyerA OR == buyerB,
-        //     say) would still pass invariant #1 but fail this one.
-        //  3) Ordering is newest-first by PlacedAt — proves the
-        //     OrderByDescending(o => o.PlacedAt) survives the projection. Reversing
-        //     this would break the buyer-facing "your most recent orders" UX.
-        //  4) The returned items are projected DTOs with the Lines collection
-        //     populated — proves the nested sub-projection ran for each parent.
-        var buyerAOrders = dtos.Where(d => d.BuyerId == buyerA).ToList();
-        buyerAOrders.Should().HaveCount(3);
-        dtos.Should().NotContain(d => d.BuyerId == buyerB);
-        buyerAOrders.Select(d => d.OrderId).Should().Equal(aNewest.Id, aMiddle.Id, aOldest.Id);
-        buyerAOrders.Should().OnlyContain(d => d.Lines.Count == 1);
+        // ASSERT — Four invariants. Critical: assert against the raw projection result
+        // (no .Where pre-filter) so any cross-buyer leak fails the test instead of
+        // being silently filtered out by the assertion itself.
+        //  1) Exactly three results — proves the WHERE o.BuyerId == buyerId filter is
+        //     scoped correctly. A broken filter that returned all buyers would fail
+        //     this count check on the full dtos collection (not a pre-filtered view).
+        //  2) Every result belongs to buyer A — the OnlyContain shape catches a
+        //     broken filter that returned both buyers' orders even if the count
+        //     happened to match by coincidence. This is the load-bearing IDOR
+        //     assertion: if it ever fails, a multi-tenant data leak is live.
+        //  3) Ordering is newest-first by PlacedAt — proves OrderByDescending
+        //     survives the projection. Reversing this would break the buyer-facing
+        //     "your most recent orders" UX.
+        //  4) Each result has its Lines collection populated — proves the nested
+        //     sub-projection ran for every parent (EF auto-split on projected
+        //     collections, see docs/cqrs-data-access.md).
+        dtos.Should().HaveCount(3);
+        dtos.Should().OnlyContain(d => d.BuyerId == buyerA);
+        dtos.Select(d => d.OrderId).Should().Equal(aNewest.Id, aMiddle.Id, aOldest.Id);
+        dtos.Should().OnlyContain(d => d.Lines.Count == 1);
     }
 
     [Fact]
