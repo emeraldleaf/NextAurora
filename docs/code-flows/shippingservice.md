@@ -19,7 +19,7 @@ sequenceDiagram
     participant W as Wolverine consumer +<br/>ContextPropagation middleware
     participant PCH as PaymentCompletedHandler<br/>Features/PaymentCompletedHandler.cs<br/>(static, returns command)
     participant H as CreateShipmentHandler<br/>Features/CreateShipment.cs
-    participant Repo as IShipmentRepository<br/>Infrastructure/ShipmentRepository.cs
+    participant Ctx as ShippingDbContext<br/>Infrastructure/Data/ShippingDbContext.cs
     participant Agg as Shipment aggregate<br/>Domain/Shipment.cs
     participant Pub as IEventPublisher<br/>Infrastructure/WolverineEventPublisher.cs
     participant DB as Postgres +<br/>wolverine.outgoing_envelopes
@@ -31,23 +31,24 @@ sequenceDiagram
     PCH-->>W: returns CreateShipmentCommand<br/>(Wolverine cascading message —<br/>no IMessageBus call needed)
     W->>H: HandleAsync(command, ct)<br/>(AutoApplyTransactions wraps)
 
-    H->>Repo: GetByOrderIdAsync(orderId, ct)
-    Repo->>DB: SELECT * FROM shipments<br/>WHERE order_id = @id (tracked)<br/>+ Include TrackingEvents
+    H->>Ctx: context.Shipments.FirstOrDefaultAsync(<br/>  s => s.OrderId == orderId, ct)
+    Ctx->>DB: SELECT * FROM shipments<br/>WHERE order_id = @id (tracked)
     DB-->>H: Shipment or null
 
     alt existing shipment found — idempotency
         H-->>W: existing.Id (early return)
         Note over H: PaymentCompletedEvent redelivery,<br/>DLQ replay, or saga rerun —<br/>all no-op here. Unique index on<br/>OrderId is the DB-level backstop.
     else no existing — create + dispatch
-        Note over H: random carrier pick (sim only):<br/>FedEx / UPS / USPS / DHL
+        Note over H: random carrier pick (sim only)<br/>FedEx / UPS / USPS / DHL
         H->>Agg: Shipment.Create(orderId, buyerId, carrier)
         Note over Agg: status = Created<br/>tracking number generated locally<br/>(NVC-XXXXXXXX prefix —<br/>placeholder for carrier API)
         H->>Agg: shipment.Dispatch()
-        Note over Agg: state guard —<br/>throws if status != Created.<br/>Status → Dispatched.<br/>Auto-adds TrackingEvent<br/>("Package dispatched")
-        H->>Repo: AddAsync(shipment, ct)
-        Repo->>DB: INSERT shipments<br/>+ INSERT tracking_events
+        Note over Agg: state guard —<br/>throws if status != Created<br/>Status → Dispatched<br/>Auto-adds TrackingEvent<br/>("Package dispatched")
+        H->>Ctx: context.Shipments.AddAsync(shipment, ct)
         H->>Pub: PublishAsync(ShipmentDispatchedEvent)
-        Note over Pub,DB: Wolverine stages envelope into<br/>wolverine.outgoing_envelopes<br/>(same DB tx as entity writes)
+        Note over Pub,Ctx: Wolverine stages envelope into<br/>the EF change tracker (not yet persisted)
+        H->>Ctx: context.SaveChangesAsync(ct)
+        Note over Ctx,DB: AutoApplyTransactions wraps —<br/>INSERT shipments + INSERT tracking_events<br/>+ outbox envelope all in ONE tx
         DB-->>H: tx commit
         DB->>ASB2: ShipmentDispatchedEvent dispatched
         H-->>W: shipment.Id
@@ -69,7 +70,7 @@ sequenceDiagram
     participant EP as ShippingEndpoints<br/>Endpoints/ShippingEndpoints.cs
     participant Bus as IMessageBus
     participant H as GetShipmentByOrderHandler<br/>Features/GetShipmentByOrder.cs
-    participant Repo as IShipmentRepository<br/>(read projection method)
+    participant Ctx as ShippingDbContext
     participant DB as Postgres
 
     Buyer->>EP: GET /api/v1/shipments/order/{orderId}
@@ -77,10 +78,10 @@ sequenceDiagram
     EP->>Bus: bus.InvokeAsync<ShipmentDto?>(<br/>  GetShipmentByOrderQuery(orderId,<br/>    requestingBuyerId), ct)
     Bus->>H: HandleAsync(query, ct)
 
-    H->>Repo: GetSummaryByOrderIdAsync(orderId, ct)
-    Repo->>DB: SELECT id, order_id, buyer_id,<br/>carrier, tracking_number, status,<br/>created_at, dispatched_at,<br/>tracking_events (projected)<br/>FROM shipments WHERE order_id = @id<br/>(AsNoTracking + .Select to ShipmentDto)
-    DB-->>Repo: ShipmentDto or null
-    Repo-->>H: ShipmentDto?
+    H->>Ctx: context.Shipments.AsNoTracking()<br/>.Where(s => s.OrderId == orderId)<br/>.Select(s => new ShipmentDto(...))<br/>.FirstOrDefaultAsync(ct)
+    Ctx->>DB: SELECT id, order_id, buyer_id,<br/>carrier, tracking_number, status,<br/>created_at, dispatched_at,<br/>tracking_events (projected)<br/>FROM shipments WHERE order_id = @id
+    DB-->>Ctx: ShipmentDto or null
+    Ctx-->>H: ShipmentDto?
 
     alt shipment is null
         H-->>EP: null
@@ -139,42 +140,9 @@ stateDiagram-v2
 
 ---
 
-## Read/write data-access split
+## Read/write split (CQRS data-access pattern)
 
-ShippingService uses the same VSA-variant read/write split as OrderService: write loaders + read projections live on the same `IShipmentRepository` interface (legal because there's no separate Domain project; the `Domain/` folder is in the same csproj as `Features/` and can reference Contracts).
-
-```mermaid
-graph LR
-    subgraph Domain["Domain/IShipmentRepository.cs"]
-        I["interface IShipmentRepository"]
-    end
-
-    subgraph Impl["Infrastructure/ShipmentRepository.cs"]
-        WL1["GetByOrderIdAsync → Shipment<br/>(tracked, Include TrackingEvents)"]
-        WL2["AddAsync, UpdateAsync"]
-        RP1["GetSummaryByOrderIdAsync → ShipmentDto<br/>(AsNoTracking + projection)"]
-    end
-
-    subgraph Writers["CreateShipmentHandler"]
-        SW["existence check via WL1<br/>+ AddAsync via WL2"]
-    end
-
-    subgraph Readers["GetShipmentByOrderHandler"]
-        SR["IDOR-checked read via RP1"]
-    end
-
-    I --> WL1
-    I --> WL2
-    I --> RP1
-
-    SW -.->|tracked entity| WL1
-    SW -.-> WL2
-    SR -.->|DTO directly| RP1
-
-    style WL1 fill:#dbeafe,stroke:#1e3a5f
-    style WL2 fill:#dbeafe,stroke:#1e3a5f
-    style RP1 fill:#a7f3d0,stroke:#047857
-```
+There's no `IShipmentRepository` wrapper. Both handlers take `ShippingDbContext` directly. The CQRS read/write split lives at the **code shape** in each handler — `CreateShipmentHandler` loads tracked + mutates + SaveChanges; `GetShipmentByOrderHandler` projects inline via `AsNoTracking() + .Select(...)` to DTO. Same pattern as OrderService — see [docs/code-flows/orderservice.md](orderservice.md) for the canonical explanation.
 
 ---
 
@@ -189,9 +157,7 @@ graph LR
 | [Domain/Shipment.cs](../../ShippingService/Domain/Shipment.cs) | Aggregate root + tracking-number generation + `Dispatch()` state guard |
 | [Domain/TrackingEvent.cs](../../ShippingService/Domain/TrackingEvent.cs) | Audit row owned by Shipment (1-to-many) |
 | [Domain/ShipmentStatus.cs](../../ShippingService/Domain/ShipmentStatus.cs) | Enum: Created / Dispatched / Delivered |
-| [Domain/IShipmentRepository.cs](../../ShippingService/Domain/IShipmentRepository.cs) | Repository port — write loaders + read projection |
 | [Domain/IEventPublisher.cs](../../ShippingService/Domain/IEventPublisher.cs) | Event publish port (Wolverine impl) |
-| [Infrastructure/ShipmentRepository.cs](../../ShippingService/Infrastructure/ShipmentRepository.cs) | EF impl — write loaders `Include` TrackingEvents; read projection `AsNoTracking + Select` |
 | [Infrastructure/WolverineEventPublisher.cs](../../ShippingService/Infrastructure/WolverineEventPublisher.cs) | `IMessageBus.PublishAsync` adapter |
 | [Infrastructure/Data/ShippingDbContext.cs](../../ShippingService/Infrastructure/Data/ShippingDbContext.cs) | EF context — Postgres `xmin` concurrency token, unique index on `OrderId` |
 | [Program.cs](../../ShippingService/Program.cs) | Composition root — Wolverine + EF + auth + transports |

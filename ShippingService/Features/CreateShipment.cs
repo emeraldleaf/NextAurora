@@ -1,6 +1,8 @@
 using System.Diagnostics.Metrics;
+using Microsoft.EntityFrameworkCore;
 using NextAurora.Contracts.Events;
 using ShippingService.Domain;
+using ShippingService.Infrastructure.Data;
 
 namespace ShippingService.Features;
 
@@ -22,7 +24,7 @@ namespace ShippingService.Features;
 public record CreateShipmentCommand(Guid OrderId, Guid BuyerId);
 
 public class CreateShipmentHandler(
-    IShipmentRepository repository,
+    ShippingDbContext context,
     IEventPublisher eventPublisher)
 {
     // Placeholder carrier list — picked randomly per shipment for demo purposes.
@@ -33,7 +35,8 @@ public class CreateShipmentHandler(
 
     public async Task<Guid> HandleAsync(CreateShipmentCommand request, CancellationToken cancellationToken)
     {
-        var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
+        var existing = await context.Shipments
+            .FirstOrDefaultAsync(s => s.OrderId == request.OrderId, cancellationToken);
         if (existing is not null)
             return existing.Id;
 
@@ -46,10 +49,11 @@ public class CreateShipmentHandler(
         var shipment = Shipment.Create(request.OrderId, request.BuyerId, carrier);
         shipment.Dispatch();
 
-        await repository.AddAsync(shipment, cancellationToken);
+        await context.Shipments.AddAsync(shipment, cancellationToken);
 
-        // Cross-service event. Wolverine's outbox stages this in the same transaction as the
-        // shipment write — no risk of "shipped but no one heard about it".
+        // Cross-service event. Wolverine's AutoApplyTransactions wraps the SaveChanges below
+        // around both the shipment write and the staged ShipmentDispatchedEvent envelope —
+        // no risk of "shipped but no one heard about it".
         await eventPublisher.PublishAsync(new ShipmentDispatchedEvent
         {
             ShipmentId = shipment.Id,
@@ -58,6 +62,8 @@ public class CreateShipmentHandler(
             TrackingNumber = shipment.TrackingNumber,
             DispatchedAt = shipment.DispatchedAt!.Value
         }, cancellationToken);
+
+        await context.SaveChangesAsync(cancellationToken);
 
         ShipmentsDispatched.Add(1);
         return shipment.Id;
