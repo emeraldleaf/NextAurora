@@ -230,9 +230,18 @@ The method signature is the contract: anything returning a domain entity is a wr
 
 ---
 
+## Open questions
+
+**Per-aggregate ordering is handled via state guards + RowVersion retry, not via bus-level sessions.** Wolverine consumers on the same subscription compete, so two events for the same `OrderId` *can* be processed simultaneously by different replicas. Our defense is layered: each `MarkAsX` method is a state guard that no-ops on duplicate transitions and throws on out-of-order ones; the `RowVersion` token rejects the stale writer (`DbUpdateConcurrencyException`); Wolverine's `AddConcurrencyRetry` policy retries 3× with backoff against the now-fresh state; the message lands in the DLQ only if all retries fail. That works in principle, and matches the "model the workflow, don't fight the queue" pattern from [Milan Jovanović's *Solving message ordering from first principles*](https://www.milanjovanovic.tech/blog/solving-message-ordering-from-first-principles). The alternative — Azure Service Bus sessions keyed on `OrderId`, with Wolverine's session-aware consumers — would give us a hard ordering guarantee but doesn't replace any of the above (sessions fix ordering, not duplicate delivery), so it's additive insurance rather than a replacement.
+
+**The validation is undertested.** Our integration tests each create their own order, so the *concurrent same-aggregate* path the post warns about ("a subtle bug that only appears under load") is exactly the path with zero coverage. Two cheap things would change that without committing to bus sessions: (1) an integration test that fires `PaymentCompletedEvent` and `ShipmentDispatchedEvent` against the same `Order` simultaneously and asserts the final state lands at `Shipped` (not `PaymentFailed` or stuck at `Placed`); (2) a `payments_concurrency_retries_exhausted` / `orders_concurrency_retries_exhausted` counter so DLQ-bound retry exhaustion is observable in production, not invisible. If those metrics stay near zero, the state-guard pattern is validated and bus sessions are unnecessary. If they spike, that's the trigger to add sessions — evidence-driven, not architecture-astronaut-driven. There's no Inbox pattern (processed-message-ID table) today either; state guards catch most duplicates because aggregates have few valid transitions, but a proper Inbox would catch any duplicate before it reaches the handler. Add it if duplicates start appearing outside the state-guard-protected windows.
+
+---
+
 ## See also
 
 - [docs/architecture.md](../architecture.md) — system-level view
 - [docs/cqrs-data-access.md](../cqrs-data-access.md) — read/write split rule
 - [docs/transactional-outbox.svg](../transactional-outbox.svg) — outbox mechanics diagram
 - [docs/event-catalog.md](../event-catalog.md) — every event's shape and producer/consumer
+- [Milan Jovanović — *Solving message ordering from first principles*](https://www.milanjovanovic.tech/blog/solving-message-ordering-from-first-principles) — external; the source of the "Open questions" framing above
