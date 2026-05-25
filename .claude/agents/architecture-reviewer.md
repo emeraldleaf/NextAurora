@@ -85,9 +85,22 @@ Specific bug-classes that have bitten this repo before. When the target file mat
 
 ### When reviewing query handlers (`**/Features/Get*.cs`, `**/Application/Handlers/Get*.cs`)
 
-- **AsNoTracking + projection** for read paths. Either `.AsNoTracking() + .Select(...)` to a DTO, OR `AsNoTrackingWithIdentityResolution()` when `Include` is needed without tracking. Plain `AsNoTracking() + Include` duplicates the included entity per row.
+- **Project in EF, not in memory (Must-fix).** The handler must depend on a method that returns a DTO directly — e.g. `IOrderRepository.GetSummaryByIdAsync` returning `OrderSummaryDto?` (VSA), or `IProductReadStore.GetByIdAsync` returning `ProductDto?` (Clean). The anti-pattern signature: `var entity = await repo.GetByIdAsync(...); return Mapper.ToDto(entity);` — calling an entity-returning method and mapping in memory. That's the canonical bug this rule exists to prevent (cartesian explosion under collection `Include`, wasted column reads, double materialization). When the same `GetByIdAsync` is shared with a write/saga path, the fix is to add a **sibling** DTO-returning method on the repo; the entity-returning one stays for writes. See [docs/cqrs-data-access.md](../../docs/cqrs-data-access.md) and CLAUDE.md "Performance Rules → EF Core reads".
+- **AsNoTracking variants — know which mechanism does what.** Two independent axes (see [docs/cqrs-data-access.md "Why projection kills cartesian rows"](../../docs/cqrs-data-access.md#why-projection-kills-cartesian-rows-the-ef-mechanism)):
+  - *Client-side object duplication.* `AsNoTracking() + Include` materializes the parent (or a shared related object like Category) once per row in the cartesian result — duplicate objects in memory. `AsNoTrackingWithIdentityResolution()` adds a per-query identity map so duplicates stitch into one object. **This fixes the object graph, not the SQL.**
+  - *SQL row shape.* The cartesian rows still hit the wire under either tracking option. Killing them requires either projection-to-DTO with a nested collection (EF auto-splits projected collection navigations) or `AsSplitQuery()` for an entity materialization.
+  - The projection rule above wins on both axes at once, which is why it's the default. `AsNoTrackingWithIdentityResolution()` is the narrow fallback for "I must materialize an entity graph without tracking" — rare on a read path. Plain `AsNoTracking()` returning an entity (not a DTO) is a *half-fix* — flag as Must-fix and direct to the projection rule.
 - **Pagination cap.** List queries must accept `(page, pageSize)` with server-side enforcement.
 - **N+1 detection.** Any `foreach` over query results that queries inside.
+
+### When reviewing repositories (`**/Infrastructure/*Repository.cs`, `**/Infrastructure/Repositories/*Repository.cs`)
+
+- **Read/write method split (Must-fix).** Repository methods fall into two shapes:
+  - *Write loaders* (`GetByIdAsync` returning the entity, tracking ON, `Include` of mutation-relevant children) — used by command/event/saga handlers that mutate via aggregate methods.
+  - *Read projections* (`GetSummaryByIdAsync` / `GetSummariesByBuyerIdAsync` returning a DTO, `AsNoTracking() + .Select(...)` to DTO inside the IQueryable) — used by query handlers.
+  - A single method serving BOTH a read handler and a write handler is the antipattern this rule exists to remove (see [docs/cqrs-data-access.md](../../docs/cqrs-data-access.md)). Split it: add the sibling DTO method, switch the read handler.
+- **No `Mapper.ToDto` inside the repository.** If you find yourself materializing an entity in the repo just to map it before returning, you've reinvented the anti-pattern at a different layer. Project in the IQueryable.
+- **CatalogService (Clean) variant.** A DTO-returning method does NOT belong on `IProductRepository` (Domain interface — can't reference Contracts). It belongs on `IProductReadStore` in `CatalogService.Application/Interfaces/`, with the implementation in `CatalogService.Infrastructure/Repositories/`. Flag any DTO-returning method added to a Domain-layer interface.
 
 ### When reviewing aggregates (`**/Domain/*.cs`)
 
@@ -95,6 +108,13 @@ Specific bug-classes that have bitten this repo before. When the target file mat
 - **No mutable collection exposure.** `public IReadOnlyList<T>` over `private readonly List<T> _items`; add via named methods (`AddLine`), not direct mutation.
 - **Layer dependencies.** Domain depends on nothing — no EF, no logging, no Wolverine.
 - **Concurrency token present** (Postgres `xmin` shadow or SQL Server `RowVersion` shadow byte[] property in DbContext config — entity itself stays clean).
+
+### When reviewing tests (`tests/**/*.cs`)
+
+- **AAA structure with narrative comments (per CLAUDE.md "Testing").** Every test must have `// ARRANGE`, `// ACT`, `// ASSERT` markers (all caps, em-dash explanation on the same line is the canonical form). Each phase carries a *story comment* a junior dev can follow: what's being set up and WHY, what's being called, what each assertion verifies. Lowercase markers (`// arrange`) or missing markers are a Must-fix style regression. ASSERT phases with multiple invariants must number them and explain why each matters — especially for security boundaries, idempotency guards, and ordering-sensitive operations. Reference templates: [UpdateProductHandlerTests.cs](../../tests/CatalogService.Tests.Unit/Application/UpdateProductHandlerTests.cs), [PaymentFailedHandlerTests.cs](../../tests/OrderService.Tests.Unit/Application/PaymentFailedHandlerTests.cs), [GetShipmentByOrderHandlerTests.cs](../../tests/ShippingService.Tests.Unit/Application/GetShipmentByOrderHandlerTests.cs).
+- **Coverage for the contract, not just the happy path.** When a handler has security guards, idempotency short-circuits, ordering invariants, or status transitions, there must be a test for each branch. A single happy-path test on a handler with three branches is a Should-consider finding — name the missing scenarios explicitly.
+- **IDOR-test paired with scoped endpoints.** Any new endpoint that returns or mutates a buyer/seller-scoped entity must land with a test that authenticates as buyer X, requests buyer Y's resource, and asserts 404 (NOT 200, NOT 403). The absence of such a test is exactly how the original `GET /api/v1/orders/{id}` IDOR survived undetected — Must-fix when the PR adds a scoped endpoint without it. (Unit test for the handler returning null is one half; integration test for the endpoint returning 404 is the other half — call out which is missing.)
+- **NSubstitute + AwesomeAssertions** (not Moq + FluentAssertions). Plain `Substitute.For<T>` for ports, `Should().Be()` / `Should().Throw<>()` for assertions.
 
 ### When reviewing `.github/workflows/*.yml`
 

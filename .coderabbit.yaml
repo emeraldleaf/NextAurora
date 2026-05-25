@@ -34,9 +34,9 @@ reviews:
     - path: "**/*.cs"
       instructions: |
         Apply CLAUDE.md "Architecture Principles" (SOLID, DDD, layer dependencies) and
-        "Performance Rules" (AsNoTracking + projection for reads, await everywhere on
-        request paths, CancellationToken propagation, pagination caps at 100,
-        optimistic concurrency tokens on aggregates, outbox atomicity).
+        "Performance Rules" (project-in-EF for reads — NOT entity-then-map-in-memory,
+        await everywhere on request paths, CancellationToken propagation, pagination
+        caps at 100, optimistic concurrency tokens on aggregates, outbox atomicity).
         File-scoped namespaces required. Async methods MUST be suffixed Async and called
         HandleAsync (NOT Handle). Private instance fields prefixed with _; constants and
         static readonly use PascalCase. Sync-over-async patterns (.Result, .Wait(),
@@ -52,13 +52,63 @@ reviews:
         Task<T>. Use primary-constructor DI. Look at OrderService/Features/PlaceOrder.cs
         for the canonical shape including Tier-1 teaching comments.
 
+        READ-PATH SHAPE (VSA variant): query handlers call a sibling DTO-returning
+        method on the existing repository (e.g. IOrderRepository.GetSummaryByIdAsync
+        returning OrderSummaryDto?) — NOT GetByIdAsync returning the entity followed by
+        an in-memory Mapper.ToDto() pass. The DTO-returning method projects in EF
+        (.AsNoTracking().Select(o => new OrderSummaryDto { ... })). The entity-returning
+        method stays for saga/command paths that mutate the aggregate. Flag any read
+        handler that loads a domain entity and maps in memory — the canonical fix is to
+        add a sibling repo method and switch the handler. Reference: GetOrdersByBuyer.cs.
+
+    - path: "**/Infrastructure/**/*Repository*.cs"
+      instructions: |
+        CQRS read/write split is the rule, not a future cleanup (see
+        docs/cqrs-data-access.md). Repository methods divide into:
+          - Write-path loaders (e.g. GetByIdAsync returning Order/Shipment/Payment):
+            tracking ON, Include navigation children needed for the mutation, callers
+            mutate via aggregate methods and SaveChanges.
+          - Read-path projections (e.g. GetSummaryByIdAsync returning OrderSummaryDto):
+            AsNoTracking() + .Select(...) to DTO inside the IQueryable, returns the DTO
+            directly. NO entity materialization, NO in-memory mapper, NO calling
+            Mapper.ToDto(entity).
+
+        Flag any new or modified repository method that materializes a domain entity
+        for a caller that then maps to DTO in memory. The fix is to project in EF and
+        return the DTO. The only exception is methods on the WRITE path where the
+        caller actually mutates the loaded aggregate.
+
+        Methods on a read path that use AsNoTracking() but still return an entity
+        type are a half-fix — flag them too. The signature itself should be the proof
+        of intent: read paths return DTOs.
+
+    - path: "**/Infrastructure/**/*ReadStore*.cs"
+      instructions: |
+        Read-side data access (Clean Architecture variant — see docs/cqrs-data-access.md).
+        Every method on a ReadStore MUST project to a DTO inside the IQueryable via
+        AsNoTracking() + .Select(...) and return the DTO. NO entity materialization, NO
+        in-memory mapping. Same rule as the repository path_instruction above — applied
+        here because ReadStore files (e.g. ProductReadStore.cs) live alongside repos in
+        Infrastructure/Repositories/ and CodeRabbit needs both globs to catch the right
+        files. If you see an entity-returning method on a *ReadStore* class, that's a
+        Must-fix: ReadStore is the read-side by contract.
+
     - path: "CatalogService/**/*.cs"
       instructions: |
         This service uses Clean Architecture (Domain / Application / Infrastructure / Api).
         Domain depends on nothing; Application on Domain; Infrastructure on both; Api is
         the composition root. Flag any cross-layer leak. Domain entities use factory
-        methods (static Create()) with validation, never public setters. Queries return
-        DTOs via projection (.Select(...)), never tracked entities.
+        methods (static Create()) with validation, never public setters.
+
+        READ-PATH SHAPE (Clean variant): query handlers depend on IProductReadStore
+        (or sibling IFooReadStore) defined in CatalogService.Application/Interfaces/,
+        implementation in CatalogService.Infrastructure/Repositories/. The read store
+        returns DTOs by projecting in EF (.AsNoTracking().Select(p => new ProductDto {...})).
+        Domain-layer IProductRepository stays entity-returning for the write path only —
+        adding a DTO-returning method there would force a Domain → Contracts dependency,
+        breaking layer rules. Flag any CatalogService query handler that calls
+        IProductRepository for a read instead of IProductReadStore. See
+        docs/cqrs-data-access.md for the full pattern.
 
     - path: "**/Endpoints/**/*.cs"
       instructions: |
@@ -134,6 +184,38 @@ reviews:
         Integration tests use Testcontainers with real DB / messaging — never mocks for
         infrastructure. Unit tests use NSubstitute for ports (IRepository, IEventPublisher,
         etc.). AwesomeAssertions (not FluentAssertions) for assertions.
+
+        TEST STRUCTURE — AAA WITH NARRATIVE COMMENTS (canonical per CLAUDE.md "Testing"):
+        Every test must follow the Arrange → Act → Assert structure with `// ARRANGE`,
+        `// ACT`, `// ASSERT` markers (all caps; em-dash explanation on the same line is
+        the convention). Each phase carries a *story comment*: what's being set up and
+        WHY, what's being called, and what each assertion verifies. A junior dev should
+        be able to read a single test top-to-bottom and understand the contract +
+        failure mode without needing to read the SUT first.
+
+        When the ASSERT phase verifies multiple invariants, number them and explain
+        why each matters — especially for:
+          - Security boundaries (IDOR / ownership checks): explain that returning null →
+            404 is intentional (not 403), to avoid leaking existence.
+          - Idempotency guards under at-least-once delivery: explain that a no-op (not a
+            throw) keeps the message off the DLQ for benign late deliveries.
+          - Ordering-sensitive operations (cache invalidate AFTER save): explain the race
+            window the ordering protects against.
+
+        Trivial happy-path tests can be shorter; security/concurrency/idempotency tests
+        get the full story. Flag tests that:
+          - Use lowercase `// arrange` markers or omit them entirely.
+          - Have ASSERT phases with multiple invariants and no rationale.
+          - Test a security/idempotency/ordering invariant without explaining the
+            failure mode being guarded against.
+
+        Reference templates:
+          - tests/CatalogService.Tests.Unit/Application/UpdateProductHandlerTests.cs
+            (security boundary + cache-after-save ordering)
+          - tests/OrderService.Tests.Unit/Application/PaymentFailedHandlerTests.cs
+            (idempotency under at-least-once delivery)
+          - tests/ShippingService.Tests.Unit/Application/GetShipmentByOrderHandlerTests.cs
+            (IDOR-prevention pattern with null → 404)
 
     - path: "CLAUDE.md"
       instructions: |

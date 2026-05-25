@@ -40,7 +40,12 @@ public static class DependencyInjection
 
         // Repository registrations: scoped lifetime so the repository and its DbContext share
         // the same scope and therefore the same DbContext instance.
+        //
+        // CQRS data-access split — IProductRepository (Domain) is the write-side: tracked
+        // entity loads for command handlers. IProductReadStore (Application) is the read-side:
+        // projection-in-EF returning ProductDto for query handlers. See docs/cqrs-data-access.md.
         services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<IProductReadStore, ProductReadStore>();
 
         // Two-tier cache for product reads (L1 MemoryCache + L2 Redis via IDistributedCache,
         // managed together by HybridCache). HybridCache itself is registered in Program.cs via

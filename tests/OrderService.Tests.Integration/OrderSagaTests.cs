@@ -6,8 +6,8 @@ using Microsoft.Extensions.Hosting;
 using NextAurora.Contracts.DTOs;
 using NextAurora.Contracts.Events;
 using NSubstitute;
-using OrderService.Features;
 using OrderService.Domain;
+using OrderService.Features;
 using OrderService.Infrastructure.Data;
 using Wolverine.Tracking;
 using Xunit;
@@ -32,6 +32,11 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
     [Fact]
     public async Task PlaceOrder_persists_order_and_publishes_OrderPlacedEvent()
     {
+        // ARRANGE — A POST /api/v1/orders with one valid line. The Catalog client is
+        // stubbed to confirm the product exists and reservation succeeds, so the handler
+        // reaches the persistence + publish step. We use TrackActivity to capture every
+        // message Wolverine routes during the block so we can assert against the
+        // OrderPlacedEvent the handler publishes via IEventPublisher.
         var productId = Guid.NewGuid();
         StubCatalogValidProduct(productId, price: 19.99m, stock: 10);
 
@@ -43,21 +48,27 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
         var host = _factory.Services.GetRequiredService<IHost>();
         var client = _factory.CreateClient();
 
-        // TrackActivity captures every message Wolverine routes during the block —
-        // including the OrderPlacedEvent the handler publishes via IEventPublisher.
+        // ACT — POST through the real HTTP pipeline. TrackActivity waits until all
+        // cascading messages settle so we can read the captured envelope.
         var session = await host.TrackActivity()
             .Timeout(TimeSpan.FromSeconds(30))
             .ExecuteAndWaitAsync(_ => client.PostAsJsonAsync("/api/v1/orders", command));
 
-        // Wolverine's pipeline saw OrderPlacedEvent travel through it (proves the publish
-        // happened inside the handler's transaction, which is what UseDurableOutboxOn
-        // AllSendingEndpoints wraps). Capture the event so we can scope the DB assertion
-        // to *this* test's order — other tests in the class share the container and
-        // accumulate rows under the same BuyerId.
+        // ASSERT — Two invariants:
+        //  1) OrderPlacedEvent traveled through Wolverine's pipeline. The fact that it
+        //     appears in session.Sent proves the publish happened inside the handler's
+        //     transaction (which is what UseDurableOutboxOnAllSendingEndpoints wraps).
+        //     We capture the event so the DB assertion can target THIS test's order —
+        //     other tests in the class share the container and accumulate rows under
+        //     the same BuyerId.
+        //  2) The Order row was committed to SQL Server, in Placed status, with the
+        //     server-computed TotalAmount (2 × $19.99 = $39.98). If the entity write
+        //     and the publish weren't transactionally bound, this assertion would
+        //     pass while session.Sent could still be empty — but the outbox guarantees
+        //     they commit together.
         var placedEvent = session.Sent.SingleMessage<OrderPlacedEvent>();
         placedEvent.OrderId.Should().NotBe(Guid.Empty);
 
-        // And the Order row was committed to SQL Server.
         await using var scope = _factory.CreateDbScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
         var orderInDb = await db.Orders.AsNoTracking().SingleAsync(o => o.Id == placedEvent.OrderId);
@@ -68,26 +79,34 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
     [Fact]
     public async Task PlaceOrder_does_not_persist_when_catalog_validation_fails()
     {
-        // Stub returns null → handler throws InvalidOperationException before any DB write.
-        // If the handler's atomicity is wrong (entity write happens before validation, or the
-        // outbox stages without rollback), this test would find an orphan row.
+        // ARRANGE — Stub the catalog to return null → the handler throws
+        // InvalidOperationException BEFORE any DB write. This is the critical atomicity
+        // case: if the handler's ordering is wrong (e.g. the entity write happens before
+        // catalog validation, or the outbox stages without rollback), this test would
+        // find an orphan row. We use a unique buyer/product so other tests' orders don't
+        // pollute the assertion.
         var productId = Guid.NewGuid();
         _factory.Catalog.GetProductAsync(productId, Arg.Any<CancellationToken>())
             .Returns((ProductDto?)null);
 
-        var buyerId = Guid.NewGuid(); // unique buyer so other tests' orders don't pollute
+        // The endpoint's buyer-scope check would 403 a different buyer; we want to reach
+        // the handler so we use the auth-stamped buyer (TestAuthHandler.BuyerId).
         var command = new PlaceOrderCommand(
-            BuyerId: buyerId,
+            BuyerId: TestAuthHandler.BuyerId,
             Currency: "USD",
             Lines: [new PlaceOrderLineItem(productId, "Missing Product", 1, 5.00m)]);
 
-        // The endpoint's buyer-scope check would 403 this since buyerId != TestAuthHandler.BuyerId;
-        // for this test we want to reach the handler, so use the auth-stamped buyer.
-        command = command with { BuyerId = TestAuthHandler.BuyerId };
-
         var client = _factory.CreateClient();
+
+        // ACT — Post the order; expect catalog validation to reject it.
         var response = await client.PostAsJsonAsync("/api/v1/orders", command);
 
+        // ASSERT — Two invariants:
+        //  1) Response is non-success (the handler threw, GlobalExceptionHandler mapped
+        //     it to a 4xx response — the exact status depends on how InvalidOperationException
+        //     is mapped, but it must NOT be success).
+        //  2) ZERO orders in the DB referencing this product. This is the atomicity
+        //     guarantee — a failed validation must not leave any row, partial or otherwise.
         response.IsSuccessStatusCode.Should().BeFalse();
 
         await using var scope = _factory.CreateDbScope();
@@ -101,6 +120,10 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
     [Fact]
     public async Task PaymentCompletedEvent_transitions_Placed_to_Paid_and_is_idempotent()
     {
+        // ARRANGE — Seed a Placed order directly via the DbContext (faster than going
+        // through the full PlaceOrder flow). The PaymentCompletedEvent simulates what
+        // PaymentService publishes after a successful charge. We use the same event
+        // twice to verify idempotency under Service Bus at-least-once delivery.
         var orderId = await SeedOrderAsync(status: OrderStatus.Placed);
         var paymentEvent = new PaymentCompletedEvent
         {
@@ -113,28 +136,37 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
 
         var host = _factory.Services.GetRequiredService<IHost>();
 
-        // First dispatch: handler runs, status transitions Placed → Paid.
+        // ACT — First dispatch: the handler should run and the Order transitions
+        // Placed → Paid. PublishMessageAndWaitAsync invokes the consumer-side pipeline
+        // exactly as Wolverine would on a real Service Bus message.
         await host.TrackActivity()
             .Timeout(TimeSpan.FromSeconds(30))
             .PublishMessageAndWaitAsync(paymentEvent);
 
+        // ASSERT (intermediate) — After the first dispatch, status is Paid.
         (await GetOrderStatusAsync(orderId)).Should().Be(OrderStatus.Paid);
 
-        // Second dispatch (simulates Service Bus at-least-once redelivery): handler hits the
-        // status guard and silently no-ops. No exception, no extra mutation.
+        // ACT — Second dispatch (Service Bus redelivery simulation). The handler's
+        // status-guard MUST short-circuit cleanly — no exception, no extra mutation.
         await host.TrackActivity()
             .Timeout(TimeSpan.FromSeconds(30))
             .PublishMessageAndWaitAsync(paymentEvent);
 
+        // ASSERT (final) — Status is still Paid. Without the idempotency guard, the
+        // second call would either throw (DLQ noise) or corrupt the PaidAt timestamp.
         (await GetOrderStatusAsync(orderId)).Should().Be(OrderStatus.Paid);
     }
 
     [Fact]
     public async Task Order_RowVersion_token_rejects_concurrent_write()
     {
+        // ARRANGE — The optimistic-concurrency story. Two independent DbContext scopes
+        // load the same row — each captures the same RowVersion snapshot into its
+        // tracked entity. This simulates two replicas (or two threads) racing to mutate
+        // the same Order. Without the RowVersion shadow column, last-write-wins would
+        // silently corrupt state.
         var orderId = await SeedOrderAsync(status: OrderStatus.Placed);
 
-        // Two independent scopes load the same row — same RowVersion snapshotted into each.
         await using var scope1 = _factory.CreateDbScope();
         await using var scope2 = _factory.CreateDbScope();
         var db1 = scope1.ServiceProvider.GetRequiredService<OrderDbContext>();
@@ -143,14 +175,20 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
         var order1 = await db1.Orders.FirstAsync(o => o.Id == orderId);
         var order2 = await db2.Orders.FirstAsync(o => o.Id == orderId);
 
+        // ACT — First write commits. SQL Server bumps the RowVersion on the row.
         order1.MarkAsPaid();
         await db1.SaveChangesAsync();
 
-        // Second write carries the now-stale RowVersion. SQL Server's UPDATE matches zero rows
-        // (RowVersion filter excludes it) → EF throws. Last-write-wins is impossible.
+        // The second write carries the now-stale RowVersion. SQL Server's UPDATE
+        // statement (generated by EF) includes WHERE RowVersion = @original, which
+        // now matches zero rows. EF detects this and throws.
         order2.MarkAsPaid();
         var act = async () => await db2.SaveChangesAsync();
 
+        // ASSERT — DbUpdateConcurrencyException is the signal. The HTTP path catches
+        // this in GlobalExceptionHandler and returns 409 Conflict; the Wolverine path
+        // applies the retry policy (AddConcurrencyRetry) and retries with backoff.
+        // Last-write-wins is impossible.
         await act.Should().ThrowAsync<DbUpdateConcurrencyException>();
     }
 

@@ -9,7 +9,7 @@ The hard rules live in [CLAUDE.md](../CLAUDE.md#performance-rules). The deeper "
 - [Philosophy](#philosophy)
 - [The 14 always-on rules](#the-14-always-on-rules)
 - [Decision: optimistic concurrency tokens](#decision-optimistic-concurrency-tokens)
-- [Decision: AsNoTracking strategy](#decision-asnotracking-strategy)
+- [Decision: read/write method split (CQRS data access)](#decision-readwrite-method-split-cqrs-data-access)
 - [Decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache)
 - [Decision: when to reach past EF Core (Dapper escape hatch)](#decision-when-to-reach-past-ef-core-dapper-escape-hatch)
 - [Concurrency hazards: what the build enforces](#concurrency-hazards-what-the-build-enforces)
@@ -28,7 +28,7 @@ The hard rules live in [CLAUDE.md](../CLAUDE.md#performance-rules). The deeper "
 Four principles drive every rule in this doc:
 
 1. **Measure before optimizing.** Most "optimizations" applied without a profiler hurt more than they help. Examples worth knowing:
-   - `AsNoTracking()` blanket-applied with `Include` duplicates shared related entities (Customer fetched once, materialized 500 times) — see [decision: AsNoTracking strategy](#decision-asnotracking-strategy).
+   - `AsNoTracking()` blanket-applied with `Include` duplicates shared related entities (Customer fetched once, materialized 500 times) — see [decision: AsNoTracking strategy](#decision-readwrite-method-split-cqrs-data-access).
    - `AsSplitQuery()` shifts work from DB to app server and may make things worse.
    - Compiled queries optimize the cheapest part of the pipeline.
 
@@ -197,31 +197,33 @@ That convenience method existed in Npgsql 8 and earlier. It was removed in Npgsq
 
 ---
 
-## Decision: AsNoTracking strategy
+## Decision: read/write method split (CQRS data access)
 
 This is documented in detail in [docs/cqrs-data-access.md](cqrs-data-access.md). Summary here for completeness.
 
 ### What we chose
 
-`AsNoTracking()` is applied **selectively**, not globally:
+Read paths and write paths use **different repository methods** with different shapes:
 
-- **Read-only repository methods** (called only from query handlers): `AsNoTracking()` applied. Examples: `ProductRepository.GetAllAsync`, `ProductRepository.SearchAsync`, `OrderRepository.GetByBuyerIdAsync`.
-- **Shared methods** (called from both query handlers and command/event handlers): tracking preserved. Examples: `OrderRepository.GetByIdAsync` (read by `GetOrderByIdHandler`, written by `PaymentCompletedHandler`/`PaymentFailedHandler`/`ShipmentDispatchedHandler`).
+- **Read methods** return DTOs by projecting in EF (`AsNoTracking().Select(...)` inside the IQueryable). Examples: `OrderRepository.GetSummaryByIdAsync`, `OrderRepository.GetSummariesByBuyerIdAsync`, `IProductReadStore.GetByIdAsync` / `GetAllAsync` / `SearchAsync`.
+- **Write methods** return tracked domain entities. Examples: `OrderRepository.GetByIdAsync` (used by `PaymentCompletedHandler`/`PaymentFailedHandler`/`ShipmentDispatchedHandler`), `ProductRepository.GetByIdAsync` (used by `UpdateProductHandler`/`ReserveStockHandler`).
 
-### Why not split read/write repositories now?
+A single method serving both a query handler and a command handler is the anti-pattern this strategy removes. The signature itself becomes the proof of intent: DTO-returning = read; entity-returning = write loader.
 
-Per Interface Segregation, the cleaner long-term design is two interfaces — `IProductReadRepository` (with `AsNoTracking` everywhere) and `IProductRepository : IProductReadRepository` (with writes). [docs/cqrs-data-access.md "Future: Read/Write Repository Separation"](cqrs-data-access.md) outlines this.
+### Why the split
 
-Reasons we haven't done it yet:
-- Doubles the registration surface (two impls per service).
-- The query handlers that call shared methods *do* still project to DTOs, so the tracking overhead is a per-row metadata-attach, not a full identity-map walk. Cost is real but small.
-- The bigger correctness wins (concurrency tokens, outbox) come first.
+The previous design (one shared `GetByIdAsync` per repo) saved a method declaration at the cost of:
 
-### Reconciling with the audit findings
+- Every read paying for full entity materialization
+- Parent-cartesian rows over the wire when a collection `Include` was in play
+- An in-memory mapper pass on every read
+- A signature that didn't tell you whether you were on a read or write path
 
-The earlier perf audit flagged "AsNoTracking missing" on `OrderRepository.GetByIdAsync` and similar shared methods. Those flags were technically correct (the rule says "AsNoTracking on reads") but *contextually wrong* — those methods are shared with write paths. The CLAUDE.md rule is the simple version; the [cqrs-data-access.md](cqrs-data-access.md) doc is the nuanced version. Both can be true: the *default* is `AsNoTracking()` + projection, but shared repository methods preserve tracking deliberately.
+The split costs a few extra lines per service. Once in place, the entity layer never leaks into the read path — query handlers receive a DTO straight from the IQueryable.
 
-If we ever do split read/write repositories, the audit's flags become correct and the shared methods go away.
+### Clean Architecture variant (CatalogService)
+
+`IProductRepository` lives in `CatalogService.Domain`, which by layer rule cannot reference `NextAurora.Contracts`. So the DTO-returning interface (`IProductReadStore`) lives in `CatalogService.Application/Interfaces/`, with the implementation in `CatalogService.Infrastructure/Repositories/`. Query handlers depend on `IProductReadStore`; command handlers keep depending on `IProductRepository`. Same architectural intent, different interface placement to honor Clean layer rules.
 
 ---
 
@@ -710,7 +712,7 @@ If the retry races again, the cooldown grows (100ms, 250ms). After three failure
 Tracked here for visibility — none are correctness or performance blockers.
 
 - **Production migration deploy step.** Tooling exists; deploy automation doesn't. `MigrateDatabaseAsync<T>()` runs in-process at startup, gated on `IsDevelopment()`. Production should run migrations as a separate pre-deploy step to avoid replica races. See [resolved: migration tooling](#resolved-migration-tooling-wired-up).
-- **Read/write repository separation.** Per [docs/cqrs-data-access.md "Future"](cqrs-data-access.md). Would let us apply `AsNoTracking()` everywhere on read paths instead of the current selective approach. Low priority — the current selective tracking works.
+- ~~**Read/write repository separation.**~~ **Done 2026-05-24.** Every read path now projects to a DTO in EF via a dedicated read method (VSA: sibling DTO methods on the existing repo interface; Clean: `IProductReadStore` in Application). See [docs/cqrs-data-access.md](cqrs-data-access.md) for the full pattern.
 - **Integration tests.** The outbox semantics, concurrency-retry behavior, and saga choreography aren't covered by unit tests (correctly — those are integration concerns). Architecture doc lists "Integration Tests" under "Not Yet Implemented." Once that pipeline exists, write tests that exercise the outbox under simulated bus failures and concurrency conflicts.
 - **EF tools version skew.** `dotnet ef` CLI is at 9.0.8 while the runtime targets EF 10.0.2 — emits a non-fatal advisory each time. Update the global tool when convenient: `dotnet tool update --global dotnet-ef`.
 
@@ -724,7 +726,7 @@ When you need to discuss specific decisions, here's where the source-of-truth li
 |---|---|
 | Hard rules every PR must follow | [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules) |
 | EF Core deep guidance, modern features, concurrency, plumbing, migrations | [.claude/skills/dotnet-performance/SKILL.md](../.claude/skills/dotnet-performance/SKILL.md) |
-| CQRS handler inventory, AsNoTracking strategy, repository tracking decisions | [docs/cqrs-data-access.md](cqrs-data-access.md) |
+| CQRS handler inventory, read/write method split, projection-in-EF rule | [docs/cqrs-data-access.md](cqrs-data-access.md) |
 | System architecture, polyglot persistence, communication patterns | [docs/architecture.md](architecture.md) |
 | Event topology, contracts, lifecycle | [docs/architecture.md "Event-Driven Architecture"](architecture.md#event-driven-architecture), [docs/event-catalog.md](event-catalog.md) |
 | Correlation/User/Session propagation | [docs/context-propagation.md](context-propagation.md), [CLAUDE.md "Observability & Context Propagation"](../CLAUDE.md#observability--context-propagation) |

@@ -286,7 +286,7 @@ When generating code for NextAurora, follow CLAUDE.md for:
 
 - **[docs/performance-and-data-correctness.md](../docs/performance-and-data-correctness.md)** — the *why* behind every CLAUDE.md performance rule, the outbox decision, the concurrency-token decision, and the migration tooling.
 - **[docs/architecture.md](../docs/architecture.md)** — service topology, communication patterns, domain model, polyglot persistence rationale.
-- **[docs/cqrs-data-access.md](../docs/cqrs-data-access.md)** — handler inventory and the selective `AsNoTracking` strategy (with the rationale for why shared repository methods preserve tracking).
+- **[docs/cqrs-data-access.md](../docs/cqrs-data-access.md)** — handler inventory and the read/write method split (the hard rule: read methods return DTOs by projecting in EF; write methods return tracked entities; the two paths use different methods on the repository).
 - **[docs/context-propagation.md](../docs/context-propagation.md)** — how the three IDs flow through HTTP and Wolverine.
 - **[.claude/skills/dotnet-performance/SKILL.md](../.claude/skills/dotnet-performance/SKILL.md)** — deep `.NET` / EF Core perf guidance (modern EF features, transactions, plumbing, migrations, benchmarking).
 

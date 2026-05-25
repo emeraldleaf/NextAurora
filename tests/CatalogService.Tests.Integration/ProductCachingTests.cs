@@ -28,37 +28,58 @@ public sealed class ProductCachingTests(CatalogApiFactory factory) : IClassFixtu
     [Fact]
     public async Task Api_boots_and_migrations_apply()
     {
-        // The factory booting at all means: containers up, connection strings injected,
-        // and MigrateDatabaseAsync ran in the Development-env startup path. GetFromJsonAsync
-        // throws on a non-success status, so a returned (non-null) list proves the schema
-        // exists and is queryable.
+        // ARRANGE — Bring up the API client. The factory's success at booting is itself
+        // the load-bearing assertion: it means containers are up, connection strings
+        // got injected into Aspire's resource registry, and MigrateDatabaseAsync ran in
+        // the Development-env startup path. If the migration step failed, /api/v1/products
+        // would 500 because the products table wouldn't exist.
         var client = _factory.CreateClient();
 
+        // ACT — Hit the list endpoint. GetFromJsonAsync throws on non-success, so a
+        // returned (non-null) list proves the schema exists and is queryable.
         var products = await client.GetFromJsonAsync<List<ProductDto>>("/api/v1/products");
 
+        // ASSERT — Non-null list (may be empty if no products were seeded by other tests
+        // before this one). The point is "the path is wired up end-to-end".
         products.Should().NotBeNull();
     }
 
     [Fact]
     public async Task GetProductById_caches_the_result_across_calls()
     {
+        // ARRANGE — Seed a product directly in the DB. We'll read it via the API once
+        // to populate the cache, then delete the underlying row out-of-band and read
+        // again — if the second read still succeeds, the cache is genuinely serving it
+        // (no DB round-trip on the second call). This is the only way to prove caching
+        // is actually happening; a unit test would just verify the wiring.
         var productId = await SeedProductAsync(price: 19.99m);
         var client = _factory.CreateClient();
 
-        // First call: cache miss → factory loads from Postgres → stored in L1 + L2.
+        // ACT (1/3) — First call: cache miss → factory loads from Postgres → stored in
+        // L1 (in-process MemoryCache) AND L2 (Redis) per HybridCache's contract.
         var first = await client.GetFromJsonAsync<ProductDto>($"/api/v1/products/{productId}");
+
+        // ASSERT (1/3) — First read returns the seeded price.
         first.Should().NotBeNull();
         first!.Price.Should().Be(19.99m);
 
-        // Delete the row directly, bypassing the cache. If the next read still succeeds,
-        // it was served from cache — the DB no longer has this product.
+        // ACT (2/3) — Delete the row directly, bypassing the cache. ExecuteDeleteAsync
+        // doesn't go through the application — no cache invalidation happens. The cache
+        // entry remains live.
         await using (var scope = _factory.CreateDbScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
             await db.Products.Where(p => p.Id == productId).ExecuteDeleteAsync();
         }
 
+        // ACT (3/3) — Second read. The DB no longer has this product. If the response
+        // is non-null with the original price, it MUST be coming from cache.
         var second = await client.GetFromJsonAsync<ProductDto>($"/api/v1/products/{productId}");
+
+        // ASSERT (3/3) — Cached entry served. Without HybridCache wired up, this would
+        // either return null (404 → GetFromJsonAsync throws) or return a stale-but-correct
+        // tracked entity (which would also fail since the row is gone). Only an actual
+        // cache hit produces this outcome.
         second.Should().NotBeNull("the product was cached on the first read and the DB row is now gone");
         second!.Price.Should().Be(19.99m);
     }
@@ -66,23 +87,34 @@ public sealed class ProductCachingTests(CatalogApiFactory factory) : IClassFixtu
     [Fact]
     public async Task UpdateProduct_invalidates_the_cached_entry()
     {
+        // ARRANGE — The "invalidate on write" contract. Seed at $10, prime the cache,
+        // update to $42.50 via the real PUT endpoint. UpdateProductHandler MUST call
+        // IProductCache.InvalidateAsync — without it, the next read would still see
+        // the cached $10 until TTL.
         var productId = await SeedProductAsync(price: 10.00m);
         var client = _factory.CreateClient();
 
-        // Prime the cache at the old price.
+        // ACT (1/2) — Prime the cache at the old price.
         var beforeUpdate = await client.GetFromJsonAsync<ProductDto>($"/api/v1/products/{productId}");
         beforeUpdate!.Price.Should().Be(10.00m);
 
-        // Update through the real write path — UpdateProductHandler must call
-        // IProductCache.InvalidateAsync, or the next read would still see 10.00.
-        // SellerId must match TestAuthHandler's stamped NameIdentifier claim ("test-seller")
-        // so the PUT endpoint's seller-ownership check (added by the PR #14 security review)
+        // ACT (2/2) — Update through the real write path. SellerId must match
+        // TestAuthHandler's stamped NameIdentifier claim ("test-seller") so the PUT
+        // endpoint's seller-ownership check (added by the PR #14 security review)
         // returns 204 NoContent rather than 403 Forbid.
         var update = new { ProductId = productId, SellerId = "test-seller", Name = "Updated Name", Description = "Updated", Price = 42.50m };
         var putResponse = await client.PutAsJsonAsync($"/api/v1/products/{productId}", update);
         putResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
+        // ACT (read after write)
         var afterUpdate = await client.GetFromJsonAsync<ProductDto>($"/api/v1/products/{productId}");
+
+        // ASSERT — Two invariants:
+        //  1) Price reflects the update ($42.50). If the cache wasn't invalidated, this
+        //     read would still see $10.00 from L1/L2 — the bug would manifest as a stale
+        //     read for up to the 5-min TTL.
+        //  2) Name also updated — verifies that the full DTO was re-projected, not just
+        //     the price field.
         afterUpdate!.Price.Should().Be(42.50m, "the write path must invalidate the cache so the next read reflects the update");
         afterUpdate.Name.Should().Be("Updated Name");
     }
@@ -90,10 +122,14 @@ public sealed class ProductCachingTests(CatalogApiFactory factory) : IClassFixtu
     [Fact]
     public async Task ConcurrencyToken_rejects_the_second_of_two_racing_writes()
     {
+        // ARRANGE — The optimistic-concurrency story for Postgres. Postgres uses the
+        // system column `xmin` as the concurrency token (no app-defined RowVersion
+        // needed — EF Core 8+ supports xmin as a shadow property). Two DbContext scopes
+        // load the same row, snapshotting the same xmin. This simulates two replicas
+        // (or two threads) racing to mutate the same Product. Without xmin protection,
+        // last-write-wins would silently overwrite the first edit.
         var productId = await SeedProductAsync(price: 5.00m);
 
-        // Two independent DbContext scopes load the same row — same xmin value snapshotted
-        // into each tracked entity.
         await using var scope1 = _factory.CreateDbScope();
         await using var scope2 = _factory.CreateDbScope();
         var db1 = scope1.ServiceProvider.GetRequiredService<CatalogDbContext>();
@@ -102,15 +138,20 @@ public sealed class ProductCachingTests(CatalogApiFactory factory) : IClassFixtu
         var fromScope1 = await db1.Products.FirstAsync(p => p.Id == productId);
         var fromScope2 = await db2.Products.FirstAsync(p => p.Id == productId);
 
-        // First write commits — Postgres bumps xmin on the row.
+        // ACT (1/2) — First write commits — Postgres bumps xmin on the row.
         fromScope1.UpdateDetails("Winner", fromScope1.Description, fromScope1.Price);
         await db1.SaveChangesAsync();
 
-        // Second write carries the now-stale xmin. EF's UPDATE ... WHERE xmin = @original
-        // matches zero rows → DbUpdateConcurrencyException. Last-write-wins is impossible.
+        // ACT (2/2) — Second write carries the now-stale xmin. EF's UPDATE statement
+        // includes WHERE xmin = @original, which matches zero rows. EF detects this
+        // and throws.
         fromScope2.UpdateDetails("Loser", fromScope2.Description, fromScope2.Price);
         var act = async () => await db2.SaveChangesAsync();
 
+        // ASSERT — DbUpdateConcurrencyException — the signal that the second write lost
+        // the race. Application code handles this via GlobalExceptionHandler (HTTP 409)
+        // or Wolverine's AddConcurrencyRetry policy (background retry). Last-write-wins
+        // is impossible.
         await act.Should().ThrowAsync<DbUpdateConcurrencyException>();
     }
 
