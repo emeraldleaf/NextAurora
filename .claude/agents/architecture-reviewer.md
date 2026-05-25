@@ -85,9 +85,22 @@ Specific bug-classes that have bitten this repo before. When the target file mat
 
 ### When reviewing query handlers (`**/Features/Get*.cs`, `**/Application/Handlers/Get*.cs`)
 
-- **AsNoTracking + projection** for read paths. Either `.AsNoTracking() + .Select(...)` to a DTO, OR `AsNoTrackingWithIdentityResolution()` when `Include` is needed without tracking. Plain `AsNoTracking() + Include` duplicates the included entity per row.
+- **Project in EF, not in memory (Must-fix).** The handler must depend on a method that returns a DTO directly — e.g. `IOrderRepository.GetSummaryByIdAsync` returning `OrderSummaryDto?` (VSA), or `IProductReadStore.GetByIdAsync` returning `ProductDto?` (Clean). The anti-pattern signature: `var entity = await repo.GetByIdAsync(...); return Mapper.ToDto(entity);` — calling an entity-returning method and mapping in memory. That's the canonical bug this rule exists to prevent (cartesian explosion under collection `Include`, wasted column reads, double materialization). When the same `GetByIdAsync` is shared with a write/saga path, the fix is to add a **sibling** DTO-returning method on the repo; the entity-returning one stays for writes. See [docs/cqrs-data-access.md](../../docs/cqrs-data-access.md) and CLAUDE.md "Performance Rules → EF Core reads".
+- **AsNoTracking variants — know which mechanism does what.** Two independent axes (see [docs/cqrs-data-access.md "Why projection kills cartesian rows"](../../docs/cqrs-data-access.md#why-projection-kills-cartesian-rows-the-ef-mechanism)):
+  - *Client-side object duplication.* `AsNoTracking() + Include` materializes the parent (or a shared related object like Category) once per row in the cartesian result — duplicate objects in memory. `AsNoTrackingWithIdentityResolution()` adds a per-query identity map so duplicates stitch into one object. **This fixes the object graph, not the SQL.**
+  - *SQL row shape.* The cartesian rows still hit the wire under either tracking option. Killing them requires either projection-to-DTO with a nested collection (EF auto-splits projected collection navigations) or `AsSplitQuery()` for an entity materialization.
+  - The projection rule above wins on both axes at once, which is why it's the default. `AsNoTrackingWithIdentityResolution()` is the narrow fallback for "I must materialize an entity graph without tracking" — rare on a read path. Plain `AsNoTracking()` returning an entity (not a DTO) is a *half-fix* — flag as Must-fix and direct to the projection rule.
 - **Pagination cap.** List queries must accept `(page, pageSize)` with server-side enforcement.
 - **N+1 detection.** Any `foreach` over query results that queries inside.
+
+### When reviewing repositories (`**/Infrastructure/*Repository.cs`, `**/Infrastructure/Repositories/*Repository.cs`)
+
+- **Read/write method split (Must-fix).** Repository methods fall into two shapes:
+  - *Write loaders* (`GetByIdAsync` returning the entity, tracking ON, `Include` of mutation-relevant children) — used by command/event/saga handlers that mutate via aggregate methods.
+  - *Read projections* (`GetSummaryByIdAsync` / `GetSummariesByBuyerIdAsync` returning a DTO, `AsNoTracking() + .Select(...)` to DTO inside the IQueryable) — used by query handlers.
+  - A single method serving BOTH a read handler and a write handler is the antipattern this rule exists to remove (see [docs/cqrs-data-access.md](../../docs/cqrs-data-access.md)). Split it: add the sibling DTO method, switch the read handler.
+- **No `Mapper.ToDto` inside the repository.** If you find yourself materializing an entity in the repo just to map it before returning, you've reinvented the anti-pattern at a different layer. Project in the IQueryable.
+- **CatalogService (Clean) variant.** A DTO-returning method does NOT belong on `IProductRepository` (Domain interface — can't reference Contracts). It belongs on `IProductReadStore` in `CatalogService.Application/Interfaces/`, with the implementation in `CatalogService.Infrastructure/Repositories/`. Flag any DTO-returning method added to a Domain-layer interface.
 
 ### When reviewing aggregates (`**/Domain/*.cs`)
 

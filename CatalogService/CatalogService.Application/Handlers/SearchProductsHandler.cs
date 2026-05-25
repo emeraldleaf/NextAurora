@@ -1,15 +1,16 @@
-using CatalogService.Application.Mappers;
+using CatalogService.Application.Interfaces;
 using CatalogService.Application.Queries;
-using CatalogService.Domain.Interfaces;
 using NextAurora.Contracts.DTOs;
 
 namespace CatalogService.Application.Handlers;
 
-public class SearchProductsHandler(IProductRepository repository)
+/// <summary>
+/// "Search products" query handler. One-liner passthrough to
+/// <see cref="IProductReadStore.SearchAsync"/>, which projects in EF — no entity hop. See
+/// <c>docs/cqrs-data-access.md</c> for the read/write split rule.
+/// </summary>
+public class SearchProductsHandler(IProductReadStore readStore)
 {
-    public async Task<IReadOnlyList<ProductDto>> HandleAsync(SearchProductsQuery request, CancellationToken cancellationToken)
-    {
-        var products = await repository.SearchAsync(request.Query, request.Page, request.PageSize, cancellationToken);
-        return products.Select(ProductMapper.ToDto).ToList();
-    }
+    public Task<IReadOnlyList<ProductDto>> HandleAsync(SearchProductsQuery request, CancellationToken cancellationToken)
+        => readStore.SearchAsync(request.Query, request.Page, request.PageSize, cancellationToken);
 }

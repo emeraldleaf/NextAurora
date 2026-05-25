@@ -486,16 +486,32 @@ The CLAUDE.md rule says it explicitly:
 | `ctx.Products.AsNoTracking().ToListAsync()` then map manually in C# | No tracking overhead, but still selects all columns |
 | `ctx.Products.AsNoTracking().Select(p => new ProductDto { ... }).ToListAsync()` | ✅ correct — minimal SQL, no tracker |
 
-### 7.4 Why our repos *partially* break this rule
+### 7.4 The canonical shape: project inside the repository, return DTOs
 
-Look at `ProductRepository.GetAllAsync` above — it returns `IReadOnlyList<Product>` (entities), then the handler does the projection in memory. That's **slightly worse** than projecting in the query, because the entity graph still gets materialized.
+The read path goes through dedicated repository methods that return DTOs:
 
-We accept this because:
-- The DTO projection is consistent across handlers (one place to change)
-- The query is still `AsNoTracking()` (no tracker overhead)
-- Repository methods are reusable across handlers that need different projections
+- **VSA services** (Order, Shipping, Payment, Notification): sibling DTO-returning methods on the existing repo interface — e.g. `IOrderRepository.GetSummaryByIdAsync` returning `OrderSummaryDto?`. The interface lives in `ServiceName/Domain/`, same csproj as `Features/` and `Infrastructure/`, so referencing `NextAurora.Contracts.DTOs` is allowed.
+- **Clean Architecture** (CatalogService): a separate read-store interface in the Application layer — `IProductReadStore` in `CatalogService.Application/Interfaces/`, implementation in `CatalogService.Infrastructure/Repositories/`. The Domain-layer `IProductRepository` stays entity-returning for the write path only, because Domain cannot reference Contracts.
 
-The strictly-better version is to project inside the repository — see [docs/cqrs-data-access.md "Future: Read/Write Repository Separation"](cqrs-data-access.md) for that direction.
+Implementation: `AsNoTracking().Where(...).Select(p => new ProductDto { ... }).FirstOrDefaultAsync(ct)` — the entity is never materialized, the SQL emits only the columns the DTO needs, and there's no in-memory mapper pass.
+
+```csharp
+// CatalogService.Infrastructure/Repositories/ProductReadStore.cs (Clean)
+public async Task<ProductDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    => await context.Products.AsNoTracking()
+        .Where(p => p.Id == id)
+        .Select(p => new ProductDto { /* ... */ })
+        .FirstOrDefaultAsync(ct);
+
+// OrderService/Infrastructure/OrderRepository.cs (VSA)
+public async Task<OrderSummaryDto?> GetSummaryByIdAsync(Guid id, CancellationToken ct = default)
+    => await context.Orders.AsNoTracking()
+        .Where(o => o.Id == id)
+        .Select(o => new OrderSummaryDto { /* ... */ })
+        .FirstOrDefaultAsync(ct);
+```
+
+Loading the entity and mapping in the handler (`GetByIdAsync → entity → Mapper.ToDto(entity)`) is the **anti-pattern this rule eliminates**. See [docs/cqrs-data-access.md](cqrs-data-access.md) for the full rationale and the canonical per-service shape.
 
 ---
 
@@ -548,30 +564,33 @@ That `AND xmin = @originalXmin` is the concurrency token in action. If another t
 
 ---
 
-## 9. The shared-method wrinkle — selective tracking
+## 9. Read/write method split — the hard rule
 
-The simple rule "always `AsNoTracking` on reads" breaks when **one repository method is called by both query handlers and command handlers**. Example: `ProductRepository.GetByIdAsync`.
+The simple rule "always `AsNoTracking` on reads" has a second half: **the read method should not return an entity at all.** It returns a DTO, projected in the IQueryable. Otherwise the handler ends up doing `Mapper.ToDto(entity)` in memory, paying for entity materialization the read path doesn't need.
+
+When the same repository previously had a single `GetByIdAsync` serving both a query handler and a command handler, the split is:
 
 ```csharp
-public async Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default)
-    => await context.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id, ct);
+public interface IProductRepository    // Clean Architecture: Domain interface, write loaders only
+{
+    Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default);   // tracked
+    Task AddAsync(Product product, CancellationToken ct = default);
+    Task UpdateAsync(Product product, CancellationToken ct = default);
+}
+
+public interface IProductReadStore     // Clean Architecture: Application interface, read projections
+{
+    Task<ProductDto?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<ProductDto>> GetAllAsync(int page, int pageSize, CancellationToken ct = default);
+    Task<IReadOnlyList<ProductDto>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default);
+}
 ```
 
-Tracking is **on** here. Callers:
+`UpdateProductHandler` and `ReserveStockHandler` depend on `IProductRepository` (need the tracked entity). `GetProductByIdHandler`, `GetAllProductsHandler`, `SearchProductsHandler` depend on `IProductReadStore` (get DTOs back, no mapping needed).
 
-- `GetProductByIdHandler` (query) — projects to DTO immediately, the tracker overhead is a small per-entity cost
-- `UpdateProductHandler` (command) — needs tracking so the subsequent mutate + save works
-- `ReserveStockHandler` (command) — same
+For VSA services (Order/Shipping/Payment/Notification) the same split exists, but both methods live on the existing `IOrderRepository` / `IShipmentRepository` etc. — sibling `GetSummaryByIdAsync` returning the DTO, alongside `GetByIdAsync` returning the entity. The VSA shape doesn't have a separate Domain project, so referencing Contracts DTOs from the repository interface is allowed.
 
-The rule from [docs/cqrs-data-access.md](cqrs-data-access.md):
-
-> Methods called only by query handlers (`GetAllAsync`, `SearchAsync`, `GetByCategoryAsync`) use `AsNoTracking()`. Methods shared between query AND command handlers (`GetByIdAsync`) keep tracking on. Splitting into separate read/write repositories is a planned cleanup.
-
-This is **deliberate** — the perf audit flagged "AsNoTracking missing on `GetByIdAsync`" as a violation, but in context it's the right trade-off until we split the repository interfaces.
-
-### The future cleanup
-
-Per Interface Segregation: split into `IProductReadRepository` (all `AsNoTracking`) and `IProductRepository : IProductReadRepository` (adds writes). Query handlers depend on the read interface; command handlers on the full interface. Doubles the registration surface — deferred until benefit justifies it.
+The earlier "selective tracking, shared methods preserve tracking deliberately" framing was the wrong trade-off — it saved one method declaration per service at the cost of paying for full entity materialization on every read. The split costs a few lines per service; the signature itself becomes proof of intent (`Task<ProductDto?>` = read; `Task<Product?>` = write loader).
 
 ---
 
@@ -583,9 +602,9 @@ Some teams view the repository pattern as a redundant layer over EF Core's `DbCo
 
 2. **Test substitutability.** Handler unit tests substitute `IProductRepository` with NSubstitute. No fake DbContext, no in-memory provider, no SQLite-in-memory trickery.
 
-3. **Selective tracking is a repository concern.** Whether `GetByIdAsync` tracks is a repository decision; whether the calling handler is a query or command is an Application concern. The repository draws that line.
+3. **Read/write split is a repository concern.** Whether you load a tracked entity (write path) or a projected DTO (read path) is a repository decision encoded in the *method shape* itself. The application layer just calls the method that returns what it needs — `GetByIdAsync` for the aggregate, `GetSummaryByIdAsync` (or `IProductReadStore.GetByIdAsync`) for the DTO. See [docs/cqrs-data-access.md](cqrs-data-access.md).
 
-4. **One concept per method.** `GetByCategoryAsync(categoryId)` is more discoverable than scattering `context.Products.Where(p => p.CategoryId == ...)` across handlers.
+4. **One concept per method.** `GetSummariesByBuyerIdAsync(buyerId, page, pageSize)` is more discoverable than scattering `context.Orders.Where(o => o.BuyerId == ...)` across handlers.
 
 ### When you'd remove it
 
@@ -631,7 +650,7 @@ var dtos = await ctx.Orders
     .ToListAsync();
 ```
 
-EF generates targeted SQL (often a single query with a subquery or join), materializes only the projected shape. No entity, no tracker, no Cartesian explosion in the C# objects (the database may still produce a Cartesian intermediate, but we don't allocate entities for it).
+EF Core 5+ **auto-splits** projected collection navigations: this emits a separate query for `Lines` instead of JOIN-ing them onto Orders, so there are no cartesian rows in the SQL result and no parent column duplication on the wire. You also skip entity materialization — only DTOs allocate. Two independent wins from one operator. Full mechanism in [docs/cqrs-data-access.md "Why projection kills cartesian rows"](cqrs-data-access.md#why-projection-kills-cartesian-rows-the-ef-mechanism).
 
 CLAUDE.md rule:
 
@@ -1133,7 +1152,7 @@ A condensed walkthrough of the key EF Core decisions in this codebase, each mapp
 
 ### "How do you prevent N+1?"
 
-> Projection over Include. `.Select(new Dto { Lines = o.Lines.Select(l => new LineDto { ... }) })` produces one SQL query and materializes only the DTO — no entity, no tracker, no Cartesian explosion in C# objects. `Include` works too but materializes the full entity graph with Cartesian row duplication. `AsSplitQuery` for Cartesian-heavy cases — but never enable it without profiling because it introduces transactional inconsistency between the parent and child queries.
+> Projection over Include. `.Select(new Dto { Lines = o.Lines.Select(l => new LineDto { ... }) })` triggers EF Core's auto-split behavior for the projected collection navigation — separate SQL queries for the parent and the children, no JOIN, no cartesian rows over the wire. Plus you skip entity materialization entirely. `Include` + entity materialization forces a single JOIN, which produces cartesian rows in SQL *and* duplicate parent objects in memory (the latter is what `AsNoTrackingWithIdentityResolution` fixes; the former needs `AsSplitQuery`). The projection rule wins on both axes at once. Full mechanism breakdown in [docs/cqrs-data-access.md "Why projection kills cartesian rows"](cqrs-data-access.md#why-projection-kills-cartesian-rows-the-ef-mechanism).
 
 ### "How do you handle a connection holding the pool slot too long?"
 
@@ -1145,5 +1164,5 @@ A condensed walkthrough of the key EF Core decisions in this codebase, each mapp
 
 - [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules) — the canonical hard-rule list
 - [docs/performance-and-data-correctness.md](performance-and-data-correctness.md) — full rationale per decision (concurrency tokens, AsNoTracking, outbox, HybridCache, Dapper, concurrency hazards)
-- [docs/cqrs-data-access.md](cqrs-data-access.md) — handler inventory, repository tracking decisions, future read/write repository split
+- [docs/cqrs-data-access.md](cqrs-data-access.md) — handler inventory, read/write method split (the rule), per-architecture canonical shape
 - [.claude/skills/dotnet-performance/SKILL.md](../.claude/skills/dotnet-performance/SKILL.md) — deeper EF performance material (compiled queries, query filters, interceptors)

@@ -5,11 +5,14 @@ using PaymentService.Infrastructure.Data;
 namespace PaymentService.Infrastructure;
 
 /// <summary>
-/// EF Core implementation of <see cref="IPaymentRepository"/>. Both <see cref="GetByIdAsync"/>
-/// and <see cref="GetByOrderIdAsync"/> are shared with the command path
-/// (<c>ProcessPaymentHandler</c> uses <c>GetByOrderIdAsync</c> as the idempotency check then
-/// later mutates and updates the entity), so tracking stays ON for both — see
-/// <c>docs/cqrs-data-access.md</c> for the rationale.
+/// EF Core implementation of <see cref="IPaymentRepository"/>. PaymentService has no
+/// query-handler read path today — both <see cref="GetByIdAsync"/> (used by
+/// <c>PaymentRecoveryJob</c>) and <see cref="GetByOrderIdAsync"/> (used by
+/// <c>ProcessPaymentHandler</c> as the idempotency check) load the tracked
+/// <see cref="Payment"/> aggregate for mutation paths. If a read endpoint is ever added,
+/// follow the read/write split rule in <c>docs/cqrs-data-access.md</c>: add a sibling
+/// DTO-returning method (e.g. <c>GetSummaryByIdAsync</c>) that projects in EF; keep the
+/// entity-returning loaders for the write path.
 /// </summary>
 public class PaymentRepository(PaymentDbContext context) : IPaymentRepository
 {

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using NextAurora.Contracts.DTOs;
 using ShippingService.Features;
 using Wolverine;
 

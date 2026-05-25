@@ -1,8 +1,8 @@
 using AwesomeAssertions;
+using NextAurora.Contracts.DTOs;
 using NSubstitute;
 using OrderService.Domain;
 using OrderService.Features;
-using OrderService.Tests.Unit.Builders;
 
 namespace OrderService.Tests.Unit.Application;
 
@@ -17,28 +17,32 @@ public class GetOrdersByBuyerHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenBuyerHasOrders_ReturnsMappedSummaries()
+    public async Task Handle_WhenBuyerHasOrders_ReturnsDtosFromReadProjection()
     {
-        // ARRANGE — Two real orders for a single buyer. The handler delegates to the same
-        // OrderSummaryMapper as GetOrderById; we mostly verify the LIST shape rather than
-        // re-testing the per-row mapping (already covered in GetOrderByIdHandlerTests).
+        // ARRANGE — Handler is a one-line passthrough to GetSummariesByBuyerIdAsync, which
+        // projects in EF and returns DTOs directly. No entity hop. We stub two DTOs and verify
+        // both make the round trip + the buyer-scope filter still holds at the API surface
+        // (belt + suspenders; the SQL Where clause is the actual enforcement).
         var buyerId = Guid.NewGuid();
-        var o1 = OrderBuilder.Default().WithBuyerId(buyerId).Build();
-        var o2 = OrderBuilder.Default().WithBuyerId(buyerId).Build();
-        _repository
-            .GetByBuyerIdAsync(buyerId, 1, 50, Arg.Any<CancellationToken>())
-            .Returns(new List<Order> { o1, o2 });
+        var summaries = new List<OrderSummaryDto>
+        {
+            new() { OrderId = Guid.NewGuid(), BuyerId = buyerId, Status = "Placed", PlacedAt = DateTime.UtcNow, Lines = [] },
+            new() { OrderId = Guid.NewGuid(), BuyerId = buyerId, Status = "Placed", PlacedAt = DateTime.UtcNow, Lines = [] }
+        };
+        _repository.GetSummariesByBuyerIdAsync(buyerId, 1, 50, Arg.Any<CancellationToken>()).Returns(summaries);
 
         // ACT — Run the handler against the query.
         var result = await _sut.HandleAsync(new GetOrdersByBuyerQuery(buyerId), CancellationToken.None);
 
-        // ASSERT — Two invariants:
-        //  1) Both orders make the round trip.
-        //  2) Every returned summary's BuyerId is the requested buyer — proves we don't
-        //     leak someone else's orders if the repository contract were ever broken. The
-        //     repository itself enforces this filter; this is belt + suspenders.
+        // ASSERT — Three invariants:
+        //  1) Both DTOs round-trip.
+        //  2) Every returned summary's BuyerId matches the requested buyer — guards against the
+        //     repository contract ever being broken (cross-buyer leak surface area).
+        //  3) The entity-returning GetByIdAsync stays untouched on the read path — the
+        //     write-loader anti-pattern must not creep back. Asserted as a hard rule below.
         result.Should().HaveCount(2);
         result.Should().OnlyContain(r => r.BuyerId == buyerId);
+        await _repository.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -46,8 +50,8 @@ public class GetOrdersByBuyerHandlerTests
     {
         // ARRANGE — New buyer, never placed an order.
         _repository
-            .GetByBuyerIdAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new List<Order>());
+            .GetSummariesByBuyerIdAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(new List<OrderSummaryDto>());
 
         // ACT — Run the handler against the query.
         var result = await _sut.HandleAsync(new GetOrdersByBuyerQuery(Guid.NewGuid()), CancellationToken.None);
@@ -59,21 +63,23 @@ public class GetOrdersByBuyerHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ForwardsBuyerIdAndPaginationToRepository()
+    public async Task Handle_ForwardsBuyerIdAndPaginationToReadProjection()
     {
-        // ARRANGE — Pagination + buyer scoping are delegated to the repository so the SQL
-        // does the work. If a future refactor pushed filtering into the handler ("filter
-        // GetAllAsync results in memory by BuyerId"), this test fails immediately —
-        // catching both a perf regression AND a potential cross-buyer-leak surface area.
+        // ARRANGE — Pagination + buyer scoping are delegated to the projection method so the
+        // SQL does the work. If a future refactor pushed filtering into the handler ("filter
+        // GetAll in memory by BuyerId"), this test fails immediately — catching both a perf
+        // regression AND a cross-buyer-leak surface area.
         _repository
-            .GetByBuyerIdAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new List<Order>());
+            .GetSummariesByBuyerIdAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(new List<OrderSummaryDto>());
         var buyerId = Guid.NewGuid();
 
-        // ACT — Run the handler against the query.
-        await _sut.HandleAsync(new GetOrdersByBuyerQuery(buyerId, Page: 4, PageSize: 25), CancellationToken.None);
+        // ACT — Run the handler with non-default pagination.
+        var result = await _sut.HandleAsync(new GetOrdersByBuyerQuery(buyerId, Page: 4, PageSize: 25), CancellationToken.None);
 
-        // ASSERT — Buyer id + pagination flow straight through to the repository.
-        await _repository.Received(1).GetByBuyerIdAsync(buyerId, 4, 25, Arg.Any<CancellationToken>());
+        // ASSERT — Buyer id + pagination flow straight through to the projection method + the
+        // empty result surfaces to the caller (handler doesn't synthesize anything on top).
+        await _repository.Received(1).GetSummariesByBuyerIdAsync(buyerId, 4, 25, Arg.Any<CancellationToken>());
+        result.Should().BeEmpty();
     }
 }

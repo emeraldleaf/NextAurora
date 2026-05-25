@@ -497,19 +497,20 @@ HTTP Request or Service Bus Message → IMessageBus.InvokeAsync<TResult>(command
 
 Command handlers create or mutate entities, persist changes, and publish domain events. Event handlers follow the same pattern — they read an entity, mutate its state via domain methods, and save.
 
-### EF Core Change Tracking Strategy
+### EF Core Read/Write Method Split
 
-Read and write paths share the same repository interfaces. Some `GetByIdAsync` methods are called by both query handlers (read-only) and command/event handlers (need tracking for subsequent updates). `AsNoTracking()` is applied selectively:
+Read and write paths take **different methods** on the repository, by design — see [docs/cqrs-data-access.md](cqrs-data-access.md) for the full pattern. The signature itself is proof of intent: a method returning a DTO is a read; a method returning a tracked entity is a write loader.
 
-**Read-only methods** (`AsNoTracking` applied) — exclusively called from query handlers:
-- `ProductRepository`: `GetAllAsync`, `GetByCategoryAsync`, `SearchAsync`
-- `CategoryRepository`: `GetByIdAsync`, `GetAllAsync`
-- `OrderRepository`: `GetByBuyerIdAsync`
+**Read methods** (`AsNoTracking() + .Select(...)` projection to DTO, returns the DTO directly):
+- `IProductReadStore` (CatalogService.Application): `GetByIdAsync`, `GetAllAsync`, `SearchAsync` — implementation in `CatalogService.Infrastructure.Repositories.ProductReadStore`. Lives in Application (not Domain) because DTOs are a Contracts concern and Clean Architecture's Domain layer cannot reference Contracts.
+- `IOrderRepository` (OrderService.Domain): `GetSummaryByIdAsync`, `GetSummariesByBuyerIdAsync` — VSA shape lets the read methods sit alongside writes on the same interface.
+- `IShipmentRepository` (ShippingService.Domain): `GetSummaryByOrderIdAsync`.
 
-**Shared methods** (tracking preserved) — called by command or event handlers that mutate and save:
-- `ProductRepository.GetByIdAsync` — `UpdateProductHandler`, `ReserveStockHandler`
-- `OrderRepository.GetByIdAsync` — `PaymentCompletedHandler`, `PaymentFailedHandler`, `ShipmentDispatchedHandler`
-- `PaymentRepository.GetByOrderIdAsync` — `ProcessPaymentHandler`
+**Write loaders** (tracked entity, called by command/event/saga handlers that mutate via aggregate methods and call SaveChanges):
+- `IProductRepository.GetByIdAsync` — `UpdateProductHandler`, `ReserveStockHandler`
+- `IOrderRepository.GetByIdAsync` — `PaymentCompletedHandler`, `PaymentFailedHandler`, `ShipmentDispatchedHandler`
+- `IPaymentRepository.GetByOrderIdAsync` — `ProcessPaymentHandler`
+- `IShipmentRepository.GetByOrderIdAsync` — `CreateShipmentHandler` (idempotency check)
 - `ShipmentRepository.GetByOrderIdAsync` — `CreateShipmentHandler`
 
 Adding `AsNoTracking()` to shared methods would break the read-then-mutate-then-save pattern because EF Core wouldn't detect changes on untracked entities. Full read/write repository separation (Interface Segregation) is a future consideration.

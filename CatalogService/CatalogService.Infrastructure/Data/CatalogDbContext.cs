@@ -52,10 +52,10 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
             // type is implied from the property type (Guid).
             entity.HasOne(e => e.Category).WithMany(c => c.Products).HasForeignKey(e => e.CategoryId);
 
-            // Indexes on filter/lookup columns — the catalog endpoint paginates by Id, but
-            // these support `GetByCategoryAsync` and seller-scoped queries without sequential
-            // scans. Composite indexes can serve multiple queries at once; single-column is
-            // fine here because each lookup is one-dimensional.
+            // Indexes on filter/lookup columns — the catalog read store paginates by Id, but
+            // these support category-scoped and seller-scoped queries without sequential scans.
+            // Composite indexes can serve multiple queries at once; single-column is fine here
+            // because each lookup is one-dimensional.
             entity.HasIndex(e => e.CategoryId);
             entity.HasIndex(e => e.SellerId);
 
