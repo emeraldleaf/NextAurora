@@ -62,8 +62,15 @@ public class ProductReadStore(CatalogDbContext context) : IProductReadStore
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<ProductDto>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default)
-        => await context.Products.AsNoTracking()
-            .Where(p => p.Name.Contains(query) || p.Description.Contains(query))
+    {
+        // ILike is Postgres's case-insensitive LIKE — translates to `name ILIKE @pattern`.
+        // Plain `.Contains` translates to a case-sensitive `LIKE` on Postgres, so a search
+        // for "laptop" misses "Laptop". The leading wildcard means no B-tree index can be
+        // used either way; full-text search (`tsvector`) is the next step if this becomes
+        // a bottleneck. See CLAUDE.md "Measure before optimizing".
+        var pattern = $"%{query}%";
+        return await context.Products.AsNoTracking()
+            .Where(p => EF.Functions.ILike(p.Name, pattern) || EF.Functions.ILike(p.Description, pattern))
             .OrderBy(p => p.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(p => new ProductDto
@@ -79,4 +86,5 @@ public class ProductReadStore(CatalogDbContext context) : IProductReadStore
                 IsAvailable = p.IsAvailable
             })
             .ToListAsync(ct);
+    }
 }

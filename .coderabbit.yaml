@@ -61,7 +61,7 @@ reviews:
         handler that loads a domain entity and maps in memory — the canonical fix is to
         add a sibling repo method and switch the handler. Reference: GetOrdersByBuyer.cs.
 
-    - path: "**/Infrastructure/*Repository.cs"
+    - path: "**/Infrastructure/**/*Repository*.cs"
       instructions: |
         CQRS read/write split is the rule, not a future cleanup (see
         docs/cqrs-data-access.md). Repository methods divide into:
@@ -81,6 +81,17 @@ reviews:
         Methods on a read path that use AsNoTracking() but still return an entity
         type are a half-fix — flag them too. The signature itself should be the proof
         of intent: read paths return DTOs.
+
+    - path: "**/Infrastructure/**/*ReadStore*.cs"
+      instructions: |
+        Read-side data access (Clean Architecture variant — see docs/cqrs-data-access.md).
+        Every method on a ReadStore MUST project to a DTO inside the IQueryable via
+        AsNoTracking() + .Select(...) and return the DTO. NO entity materialization, NO
+        in-memory mapping. Same rule as the repository path_instruction above — applied
+        here because ReadStore files (e.g. ProductReadStore.cs) live alongside repos in
+        Infrastructure/Repositories/ and CodeRabbit needs both globs to catch the right
+        files. If you see an entity-returning method on a *ReadStore* class, that's a
+        Must-fix: ReadStore is the read-side by contract.
 
     - path: "CatalogService/**/*.cs"
       instructions: |

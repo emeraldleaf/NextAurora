@@ -9,7 +9,7 @@ The hard rules live in [CLAUDE.md](../CLAUDE.md#performance-rules). The deeper "
 - [Philosophy](#philosophy)
 - [The 14 always-on rules](#the-14-always-on-rules)
 - [Decision: optimistic concurrency tokens](#decision-optimistic-concurrency-tokens)
-- [Decision: AsNoTracking strategy](#decision-asnotracking-strategy)
+- [Decision: read/write method split (CQRS data access)](#decision-readwrite-method-split-cqrs-data-access)
 - [Decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache)
 - [Decision: when to reach past EF Core (Dapper escape hatch)](#decision-when-to-reach-past-ef-core-dapper-escape-hatch)
 - [Concurrency hazards: what the build enforces](#concurrency-hazards-what-the-build-enforces)
@@ -28,7 +28,7 @@ The hard rules live in [CLAUDE.md](../CLAUDE.md#performance-rules). The deeper "
 Four principles drive every rule in this doc:
 
 1. **Measure before optimizing.** Most "optimizations" applied without a profiler hurt more than they help. Examples worth knowing:
-   - `AsNoTracking()` blanket-applied with `Include` duplicates shared related entities (Customer fetched once, materialized 500 times) — see [decision: AsNoTracking strategy](#decision-asnotracking-strategy).
+   - `AsNoTracking()` blanket-applied with `Include` duplicates shared related entities (Customer fetched once, materialized 500 times) — see [decision: AsNoTracking strategy](#decision-readwrite-method-split-cqrs-data-access).
    - `AsSplitQuery()` shifts work from DB to app server and may make things worse.
    - Compiled queries optimize the cheapest part of the pipeline.
 

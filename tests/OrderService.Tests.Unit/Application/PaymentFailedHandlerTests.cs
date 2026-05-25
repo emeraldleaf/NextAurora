@@ -61,7 +61,14 @@ public class PaymentFailedHandlerTests
         // ACT — Wrap so AwesomeAssertions can confirm no exception is thrown.
         var act = () => _sut.HandleAsync(EventFor(Guid.NewGuid()), CancellationToken.None);
 
-        // ASSERT — No throw, no save.
+        // ASSERT — Two invariants, both expressing the idempotency contract:
+        //  1) No exception — a throw would land the message on the DLQ and demand
+        //     operator attention for a benign at-least-once race (order deleted, read
+        //     replica lag). The handler treats "order missing" as the saga having moved
+        //     on, not as an error.
+        //  2) No UpdateAsync call — proves the absent order didn't trigger a phantom
+        //     persistence attempt (e.g. saving a freshly constructed default Order would
+        //     silently corrupt state). The branch must short-circuit cleanly.
         await act.Should().NotThrowAsync();
         await _repository.DidNotReceive().UpdateAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }

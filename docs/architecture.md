@@ -511,9 +511,8 @@ Read and write paths take **different methods** on the repository, by design —
 - `IOrderRepository.GetByIdAsync` — `PaymentCompletedHandler`, `PaymentFailedHandler`, `ShipmentDispatchedHandler`
 - `IPaymentRepository.GetByOrderIdAsync` — `ProcessPaymentHandler`
 - `IShipmentRepository.GetByOrderIdAsync` — `CreateShipmentHandler` (idempotency check)
-- `ShipmentRepository.GetByOrderIdAsync` — `CreateShipmentHandler`
 
-Adding `AsNoTracking()` to shared methods would break the read-then-mutate-then-save pattern because EF Core wouldn't detect changes on untracked entities. Full read/write repository separation (Interface Segregation) is a future consideration.
+Read methods can't share a single `GetByIdAsync` with the write path: untracked-then-mutate would silently no-op on `SaveChanges`, and tracked-then-project-in-handler reintroduces the entity-materialization anti-pattern. The split is enforced — see [cqrs-data-access.md](cqrs-data-access.md) for the canonical shape per architecture style.
 
 ---
 

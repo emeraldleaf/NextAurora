@@ -14,7 +14,7 @@ The hard rules summarized at the end of this doc are codified in [CLAUDE.md "Per
 - [6. Migrations](#6-migrations)
 - [7. Read-side: `AsNoTracking` + projection](#7-read-side-asnotracking--projection)
 - [8. Write-side: tracked load → mutate → SaveChanges](#8-write-side-tracked-load--mutate--savechanges)
-- [9. The shared-method wrinkle — selective tracking](#9-the-shared-method-wrinkle--selective-tracking)
+- [9. Read/write method split — the hard rule](#9-readwrite-method-split--the-hard-rule)
 - [10. Repository pattern — kept, deliberately](#10-repository-pattern--kept-deliberately)
 - [11. N+1, `Include`, projection, `AsSplitQuery`](#11-n1-include-projection-assplitquery)
 - [12. `AsNoTrackingWithIdentityResolution` — the `Include` trap](#12-asnotrackingwithidentityresolution--the-include-trap)

@@ -69,7 +69,14 @@ public class OutgoingContextMiddlewareTests
             // ACT — Invoke the middleware.
             new OutgoingContextMiddleware().Before(envelope);
 
-            // ASSERT — Neither key was added — null-key pollution avoided.
+            // ASSERT — Two invariants, one per omitted key:
+            //  1) No X-User-Id header — Dictionary<string, object> rejects null keys with
+            //     ArgumentNullException at the consumer's ContextPropagationMiddleware when
+            //     it tries to add them to the logger scope (Meziantou MA0002). Omitting the
+            //     header upstream is what keeps that path clean for unauthenticated work.
+            //  2) No X-Session-Id header — same reasoning. Session is client-generated; a
+            //     server-initiated publish (sweeper, recovery job) has no session to carry.
+            //     Logger scope omits the key entirely rather than logging "SessionId=null".
             envelope.Headers.Should().NotContainKey("X-User-Id");
             envelope.Headers.Should().NotContainKey("X-Session-Id");
         }
