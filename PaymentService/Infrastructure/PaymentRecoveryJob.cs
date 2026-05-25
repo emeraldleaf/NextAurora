@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NextAurora.Contracts.Events;
 using PaymentService.Domain;
+using PaymentService.Infrastructure.Data;
 
 namespace PaymentService.Infrastructure;
 
@@ -111,12 +112,23 @@ public sealed partial class PaymentRecoveryJob(
             return;
         }
 
-        using var scope = scopeFactory.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IPaymentRepository>();
-        var eventPublisher = scope.ServiceProvider.GetRequiredService<IEventPublisher>();
-
         var threshold = timeProvider.GetUtcNow().UtcDateTime - options.StaleThreshold;
-        var staleIds = await repository.GetStalePendingPaymentIdsAsync(threshold, ct);
+
+        // Stale-payment ID query uses its own short-lived scope: AsNoTracking + projection
+        // to just the Guid — no need to load full Payment entities here. We then drop this
+        // scope before iterating, because each row gets its own fresh scope below (see the
+        // "per-row scope" comment for the rationale).
+        List<Guid> staleIds;
+        using (var queryScope = scopeFactory.CreateScope())
+        {
+            var queryContext = queryScope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+            staleIds = await queryContext.Payments
+                .AsNoTracking()
+                .Where(p => p.Status == PaymentStatus.Pending && p.CreatedAt < threshold)
+                .OrderBy(p => p.CreatedAt)
+                .Select(p => p.Id)
+                .ToListAsync(ct);
+        }
 
         if (staleIds.Count == 0)
         {
@@ -126,16 +138,41 @@ public sealed partial class PaymentRecoveryJob(
 
         LogRecovering(logger, staleIds.Count, threshold);
 
+        // Per-row scope + per-row try/catch. Two reasons:
+        //  1. Fresh DbContext per row keeps the change tracker clean. A previous row that
+        //     threw mid-SaveChanges can leave entities in a Modified/Detached state that
+        //     would poison the next row's save. Each iteration starting from a blank tracker
+        //     is the simplest correctness guarantee.
+        //  2. One bad row should not crash the sweep. Without the per-row catch, the first
+        //     transient failure abandons every subsequent stale Pending until the next
+        //     SweepInterval — meaning stuck orders sit longer than necessary.
         foreach (var id in staleIds)
         {
             ct.ThrowIfCancellationRequested();
-            await RecoverOneAsync(id, repository, eventPublisher, ct);
+
+            try
+            {
+                using var rowScope = scopeFactory.CreateScope();
+                var rowContext = rowScope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+                var rowEventPublisher = rowScope.ServiceProvider.GetRequiredService<IEventPublisher>();
+                await RecoverOneAsync(id, rowContext, rowEventPublisher, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+#pragma warning disable CA1031 // Per-row failures must not abort the sweep; log and move on.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                LogRowFailed(logger, ex, id);
+            }
         }
     }
 
-    private async Task RecoverOneAsync(Guid paymentId, IPaymentRepository repository, IEventPublisher eventPublisher, CancellationToken ct)
+    private async Task RecoverOneAsync(Guid paymentId, PaymentDbContext context, IEventPublisher eventPublisher, CancellationToken ct)
     {
-        var payment = await repository.GetByIdAsync(paymentId, ct);
+        var payment = await context.Payments.FirstOrDefaultAsync(p => p.Id == paymentId, ct);
 
         // The status check covers two races: (a) ProcessPaymentHandler completed between the
         // ID query and this load, and (b) a previous sweeper iteration already recovered it.
@@ -145,30 +182,35 @@ public sealed partial class PaymentRecoveryJob(
             return;
         }
 
-        // Outbox atomicity: MarkAsFailed (DB write) and PaymentFailedEvent (outbox row write) must
-        // commit or roll back together. Without this transaction, a crash between SaveChanges and
+        // OUTBOX-ATOMIC NON-HANDLER CODE PATH. The sweeper runs OUTSIDE Wolverine's handler
+        // pipeline, so AutoApplyTransactions does NOT wrap it — we have to wrap explicitly.
+        // MarkAsFailed (DB write) and PaymentFailedEvent (outbox envelope write) must commit
+        // or roll back together. Without this transaction, a crash between SaveChanges and
         // PublishAsync would leave the Payment Failed in-DB but the event never enqueued — the
-        // saga would stall. The sweeper runs outside Wolverine's handler pipeline so it doesn't
-        // get AutoApplyTransactions; we wrap it explicitly here. Wolverine's
-        // UseEntityFrameworkCoreTransactions() bridges IMessageBus into the ambient EF tx.
+        // saga would stall. The wrapper used to live behind the (now-removed) repository
+        // method IPaymentRepository.ExecuteInTransactionAsync — post-refactor (repository
+        // deleted, handlers take DbContext directly) it's inline here.
+        // The canonical shape — BeginTransactionAsync → entity work + PublishAsync →
+        // SaveChangesAsync (flushes Wolverine's staged envelope) → CommitAsync — is the same.
+        // Wolverine's UseEntityFrameworkCoreTransactions() bridge intercepts SaveChanges to
+        // persist outgoing_envelopes rows into the ambient EF transaction.
         var legacyRow = false;
         try
         {
-            await repository.ExecuteInTransactionAsync(async (txCt) =>
+            await using var tx = await context.Database.BeginTransactionAsync(ct);
+
+            payment.MarkAsFailed("Payment timed out — recovery sweep marked as failed past stale threshold.");
+
+            // Skip the event publish for legacy rows lacking a denormalized BuyerId — these
+            // are payments created before the AddBuyerIdToPayment migration and carry
+            // Guid.Empty, which downstream consumers won't accept. The MarkAsFailed write
+            // still commits as best-effort recovery so an operator can reconcile manually.
+            if (payment.BuyerId == Guid.Empty)
             {
-                payment.MarkAsFailed("Payment timed out — recovery sweep marked as failed past stale threshold.");
-                await repository.UpdateAsync(payment, txCt);
-
-                // Skip the event publish for legacy rows lacking a denormalized BuyerId — these
-                // are payments created before the AddBuyerIdToPayment migration and carry
-                // Guid.Empty, which downstream consumers won't accept. The MarkAsFailed write
-                // still commits as best-effort recovery so an operator can reconcile manually.
-                if (payment.BuyerId == Guid.Empty)
-                {
-                    legacyRow = true;
-                    return;
-                }
-
+                legacyRow = true;
+            }
+            else
+            {
                 await eventPublisher.PublishAsync(new PaymentFailedEvent
                 {
                     PaymentId = payment.Id,
@@ -176,8 +218,15 @@ public sealed partial class PaymentRecoveryJob(
                     BuyerId = payment.BuyerId,
                     Reason = "Payment timed out. Please retry checkout.",
                     FailedAt = timeProvider.GetUtcNow().UtcDateTime
-                }, txCt);
-            }, ct);
+                }, ct);
+            }
+
+            // SaveChangesAsync flushes BOTH the MarkAsFailed mutation AND any Wolverine outbox
+            // envelopes staged by PublishAsync into the ambient transaction. This call is what
+            // makes the outbox atomic — without it, the envelope stays in the in-memory tracker
+            // and never reaches wolverine.outgoing_envelopes.
+            await context.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -240,4 +289,8 @@ public sealed partial class PaymentRecoveryJob(
 
     [LoggerMessage(EventId = 10, Level = LogLevel.Information, Message = "Payment {PaymentId} recovered (Pending → Failed)")]
     private static partial void LogRecovered(ILogger logger, Guid paymentId);
+
+    [LoggerMessage(EventId = 11, Level = LogLevel.Error,
+        Message = "Recovery of payment {PaymentId} failed; continuing to next row in this sweep")]
+    private static partial void LogRowFailed(ILogger logger, Exception ex, Guid paymentId);
 }

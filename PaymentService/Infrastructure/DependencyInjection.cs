@@ -28,7 +28,9 @@ public static class DependencyInjection
         services.AddHealthChecks()
             .AddDbContextCheck<PaymentDbContext>();
 
-        services.AddScoped<IPaymentRepository, PaymentRepository>();
+        // No IPaymentRepository — handlers take PaymentDbContext directly. The outbox-atomic
+        // wrapper that used to live on the repo (ExecuteInTransactionAsync) is now inline in
+        // PaymentRecoveryJob.RecoverOneAsync. See CLAUDE.md "Data access: DbContext directly".
 
         // IPaymentGateway is the domain abstraction; StripePaymentGateway is the current
         // implementation. Swapping providers (Adyen, PayPal) means registering a different

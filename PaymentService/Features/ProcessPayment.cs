@@ -1,7 +1,9 @@
 using System.Diagnostics.Metrics;
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 using NextAurora.Contracts.Events;
 using PaymentService.Domain;
+using PaymentService.Infrastructure.Data;
 
 namespace PaymentService.Features;
 
@@ -20,7 +22,10 @@ namespace PaymentService.Features;
 /// order ID. If one exists, we return its ID and stop — we don't double-charge. This handles
 /// every redelivery scenario: Service Bus retries, DLQ replays, or an admin POSTing twice.
 /// The unique index on <c>OrderId</c> in <c>PaymentDbContext</c> is the database-level backstop
-/// if two redeliveries race past the existence check at the same instant.
+/// if two redeliveries race past the existence check at the same instant: the second insert
+/// throws <see cref="DbUpdateException"/>, we catch it, re-fetch the winning Payment, and
+/// return its ID. Net effect: at-least-once delivery + concurrent inserts still produce
+/// exactly one Payment row per order.
 /// </para>
 /// </summary>
 public record ProcessPaymentCommand(Guid OrderId, decimal Amount, string Currency, Guid BuyerId);
@@ -37,7 +42,7 @@ public class ProcessPaymentCommandValidator : AbstractValidator<ProcessPaymentCo
 }
 
 public class ProcessPaymentHandler(
-    IPaymentRepository repository,
+    PaymentDbContext context,
     IPaymentGateway gateway,
     IEventPublisher eventPublisher)
 {
@@ -47,19 +52,34 @@ public class ProcessPaymentHandler(
     public async Task<Guid> HandleAsync(ProcessPaymentCommand request, CancellationToken cancellationToken)
     {
         // Idempotency check — see class summary.
-        var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
+        var existing = await context.Payments
+            .FirstOrDefaultAsync(p => p.OrderId == request.OrderId, cancellationToken);
         if (existing is not null)
             return existing.Id;
 
         // Create the Payment in Pending state, persist it, THEN call the gateway. We persist
         // before charging so we have a record even if the gateway call hangs and the process
-        // dies — the next redelivery will see the Pending Payment and... actually, see the
-        // existence check above, which means we'd no-op. That's a known gap: a Pending Payment
-        // that's stuck (the process died mid-gateway-call) will never advance. Real-world fix
-        // would be a sweeper job that picks up Pendings older than N minutes and either retries
-        // or marks them Failed. Out of scope today.
+        // dies — the PaymentRecoveryJob sweeper picks up stuck Pendings and marks them Failed.
         var payment = Payment.Create(request.OrderId, request.BuyerId, request.Amount, request.Currency, "Stripe");
-        await repository.AddAsync(payment, cancellationToken);
+        await context.Payments.AddAsync(payment, cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // The pre-check above races with concurrent deliveries: two messages can both see
+            // "no existing payment" and both try to insert. The unique index on OrderId catches
+            // the loser. Detach our about-to-be-orphaned entity, re-fetch the winner, and
+            // return its ID. Without this catch, the redelivery model leaks DbUpdateException
+            // to Wolverine's retry loop on every concurrent insert.
+            context.Entry(payment).State = EntityState.Detached;
+            var racedExisting = await context.Payments
+                .FirstOrDefaultAsync(p => p.OrderId == request.OrderId, cancellationToken);
+            if (racedExisting is not null)
+                return racedExisting.Id;
+            throw;
+        }
 
         var result = await gateway.ProcessPaymentAsync(request.Amount, request.Currency, cancellationToken);
 
@@ -69,7 +89,7 @@ public class ProcessPaymentHandler(
             // persist. The domain entity owns the rule "only Pending can complete" — the
             // handler doesn't restate it.
             payment.MarkAsCompleted(result.TransactionId);
-            await repository.UpdateAsync(payment, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
 
             await eventPublisher.PublishAsync(new PaymentCompletedEvent
             {
@@ -86,7 +106,7 @@ public class ProcessPaymentHandler(
         else
         {
             payment.MarkAsFailed(result.ErrorMessage ?? "Unknown error");
-            await repository.UpdateAsync(payment, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
 
             // PaymentFailedEvent carries the reason verbatim — the buyer-facing notification
             // will use a generic message; this raw reason is for OrderService's audit trail and

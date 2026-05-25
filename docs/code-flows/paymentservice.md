@@ -7,7 +7,7 @@
 > **Three flows to understand:**
 > 1. **Saga consume + cascade** — `OrderPlacedEvent` → tiny translator → `ProcessPaymentCommand` → handler charges gateway → publishes outcome event.
 > 2. **HTTP admin path** — same `ProcessPaymentCommand` reachable from `POST /api/v1/payments/process` for manual processing.
-> 3. **`PaymentRecoveryJob`** — periodic sweeper that catches Pending payments stuck past the stale threshold, using `ExecuteInTransactionAsync` to keep entity write + outbox event atomic outside the Wolverine pipeline.
+> 3. **`PaymentRecoveryJob`** — periodic sweeper that catches Pending payments stuck past the stale threshold, wrapping the mark-failed + publish in an explicit `BeginTransactionAsync` → `SaveChangesAsync` → `CommitAsync` so the entity write + outbox envelope stay atomic outside the Wolverine pipeline.
 
 ---
 
@@ -21,7 +21,7 @@ sequenceDiagram
     participant OPH as OrderPlacedHandler<br/>Features/OrderPlacedHandler.cs<br/>(static, returns command)
     participant Val as ProcessPaymentCommandValidator<br/>Features/ProcessPayment.cs<br/>(FluentValidation)
     participant H as ProcessPaymentHandler<br/>Features/ProcessPayment.cs
-    participant Repo as IPaymentRepository<br/>Infrastructure/PaymentRepository.cs
+    participant Ctx as PaymentDbContext<br/>Infrastructure/Data/PaymentDbContext.cs
     participant Agg as Payment aggregate<br/>Domain/Payment.cs
     participant GW as IPaymentGateway<br/>Infrastructure/Gateway/<br/>StripePaymentGateway.cs
     participant Pub as IEventPublisher<br/>Infrastructure/WolverineEventPublisher.cs
@@ -37,8 +37,8 @@ sequenceDiagram
     Val-->>W1: ok
     W1->>H: HandleAsync(command, ct)<br/>(AutoApplyTransactions wraps)
 
-    H->>Repo: GetByOrderIdAsync(orderId, ct)
-    Repo->>DB: SELECT * FROM payments<br/>WHERE order_id = @id (tracked)
+    H->>Ctx: context.Payments.FirstOrDefaultAsync(<br/>  p => p.OrderId == orderId, ct)
+    Ctx->>DB: SELECT * FROM payments<br/>WHERE order_id = @id (tracked)
     DB-->>H: Payment (tracked) or null
 
     alt existing payment found — idempotency
@@ -46,8 +46,9 @@ sequenceDiagram
         Note over H: at-least-once delivery,<br/>DLQ replays, double admin POSTs —<br/>all no-op here
     else no existing — create new
         H->>Agg: Payment.Create(orderId, buyerId,<br/>amount, currency, "Stripe")
-        H->>Repo: AddAsync(payment, ct)
-        Repo->>DB: INSERT payments (status=Pending)
+        H->>Ctx: context.Payments.AddAsync(payment, ct)
+        H->>Ctx: context.SaveChangesAsync(ct)
+        Ctx->>DB: INSERT payments (status=Pending)
 
         H->>GW: ProcessPaymentAsync(amount, currency, ct)
         GW-->>H: GatewayResult { Success, TransactionId or ErrorMessage }
@@ -55,16 +56,15 @@ sequenceDiagram
         alt Success
             H->>Agg: MarkAsCompleted(transactionId)
             Note over Agg: throws if status != Pending<br/>(state guard prevents<br/>double-completion)
-            H->>Repo: UpdateAsync(payment, ct)
             H->>Pub: PublishAsync(PaymentCompletedEvent)
         else Failed
             H->>Agg: MarkAsFailed(errorMessage)
-            H->>Repo: UpdateAsync(payment, ct)
             H->>Pub: PublishAsync(PaymentFailedEvent)
             Note over Pub: error message kept verbatim for<br/>OrderService's audit trail —<br/>never returned to clients
         end
 
-        Note over Pub,DB: Wolverine stages envelope into<br/>wolverine.outgoing_envelopes<br/>(same tx as entity write)
+        H->>Ctx: context.SaveChangesAsync(ct)
+        Note over Ctx,DB: AutoApplyTransactions wraps —<br/>UPDATE payments + outbox envelope<br/>in ONE DB tx
         DB-->>H: tx commit
         DB->>ASB2: dispatched to ASB<br/>(payments topic)
     end
@@ -72,7 +72,7 @@ sequenceDiagram
 
 **Why two handlers (`OrderPlacedHandler` + `ProcessPaymentHandler`).** The event handler is a 2-line translator that converts an event into a command and returns it. Wolverine's "cascading messages" feature picks up the return value and runs its handler next — the same `ProcessPaymentHandler` reached from the HTTP admin endpoint. One business rule, multiple entry points.
 
-**Idempotency via existence check + unique index.** `GetByOrderIdAsync` short-circuits on existing rows for retry/redelivery scenarios. The unique index on `OrderId` in [PaymentDbContext](../../PaymentService/Infrastructure/Data/PaymentDbContext.cs) is the DB backstop if two redeliveries race past the check at the same instant.
+**Idempotency via existence check + unique index.** The `context.Payments.FirstOrDefaultAsync(p => p.OrderId == orderId)` lookup short-circuits on existing rows for retry/redelivery scenarios. The unique index on `OrderId` in [PaymentDbContext](../../PaymentService/Infrastructure/Data/PaymentDbContext.cs) is the DB backstop if two redeliveries race past the check at the same instant.
 
 ---
 
@@ -111,7 +111,7 @@ sequenceDiagram
     participant Tick as PaymentRecoveryJob<br/>Infrastructure/PaymentRecoveryJob.cs<br/>(BackgroundService loop)
     participant Lock as DistributedLock.SqlServer<br/>(sp_getapplock)
     participant Scope as fresh IServiceScope<br/>per iteration
-    participant Repo as IPaymentRepository
+    participant Ctx as PaymentDbContext
     participant Agg as Payment aggregate
     participant Pub as IEventPublisher
     participant DB as SQL Server +<br/>wolverine.outgoing_envelopes
@@ -123,23 +123,27 @@ sequenceDiagram
             Lock-->>Tick: null → skip this tick
         else acquired
             Tick->>Scope: create fresh DI scope<br/>(NOT reused across iterations —<br/>change-tracker stays small)
-            Scope->>Repo: GetStalePendingPaymentIdsAsync(threshold)
-            Repo->>DB: SELECT id FROM payments<br/>WHERE status = Pending<br/>AND created_at < @threshold
-            DB-->>Repo: Guid[]
+            Scope-->>Tick: PaymentDbContext + IEventPublisher
+            Tick->>Ctx: context.Payments.AsNoTracking()<br/>.Where(Status==Pending && CreatedAt<threshold)<br/>.Select(p => p.Id).ToListAsync(ct)
+            Ctx->>DB: SELECT id FROM payments<br/>WHERE status = Pending<br/>AND created_at < @threshold
+            DB-->>Tick: Guid[]
 
             loop foreach stale id
-                Tick->>Repo: GetByIdAsync(id)
-                Repo->>DB: SELECT (tracked) + RowVersion
+                Tick->>Ctx: context.Payments.FirstOrDefaultAsync(<br/>  p => p.Id == id, ct)
+                Ctx->>DB: SELECT (tracked) + RowVersion
                 DB-->>Tick: Payment
 
                 alt status != Pending — race already resolved
                     Note over Tick: another sweeper iteration<br/>or ProcessPayment completed<br/>between query and load
                 else still Pending
-                    Note over Tick,DB: ExecuteInTransactionAsync wraps —<br/>SAME tx for entity write + envelope.<br/>BackgroundService runs OUTSIDE<br/>Wolverine's handler pipeline so<br/>AutoApplyTransactions does NOT apply<br/>here — must wrap manually.
+                    Note over Tick,DB: EXPLICIT TRANSACTION WRAP —<br/>SAME tx for entity write + envelope.<br/>BackgroundService runs OUTSIDE<br/>Wolverine's handler pipeline so<br/>AutoApplyTransactions does NOT apply<br/>here — must wrap manually.
+                    Tick->>Ctx: context.Database.BeginTransactionAsync(ct)
                     Tick->>Agg: MarkAsFailed("timed out — recovery sweep")
-                    Tick->>Repo: UpdateAsync(payment, txCt)
-                    Tick->>Pub: PublishAsync(PaymentFailedEvent, txCt)
-                    Note over Pub: SaveChangesAsync inside the wrapper<br/>flushes Wolverine's staged envelope<br/>BEFORE commit. Without it, envelope<br/>never reaches outgoing_envelopes —<br/>event silently dropped, saga stalls.
+                    Tick->>Pub: PublishAsync(PaymentFailedEvent, ct)
+                    Note over Pub: stages outbox envelope in EF<br/>change tracker (not yet persisted)
+                    Tick->>Ctx: context.SaveChangesAsync(ct)
+                    Note over Ctx,DB: flushes BOTH the MarkAsFailed mutation<br/>AND the staged outbox envelope into<br/>the ambient transaction
+                    Tick->>Ctx: tx.CommitAsync(ct)
                     DB-->>Tick: tx commit (both rows or neither)
                     DB->>ASB: PaymentFailedEvent dispatched
                 end
@@ -152,19 +156,18 @@ sequenceDiagram
     end
 ```
 
-**The outbox-outside-handler trap.** Wolverine's `AutoApplyTransactions` policy wraps **handler chains** — anything dispatched through `IMessageBus.InvokeAsync`/`PublishAsync` into a handler gets the wrap automatically. That includes the admin path in Flow 2 (`POST /payments/process` → `bus.InvokeAsync<Guid>(command)` → `ProcessPaymentHandler`) — it's still inside the Wolverine pipeline, so the wrap applies. The trap is code that publishes events **without entering a handler at all**: `BackgroundService` sweep loops, cron jobs, or any future code path that does `bus.PublishAsync(@event)` outside an active Wolverine handler context. `PublishAsync` stages an envelope into the in-memory tracker, but the envelope is only persisted to `wolverine.outgoing_envelopes` when `SaveChangesAsync` runs after the publish. The canonical safe wrapper:
+**The outbox-outside-handler trap.** Wolverine's `AutoApplyTransactions` policy wraps **handler chains** — anything dispatched through `IMessageBus.InvokeAsync`/`PublishAsync` into a handler gets the wrap automatically. That includes the admin path in Flow 2 (`POST /payments/process` → `bus.InvokeAsync<Guid>(command)` → `ProcessPaymentHandler`) — it's still inside the Wolverine pipeline, so the wrap applies. The trap is code that publishes events **without entering a handler at all**: `BackgroundService` sweep loops, cron jobs, or any future code path that does `bus.PublishAsync(@event)` outside an active Wolverine handler context. `PublishAsync` stages an envelope into the in-memory tracker, but the envelope is only persisted to `wolverine.outgoing_envelopes` when `SaveChangesAsync` runs after the publish. The canonical safe wrap (now inline in `PaymentRecoveryJob.RecoverOneAsync`, no longer behind a repository method):
 
 ```csharp
-public async Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default)
-{
-    await using var tx = await context.Database.BeginTransactionAsync(ct);
-    await work(ct);                          // entity write + PublishAsync inside here
-    await context.SaveChangesAsync(ct);      // flushes Wolverine's staged envelope
-    await tx.CommitAsync(ct);
-}
+await using var tx = await context.Database.BeginTransactionAsync(ct);
+// entity work...
+payment.MarkAsFailed(reason);
+await eventPublisher.PublishAsync(new PaymentFailedEvent { ... }, ct);
+await context.SaveChangesAsync(ct);   // flushes BOTH entity mutation AND staged envelope
+await tx.CommitAsync(ct);
 ```
 
-See [`PaymentRepository.ExecuteInTransactionAsync`](../../PaymentService/Infrastructure/PaymentRepository.cs) and the rationale in [docs/performance-and-data-correctness.md](../performance-and-data-correctness.md). This rule covers any future non-handler code that publishes events.
+See [`PaymentRecoveryJob.RecoverOneAsync`](../../PaymentService/Infrastructure/PaymentRecoveryJob.cs) and the rationale in [docs/performance-and-data-correctness.md](../performance-and-data-correctness.md). This pattern covers any future non-handler code that publishes events.
 
 **Distributed lock.** Multiple PaymentService replicas could each fire their sweep tick at the same second. The `sp_getapplock`-based distributed lock ensures only one replica processes the sweep per tick. `TimeSpan.Zero` (no-wait) means replicas that don't acquire just skip the iteration — they'll try again at the next tick.
 
@@ -208,10 +211,8 @@ stateDiagram-v2
 | [Features/ProcessPayment.cs](../../PaymentService/Features/ProcessPayment.cs) | Command + validator + handler (idempotency + gateway + state + publish) |
 | [Domain/Payment.cs](../../PaymentService/Domain/Payment.cs) | Aggregate root + state guards (throw on bad transition) |
 | [Domain/PaymentStatus.cs](../../PaymentService/Domain/PaymentStatus.cs) | Enum: Pending / Completed / Failed |
-| [Domain/IPaymentRepository.cs](../../PaymentService/Domain/IPaymentRepository.cs) | Repository port — write loaders + `ExecuteInTransactionAsync` wrapper |
 | [Domain/IPaymentGateway.cs](../../PaymentService/Domain/IPaymentGateway.cs) | Anti-corruption layer port — substituted in tests |
 | [Domain/IEventPublisher.cs](../../PaymentService/Domain/IEventPublisher.cs) | Event publish port (Wolverine impl) |
-| [Infrastructure/PaymentRepository.cs](../../PaymentService/Infrastructure/PaymentRepository.cs) | EF impl + `ExecuteInTransactionAsync` (outbox-atomic wrapper) |
 | [Infrastructure/Gateway/StripePaymentGateway.cs](../../PaymentService/Infrastructure/Gateway/StripePaymentGateway.cs) | Stripe adapter — translates SDK exceptions into `GatewayResult` |
 | [Infrastructure/WolverineEventPublisher.cs](../../PaymentService/Infrastructure/WolverineEventPublisher.cs) | `IMessageBus.PublishAsync` adapter |
 | [Infrastructure/PaymentRecoveryJob.cs](../../PaymentService/Infrastructure/PaymentRecoveryJob.cs) | `BackgroundService` sweep loop + distributed lock + per-iteration scope |
@@ -224,6 +225,6 @@ stateDiagram-v2
 ## See also
 
 - [docs/code-flows/orderservice.md](orderservice.md) — OrderService publishes `OrderPlacedEvent` (Flow 1's input) and consumes `PaymentCompletedEvent`/`PaymentFailedEvent` (Flow 1's output)
-- [docs/transactional-outbox.svg](../transactional-outbox.svg) — diagram of outbox mechanics; the recovery job's `ExecuteInTransactionAsync` is the non-handler variant
+- [docs/transactional-outbox.svg](../transactional-outbox.svg) — diagram of outbox mechanics; the recovery job's inline `BeginTransactionAsync` → `SaveChangesAsync` → `CommitAsync` is the non-handler variant of the same pattern
 - [docs/performance-and-data-correctness.md](../performance-and-data-correctness.md) — full perf rationale incl. outbox + sweeper patterns
 - [docs/event-catalog.md](../event-catalog.md) — every event's shape and producer/consumer
