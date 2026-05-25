@@ -42,7 +42,11 @@ reviews:
         static readonly use PascalCase. Sync-over-async patterns (.Result, .Wait(),
         .GetAwaiter().GetResult()) are banned at build time — flag any sneak-through.
         Interfaces earn their keep through consumer substitution (test mock or 2+ impls
-        today, OR concrete near-term roadmap) — flag speculative interfaces.
+        today, OR concrete near-term roadmap) — flag speculative interfaces. Repository
+        wrappers around EF Core (IFooRepository + FooRepository) are explicitly NOT
+        justified by the substitution rule — see the "**/Domain/I*Repository.cs" and
+        "**/Infrastructure/*Repository.cs" path_instructions below for why and what
+        to flag.
 
     - path: "**/Features/**/*.cs"
       instructions: |
@@ -52,46 +56,41 @@ reviews:
         Task<T>. Use primary-constructor DI. Look at OrderService/Features/PlaceOrder.cs
         for the canonical shape including Tier-1 teaching comments.
 
-        READ-PATH SHAPE (VSA variant): query handlers call a sibling DTO-returning
-        method on the existing repository (e.g. IOrderRepository.GetSummaryByIdAsync
-        returning OrderSummaryDto?) — NOT GetByIdAsync returning the entity followed by
-        an in-memory Mapper.ToDto() pass. The DTO-returning method projects in EF
-        (.AsNoTracking().Select(o => new OrderSummaryDto { ... })). The entity-returning
-        method stays for saga/command paths that mutate the aggregate. Flag any read
-        handler that loads a domain entity and maps in memory — the canonical fix is to
-        add a sibling repo method and switch the handler. Reference: GetOrdersByBuyer.cs.
+        DATA-ACCESS SHAPE: handlers take the DbContext (e.g. OrderDbContext) directly,
+        NOT a wrapper repository interface. Reads: handler runs the IQueryable inline
+        with AsNoTracking() + .Select(...) projection to DTO. Writes: handler loads the
+        tracked aggregate via context.Foo.Include(...).FirstOrDefaultAsync(...), calls
+        the aggregate's state-transition method, then context.SaveChangesAsync(ct).
+        AutoApplyTransactions wraps the SaveChanges + Wolverine outbox staging in one
+        DB transaction. Flag any handler that takes an IFooRepository dependency, or
+        any new IFooRepository interface introduced — those are wrapper-around-EF
+        patterns the project removed (see CLAUDE.md "Data access: DbContext directly").
 
-    - path: "**/Infrastructure/**/*Repository*.cs"
+    - path: "**/Domain/I*Repository.cs"
       instructions: |
-        CQRS read/write split is the rule, not a future cleanup (see
-        docs/cqrs-data-access.md). Repository methods divide into:
-          - Write-path loaders (e.g. GetByIdAsync returning Order/Shipment/Payment):
-            tracking ON, Include navigation children needed for the mutation, callers
-            mutate via aggregate methods and SaveChanges.
-          - Read-path projections (e.g. GetSummaryByIdAsync returning OrderSummaryDto):
-            AsNoTracking() + .Select(...) to DTO inside the IQueryable, returns the DTO
-            directly. NO entity materialization, NO in-memory mapper, NO calling
-            Mapper.ToDto(entity).
+        Repository interfaces wrapping EF Core (e.g. IOrderRepository, IPaymentRepository)
+        were removed from this project in the simplicity refactor. Handlers take
+        DbContext directly because DbContext IS Unit-of-Work and DbSet<T> IS Repository
+        — wrapping them adds layers without capability. The unit-test-mocking
+        justification was replaced by integration tests with Testcontainers (see the
+        Testing rule in CLAUDE.md).
 
-        Flag any new or modified repository method that materializes a domain entity
-        for a caller that then maps to DTO in memory. The fix is to project in EF and
-        return the DTO. The only exception is methods on the WRITE path where the
-        caller actually mutates the loaded aggregate.
+        Flag any new file matching this glob. There are two acceptable interface ports
+        that REMAIN in Domain folders today and don't fit this rule: IEventPublisher
+        (Wolverine vs. test fake) and ICatalogClient (gRPC vs. test fake). Those have
+        legitimate substitution stories. Anything ending in "Repository" doesn't.
 
-        Methods on a read path that use AsNoTracking() but still return an entity
-        type are a half-fix — flag them too. The signature itself should be the proof
-        of intent: read paths return DTOs.
-
-    - path: "**/Infrastructure/**/*ReadStore*.cs"
+    - path: "CatalogService/CatalogService.Application/Interfaces/IProductReadStore.cs"
       instructions: |
-        Read-side data access (Clean Architecture variant — see docs/cqrs-data-access.md).
-        Every method on a ReadStore MUST project to a DTO inside the IQueryable via
-        AsNoTracking() + .Select(...) and return the DTO. NO entity materialization, NO
-        in-memory mapping. Same rule as the repository path_instruction above — applied
-        here because ReadStore files (e.g. ProductReadStore.cs) live alongside repos in
-        Infrastructure/Repositories/ and CodeRabbit needs both globs to catch the right
-        files. If you see an entity-returning method on a *ReadStore* class, that's a
-        Must-fix: ReadStore is the read-side by contract.
+        IProductReadStore is the one read-side port that survives the simplicity
+        refactor — it's a Clean Architecture layer-rule consequence (Domain can't
+        reference Contracts where DTOs live), not a wrapper-around-EF pattern.
+        Implementation at CatalogService.Infrastructure/Repositories/ProductReadStore.cs.
+        Methods project to DTO inside the IQueryable via AsNoTracking() + .Select(...).
+        Flag any entity-returning method on the interface or impl — IProductReadStore
+        is read-side by contract. The VSA services don't have this seam — their reads
+        happen directly in handlers because there's no Domain/Application/Contracts
+        layer rule to honor.
 
     - path: "CatalogService/**/*.cs"
       instructions: |
@@ -100,15 +99,12 @@ reviews:
         the composition root. Flag any cross-layer leak. Domain entities use factory
         methods (static Create()) with validation, never public setters.
 
-        READ-PATH SHAPE (Clean variant): query handlers depend on IProductReadStore
-        (or sibling IFooReadStore) defined in CatalogService.Application/Interfaces/,
-        implementation in CatalogService.Infrastructure/Repositories/. The read store
-        returns DTOs by projecting in EF (.AsNoTracking().Select(p => new ProductDto {...})).
-        Domain-layer IProductRepository stays entity-returning for the write path only —
-        adding a DTO-returning method there would force a Domain → Contracts dependency,
-        breaking layer rules. Flag any CatalogService query handler that calls
-        IProductRepository for a read instead of IProductReadStore. See
-        docs/cqrs-data-access.md for the full pattern.
+        DATA-ACCESS SHAPE (Clean variant): query handlers depend on IProductReadStore
+        (Application/Interfaces/) for reads; command handlers take CatalogDbContext
+        directly (Application references Microsoft.EntityFrameworkCore — that's the
+        Clean trade). Domain-layer IProductRepository was removed; the write-side
+        repository wrapper added layers without adding capability. Flag any
+        re-introduction of IProductRepository or similar Domain-layer wrapper around EF.
 
     - path: "**/Endpoints/**/*.cs"
       instructions: |
@@ -181,9 +177,17 @@ reviews:
 
     - path: "**/*Test*.cs"
       instructions: |
-        Integration tests use Testcontainers with real DB / messaging — never mocks for
-        infrastructure. Unit tests use NSubstitute for ports (IRepository, IEventPublisher,
-        etc.). AwesomeAssertions (not FluentAssertions) for assertions.
+        Integration tests are the DEFAULT for handler tests. Use Testcontainers (real
+        Postgres/SQL Server/Redis/ASB-stub) via WebApplicationFactory<Program>. The pattern
+        for "is this handler correct" is hit the API → assert DB state + Wolverine.Tracking
+        envelopes, NOT mock a repository and verify call counts. Unit tests are reserved
+        for PURE domain logic — Order.MarkAsPaid() state guards, FluentValidation rules,
+        DTO-only operations — anything that doesn't touch DbContext or external IO. If
+        a unit test reaches for Substitute.For<IFooRepository>, the test belongs in the
+        integration project; flag it. NSubstitute is still the tool for substitution of
+        the legitimate ports (IEventPublisher, ICatalogClient, IPaymentGateway,
+        INotificationSender, IProductCache, IProductReadStore). AwesomeAssertions (not
+        FluentAssertions) for assertions across both unit and integration tiers.
 
         TEST STRUCTURE — AAA WITH NARRATIVE COMMENTS (canonical per CLAUDE.md "Testing"):
         Every test must follow the Arrange → Act → Assert structure with `// ARRANGE`,
