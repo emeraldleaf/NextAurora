@@ -37,16 +37,18 @@ public class UpdateProductHandlerTests
         _repository.GetByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
 
         // ACT — Run the handler.
-        await _sut.HandleAsync(command, CancellationToken.None);
+        var result = await _sut.HandleAsync(command, CancellationToken.None);
 
-        // ASSERT — Three invariants:
-        //  1) Domain mutation happened (the loaded entity now carries the new fields).
+        // ASSERT — Four invariants:
+        //  1) Handler returns true — success. The endpoint translates true to 204.
+        //  2) Domain mutation happened (the loaded entity now carries the new fields).
         //     We check via the entity reference because the handler mutates in place.
-        //  2) The repository saved the (mutated) aggregate.
-        //  3) The cache entry for this product was invalidated — without this, stale
+        //  3) The repository saved the (mutated) aggregate.
+        //  4) The cache entry for this product was invalidated — without this, stale
         //     ProductDto reads would survive the write and the L1/L2 caches would diverge
         //     from the DB until TTL. CLAUDE.md "Performance Rules" requires invalidation
         //     in the write path, not via TTL.
+        result.Should().BeTrue();
         product.Name.Should().Be("Updated Name");
         product.Description.Should().Be("Updated Description");
         product.Price.Should().Be(99.99m);
@@ -55,43 +57,44 @@ public class UpdateProductHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenProductNotFound_ThrowsAndSkipsCacheInvalidation()
+    public async Task Handle_WhenProductNotFound_ReturnsFalseAndSkipsCacheInvalidation()
     {
         // ARRANGE — Repository returns null so the handler treats this as "no such product".
+        // Per CLAUDE.md's IDOR contract, the handler returns false (NOT throws). The endpoint
+        // maps false to 404, which is indistinguishable from the seller-mismatch case below —
+        // that's the anti-enumeration property.
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .ReturnsNull();
         var command = new UpdateProductCommand(
             Guid.NewGuid(), "any-seller", "n", "d", 10m);
 
-        // ACT — Wrap the call in a delegate so AwesomeAssertions can capture the exception.
-        var act = () => _sut.HandleAsync(command, CancellationToken.None);
+        // ACT — Run the handler.
+        var result = await _sut.HandleAsync(command, CancellationToken.None);
 
-        // ASSERT — The handler throws InvalidOperationException. Critically, NO cache call:
-        // invalidating a non-existent product would be harmless but also misleading — it
-        // signals "we tried to write something" in observability. We never reach the cache
-        // line because the throw happens first.
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*not found*");
+        // ASSERT — Two invariants:
+        //  1) Result is false — the endpoint will translate this to 404.
+        //  2) No cache call — invalidating a non-existent product would be harmless but
+        //     misleading in observability ("we tried to write something"). The short-circuit
+        //     keeps the cache layer untouched on the rejected path.
+        result.Should().BeFalse();
         await _cache.DidNotReceive().InvalidateAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_WhenSellerIdDoesNotMatch_ThrowsUnauthorizedAndDoesNotMutate()
+    public async Task Handle_WhenSellerIdDoesNotMatch_ReturnsFalseAndDoesNotMutate()
     {
-        // ARRANGE — Defense-in-depth scenario: the endpoint already checks the JWT subject
-        // against command.SellerId, but a caller could submit THEIR own seller id paired
-        // with someone else's product id. The handler MUST catch this — without the check,
-        // any authenticated seller could overwrite any product. (CWE-639 — IDOR.)
+        // ARRANGE — Defense-in-depth IDOR scenario: the endpoint already checks the JWT
+        // subject against command.SellerId, but a caller could submit THEIR own seller id
+        // paired with someone else's product id. The handler MUST catch this — without the
+        // check, any authenticated seller could overwrite any product. (CWE-639 — IDOR.)
         //
-        // NOTE on 403 vs 404: CLAUDE.md "Security Requirements" mandates null → 404 for
-        // BUYER-SCOPED READS (anti-enumeration: returning 403 leaks that the entity
-        // exists). This handler is a SELLER-SCOPED WRITE — the project intentionally
-        // returns 403 here (GlobalExceptionHandler maps UnauthorizedAccessException
-        // to 403; see docs/STATUS.md "CatalogService seller authorization"). The
-        // reasoning: the attacker is authenticated, the failure mode is "you're not
-        // authorized to write this resource", and 403 is the correct HTTP semantic.
-        // If we ever decide seller-scoped writes should also use the anti-enumeration
-        // pattern, this test + the handler + GlobalExceptionHandler change together.
+        // Why false → 404 (not throw → 403): CLAUDE.md "Security Requirements" treats this
+        // PUT /products/{id} endpoint as the canonical seller-scope reference template for
+        // the anti-enumeration pattern. Returning 403 here would leak existence ("the product
+        // is there, just not yours") and let an attacker enumerate the product-ID space.
+        // 404 is indistinguishable from "doesn't exist" (the test above) — that's the
+        // anti-enumeration property. Both branches go through the same false return so the
+        // caller cannot distinguish them at any layer.
         var product = ProductBuilder.Default().Build();
         var attackerSellerId = "different-seller-" + Guid.NewGuid();
         var originalName = product.Name;
@@ -100,17 +103,22 @@ public class UpdateProductHandlerTests
         var command = new UpdateProductCommand(
             product.Id, attackerSellerId, "Hacked", "Hacked", 0.01m);
 
-        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
-        var act = () => _sut.HandleAsync(command, CancellationToken.None);
+        // ACT — Run the handler.
+        var result = await _sut.HandleAsync(command, CancellationToken.None);
 
-        // ASSERT — Three invariants:
-        //  1) UnauthorizedAccessException is thrown (GlobalExceptionHandler maps it to 403).
-        //  2) The stored entity is untouched — name and price are still what they were.
-        //  3) Neither UpdateAsync nor InvalidateAsync was called. If either ran, an attacker
-        //     could either persist a malicious mutation OR poison the cache by triggering a
-        //     re-read of an unmutated product (less harmful but still a side effect we don't
-        //     want on a security-rejected request).
-        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        // ASSERT — Four invariants:
+        //  1) Result is false — endpoint translates to 404, indistinguishable from
+        //     "product not found" (anti-enumeration).
+        //  2) Stored entity untouched — name and price are still what they were. If the
+        //     update ran before the seller check, an attacker could mutate any product
+        //     and the test would catch it here.
+        //  3) UpdateAsync NOT called — proves the persistence write was skipped, not just
+        //     that the in-memory mutation was skipped.
+        //  4) InvalidateAsync NOT called — proves the cache layer wasn't touched on the
+        //     security-rejected path. A cache invalidation on a rejected write would
+        //     either be harmless noise OR (if a concurrent reader hit the same key) cause
+        //     a needless DB round-trip to repopulate an unchanged entry.
+        result.Should().BeFalse();
         product.Name.Should().Be(originalName);
         product.Price.Should().Be(originalPrice);
         await _repository.DidNotReceive().UpdateAsync(Arg.Any<Product>(), Arg.Any<CancellationToken>());
@@ -139,9 +147,14 @@ public class UpdateProductHandlerTests
             .AndDoes(_ => callOrder.Add("invalidate"));
 
         // ACT — Run the handler.
-        await _sut.HandleAsync(command, CancellationToken.None);
+        var result = await _sut.HandleAsync(command, CancellationToken.None);
 
-        // ASSERT — "update" must come strictly before "invalidate".
+        // ASSERT — Two invariants:
+        //  1) "update" must come strictly before "invalidate" (the ordering rationale).
+        //  2) Result is true — happy path; endpoint maps to 204. The order assertion
+        //     alone would pass even if the handler returned false by mistake, so this
+        //     pins the success-return contract too.
         callOrder.Should().ContainInOrder("update", "invalidate");
+        result.Should().BeTrue();
     }
 }

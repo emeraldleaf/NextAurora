@@ -76,10 +76,14 @@ public static class CatalogEndpoints
         }).RequireAuthorization();
 
         // PUT /api/v1/products/{id} — seller edit. Two-tier ownership check:
-        //  1. Endpoint here: JWT subject must equal command.SellerId.
-        //  2. Handler: stored product.SellerId must equal command.SellerId.
-        // Both are required: (1) alone lets a caller pair their own seller id with someone else's
-        // product id; (2) alone trusts the principal claim from a non-authenticated entry point.
+        //  1. Endpoint here: JWT subject must equal command.SellerId (caller can't impersonate
+        //     a different seller in the body).
+        //  2. Handler: stored product.SellerId must equal command.SellerId (caller can't pair
+        //     their own seller id with someone else's product id).
+        // The handler returns false on "not found" OR "seller mismatch" (indistinguishable per
+        // anti-enumeration); the endpoint maps false to 404 to honor CLAUDE.md's IDOR contract.
+        // The endpoint-layer 403 on JWT-vs-body mismatch is separate — that's "caller lied about
+        // their own identity," not "caller probed for someone else's resource."
         group.MapPut("/{id:guid}", async (Guid id, UpdateProductCommand command, HttpContext context, IMessageBus bus, CancellationToken ct) =>
         {
             // Defense-in-depth: if route ID and body ID disagree, refuse rather than guess.
@@ -90,8 +94,8 @@ public static class CatalogEndpoints
             if (jwtSub is null || !string.Equals(jwtSub, command.SellerId, StringComparison.Ordinal))
                 return Results.Forbid();
 
-            await bus.InvokeAsync(command, ct);
-            return Results.NoContent();
+            var updated = await bus.InvokeAsync<bool>(command, ct);
+            return updated ? Results.NoContent() : Results.NotFound();
         }).RequireAuthorization();
     }
 

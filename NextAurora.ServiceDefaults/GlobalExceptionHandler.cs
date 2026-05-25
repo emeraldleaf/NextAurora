@@ -33,13 +33,6 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 Detail = "The resource was modified by another request. Refetch and try again.",
                 Extensions = { [TraceIdKey] = traceId }
             },
-            UnauthorizedAccessException => new ProblemDetails
-            {
-                Status = StatusCodes.Status403Forbidden,
-                Title = "Forbidden",
-                Detail = "You are not permitted to perform this operation on this resource.",
-                Extensions = { [TraceIdKey] = traceId }
-            },
             ArgumentException => new ProblemDetails
             {
                 Status = StatusCodes.Status400BadRequest,
