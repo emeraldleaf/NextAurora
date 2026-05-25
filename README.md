@@ -349,6 +349,31 @@ If Keycloak isn't configured (no `Authentication:Authority` and no `Keycloak:Url
 | **gRPC (Sync)** | Protocol Buffers | Product validation during order placement |
 | **REST (External)** | ASP.NET Core Minimal APIs | Frontend-to-service communication |
 
+### Wolverine handler discovery vs. DI registration — the trap to know
+
+NextAurora uses [Wolverine](https://wolverinefx.net/) as the in-process dispatcher (commands, queries, event handlers). One subtlety surprises everyone the first time they write an integration test:
+
+> **`opts.Discovery` is NOT `AddScoped`.** Wolverine builds its *own* internal handler-type map for `IMessageBus.InvokeAsync<T>()` dispatch — it constructs handlers itself via `IServiceScopeFactory` and never asks `IServiceCollection` for the handler type. So `serviceProvider.GetRequiredService<MyHandler>()` throws `InvalidOperationException: No service for type 'MyHandler' has been registered` *unless you also register the handler concretely.*
+
+Production code is unaffected — endpoints go through `IMessageBus`:
+
+```csharp
+orders.MapGet("/{id:guid}", async (Guid id, IMessageBus bus, CancellationToken ct) =>
+    await bus.InvokeAsync<OrderSummaryDto?>(new GetOrderByIdQuery(id), ct));
+```
+
+But **read-handler integration tests** typically skip the HTTP/auth layer and resolve the handler directly to assert the EF projection SQL. Those tests need an explicit registration:
+
+```csharp
+// OrderService/Infrastructure/DependencyInjection.cs
+services.AddScoped<GetOrderByIdHandler>();
+services.AddScoped<GetOrdersByBuyerHandler>();
+```
+
+`AddScoped<T>()` (single-type overload) registers the concrete type as both service-key and implementation — scoped lifetime, matches `DbContext`, no interface needed.
+
+This is documented as a hard rule in [CLAUDE.md "Communication Patterns → Wolverine handler discovery is NOT DI registration"](CLAUDE.md), checked by CodeRabbit in [`.coderabbit.yaml`](.coderabbit.yaml) on every PR, and explained with the full mechanism in [docs/how-it-works.md "Two containers, not one"](docs/how-it-works.md).
+
 ## Documentation
 
 | Guide | Description |

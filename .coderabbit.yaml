@@ -194,6 +194,31 @@ reviews:
         INotificationSender, IProductCache, IProductReadStore). AwesomeAssertions (not
         FluentAssertions) for assertions across both unit and integration tiers.
 
+        HANDLER-DI REGISTRATION RULE (CLAUDE.md "Communication Patterns → Wolverine
+        handler discovery is NOT DI registration"): Wolverine's `opts.Discovery` builds
+        an INTERNAL message-type → handler-type map for `IMessageBus` dispatch. It does
+        NOT register handler types in `IServiceCollection`. Therefore, any integration
+        test that resolves a handler directly via `serviceProvider.GetRequiredService<T>()`
+        REQUIRES an explicit `services.AddScoped<T>()` in the service's
+        `AddXInfrastructure` registration — otherwise the test throws
+        `InvalidOperationException: No service for type 'X.Handler' has been registered`
+        at first run.
+
+        Flag PRs that:
+          - Add a test calling `GetRequiredService<*Handler>()` (or
+            `GetService<*Handler>()`) WITHOUT a corresponding `AddScoped<*Handler>()`
+            in the same diff. Reference the failure mode that surfaced this rule:
+            OrderReadProjectionTests broke in CI after the repository-wrapper refactor
+            because the handler-resolved tests assumed handlers were DI-registered.
+          - Remove an `AddScoped<*Handler>()` line in DependencyInjection.cs WITHOUT
+            removing the corresponding integration-test resolution — the test silently
+            keeps compiling and fails at runtime.
+
+        Going through the HTTP endpoint (`HttpClient` in the WebApplicationFactory) is
+        always safe — that path uses `IMessageBus` and never hits this trap. The direct
+        `GetRequiredService<Handler>()` shape is reserved for read-handler projection
+        tests where booting auth + HTTP would be over-scoped for asserting the EF SQL.
+
         TEST STRUCTURE — AAA WITH NARRATIVE COMMENTS (canonical per CLAUDE.md "Testing"):
         Every test must follow the Arrange → Act → Assert structure with `// ARRANGE`,
         `// ACT`, `// ASSERT` markers (all caps; em-dash explanation on the same line is
