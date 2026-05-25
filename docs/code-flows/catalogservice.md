@@ -258,9 +258,25 @@ The method signature is the contract: anything returning `Product` is a write lo
 
 ---
 
+## Open questions
+
+**`HybridCache` has no cross-replica L1 invalidation backplane.** This is documented inline in [HybridProductCache.cs](../../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) and in [STATUS.md](../STATUS.md). When a write handler calls `InvalidateAsync`, L2 (Redis) is cleared globally, but L1 (in-process MemoryCache) is cleared only on **this replica** — other replicas continue serving the stale `ProductDto` from their own L1 for up to `LocalCacheExpiration` (5 min). For Catalog reads this is tolerable; for permissions, pricing, or feature flags it wouldn't be. Today this doesn't bite because we deploy single-replica.
+
+**Two real fixes when multi-replica lands**, both spelled out in [Milan Jovanović — *Solving the distributed cache invalidation problem with Redis and HybridCache*](https://www.milanjovanovic.tech/blog/solving-the-distributed-cache-invalidation-problem-with-redis-and-hybridcache):
+
+1. **Hand-roll a Redis Pub/Sub backplane** (~50-100 lines). Add an `ICacheInvalidator` whose publisher writes the cleared cache key to a `cache-invalidation` channel via our existing `IConnectionMultiplexer`. An `IHostedService` subscribes and calls `HybridCache.RemoveAsync(key)` locally on every replica when a message arrives. Self-publishes are redundant but harmless. Reuses our existing Redis — no new infrastructure dependency. The `IProductCache` seam doesn't change; handlers don't change.
+2. **Migrate `IProductCache` to FusionCache.** FusionCache ships the Pub/Sub backplane built in and provides `.AsHybridCache()` so `Microsoft.Extensions.Caching.Hybrid.HybridCache` call sites keep working unchanged. Cleaner long-term, heavier short-term — new package, OTel re-verify, chaos test for the backplane behaviour under Redis partition. Estimate ~half day.
+
+The band-aid mitigation (dropping `LocalCacheExpiration` to 60s) is what STATUS.md currently calls "the right move for ship multi-replica with reasonable consistency this sprint," but per the article it's a band-aid not a fix — shorter TTL shrinks the inconsistency window, doesn't eliminate it, and trades L1 hit rate to do so. For Catalog reads, the band-aid is defensible interim; for any future cached domain where staleness has correctness consequences (pricing, permissions, flags), go straight to one of the two proper fixes.
+
+**Trigger to act:** a second `CatalogService` replica gets deployed. Not before — pre-optimizing the backplane for a single-replica deployment is the kind of speculation [CLAUDE.md](../../CLAUDE.md) "Measure before optimizing" warns against.
+
+---
+
 ## See also
 
 - [docs/code-flows/orderservice.md](orderservice.md) — OrderService is the caller for `gRPC ReserveStock`
 - [docs/cqrs-data-access.md](../cqrs-data-access.md) — read/write split rule (Clean Architecture variant uses `IProductReadStore`)
 - [docs/hybridcache-flow.svg](../hybridcache-flow.svg) — diagram of the L1/L2/stampede/tag-invalidation mechanics
 - [docs/performance-and-data-correctness.md](../performance-and-data-correctness.md) — full perf rationale incl. caching decisions
+- [Milan Jovanović — *Solving the distributed cache invalidation problem with Redis and HybridCache*](https://www.milanjovanovic.tech/blog/solving-the-distributed-cache-invalidation-problem-with-redis-and-hybridcache) — external; source of the "Open questions" framing above
