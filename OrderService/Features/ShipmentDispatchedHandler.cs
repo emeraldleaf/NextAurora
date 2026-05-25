@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using NextAurora.Contracts.Events;
 using OrderService.Domain;
+using OrderService.Infrastructure.Data;
 
 namespace OrderService.Features;
 
@@ -17,16 +19,16 @@ namespace OrderService.Features;
 /// we silently skip.
 /// </para>
 /// </summary>
-public class ShipmentDispatchedHandler(IOrderRepository repository)
+public class ShipmentDispatchedHandler(OrderDbContext context)
 {
     public async Task HandleAsync(ShipmentDispatchedEvent @event, CancellationToken cancellationToken)
     {
-        var order = await repository.GetByIdAsync(@event.OrderId, cancellationToken);
+        var order = await context.Orders.FirstOrDefaultAsync(o => o.Id == @event.OrderId, cancellationToken);
         if (order is null) return;
 
         if (order.Status != OrderStatus.Paid) return;
 
         order.MarkAsShipped();
-        await repository.UpdateAsync(order, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
     }
 }

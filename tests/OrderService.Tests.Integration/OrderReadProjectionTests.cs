@@ -2,22 +2,23 @@ using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OrderService.Domain;
+using OrderService.Features;
 using OrderService.Infrastructure.Data;
 using Xunit;
 
 namespace OrderService.Tests.Integration;
 
 /// <summary>
-/// Integration coverage for <see cref="IOrderRepository"/>'s read-side projection methods —
-/// <see cref="IOrderRepository.GetSummaryByIdAsync"/> and
-/// <see cref="IOrderRepository.GetSummariesByBuyerIdAsync"/>. These were added in the CQRS
+/// Integration coverage for the handler-level read projections (handlers take OrderDbContext directly) —
+/// <see cref="GetOrderByIdHandler"/> and
+/// <see cref="GetOrdersByBuyerHandler"/>. These were added in the CQRS
 /// data-access split (see <c>docs/cqrs-data-access.md</c>); they project to <c>OrderSummaryDto</c>
 /// in EF via <c>AsNoTracking().Select(...)</c> with a nested collection projection for the
 /// order lines (which triggers EF Core's auto-split behavior — no parent-cartesian rows).
 ///
 /// <para>
 /// Unit tests for the corresponding query handlers (<c>GetOrderByIdHandler</c>,
-/// <c>GetOrdersByBuyerHandler</c>) mock <see cref="IOrderRepository"/>, so the actual EF
+/// <c>GetOrdersByBuyerHandler</c>) mock the handler dependencies (now: OrderDbContext), so the actual EF
 /// projection SQL is uncovered there. These tests fill that gap against real SQL Server: a
 /// future change to the projection shape (renamed DTO field, broken Lines sub-projection,
 /// dropped enum-to-string conversion) surfaces here.
@@ -51,12 +52,12 @@ public sealed class OrderReadProjectionTests(OrderApiFactory factory) : IClassFi
         await SeedOrderAsync(order);
 
         await using var scope = _factory.CreateDbScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+        var handler = scope.ServiceProvider.GetRequiredService<GetOrderByIdHandler>();
 
         // ACT — Hit the projection method directly. No HTTP, no Wolverine, no cache —
         // just the SQL EF generates for the AsNoTracking().Where(...).Select(...) chain
         // with the nested collection sub-projection.
-        var dto = await repository.GetSummaryByIdAsync(order.Id);
+        var dto = await handler.HandleAsync(new GetOrderByIdQuery(order.Id), CancellationToken.None);
 
         // ASSERT — Five invariants the projection contract has to hold:
         //  1) Non-null — the row exists and the projection materializes it.
@@ -87,10 +88,10 @@ public sealed class OrderReadProjectionTests(OrderApiFactory factory) : IClassFi
         // → 404 at the endpoint, so the projection's null-on-missing contract is
         // load-bearing for the API surface.
         await using var scope = _factory.CreateDbScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+        var handler = scope.ServiceProvider.GetRequiredService<GetOrderByIdHandler>();
 
         // ACT — Project on a non-existent id.
-        var dto = await repository.GetSummaryByIdAsync(Guid.NewGuid());
+        var dto = await handler.HandleAsync(new GetOrderByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         // ASSERT — Null, not a default-constructed DTO.
         dto.Should().BeNull();
@@ -125,10 +126,10 @@ public sealed class OrderReadProjectionTests(OrderApiFactory factory) : IClassFi
         await SeedAndStampAsync(bOrder, placedAt: DateTime.UtcNow.AddMinutes(-15));
 
         await using var scope = _factory.CreateDbScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+        var handler = scope.ServiceProvider.GetRequiredService<GetOrdersByBuyerHandler>();
 
         // ACT — Page 1, size 50. Plenty of room for buyer A's three orders.
-        var dtos = await repository.GetSummariesByBuyerIdAsync(buyerA, page: 1, pageSize: 50);
+        var dtos = await handler.HandleAsync(new GetOrdersByBuyerQuery(buyerA, Page: 1, PageSize: 50), CancellationToken.None);
 
         // ASSERT — Four invariants. Critical: assert against the raw projection result
         // (no .Where pre-filter) so any cross-buyer leak fails the test instead of
@@ -168,11 +169,11 @@ public sealed class OrderReadProjectionTests(OrderApiFactory factory) : IClassFi
         await SeedAndStampAsync(newer, placedAt: DateTime.UtcNow.AddMinutes(-10));
 
         await using var scope = _factory.CreateDbScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+        var handler = scope.ServiceProvider.GetRequiredService<GetOrdersByBuyerHandler>();
 
         // ACT — Walk two pages of size 2.
-        var page1 = await repository.GetSummariesByBuyerIdAsync(buyer, page: 1, pageSize: 2);
-        var page2 = await repository.GetSummariesByBuyerIdAsync(buyer, page: 2, pageSize: 2);
+        var page1 = await handler.HandleAsync(new GetOrdersByBuyerQuery(buyer, Page: 1, PageSize: 2), CancellationToken.None);
+        var page2 = await handler.HandleAsync(new GetOrdersByBuyerQuery(buyer, Page: 2, PageSize: 2), CancellationToken.None);
 
         // ASSERT — Three invariants:
         //  1) Page 1 has exactly the two newest — proves Skip(0).Take(2) applied to

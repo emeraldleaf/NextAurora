@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.Extensions.Logging;
 using NextAurora.Contracts.Events;
 using OrderService.Domain;
+using OrderService.Infrastructure.Data;
 
 namespace OrderService.Features;
 
@@ -58,7 +59,7 @@ public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
 }
 
 public class PlaceOrderHandler(
-    IOrderRepository orderRepository,
+    OrderDbContext context,
     IEventPublisher eventPublisher,
     ICatalogClient catalogClient,
     ILogger<PlaceOrderHandler> logger)
@@ -136,7 +137,10 @@ public class PlaceOrderHandler(
         }
 
         var order = Order.Create(request.BuyerId, request.Currency, lines);
-        await orderRepository.AddAsync(order, cancellationToken);
+        await context.Orders.AddAsync(order, cancellationToken);
+        // SaveChangesAsync below is what Wolverine's AutoApplyTransactions intercepts to
+        // wrap the entity write + the staged OrderPlacedEvent envelope in one DB transaction.
+        await context.SaveChangesAsync(cancellationToken);
 
         var @event = new OrderPlacedEvent
         {
