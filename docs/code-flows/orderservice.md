@@ -23,7 +23,7 @@ sequenceDiagram
     participant gRPC as ICatalogClient<br/>GrpcCatalogClient.cs
     participant Cat as CatalogService<br/>(separate service)
     participant Agg as Order aggregate<br/>Domain/Order.cs
-    participant Repo as IOrderRepository<br/>OrderRepository.cs
+    participant Ctx as OrderDbContext<br/>Infrastructure/Data/OrderDbContext.cs
     participant Pub as IEventPublisher<br/>WolverineEventPublisher.cs
     participant DB as SQL Server +<br/>wolverine.outgoing_envelopes
     participant ASB as Azure Service Bus<br/>(orders topic)
@@ -51,10 +51,11 @@ sequenceDiagram
 
     H->>Agg: Order.Create(buyerId, currency, lines)
     Note over Agg: factory validates invariants —<br/>uses CatalogService prices,<br/>NEVER client-submitted prices
-    H->>Repo: AddAsync(order, ct)
-    Repo->>DB: INSERT Orders + OrderLines
+    H->>Ctx: context.Orders.AddAsync(order, ct)
     H->>Pub: PublishAsync(OrderPlacedEvent)
-    Note over Pub,DB: Wolverine stages envelope into<br/>wolverine.outgoing_envelopes<br/>(same DB transaction as entity write —<br/>UseDurableOutboxOnAllSendingEndpoints)
+    Note over Pub,Ctx: Wolverine stages envelope into the<br/>EF change tracker (not yet persisted)
+    H->>Ctx: context.SaveChangesAsync(ct)
+    Note over Ctx,DB: AutoApplyTransactions wraps —<br/>INSERT Orders + OrderLines + outbox envelope<br/>all commit in ONE DB transaction.<br/>UseDurableOutboxOnAllSendingEndpoints.
     DB-->>H: tx commit
     H-->>Bus: order.Id (Guid)
     Bus-->>EP: order.Id
@@ -92,7 +93,7 @@ sequenceDiagram
     participant ASB as Azure Service Bus<br/>(payments topic, shipping topic)
     participant W as Wolverine consumer +<br/>ContextPropagation middleware
     participant H as Saga handler<br/>(one of 3 below)
-    participant Repo as IOrderRepository
+    participant Ctx as OrderDbContext
     participant Agg as Order aggregate<br/>Domain/Order.cs
     participant DB as SQL Server<br/>(orders + wolverine schema)
 
@@ -100,10 +101,10 @@ sequenceDiagram
     Note over W: reads X-Correlation-Id,<br/>X-User-Id, X-Session-Id<br/>from envelope headers,<br/>opens logger scope
     W->>H: HandleAsync(@event, ct)<br/>(AutoApplyTransactions wraps)
 
-    H->>Repo: GetByIdAsync(@event.OrderId, ct)
-    Repo->>DB: SELECT * FROM Orders<br/>WHERE Id = @id (tracked)
-    DB-->>Repo: Order entity (tracked) +<br/>RowVersion snapshot
-    Repo-->>H: Order
+    H->>Ctx: context.Orders.FirstOrDefaultAsync(<br/>  o => o.Id == @event.OrderId, ct)
+    Ctx->>DB: SELECT * FROM Orders<br/>WHERE Id = @id (tracked)
+    DB-->>Ctx: Order entity (tracked) +<br/>RowVersion snapshot
+    Ctx-->>H: Order
 
     alt order missing (at-least-once delivery edge)
         H-->>W: return (no-op)
@@ -114,8 +115,8 @@ sequenceDiagram
         Note over Agg: AGGREGATE invariant —<br/>throws InvalidOperationException<br/>on invalid transition.<br/>Now unreachable in normal flow<br/>because the handler pre-check<br/>filtered duplicates upstream —<br/>throws would indicate a real bug<br/>(true out-of-order arrival).
         Agg-->>H: void
 
-        H->>Repo: UpdateAsync(order, ct)
-        Repo->>DB: UPDATE Orders<br/>SET ..., RowVersion = NEW<br/>WHERE Id = @id AND RowVersion = @v
+        H->>Ctx: context.SaveChangesAsync(ct)
+        Ctx->>DB: UPDATE Orders<br/>SET ..., RowVersion = NEW<br/>WHERE Id = @id AND RowVersion = @v
         alt RowVersion matches
             DB-->>H: 1 row affected (tx commit)
         else concurrency conflict
@@ -161,48 +162,32 @@ stateDiagram-v2
 
 ---
 
-## Read-path coexistence (CQRS data-access split)
+## Read/write split (CQRS data-access pattern)
 
-The same [`IOrderRepository`](../../OrderService/Domain/IOrderRepository.cs) interface carries **both** write-loader methods (used by the sagas above) and DTO-returning read-projection methods (used by the GET endpoints). The split is part of the project's [CQRS data-access rule](../cqrs-data-access.md) — read paths project to DTOs inside the IQueryable to skip entity materialization and avoid parent-cartesian rows from collection includes.
+There's no `IOrderRepository` wrapper. Handlers take [`OrderDbContext`](../../OrderService/Infrastructure/Data/OrderDbContext.cs) directly — `DbContext` IS Unit-of-Work and `DbSet<T>` IS Repository, so wrapping them adds layers without capability. The CQRS read/write split lives at the **code shape** in each handler, not at the interface level:
 
 ```mermaid
 graph LR
-    subgraph Domain["Domain/IOrderRepository.cs"]
-        I["interface IOrderRepository"]
+    subgraph Ctx["OrderDbContext (Infrastructure/Data/)"]
+        DBS["DbSet&lt;Order&gt; Orders"]
     end
 
-    subgraph Impl["Infrastructure/OrderRepository.cs"]
-        WL1["GetByIdAsync → Order<br/>(tracked, Include Lines)"]
-        WL2["AddAsync, UpdateAsync"]
-        RP1["GetSummaryByIdAsync → OrderSummaryDto<br/>(AsNoTracking + projection)"]
-        RP2["GetSummariesByBuyerIdAsync → IReadOnlyList&lt;OrderSummaryDto&gt;<br/>(AsNoTracking + projection)"]
+    subgraph Writers["Write handlers (load tracked + mutate + SaveChanges)"]
+        WH["PlaceOrderHandler<br/>PaymentCompletedHandler<br/>PaymentFailedHandler<br/>ShipmentDispatchedHandler"]
     end
 
-    subgraph Writers["Saga + command handlers"]
-        SH["PaymentCompletedHandler<br/>PaymentFailedHandler<br/>ShipmentDispatchedHandler<br/>PlaceOrderHandler"]
+    subgraph Readers["Read handlers (AsNoTracking + .Select projection)"]
+        RH["GetOrderByIdHandler<br/>GetOrdersByBuyerHandler"]
     end
 
-    subgraph Readers["Query handlers"]
-        GH["GetOrderByIdHandler<br/>GetOrdersByBuyerHandler"]
-    end
+    WH -.->|"context.Orders.FirstOrDefault<br/>(tracked) → mutate →<br/>context.SaveChangesAsync"| DBS
+    RH -.->|"context.Orders.AsNoTracking()<br/>.Where(...).Select(o => new OrderSummaryDto {...})<br/>(projection → DTO directly)"| DBS
 
-    I --> WL1
-    I --> WL2
-    I --> RP1
-    I --> RP2
-
-    SH -.->|tracked entity| WL1
-    SH -.-> WL2
-    GH -.->|DTO directly| RP1
-    GH -.-> RP2
-
-    style WL1 fill:#dbeafe,stroke:#1e3a5f
-    style WL2 fill:#dbeafe,stroke:#1e3a5f
-    style RP1 fill:#a7f3d0,stroke:#047857
-    style RP2 fill:#a7f3d0,stroke:#047857
+    style WH fill:#dbeafe,stroke:#1e3a5f
+    style RH fill:#a7f3d0,stroke:#047857
 ```
 
-The method signature is the contract: anything returning a domain entity is a write loader; anything returning a DTO is a read projection. Mixing the two is the anti-pattern the rule exists to prevent.
+The handler's *code shape* is the contract — load-then-mutate-then-save is a write; `AsNoTracking() + .Select(...)` inline is a read. There's no separate "method on a repository interface" layer to enforce the split via type signatures. The discipline lives at PR review time + CodeRabbit + the architecture-reviewer agent's pattern checklist. See [docs/cqrs-data-access.md](../cqrs-data-access.md) for the mechanism (EF auto-splits projected collection navigations so reads have no parent-cartesian rows).
 
 ---
 
@@ -212,18 +197,16 @@ The method signature is the contract: anything returning a domain entity is a wr
 |---|---|
 | [Endpoints/OrderEndpoints.cs](../../OrderService/Endpoints/OrderEndpoints.cs) | HTTP surface: POST/GET buyer-scoped, defense-in-depth JWT check |
 | [Features/PlaceOrder.cs](../../OrderService/Features/PlaceOrder.cs) | Command + validator + handler (the entry to the saga) |
-| [Features/GetOrderById.cs](../../OrderService/Features/GetOrderById.cs) | Single-order read; delegates to read-projection method |
-| [Features/GetOrdersByBuyer.cs](../../OrderService/Features/GetOrdersByBuyer.cs) | Paginated buyer history; delegates to read-projection method |
+| [Features/GetOrderById.cs](../../OrderService/Features/GetOrderById.cs) | Single-order read; projects to DTO inline via `AsNoTracking() + .Select(...)` |
+| [Features/GetOrdersByBuyer.cs](../../OrderService/Features/GetOrdersByBuyer.cs) | Paginated buyer history; same projection shape + pagination clamp |
 | [Features/PaymentCompletedHandler.cs](../../OrderService/Features/PaymentCompletedHandler.cs) | Saga step 2a: payment succeeded → mark paid |
 | [Features/PaymentFailedHandler.cs](../../OrderService/Features/PaymentFailedHandler.cs) | Saga step 2b: payment failed → mark failed |
 | [Features/ShipmentDispatchedHandler.cs](../../OrderService/Features/ShipmentDispatchedHandler.cs) | Saga step 3: shipment dispatched → mark shipped |
 | [Domain/Order.cs](../../OrderService/Domain/Order.cs) | Aggregate root + state transitions + invariants |
 | [Domain/OrderLine.cs](../../OrderService/Domain/OrderLine.cs) | Line-item entity, owned by Order |
 | [Domain/OrderStatus.cs](../../OrderService/Domain/OrderStatus.cs) | Enum: Placed / Paid / PaymentFailed / Shipped |
-| [Domain/IOrderRepository.cs](../../OrderService/Domain/IOrderRepository.cs) | Repository port (write loaders + read projections) |
 | [Domain/ICatalogClient.cs](../../OrderService/Domain/ICatalogClient.cs) | gRPC client port (substituted in tests) |
 | [Domain/IEventPublisher.cs](../../OrderService/Domain/IEventPublisher.cs) | Event publish port (Wolverine implementation) |
-| [Infrastructure/OrderRepository.cs](../../OrderService/Infrastructure/OrderRepository.cs) | EF Core repository (write loaders + read projections) |
 | [Infrastructure/GrpcCatalogClient.cs](../../OrderService/Infrastructure/GrpcCatalogClient.cs) | gRPC adapter to CatalogService |
 | [Infrastructure/WolverineEventPublisher.cs](../../OrderService/Infrastructure/WolverineEventPublisher.cs) | Wolverine `IMessageBus.PublishAsync` adapter |
 | [Infrastructure/Data/OrderDbContext.cs](../../OrderService/Infrastructure/Data/OrderDbContext.cs) | EF Core context; SQL Server `RowVersion` concurrency token |
