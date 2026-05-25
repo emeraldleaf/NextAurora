@@ -64,10 +64,19 @@ public class OrderRepository(OrderDbContext context) : IOrderRepository
         var safePage = page < 1 ? 1 : page;
         var safePageSize = pageSize is < 1 or > 100 ? 50 : pageSize;
 
+        // Compute Skip's offset in long arithmetic to avoid int overflow when a caller
+        // passes a huge page (e.g. int.MaxValue). (safePage - 1) * safePageSize in int
+        // arithmetic would wrap to a negative number, and Skip(-N) throws at execution.
+        // If the offset exceeds the addressable result set, return empty rather than
+        // letting EF translate a too-large OFFSET into a slow no-result query.
+        var skipOffset = (long)(safePage - 1) * safePageSize;
+        if (skipOffset > int.MaxValue)
+            return Array.Empty<OrderSummaryDto>();
+
         return await context.Orders.AsNoTracking()
             .Where(o => o.BuyerId == buyerId)
             .OrderByDescending(o => o.PlacedAt)
-            .Skip((safePage - 1) * safePageSize).Take(safePageSize)
+            .Skip((int)skipOffset).Take(safePageSize)
             .Select(o => new OrderSummaryDto
             {
                 OrderId = o.Id,
