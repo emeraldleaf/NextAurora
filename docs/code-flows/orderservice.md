@@ -84,7 +84,7 @@ opts.AddConcurrencyRetry();               // OnException<DbUpdateConcurrencyExce
 
 ## Phase 2 — Saga consume (event-driven)
 
-Three events come back over Service Bus. They all follow the same shape: ASB → Wolverine consumer → middleware restores logger scope from envelope headers → handler loads the tracked `Order` aggregate → calls a named state-transition method → `SaveChanges`. The state-transition method enforces idempotency via a status guard (a duplicate event no-ops instead of throwing).
+Three events come back over Service Bus. They all follow the same shape: ASB → Wolverine consumer → middleware restores logger scope from envelope headers → handler loads the tracked `Order` aggregate → **handler pre-checks status** (idempotency: returns early on duplicate) → calls a named state-transition method on the aggregate (invariant: throws on invalid transition) → `SaveChanges`. **Two layers, two responsibilities** — the handler does idempotency (no-op on duplicate); the aggregate does invariant enforcement (throw on invalid state). See [`PaymentCompletedHandler.cs`](../../OrderService/Features/PaymentCompletedHandler.cs) for the status pre-check, and [`Order.cs:MarkAsPaid`](../../OrderService/Domain/Order.cs) for the invariant throw.
 
 ```mermaid
 sequenceDiagram
@@ -109,9 +109,10 @@ sequenceDiagram
         H-->>W: return (no-op)
         Note over H: late-arriving event<br/>against deleted order
     else order found
+        Note over H: HANDLER status pre-check —<br/>if order.Status != expected,<br/>return early (no-op).<br/>This is the idempotency layer:<br/>a duplicate event hits an order<br/>already past the expected state<br/>and is silently skipped.
         H->>Agg: MarkAsPaid() /<br/>MarkAsPaymentFailed() /<br/>MarkAsShipped()
-        Note over Agg: STATE GUARD inside —<br/>only transitions if current<br/>status matches expected<br/>(idempotency under<br/>at-least-once delivery)
-        Agg-->>H: void / no-op on duplicate
+        Note over Agg: AGGREGATE invariant —<br/>throws InvalidOperationException<br/>on invalid transition.<br/>Now unreachable in normal flow<br/>because the handler pre-check<br/>filtered duplicates upstream —<br/>throws would indicate a real bug<br/>(true out-of-order arrival).
+        Agg-->>H: void
 
         H->>Repo: UpdateAsync(order, ct)
         Repo->>DB: UPDATE Orders<br/>SET ..., RowVersion = NEW<br/>WHERE Id = @id AND RowVersion = @v
@@ -136,7 +137,7 @@ sequenceDiagram
 
 ## Order aggregate — state machine
 
-The state machine is enforced *inside* the aggregate methods, not by the handlers or the bus. A handler call to `MarkAsPaid()` on an already-`Paid` order is a no-op, not a throw. This is the **idempotency guard** that makes at-least-once delivery safe.
+The state machine has **two enforcement layers, each with a different job**. The aggregate methods (`MarkAsPaid`, `MarkAsPaymentFailed`, `MarkAsShipped`) **throw `InvalidOperationException` on any invalid transition** — they're invariant guards, not idempotency guards. The handlers (`PaymentCompletedHandler`, `PaymentFailedHandler`, `ShipmentDispatchedHandler`) **pre-check the aggregate's `Status` and return early if it doesn't match the expected source state** — that's the idempotency layer. A duplicate `PaymentCompletedEvent` hits a handler whose pre-check sees `Status = Paid` (already transitioned) and returns silently; the aggregate's throw is unreachable on the duplicate path. A truly out-of-order event — e.g. `ShipmentDispatchedEvent` arriving before `PaymentCompletedEvent` — would skip the pre-check (the order is in `Placed`, not the expected `Paid`) and also no-op at the handler; the aggregate's throw is the backstop for the case where the handler logic itself is buggy and forgets the pre-check.
 
 ```mermaid
 stateDiagram-v2
@@ -232,7 +233,7 @@ The method signature is the contract: anything returning a domain entity is a wr
 
 ## Open questions
 
-**Per-aggregate ordering is handled via state guards + RowVersion retry, not via bus-level sessions.** Wolverine consumers on the same subscription compete, so two events for the same `OrderId` *can* be processed simultaneously by different replicas. Our defense is layered: each `MarkAsX` method is a state guard that no-ops on duplicate transitions and throws on out-of-order ones; the `RowVersion` token rejects the stale writer (`DbUpdateConcurrencyException`); Wolverine's `AddConcurrencyRetry` policy retries 3× with backoff against the now-fresh state; the message lands in the DLQ only if all retries fail. That works in principle, and matches the "model the workflow, don't fight the queue" pattern from [Milan Jovanović's *Solving message ordering from first principles*](https://www.milanjovanovic.tech/blog/solving-message-ordering-from-first-principles). The alternative — Azure Service Bus sessions keyed on `OrderId`, with Wolverine's session-aware consumers — would give us a hard ordering guarantee but doesn't replace any of the above (sessions fix ordering, not duplicate delivery), so it's additive insurance rather than a replacement.
+**Per-aggregate ordering is handled via handler-level status checks + aggregate-level invariant throws + RowVersion retry, not via bus-level sessions.** Wolverine consumers on the same subscription compete, so two events for the same `OrderId` *can* be processed simultaneously by different replicas. Our defense is layered: each handler pre-checks `Status` and returns early on duplicate (idempotency); the aggregate's `MarkAsX` methods throw on invalid transitions (invariant); the `RowVersion` token rejects the stale writer (`DbUpdateConcurrencyException`); Wolverine's `AddConcurrencyRetry` policy retries 3× with backoff against the now-fresh state; the message lands in the DLQ only if all retries fail. That works in principle, and matches the "model the workflow, don't fight the queue" pattern from [Milan Jovanović's *Solving message ordering from first principles*](https://www.milanjovanovic.tech/blog/solving-message-ordering-from-first-principles). The alternative — Azure Service Bus sessions keyed on `OrderId`, with Wolverine's session-aware consumers — would give us a hard ordering guarantee but doesn't replace any of the above (sessions fix ordering, not duplicate delivery), so it's additive insurance rather than a replacement.
 
 **The validation is undertested.** Our integration tests each create their own order, so the *concurrent same-aggregate* path the post warns about ("a subtle bug that only appears under load") is exactly the path with zero coverage. Two cheap things would change that without committing to bus sessions: (1) an integration test that fires `PaymentCompletedEvent` and `ShipmentDispatchedEvent` against the same `Order` simultaneously and asserts the final state lands at `Shipped` (not `PaymentFailed` or stuck at `Placed`); (2) a `payments_concurrency_retries_exhausted` / `orders_concurrency_retries_exhausted` counter so DLQ-bound retry exhaustion is observable in production, not invisible. If those metrics stay near zero, the state-guard pattern is validated and bus sessions are unnecessary. If they spike, that's the trigger to add sessions — evidence-driven, not architecture-astronaut-driven. There's no Inbox pattern (processed-message-ID table) today either; state guards catch most duplicates because aggregates have few valid transitions, but a proper Inbox would catch any duplicate before it reaches the handler. Add it if duplicates start appearing outside the state-guard-protected windows.
 

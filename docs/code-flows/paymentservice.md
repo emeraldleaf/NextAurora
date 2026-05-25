@@ -152,7 +152,7 @@ sequenceDiagram
     end
 ```
 
-**The outbox-outside-handler trap.** Wolverine's `AutoApplyTransactions` policy wraps handler chains automatically. Code that runs OUTSIDE a handler (sweepers, cron jobs, admin endpoints) gets no such wrap. `IMessageBus.PublishAsync` stages an envelope into the in-memory tracker, but the envelope is only persisted to `wolverine.outgoing_envelopes` when `SaveChangesAsync` runs after the publish. The canonical safe wrapper:
+**The outbox-outside-handler trap.** Wolverine's `AutoApplyTransactions` policy wraps **handler chains** — anything dispatched through `IMessageBus.InvokeAsync`/`PublishAsync` into a handler gets the wrap automatically. That includes the admin path in Flow 2 (`POST /payments/process` → `bus.InvokeAsync<Guid>(command)` → `ProcessPaymentHandler`) — it's still inside the Wolverine pipeline, so the wrap applies. The trap is code that publishes events **without entering a handler at all**: `BackgroundService` sweep loops, cron jobs, or any future code path that does `bus.PublishAsync(@event)` outside an active Wolverine handler context. `PublishAsync` stages an envelope into the in-memory tracker, but the envelope is only persisted to `wolverine.outgoing_envelopes` when `SaveChangesAsync` runs after the publish. The canonical safe wrapper:
 
 ```csharp
 public async Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default)
