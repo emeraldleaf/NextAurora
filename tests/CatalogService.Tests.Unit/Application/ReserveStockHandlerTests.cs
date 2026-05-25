@@ -6,6 +6,7 @@ using CatalogService.Domain.Entities;
 using CatalogService.Domain.Interfaces;
 using CatalogService.Tests.Unit.Builders;
 using NSubstitute;
+using NSubstitute.ReturnsExtensions;
 
 namespace CatalogService.Tests.Unit.Application;
 
@@ -30,7 +31,7 @@ public class ReserveStockHandlerTests
         _repository.GetByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
         var command = new ReserveStockCommand(product.Id, 3);
 
-        // ACT
+        // ACT — Run the handler.
         var result = await _sut.HandleAsync(command, CancellationToken.None);
 
         // ASSERT — Four invariants:
@@ -59,10 +60,10 @@ public class ReserveStockHandlerTests
         var product = ProductBuilder.Default().WithStockQuantity(5).Build();
         _repository.GetByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
 
-        // ACT
+        // ACT — Reserve all five remaining units.
         var result = await _sut.HandleAsync(new ReserveStockCommand(product.Id, 5), CancellationToken.None);
 
-        // ASSERT
+        // ASSERT — Reservation succeeded; stock zero; IsAvailable false.
         result.Should().BeTrue();
         product.StockQuantity.Should().Be(0);
         product.IsAvailable.Should().BeFalse();
@@ -75,9 +76,9 @@ public class ReserveStockHandlerTests
         // (returns false) rather than throwing — OrderService's caller can then surface a
         // user-friendly "product unavailable" without an exception roundtrip.
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((Product?)null);
+            .ReturnsNull();
 
-        // ACT
+        // ACT — Try to reserve against a missing product id.
         var result = await _sut.HandleAsync(new ReserveStockCommand(Guid.NewGuid(), 1), CancellationToken.None);
 
         // ASSERT — Three invariants:
@@ -102,7 +103,7 @@ public class ReserveStockHandlerTests
         var originalStock = product.StockQuantity;
         _repository.GetByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
 
-        // ACT
+        // ACT — Ask for more units than we have.
         var result = await _sut.HandleAsync(new ReserveStockCommand(product.Id, 5), CancellationToken.None);
 
         // ASSERT — Returns false, entity unchanged, no save, no invalidation.
@@ -130,10 +131,10 @@ public class ReserveStockHandlerTests
             .Returns(Task.CompletedTask)
             .AndDoes(_ => callOrder.Add("invalidate"));
 
-        // ACT
+        // ACT — Run the handler.
         await _sut.HandleAsync(new ReserveStockCommand(product.Id, 1), CancellationToken.None);
 
-        // ASSERT
+        // ASSERT — "update" must come strictly before "invalidate".
         callOrder.Should().ContainInOrder("update", "invalidate");
     }
 }

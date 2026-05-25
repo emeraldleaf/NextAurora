@@ -57,10 +57,10 @@ public class OrderPlacedHandlerTests
             Lines = []
         };
 
-        // ACT
+        // ACT — Call the static translator.
         var command = OrderPlacedHandler.Handle(@event);
 
-        // ASSERT
+        // ASSERT — Lowercase currency flows through verbatim (no normalization).
         command.Currency.Should().Be("eur");
     }
 }

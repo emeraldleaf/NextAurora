@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using NSubstitute;
+using NSubstitute.ReturnsExtensions;
 using ShippingService.Domain;
 using ShippingService.Features;
 
@@ -26,7 +27,7 @@ public class GetShipmentByOrderHandlerTests
         shipment.Dispatch(); // gives us at least one tracking event to verify mapping
         _repository.GetByOrderIdAsync(orderId, Arg.Any<CancellationToken>()).Returns(shipment);
 
-        // ACT
+        // ACT — Run the handler against the query.
         var result = await _sut.HandleAsync(
             new GetShipmentByOrderQuery(orderId, buyerId), CancellationToken.None);
 
@@ -51,9 +52,9 @@ public class GetShipmentByOrderHandlerTests
         // ARRANGE — The order may not have reached the shipping stage yet (payment still
         // pending) or never will (payment failed). Null is the unambiguous "no shipment".
         _repository.GetByOrderIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((Shipment?)null);
+            .ReturnsNull();
 
-        // ACT
+        // ACT — Run the handler against the query.
         var result = await _sut.HandleAsync(
             new GetShipmentByOrderQuery(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
 

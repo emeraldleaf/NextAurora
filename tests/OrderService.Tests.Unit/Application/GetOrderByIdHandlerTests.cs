@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using NSubstitute;
+using NSubstitute.ReturnsExtensions;
 using OrderService.Domain;
 using OrderService.Features;
 using OrderService.Tests.Unit.Builders;
@@ -35,7 +36,7 @@ public class GetOrderByIdHandlerTests
             .Build();
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
-        // ACT
+        // ACT — Run the handler against the query.
         var result = await _sut.HandleAsync(new GetOrderByIdQuery(order.Id), CancellationToken.None);
 
         // ASSERT — Five invariants:
@@ -62,12 +63,12 @@ public class GetOrderByIdHandlerTests
         // Returning a sentinel like Guid.Empty would force every caller into special-case
         // handling; null is unambiguous "not found".
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((Order?)null);
+            .ReturnsNull();
 
-        // ACT
+        // ACT — Run the handler against the query.
         var result = await _sut.HandleAsync(new GetOrderByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
-        // ASSERT
+        // ASSERT — Null DTO surfaces as 404 at the endpoint.
         result.Should().BeNull();
     }
 }

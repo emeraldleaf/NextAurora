@@ -30,7 +30,7 @@ public class SearchProductsHandlerTests
             .SearchAsync("fruit", 1, 50, Arg.Any<CancellationToken>())
             .Returns(new List<Product> { p1, p2 });
 
-        // ACT
+        // ACT — Run the search query through the handler.
         var result = await _sut.HandleAsync(new SearchProductsQuery("fruit"), CancellationToken.None);
 
         // ASSERT — Two invariants:
@@ -52,7 +52,7 @@ public class SearchProductsHandlerTests
             .SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new List<Product>());
 
-        // ACT
+        // ACT — Run the search with a query that won't match anything.
         var result = await _sut.HandleAsync(new SearchProductsQuery("zzz"), CancellationToken.None);
 
         // ASSERT — Returns an empty (non-null) list — null would force every API consumer

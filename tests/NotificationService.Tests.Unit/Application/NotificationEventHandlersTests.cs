@@ -63,7 +63,7 @@ public class NotificationEventHandlersTests
             FailedAt = DateTime.UtcNow
         };
 
-        // ACT
+        // ACT — Call the static translator.
         var result = NotificationEventHandlers.Handle(@event);
 
         // ASSERT — Two invariants:
@@ -89,7 +89,7 @@ public class NotificationEventHandlersTests
             DispatchedAt = DateTime.UtcNow
         };
 
-        // ACT
+        // ACT — Call the static translator.
         var result = NotificationEventHandlers.Handle(@event);
 
         // ASSERT — Three invariants:

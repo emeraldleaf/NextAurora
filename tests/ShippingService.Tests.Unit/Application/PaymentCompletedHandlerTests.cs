@@ -43,28 +43,41 @@ public class PaymentCompletedHandlerTests
     }
 
     [Fact]
-    public void Handle_AlwaysReturnsNewCommand()
+    public void Handle_CalledTwiceWithSameEvent_ReturnsTwoDistinctCommandInstances()
     {
-        // ARRANGE — Edge case: what if BuyerId on the event is Guid.Empty (legacy or
-        // malformed event)? The translator must not crash — validation lives in
-        // CreateShipmentCommandValidator downstream. This test pins the contract: the
-        // translator is allocation-only, no defensive checks; validation is the next
-        // layer's job.
+        // ARRANGE — Wolverine's cascading-message model expects a NEW command instance
+        // per dispatch. If this method ever started returning a cached/static command,
+        // mutations in one handler's pipeline could bleed into another (Wolverine
+        // middleware can read/write command fields). Two calls with the same event must
+        // produce two reference-distinct CreateShipmentCommand records — defends against
+        // a refactor that accidentally introduces a static cache.
         var orderId = Guid.NewGuid();
         var @event = new PaymentCompletedEvent
         {
             OrderId = orderId,
+            BuyerId = Guid.NewGuid(),
             PaymentId = Guid.NewGuid(),
             Amount = 50m,
             Provider = "Stripe",
             CompletedAt = DateTime.UtcNow
         };
 
-        // ACT
-        var result = PaymentCompletedHandler.Handle(@event);
+        // ACT — Two independent calls.
+        var first = PaymentCompletedHandler.Handle(@event);
+        var second = PaymentCompletedHandler.Handle(@event);
 
-        // ASSERT
-        result.Should().NotBeNull();
-        result.OrderId.Should().Be(orderId);
+        // ASSERT — Three invariants:
+        //  1) Both results are non-null.
+        //  2) Both carry the same logical OrderId (proves the translator is deterministic
+        //     on the inputs — same event → same field values).
+        //  3) They are NOT the same reference — distinct allocations. Without this, a
+        //     future "optimization" that caches the command would silently break
+        //     Wolverine's per-message isolation.
+        first.Should().NotBeNull();
+        second.Should().NotBeNull();
+        first.OrderId.Should().Be(orderId);
+        second.OrderId.Should().Be(orderId);
+        ReferenceEquals(first, second).Should().BeFalse(
+            "each dispatch must allocate a new command — see ARRANGE comment");
     }
 }

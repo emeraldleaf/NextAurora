@@ -39,7 +39,7 @@ public class CorrelationIdMiddlewareTests
             var ctx = BuildContext(user: user);
             var sut = new CorrelationIdMiddleware(_ => Task.CompletedTask, _logger);
 
-            // ACT
+            // ACT — Invoke the middleware.
             await sut.InvokeAsync(ctx);
 
             // ASSERT — user.id baggage is set to the JWT sub. This baggage is what
@@ -64,7 +64,7 @@ public class CorrelationIdMiddlewareTests
             var ctx = BuildContext();
             var sut = new CorrelationIdMiddleware(_ => Task.CompletedTask, _logger);
 
-            // ACT
+            // ACT — Invoke the middleware.
             await sut.InvokeAsync(ctx);
 
             // ASSERT — Baggage absent. The CLAUDE.md guidance "never add null/empty keys
@@ -86,7 +86,7 @@ public class CorrelationIdMiddlewareTests
             var ctx = BuildContext(sessionId: "sess-abc");
             var sut = new CorrelationIdMiddleware(_ => Task.CompletedTask, _logger);
 
-            // ACT
+            // ACT — Invoke the middleware.
             await sut.InvokeAsync(ctx);
 
             // ASSERT — session.id baggage matches the header.
@@ -106,10 +106,10 @@ public class CorrelationIdMiddlewareTests
             var ctx = BuildContext();
             var sut = new CorrelationIdMiddleware(_ => Task.CompletedTask, _logger);
 
-            // ACT
+            // ACT — Invoke the middleware.
             await sut.InvokeAsync(ctx);
 
-            // ASSERT
+            // ASSERT — Baggage absent — same null-key avoidance applies to session.id.
             activity.GetBaggageItem("session.id").Should().BeNull();
         }
     }

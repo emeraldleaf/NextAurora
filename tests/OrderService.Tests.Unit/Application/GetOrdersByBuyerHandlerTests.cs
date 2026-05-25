@@ -29,7 +29,7 @@ public class GetOrdersByBuyerHandlerTests
             .GetByBuyerIdAsync(buyerId, 1, 50, Arg.Any<CancellationToken>())
             .Returns(new List<Order> { o1, o2 });
 
-        // ACT
+        // ACT — Run the handler against the query.
         var result = await _sut.HandleAsync(new GetOrdersByBuyerQuery(buyerId), CancellationToken.None);
 
         // ASSERT — Two invariants:
@@ -49,7 +49,7 @@ public class GetOrdersByBuyerHandlerTests
             .GetByBuyerIdAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new List<Order>());
 
-        // ACT
+        // ACT — Run the handler against the query.
         var result = await _sut.HandleAsync(new GetOrdersByBuyerQuery(Guid.NewGuid()), CancellationToken.None);
 
         // ASSERT — Empty (non-null) list. Null would force every API consumer to handle
@@ -70,10 +70,10 @@ public class GetOrdersByBuyerHandlerTests
             .Returns(new List<Order>());
         var buyerId = Guid.NewGuid();
 
-        // ACT
+        // ACT — Run the handler against the query.
         await _sut.HandleAsync(new GetOrdersByBuyerQuery(buyerId, Page: 4, PageSize: 25), CancellationToken.None);
 
-        // ASSERT
+        // ASSERT — Buyer id + pagination flow straight through to the repository.
         await _repository.Received(1).GetByBuyerIdAsync(buyerId, 4, 25, Arg.Any<CancellationToken>());
     }
 }

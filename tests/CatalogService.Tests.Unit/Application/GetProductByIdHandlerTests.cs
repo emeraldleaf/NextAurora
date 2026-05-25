@@ -7,6 +7,7 @@ using CatalogService.Domain.Interfaces;
 using CatalogService.Tests.Unit.Builders;
 using NextAurora.Contracts.DTOs;
 using NSubstitute;
+using NSubstitute.ReturnsExtensions;
 
 namespace CatalogService.Tests.Unit.Application;
 
@@ -45,7 +46,7 @@ public class GetProductByIdHandlerTests
         var product = ProductBuilder.Default().Build();
         _repository.GetByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
 
-        // ACT
+        // ACT — Run the handler against the query.
         var result = await _sut.HandleAsync(new GetProductByIdQuery(product.Id), CancellationToken.None);
 
         // ASSERT — Three invariants:
@@ -67,12 +68,12 @@ public class GetProductByIdHandlerTests
         // is the unambiguous "not found" signal — a sentinel like Guid.Empty would force
         // every caller into special-case handling.
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((Product?)null);
+            .ReturnsNull();
 
-        // ACT
+        // ACT — Run the handler against the query.
         var result = await _sut.HandleAsync(new GetProductByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
-        // ASSERT
+        // ASSERT — Null DTO surfaces as 404 at the endpoint.
         result.Should().BeNull();
     }
 
@@ -87,7 +88,7 @@ public class GetProductByIdHandlerTests
         var product = ProductBuilder.Default().Build();
         _repository.GetByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
 
-        // ACT
+        // ACT — Run the handler against the query.
         await _sut.HandleAsync(new GetProductByIdQuery(product.Id), CancellationToken.None);
 
         // ASSERT — Exactly one cache call, for the right product id.

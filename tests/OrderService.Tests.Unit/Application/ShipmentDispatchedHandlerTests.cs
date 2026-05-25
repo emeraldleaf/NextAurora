@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using NextAurora.Contracts.Events;
 using NSubstitute;
+using NSubstitute.ReturnsExtensions;
 using OrderService.Domain;
 using OrderService.Features;
 using OrderService.Tests.Unit.Builders;
@@ -36,7 +37,7 @@ public class ShipmentDispatchedHandlerTests
         order.MarkAsPaid();
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
-        // ACT
+        // ACT — Run the handler against the event.
         await _sut.HandleAsync(EventFor(order.Id), CancellationToken.None);
 
         // ASSERT — Two invariants:
@@ -47,18 +48,22 @@ public class ShipmentDispatchedHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenOrderNotFound_ReturnsWithoutError()
+    public async Task Handle_WhenOrderNotFound_ReturnsWithoutErrorAndDoesNotSave()
     {
         // ARRANGE — Late-arriving event for a deleted order. Same Service Bus at-least-once
         // tolerance rule as PaymentCompletedHandler: tolerate, don't throw, don't DLQ.
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((Order?)null);
+            .ReturnsNull();
 
-        // ACT
+        // ACT — Wrap in a delegate so AwesomeAssertions can capture the (absent) exception.
         var act = () => _sut.HandleAsync(EventFor(Guid.NewGuid()), CancellationToken.None);
 
-        // ASSERT — No exception. The handler short-circuits silently.
+        // ASSERT — Two invariants:
+        //  1) No exception (the handler short-circuits silently on null).
+        //  2) No UpdateAsync call — proves the no-op is real, not "throws then catches".
+        //     Without this we couldn't distinguish "silent no-op" from "tried to save null".
         await act.Should().NotThrowAsync();
+        await _repository.DidNotReceive().UpdateAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -73,7 +78,7 @@ public class ShipmentDispatchedHandlerTests
         var order = OrderBuilder.Default().Build();
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can confirm no exception is thrown.
         var act = () => _sut.HandleAsync(EventFor(order.Id), CancellationToken.None);
 
         // ASSERT — Two invariants:

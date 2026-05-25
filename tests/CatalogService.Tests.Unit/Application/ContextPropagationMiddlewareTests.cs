@@ -35,7 +35,7 @@ public class ContextPropagationMiddlewareTests
         {
             var sut = new ContextPropagationMiddleware(_logger);
 
-            // ACT
+            // ACT — Invoke the middleware.
             sut.Before(envelope);
 
             // ASSERT — Three invariants: all three context fields are restored into
@@ -64,7 +64,7 @@ public class ContextPropagationMiddlewareTests
 
         var sut = new ContextPropagationMiddleware(_logger);
 
-        // ACT
+        // ACT — Invoke the middleware.
         sut.Before(envelope);
 
         // ASSERT — Three invariants:
@@ -94,7 +94,7 @@ public class ContextPropagationMiddlewareTests
 
         var sut = new ContextPropagationMiddleware(_logger);
 
-        // ACT
+        // ACT — Invoke the middleware.
         sut.Before(envelope);
 
         // ASSERT — Both keys present with the right values. The scope dictionary is
@@ -120,7 +120,7 @@ public class ContextPropagationMiddlewareTests
         var sut = new ContextPropagationMiddleware(_logger);
         sut.Before(envelope);
 
-        // ACT
+        // ACT — Trigger the cleanup callback.
         sut.Finally();
 
         // ASSERT — Dispose called exactly once. Twice would also be wrong (double-dispose

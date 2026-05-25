@@ -23,7 +23,7 @@ public class OutgoingContextMiddlewareTests
         {
             var envelope = new Envelope();
 
-            // ACT
+            // ACT — Invoke the middleware.
             new OutgoingContextMiddleware().Before(envelope);
 
             // ASSERT — Header stamped with the same value as the baggage. The downstream
@@ -44,10 +44,10 @@ public class OutgoingContextMiddlewareTests
         {
             var envelope = new Envelope();
 
-            // ACT
+            // ACT — Invoke the middleware.
             new OutgoingContextMiddleware().Before(envelope);
 
-            // ASSERT
+            // ASSERT — Session header stamped from baggage verbatim.
             envelope.Headers["X-Session-Id"].Should().Be("sess-abc");
         }
     }
@@ -66,10 +66,10 @@ public class OutgoingContextMiddlewareTests
         {
             var envelope = new Envelope();
 
-            // ACT
+            // ACT — Invoke the middleware.
             new OutgoingContextMiddleware().Before(envelope);
 
-            // ASSERT
+            // ASSERT — Neither key was added — null-key pollution avoided.
             envelope.Headers.Should().NotContainKey("X-User-Id");
             envelope.Headers.Should().NotContainKey("X-Session-Id");
         }
@@ -85,7 +85,7 @@ public class OutgoingContextMiddlewareTests
         // middleware that's supposed to be transparent when telemetry is off.
         var envelope = new Envelope();
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can confirm no exception is thrown.
         var act = () => new OutgoingContextMiddleware().Before(envelope);
 
         // ASSERT — No throw. Headers may or may not be set; the contract here is just
@@ -108,7 +108,7 @@ public class OutgoingContextMiddlewareTests
         {
             var envelope = new Envelope();
 
-            // ACT
+            // ACT — Invoke the middleware.
             new OutgoingContextMiddleware().Before(envelope);
 
             // ASSERT — Both headers present, both correct.

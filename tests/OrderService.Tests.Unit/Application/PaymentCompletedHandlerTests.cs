@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using NextAurora.Contracts.Events;
 using NSubstitute;
+using NSubstitute.ReturnsExtensions;
 using OrderService.Domain;
 using OrderService.Features;
 using OrderService.Tests.Unit.Builders;
@@ -35,7 +36,7 @@ public class PaymentCompletedHandlerTests
         var order = OrderBuilder.Default().Build();
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
-        // ACT
+        // ACT — Run the handler against the event.
         await _sut.HandleAsync(EventFor(order.Id), CancellationToken.None);
 
         // ASSERT — Two invariants:
@@ -54,9 +55,9 @@ public class PaymentCompletedHandlerTests
         // The handler must tolerate this — a NO-OP, not a throw. A throw would land the
         // message on the DLQ and require operator attention for a benign race.
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((Order?)null);
+            .ReturnsNull();
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can confirm no exception is thrown.
         var act = () => _sut.HandleAsync(EventFor(Guid.NewGuid()), CancellationToken.None);
 
         // ASSERT — Two invariants:
@@ -78,7 +79,7 @@ public class PaymentCompletedHandlerTests
         order.MarkAsPaid();
         _repository.GetByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can confirm no exception is thrown.
         var act = () => _sut.HandleAsync(EventFor(order.Id), CancellationToken.None);
 
         // ASSERT — Two invariants:

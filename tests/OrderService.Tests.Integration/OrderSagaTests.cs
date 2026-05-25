@@ -98,7 +98,7 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
 
         var client = _factory.CreateClient();
 
-        // ACT
+        // ACT — Post the order; expect catalog validation to reject it.
         var response = await client.PostAsJsonAsync("/api/v1/orders", command);
 
         // ASSERT — Two invariants:

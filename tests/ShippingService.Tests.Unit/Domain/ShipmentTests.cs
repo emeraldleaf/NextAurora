@@ -12,7 +12,7 @@ public class ShipmentTests
         // every aggregate in this repo, it validates up front and produces a fully
         // constituted aggregate (no two-phase init).
 
-        // ACT
+        // ACT — Call the factory.
         var shipment = Shipment.Create(Guid.NewGuid(), Guid.NewGuid(), "FedEx");
 
         // ASSERT — Three invariants:
@@ -34,7 +34,7 @@ public class ShipmentTests
         // stays decoupled from carrier integration code — easy to swap when real
         // carriers wire in. Format: "NVC-" + 12 uppercase hex chars = 16 chars.
 
-        // ACT
+        // ACT — Call the factory.
         var shipment = Shipment.Create(Guid.NewGuid(), Guid.NewGuid(), "UPS");
 
         // ASSERT — Two invariants:
@@ -54,7 +54,7 @@ public class ShipmentTests
         // entire shipment lifecycle the user sees.
         var shipment = Shipment.Create(Guid.NewGuid(), Guid.NewGuid(), "FedEx");
 
-        // ACT
+        // ACT — Transition Created → Dispatched.
         shipment.Dispatch();
 
         // ASSERT — Two invariants:
@@ -74,7 +74,7 @@ public class ShipmentTests
         // polling is the not-yet-built feature.)
         var shipment = Shipment.Create(Guid.NewGuid(), Guid.NewGuid(), "FedEx");
 
-        // ACT
+        // ACT — Transition Created → Dispatched.
         shipment.Dispatch();
 
         // ASSERT — Two invariants:
@@ -94,7 +94,7 @@ public class ShipmentTests
         var shipment = Shipment.Create(Guid.NewGuid(), Guid.NewGuid(), "FedEx");
         shipment.Dispatch();
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => shipment.Dispatch();
 
         // ASSERT — The throw is the contract. If a future refactor removes the

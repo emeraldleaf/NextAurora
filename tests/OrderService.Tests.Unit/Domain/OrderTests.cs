@@ -35,7 +35,7 @@ public class OrderTests
         // check, a caller forgetting to set BuyerId would silently create an order belonging
         // to no one — the factory must reject this up front.
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => OrderBuilder.Default().WithBuyerId(Guid.Empty).Build();
 
         // ASSERT — Exception names the parameter so callers can fix the right field.
@@ -49,10 +49,10 @@ public class OrderTests
         // exist. The factory enforces "at least one line" so the rule lives in one place
         // rather than being scattered across endpoint validators.
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => OrderBuilder.Default().WithLines([]).Build();
 
-        // ASSERT
+        // ASSERT — Domain rejects empty lines.
         act.Should().Throw<ArgumentException>().WithParameterName("lines");
     }
 
@@ -66,7 +66,7 @@ public class OrderTests
         // not an intended API).
         var act = () => OrderBuilder.Default().WithCurrency(null!).Build();
 
-        // ASSERT
+        // ASSERT — Domain rejects null currency.
         act.Should().Throw<ArgumentException>();
     }
 
@@ -82,7 +82,7 @@ public class OrderTests
             OrderLineBuilder.Default().WithQuantity(3).WithUnitPrice(5m).Build()
         };
 
-        // ACT
+        // ACT — Build the order through the factory.
         var order = OrderBuilder.Default().WithLines(lines).Build();
 
         // ASSERT — The factory's sum matches the expected total. A future refactor that
@@ -98,7 +98,7 @@ public class OrderTests
         // the call with `before`/`after` to avoid flakiness from system-clock granularity.
         var before = DateTime.UtcNow;
 
-        // ACT
+        // ACT — Build the order through the factory.
         var order = OrderBuilder.Default().Build();
         var after = DateTime.UtcNow;
 
@@ -114,7 +114,7 @@ public class OrderTests
         // after Service Bus delivers PaymentCompletedEvent.
         var order = OrderBuilder.Default().Build();
 
-        // ACT
+        // ACT — Transition Placed → Paid.
         order.MarkAsPaid();
 
         // ASSERT — Two invariants:
@@ -135,10 +135,10 @@ public class OrderTests
         var order = OrderBuilder.Default().Build();
         order.MarkAsPaid();
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => order.MarkAsPaid();
 
-        // ASSERT
+        // ASSERT — Re-paying an already-Paid order is rejected.
         act.Should().Throw<InvalidOperationException>();
     }
 
@@ -151,7 +151,7 @@ public class OrderTests
         var order = OrderBuilder.Default().Build();
         order.MarkAsPaid();
 
-        // ACT
+        // ACT — Transition Paid → Shipped.
         order.MarkAsShipped();
 
         // ASSERT — Two invariants:
@@ -169,10 +169,10 @@ public class OrderTests
         // This test guards against a future bug where someone bypasses the status check.
         var order = OrderBuilder.Default().Build();
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => order.MarkAsShipped();
 
-        // ASSERT
+        // ASSERT — Shipping a non-Paid order is rejected.
         act.Should().Throw<InvalidOperationException>();
     }
 
@@ -184,10 +184,10 @@ public class OrderTests
         // release yet — that happens in the payment service).
         var order = OrderBuilder.Default().Build();
 
-        // ACT
+        // ACT — Cancel a Placed order.
         order.Cancel();
 
-        // ASSERT
+        // ASSERT — Status transitions to Cancelled.
         order.Status.Should().Be(OrderStatus.Cancelled);
     }
 
@@ -201,10 +201,10 @@ public class OrderTests
         var order = OrderBuilder.Default().Build();
         order.MarkAsPaid();
 
-        // ACT
+        // ACT — Cancel a Paid order (no refund wired yet — see Open Issues).
         order.Cancel();
 
-        // ASSERT
+        // ASSERT — Status transitions to Cancelled.
         order.Status.Should().Be(OrderStatus.Cancelled);
     }
 
@@ -218,10 +218,10 @@ public class OrderTests
         order.MarkAsPaid();
         order.MarkAsShipped();
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => order.Cancel();
 
-        // ASSERT
+        // ASSERT — Cancelling a Shipped order is rejected.
         act.Should().Throw<InvalidOperationException>();
     }
 
@@ -238,10 +238,10 @@ public class OrderTests
         // This is a structural test — it would fail at compile time too if someone
         // changed the return type, but the runtime assertion documents intent.
 
-        // ACT
+        // ACT — Build the order through the factory.
         var order = OrderBuilder.Default().Build();
 
-        // ASSERT
+        // ASSERT — Lines exposed as IReadOnlyList; mutation paths blocked.
         order.Lines.Should().BeAssignableTo<IReadOnlyList<OrderLine>>();
     }
 }

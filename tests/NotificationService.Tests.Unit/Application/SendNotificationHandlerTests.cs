@@ -26,7 +26,7 @@ public class SendNotificationHandlerTests
         var request = new SendNotificationRequest(
             Guid.NewGuid(), "user@test.com", "Subject", "Body", "Email");
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can confirm no exception is thrown.
         var act = () => _sut.HandleAsync(request, CancellationToken.None);
 
         // ASSERT — Two invariants:
@@ -49,7 +49,7 @@ public class SendNotificationHandlerTests
         _sender.SendAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("SMTP error"));
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => _sut.HandleAsync(request, CancellationToken.None);
 
         // ASSERT — Exception propagates UNCHANGED (no wrapping, no swallowing).
@@ -71,7 +71,7 @@ public class SendNotificationHandlerTests
         var request = new SendNotificationRequest(
             Guid.NewGuid(), badEmail, "Subject", "Body", "Email");
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => _sut.HandleAsync(request, CancellationToken.None);
 
         // ASSERT — Two invariants:

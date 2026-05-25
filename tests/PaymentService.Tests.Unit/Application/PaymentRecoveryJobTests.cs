@@ -84,7 +84,7 @@ public class PaymentRecoveryJobTests
         // still catch the race, but at the cost of N-1 wasted DB round-trips per sweep.
         AcquireLockFails();
 
-        // ACT
+        // ACT — Run a single sweep.
         using var job = CreateJob();
         await job.SweepAsync(CancellationToken.None);
 
@@ -103,7 +103,7 @@ public class PaymentRecoveryJobTests
         _repository.GetStalePendingPaymentIdsAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .Returns(Array.Empty<Guid>());
 
-        // ACT
+        // ACT — Run a single sweep.
         using var job = CreateJob();
         await job.SweepAsync(CancellationToken.None);
 
@@ -127,7 +127,7 @@ public class PaymentRecoveryJobTests
             .Returns(new[] { payment.Id });
         _repository.GetByIdAsync(payment.Id, Arg.Any<CancellationToken>()).Returns(payment);
 
-        // ACT
+        // ACT — Run a single sweep.
         using var job = CreateJob();
         await job.SweepAsync(CancellationToken.None);
 
@@ -162,7 +162,7 @@ public class PaymentRecoveryJobTests
         _repository.GetStalePendingPaymentIdsAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .Returns(Array.Empty<Guid>());
 
-        // ACT
+        // ACT — Run a single sweep.
         using var job = CreateJob();
         await job.SweepAsync(CancellationToken.None);
 
@@ -189,7 +189,7 @@ public class PaymentRecoveryJobTests
             .Returns(new[] { payment.Id });
         _repository.GetByIdAsync(payment.Id, Arg.Any<CancellationToken>()).Returns(payment);
 
-        // ACT
+        // ACT — Run a single sweep.
         using var job = CreateJob();
         await job.SweepAsync(CancellationToken.None);
 
@@ -214,7 +214,7 @@ public class PaymentRecoveryJobTests
             .Returns(new[] { missingId });
         _repository.GetByIdAsync(missingId, Arg.Any<CancellationToken>()).ReturnsNull();
 
-        // ACT
+        // ACT — Run a single sweep.
         using var job = CreateJob();
         await job.SweepAsync(CancellationToken.None);
 

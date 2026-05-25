@@ -27,7 +27,7 @@ public class CreateProductHandlerTests
         // aggregate's only construction chokepoint) and then saves the result.
         var command = ValidCommand();
 
-        // ACT
+        // ACT — Run the handler.
         var result = await _sut.HandleAsync(command, CancellationToken.None);
 
         // ASSERT — Two invariants:
@@ -51,7 +51,7 @@ public class CreateProductHandlerTests
         var command = new CreateProductCommand(
             "Doohickey", "A doohickey", 42m, "USD", categoryId, "seller-2", 7);
 
-        // ACT
+        // ACT — Run the handler.
         await _sut.HandleAsync(command, CancellationToken.None);
 
         // ASSERT — The persisted aggregate carries every field we sent. We use NSubstitute's
@@ -81,7 +81,7 @@ public class CreateProductHandlerTests
         // own validation; handlers don't restate it.)
         var command = ValidCommand() with { Name = invalidName };
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => _sut.HandleAsync(command, CancellationToken.None);
 
         // ASSERT — The domain's ArgumentException surfaces. Crucially, AddAsync is NOT
@@ -98,10 +98,10 @@ public class CreateProductHandlerTests
         // is refused.
         var command = ValidCommand() with { Price = 0m };
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => _sut.HandleAsync(command, CancellationToken.None);
 
-        // ASSERT
+        // ASSERT — Domain rejects price=0; no persistence.
         await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
         await _repository.DidNotReceive().AddAsync(Arg.Any<Product>(), Arg.Any<CancellationToken>());
     }

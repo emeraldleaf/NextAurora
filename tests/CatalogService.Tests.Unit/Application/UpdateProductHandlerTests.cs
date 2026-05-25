@@ -6,6 +6,7 @@ using CatalogService.Domain.Entities;
 using CatalogService.Domain.Interfaces;
 using CatalogService.Tests.Unit.Builders;
 using NSubstitute;
+using NSubstitute.ReturnsExtensions;
 
 namespace CatalogService.Tests.Unit.Application;
 
@@ -58,7 +59,7 @@ public class UpdateProductHandlerTests
     {
         // ARRANGE — Repository returns null so the handler treats this as "no such product".
         _repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((Product?)null);
+            .ReturnsNull();
         var command = new UpdateProductCommand(
             Guid.NewGuid(), "any-seller", "n", "d", 10m);
 
@@ -81,6 +82,16 @@ public class UpdateProductHandlerTests
         // against command.SellerId, but a caller could submit THEIR own seller id paired
         // with someone else's product id. The handler MUST catch this — without the check,
         // any authenticated seller could overwrite any product. (CWE-639 — IDOR.)
+        //
+        // NOTE on 403 vs 404: CLAUDE.md "Security Requirements" mandates null → 404 for
+        // BUYER-SCOPED READS (anti-enumeration: returning 403 leaks that the entity
+        // exists). This handler is a SELLER-SCOPED WRITE — the project intentionally
+        // returns 403 here (GlobalExceptionHandler maps UnauthorizedAccessException
+        // to 403; see docs/STATUS.md "CatalogService seller authorization"). The
+        // reasoning: the attacker is authenticated, the failure mode is "you're not
+        // authorized to write this resource", and 403 is the correct HTTP semantic.
+        // If we ever decide seller-scoped writes should also use the anti-enumeration
+        // pattern, this test + the handler + GlobalExceptionHandler change together.
         var product = ProductBuilder.Default().Build();
         var attackerSellerId = "different-seller-" + Guid.NewGuid();
         var originalName = product.Name;
@@ -89,7 +100,7 @@ public class UpdateProductHandlerTests
         var command = new UpdateProductCommand(
             product.Id, attackerSellerId, "Hacked", "Hacked", 0.01m);
 
-        // ACT
+        // ACT — Wrap so AwesomeAssertions can inspect the thrown exception.
         var act = () => _sut.HandleAsync(command, CancellationToken.None);
 
         // ASSERT — Three invariants:
@@ -127,7 +138,7 @@ public class UpdateProductHandlerTests
             .Returns(Task.CompletedTask)
             .AndDoes(_ => callOrder.Add("invalidate"));
 
-        // ACT
+        // ACT — Run the handler.
         await _sut.HandleAsync(command, CancellationToken.None);
 
         // ASSERT — "update" must come strictly before "invalidate".

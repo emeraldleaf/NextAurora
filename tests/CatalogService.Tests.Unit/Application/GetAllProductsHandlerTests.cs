@@ -28,7 +28,7 @@ public class GetAllProductsHandlerTests
             .GetAllAsync(1, 50, Arg.Any<CancellationToken>())
             .Returns(new List<Product> { p1, p2 });
 
-        // ACT
+        // ACT — Run the handler against the default query.
         var result = await _sut.HandleAsync(new GetAllProductsQuery(), CancellationToken.None);
 
         // ASSERT — Round-trip count + names. The DTO shape is owned by ProductMapper;
@@ -45,10 +45,10 @@ public class GetAllProductsHandlerTests
             .GetAllAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new List<Product>());
 
-        // ACT
+        // ACT — Run the handler against the default query.
         var result = await _sut.HandleAsync(new GetAllProductsQuery(), CancellationToken.None);
 
-        // ASSERT
+        // ASSERT — Non-null, empty list (never null collections from queries).
         result.Should().NotBeNull();
         result.Should().BeEmpty();
     }
@@ -67,7 +67,7 @@ public class GetAllProductsHandlerTests
         // ACT — Page 5, size 20.
         await _sut.HandleAsync(new GetAllProductsQuery(Page: 5, PageSize: 20), CancellationToken.None);
 
-        // ASSERT
+        // ASSERT — Pagination args flow straight through to the repository.
         await _repository.Received(1).GetAllAsync(5, 20, Arg.Any<CancellationToken>());
     }
 }
