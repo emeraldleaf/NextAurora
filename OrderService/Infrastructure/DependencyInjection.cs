@@ -1,4 +1,4 @@
-using CatalogService.Api.Grpc;
+using CatalogService.Grpc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

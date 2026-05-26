@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
-using CatalogService.Domain.Entities;
+using CatalogService.Domain;
 using CatalogService.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

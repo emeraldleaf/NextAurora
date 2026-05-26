@@ -7,7 +7,7 @@ This guide explains how the code is organized, how requests flow through the sys
 ## Table of Contents
 
 1. [Project Layout](#1-project-layout)
-2. [Per-Service Architecture: Clean Architecture or VSA](#2-per-service-architecture-clean-architecture-or-vsa)
+2. [Per-Service Architecture: Vertical Slice Architecture](#2-per-service-architecture-vertical-slice-architecture)
 3. [Domain Model — Rich Entities with Guard Clauses](#3-domain-model--rich-entities-with-guard-clauses)
 4. [CQRS + Wolverine — The Request Pipeline](#4-cqrs--wolverine--the-request-pipeline)
 5. [A Complete Request: Placing an Order](#5-a-complete-request-placing-an-order)
@@ -30,16 +30,17 @@ NextAurora/
   NextAurora.ServiceDefaults/  # Shared middleware, telemetry, exception handling
   NextAurora.Contracts/        # Shared event classes and DTOs (cross-service contracts)
 
-  CatalogService/               # Clean Architecture (largest service)
-    CatalogService.Domain/         # Product, Category entities; repository interfaces
-    CatalogService.Application/    # Commands, queries, Wolverine handlers, validators
-    CatalogService.Infrastructure/ # EF Core (PostgreSQL), repositories, HybridCache
-    CatalogService.Api/            # ASP.NET Core host, REST endpoints, gRPC server
+  CatalogService/               # VSA (PostgreSQL + Redis HybridCache + gRPC server)
+    Features/                      # GetProductById.cs, UpdateProduct.cs, ReserveStock.cs, etc.
+    Domain/                        # Product, Category aggregates; IProductCache port
+    Infrastructure/                # EF Core, HybridProductCache, migrations, DI
+    Endpoints/                     # REST endpoints
+    Grpc/                          # gRPC server (CatalogGrpcService)
 
-  OrderService/                 # Vertical Slice Architecture (single project, SQL Server)
+  OrderService/                 # VSA (single project, SQL Server)
     Features/                      # PlaceOrder.cs, GetOrderById.cs, saga handlers
     Domain/                        # Order aggregate, ports
-    Infrastructure/                # EF Core, repositories, gRPC client to Catalog
+    Infrastructure/                # EF Core, gRPC client to Catalog
     Endpoints/                     # Minimal-API HTTP surface
   PaymentService/               # VSA (SQL Server)
   ShippingService/              # VSA (PostgreSQL)
@@ -58,50 +59,44 @@ NextAurora/
 
 ---
 
-## 2. Per-Service Architecture: Clean Architecture or VSA
+## 2. Per-Service Architecture: Vertical Slice Architecture
 
-NextAurora uses **two architectural shapes side-by-side**, calibrated to each service's
-complexity. The cross-service diff is intentional, not an inconsistency to clean up.
+All five services share **one shape** — Vertical Slice Architecture with a single Web SDK
+csproj per service, organized by *feature* instead of *layer*. The repo previously used
+Clean Architecture for CatalogService and VSA for the other four; that diff was retired in
+the VSA-collapse refactor because the layer split wasn't earning its keep at this scale
+(~2k LOC, 2 aggregates) and "one consistent shape" is a stronger story than "we calibrate
+per service."
 
-### CatalogService — Clean Architecture (4 projects)
-
-The largest service uses the classic four-project split with the dependency rule enforced by
-project references at compile time:
-
-```
-Domain          →  no dependencies
-Application     →  Domain only
-Infrastructure  →  Domain + Application
-Api             →  all layers (DI composition root)
-```
-
-| Project | What lives there |
-|-------|----------------|
-| **Domain** | `Product`, `Category` entities; `IProductRepository` interface; domain types only — zero framework dependencies |
-| **Application** | `GetProductByIdQuery` + handler, `CreateProductCommand` + validator + handler, `ProductMapper`, `IProductCache` port |
-| **Infrastructure** | `CatalogDbContext`, `ProductRepository`, `HybridProductCache` (the L1+L2 implementation), DI registration |
-| **Api** | `Program.cs`, REST endpoints (`CatalogEndpoints`), gRPC server (`CatalogGrpcService`), rate limiter wiring |
-
-### Order / Payment / Shipping / Notification — Vertical Slice Architecture (1 project each)
-
-Smaller services collapsed to one csproj with code organized by *feature* instead of *layer*:
-
-```
+```text
 ServiceName/
   Features/          # Per use case: command/query record + validator + handler co-located.
                     # Saga event handlers live here too (they own real state machines).
-  Domain/            # Aggregate roots, value objects, ports (IFooRepository, IEventPublisher).
-  Infrastructure/    # EF Core (Data/ + Migrations/), repositories, gateways, DI composition.
+  Domain/            # Aggregate roots, value objects, ports (IEventPublisher, IProductCache).
+  Infrastructure/    # EF Core (Data/ + Migrations/), caching, gateways, DI composition.
   Endpoints/         # Minimal-API HTTP surface.
+  Grpc/              # gRPC server handlers (CatalogService only).
   Program.cs         # Composition root.
 ```
 
 The Domain folder is just a folder (no build-time boundary). Discipline does the work
-compile-time project references used to. **`IFooRepository` and `IEventPublisher` ports stay**
-in both shapes — they're earning their keep through unit-test substitution, not the project
-boundary.
+compile-time project references would have. **Ports stay where they earn their keep through
+consumer substitution** — `IEventPublisher` (Wolverine vs. test fake), `IPaymentGateway`
+(Stripe vs. test fake), `ICatalogClient` (gRPC vs. test fake), `INotificationSender`,
+`IProductCache` (HybridCache vs. test fake). What's gone: every `I*Repository` wrapper
+around EF — `DbContext` IS Unit-of-Work and `DbSet<T>` IS Repository, the wrapper only
+existed to enable handler-mocking, and we replaced mocked handler unit tests with
+integration tests against Testcontainers.
 
-See [CLAUDE.md "Project Structure"](../CLAUDE.md#project-structure) for the decision rule.
+### Promotion signal — when to consider Clean Architecture
+
+VSA is the default and stays the default. Consider a Clean Architecture promotion only when
+*all* of these hit at once on a single service: 5+ aggregates, cross-cutting domain rules
+multiple features need to coordinate on, `Domain/` growing faster than `Features/`. None of
+the current services hit that bar; CatalogService was the closest and it didn't qualify
+either.
+
+See [CLAUDE.md "Project Structure"](../CLAUDE.md#project-structure) for the canonical rule.
 
 ---
 
@@ -669,7 +664,7 @@ All tests in the solution run. Each test project targets the unit tests for one 
 | Change which events a service consumes | Add a handler class for the event in `{Service}.Application/Handlers/`, plus an `opts.ListenToAzureServiceBusSubscription(...)` line in `{Service}.Api/Program.cs` |
 | Inspect outgoing events / outbox state | Each event-publishing service's DB has a `wolverine` schema; `outgoing_envelopes` is the staged-but-not-yet-flushed queue, `dead_letters` the DLQ. See [event-replay.md](./event-replay.md) |
 | Add a new gRPC method to CatalogService | `CatalogService.Api/Protos/catalog.proto` + `CatalogService.Api/Services/CatalogGrpcService.cs` (regenerate clients in OrderService) |
-| Add a cached read query in Catalog | `IProductCache.GetOrLoadAsync(id, factory)` — see [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) |
+| Add a cached read query in Catalog | `IProductCache.GetOrLoadAsync(id, factory)` — see [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs) |
 | Reach for raw SQL via Dapper | `ctx.Database.GetDbConnection()` so it shares the EF transaction — see [Dapper escape hatch](performance-and-data-correctness.md#decision-when-to-reach-past-ef-core-dapper-escape-hatch) |
 | Understand the full order lifecycle | This guide, [architecture.md](./architecture.md), the [architecture diagram](./nextaurora-architecture.svg) ([source](./nextaurora-architecture.excalidraw)), and the event flow diagram in [README.md](../README.md) |
 | Understand performance + correctness rules (outbox, concurrency tokens, caching) | [performance-and-data-correctness.md](./performance-and-data-correctness.md) |

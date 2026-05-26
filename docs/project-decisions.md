@@ -152,7 +152,7 @@ module-folders within one project. The four VSA services are already there.
 
 **Every HTTP endpoint in NextAurora is a Minimal API endpoint.** No controllers anywhere.
 
-Example from [CatalogEndpoints.cs](../CatalogService/CatalogService.Api/Endpoints/CatalogEndpoints.cs):
+Example from [CatalogEndpoints.cs](../CatalogService/Endpoints/CatalogEndpoints.cs):
 
 ```csharp
 public static class CatalogEndpoints
@@ -266,7 +266,7 @@ Register a side-by-side group with `.HasApiVersion(new ApiVersion(2, 0))`. Exist
 
 Every service emits OpenAPI specs and ships an interactive UI in development.
 
-From [CatalogService.Api/Program.cs](../CatalogService/CatalogService.Api/Program.cs):
+From [CatalogService/Program.cs](../CatalogService/Program.cs):
 
 ```csharp
 if (app.Environment.IsDevelopment())
@@ -361,7 +361,7 @@ From [OrderEndpoints.cs:32](../OrderService/Endpoints/OrderEndpoints.cs#L32):
 var group = app.MapV1ApiGroup("Orders", "orders").RequireAuthorization();
 ```
 
-From [CatalogEndpoints.cs:70](../CatalogService/CatalogService.Api/Endpoints/CatalogEndpoints.cs#L70):
+From [CatalogEndpoints.cs:70](../CatalogService/Endpoints/CatalogEndpoints.cs#L70):
 
 ```csharp
 // Endpoint-level: GET /products is anonymous, POST requires auth.
@@ -532,7 +532,7 @@ The `errors` dictionary is keyed by field name and values are arrays of messages
 
 Built-in .NET 7+ `Microsoft.AspNetCore.RateLimiting` middleware, configured per-policy and applied per-endpoint.
 
-From [CatalogService.Api/Program.cs](../CatalogService/CatalogService.Api/Program.cs):
+From [CatalogService/Program.cs](../CatalogService/Program.cs):
 
 ```csharp
 builder.Services.AddRateLimiter(options =>

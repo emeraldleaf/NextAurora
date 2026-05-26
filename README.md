@@ -196,27 +196,30 @@ NextAurora/
   NextAurora.AppHost/          # Aspire orchestrator
   NextAurora.ServiceDefaults/  # Shared OpenTelemetry, health checks, resilience
   NextAurora.Contracts/        # Shared events, commands, DTOs
-  CatalogService/             # Clean Architecture (largest service)
-    CatalogService.Domain/        # Entities, interfaces
-    CatalogService.Application/   # CQRS handlers, mappers
-    CatalogService.Infrastructure/# EF Core, repositories, caching
-    CatalogService.Api/           # Endpoints, gRPC server
-  OrderService/               # Vertical Slice Architecture (single project)
+  CatalogService/             # VSA — largest service (2 aggregates, gRPC server, HybridCache)
+    Features/                     # GetProductById.cs, UpdateProduct.cs, ReserveStock.cs, etc.
+    Domain/                       # Product, Category aggregates; IProductCache port
+    Infrastructure/               # EF Core (Postgres + Migrations), HybridProductCache, DI
+    Endpoints/                    # Minimal-API HTTP surface
+    Grpc/                         # gRPC server (CatalogGrpcService — the peer for OrderService's client)
+    Protos/catalog.proto          # Shared proto contract
+    Program.cs                    # Composition root
+  OrderService/               # VSA
     Features/                     # One file per use case: PlaceOrder.cs, GetOrderById.cs, saga handlers
     Domain/                       # Order aggregate, OrderLine, ports
-    Infrastructure/               # EF Core (Data/ + Migrations/), repositories, gRPC client
-    Endpoints/                    # Minimal-API HTTP surface
-    Program.cs                    # Composition root
+    Infrastructure/               # EF Core (Data/ + Migrations/), gRPC client to Catalog
+    Endpoints/
+    Program.cs
   PaymentService/             # VSA
     Features/                     # ProcessPayment.cs (command + validator + handler), OrderPlacedHandler.cs
     Domain/                       # Payment aggregate, ports (incl. IPaymentGateway)
-    Infrastructure/               # EF Core, repository, Stripe ACL (Gateway/), Wolverine adapter
+    Infrastructure/               # EF Core, Stripe ACL (Gateway/), Wolverine adapter, recovery job
     Endpoints/
     Program.cs
   ShippingService/            # VSA
     Features/                     # CreateShipment.cs, GetShipmentByOrder.cs, PaymentCompletedHandler.cs
     Domain/                       # Shipment aggregate, TrackingEvent, ports
-    Infrastructure/               # EF Core, repository, Wolverine adapter
+    Infrastructure/               # EF Core, Wolverine adapter
     Endpoints/
     Program.cs
   NotificationService/        # VSA — smallest service, stateless
@@ -227,12 +230,14 @@ NextAurora/
   SellerPortal/               # ASP.NET Core static-file host scaffold (UI framework TBD)
 ```
 
-**Why two shapes:** the cross-service diff is intentional. CatalogService is
-the largest service (multiple aggregates, caching, gRPC, optimistic concurrency)
-and earns the four-project Clean Architecture split. The other four services
-are smaller (≤2 aggregates each) and got more value from VSA's "find everything
-related to PlaceOrder in one folder" than from build-time layer enforcement.
-See [CLAUDE.md](CLAUDE.md#project-structure) "Project Structure" for the decision rule.
+**One shape across all five services.** Vertical Slice Architecture everywhere — features
+are co-located by use case (`Features/<UseCase>.cs` containing command/query + validator +
+handler), aggregates live in `Domain/`, and each service is a single Web SDK project.
+CatalogService previously used Clean Architecture (4 projects) but was collapsed to VSA in
+the simplicity refactor — at ~2k LOC and 2 aggregates the layer split wasn't earning its
+keep, and one consistent shape is a stronger story than "we calibrate per service."
+See [CLAUDE.md](CLAUDE.md#project-structure) "Project Structure" for the promotion signal
+(when 5+ aggregates with cross-cutting domain rules emerge, consider Clean Architecture).
 
 ## Event Flow
 

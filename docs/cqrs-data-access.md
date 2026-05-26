@@ -94,104 +94,80 @@ Both split-query approaches (the auto-split-on-projection that the rule prescrib
 
 ---
 
-## Canonical shape per architecture style
+## Canonical shape — DbContext directly, no repository wrapper
 
-Two service shapes live in this repo (VSA for Order/Shipping/Payment/Notification, Clean Architecture for CatalogService). The rule applies to both; the *shape* differs because the layer constraints differ.
+All five services share one shape: handlers take `DbContext` directly (no `I*Repository` /
+`I*ReadStore` wrapper). The read and write paths still split, but the split is enforced by
+code-shape discipline inside the handler instead of by separate interface methods.
 
-### VSA services (Order, Shipping, Payment, Notification)
-
-The repository interface lives in `ServiceName/Domain/IFooRepository.cs`, in the same csproj as `Features/` and `Infrastructure/`. There's no separate Domain project, so the interface can reference `NextAurora.Contracts.DTOs` without breaking a layer rule.
-
-**Pattern:** add sibling DTO-returning methods to the existing repository interface.
+### Read path — project to DTO inline
 
 ```csharp
-// OrderService/Domain/IOrderRepository.cs
-public interface IOrderRepository
+// OrderService/Features/GetOrderById.cs
+public class GetOrderByIdHandler(OrderDbContext context)
 {
-    // Write path — loaded tracked, mutated, saved
-    Task<Order?> GetByIdAsync(Guid id, CancellationToken ct = default);
-
-    // Read paths — projected in EF, returns DTO
-    Task<OrderSummaryDto?> GetSummaryByIdAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<OrderSummaryDto>> GetSummariesByBuyerIdAsync(
-        Guid buyerId, int page, int pageSize, CancellationToken ct = default);
-
-    Task AddAsync(Order order, CancellationToken ct = default);
-    Task UpdateAsync(Order order, CancellationToken ct = default);
-}
-```
-
-```csharp
-// OrderService/Infrastructure/OrderRepository.cs
-public async Task<OrderSummaryDto?> GetSummaryByIdAsync(Guid id, CancellationToken ct = default)
-    => await context.Orders.AsNoTracking()
-        .Where(o => o.Id == id)
-        .Select(o => new OrderSummaryDto
-        {
-            OrderId = o.Id,
-            BuyerId = o.BuyerId,
-            Status = o.Status.ToString(),
-            TotalAmount = o.TotalAmount,
-            Currency = o.Currency,
-            PlacedAt = o.PlacedAt,
-            Lines = o.Lines.Select(l => new OrderLineSummaryDto
+    public Task<OrderSummaryDto?> HandleAsync(GetOrderByIdQuery request, CancellationToken cancellationToken)
+        => context.Orders.AsNoTracking()
+            .Where(o => o.Id == request.OrderId)
+            .Select(o => new OrderSummaryDto
             {
-                ProductId = l.ProductId,
-                ProductName = l.ProductName,
-                Quantity = l.Quantity,
-                UnitPrice = l.UnitPrice
-            }).ToList()
-        })
-        .FirstOrDefaultAsync(ct);
-```
-
-The query handler becomes a one-liner:
-
-```csharp
-public Task<OrderSummaryDto?> HandleAsync(GetOrderByIdQuery request, CancellationToken cancellationToken)
-    => repository.GetSummaryByIdAsync(request.OrderId, cancellationToken);
-```
-
-The write/saga handlers keep using `GetByIdAsync` and mutating the loaded aggregate. Both paths coexist on the same interface; tests substitute the same interface either way.
-
-### Clean Architecture (CatalogService)
-
-`IProductRepository` lives in `CatalogService.Domain/Interfaces/`. The Domain project does **not** reference `NextAurora.Contracts` — that's the layer rule. Adding a DTO-returning method to `IProductRepository` would force the Domain project to take a Contracts dependency, violating the layer rule.
-
-**Pattern:** introduce a sibling read-store interface in the Application layer, implementation in Infrastructure.
-
-```csharp
-// CatalogService.Application/Interfaces/IProductReadStore.cs
-public interface IProductReadStore
-{
-    Task<ProductDto?> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<ProductDto>> GetAllAsync(int page, int pageSize, CancellationToken ct = default);
-    Task<IReadOnlyList<ProductDto>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default);
-}
-```
-
-```csharp
-// CatalogService.Infrastructure/Repositories/ProductReadStore.cs
-public class ProductReadStore(CatalogDbContext context) : IProductReadStore
-{
-    public async Task<ProductDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => await context.Products.AsNoTracking()
-            .Where(p => p.Id == id)
-            .Select(p => new ProductDto
-            {
-                Id = p.Id,
-                Name = p.Name,
-                /* ... */
-                Category = p.Category != null ? p.Category.Name : ""
+                OrderId = o.Id,
+                BuyerId = o.BuyerId,
+                Status = o.Status.ToString(),
+                TotalAmount = o.TotalAmount,
+                Currency = o.Currency,
+                PlacedAt = o.PlacedAt,
+                Lines = o.Lines.Select(l => new OrderLineSummaryDto
+                {
+                    ProductId = l.ProductId,
+                    ProductName = l.ProductName,
+                    Quantity = l.Quantity,
+                    UnitPrice = l.UnitPrice
+                }).ToList()
             })
-            .FirstOrDefaultAsync(ct);
-    /* etc. */
+            .FirstOrDefaultAsync(cancellationToken);
 }
 ```
 
-Query handlers depend on `IProductReadStore`. `UpdateProductHandler` and `ReserveStockHandler` keep depending on `IProductRepository` (Domain interface) — they need the tracked aggregate.
+The projection IS the read contract — there's nothing to wrap, nothing to mock. CatalogService
+follows the exact same shape; `GetProductByIdHandler` projects to `ProductDto` inline (with
+the `IProductCache.GetOrLoadAsync` factory wrapping the projection for cache-aside reads).
 
-This split is the textbook CQRS data-access pattern. Two interfaces, two implementations, no layer violations.
+### Write path — load tracked, mutate, save
+
+```csharp
+// OrderService/Features/PaymentCompletedHandler.cs
+public class PaymentCompletedHandler(OrderDbContext context)
+{
+    public async Task HandleAsync(PaymentCompletedEvent @event, CancellationToken cancellationToken)
+    {
+        var order = await context.Orders
+            .Include(o => o.Lines)
+            .FirstOrDefaultAsync(o => o.Id == @event.OrderId, cancellationToken);
+        if (order is null) return;
+        if (order.Status != OrderStatus.Placed) return; // idempotency guard
+
+        order.MarkAsPaid();
+        await context.SaveChangesAsync(cancellationToken);
+    }
+}
+```
+
+The aggregate is loaded tracked (no `AsNoTracking`), mutated via a named state-transition
+method (`MarkAsPaid`, never `Status = Paid`), and persisted with `SaveChangesAsync`. Wolverine's
+`AutoApplyTransactions` wraps the SaveChanges + outbox staging in one DB transaction.
+
+### Why the read/write split is still enforced
+
+Read paths never load tracked entities — `AsNoTracking().Select(DTO)` is the shape. Write
+paths never project to DTO — they need the tracked aggregate so EF can detect changes on
+SaveChanges. Mixing them silently breaks: an `AsNoTracking()` load followed by a mutation
+would no-op on SaveChanges (no change-tracker entry exists), and a `Select()`-projected DTO
+can't be mutated and persisted at all.
+
+The split lives in the handler's code shape, not in separate interface methods. Code review
+catches mixing via the architecture-reviewer agent's "When reviewing query handlers" / "When
+reviewing write handlers" checklists.
 
 ---
 
@@ -201,20 +177,20 @@ This split is the textbook CQRS data-access pattern. Two interfaces, two impleme
 
 | Service | Query | Handler | Data access | Returns |
 |---------|-------|---------|-------------|---------|
-| Catalog | `GetProductByIdQuery` | `GetProductByIdHandler` | `IProductReadStore.GetByIdAsync` (cached via `IProductCache`) | `ProductDto?` |
-| Catalog | `GetAllProductsQuery` | `GetAllProductsHandler` | `IProductReadStore.GetAllAsync` | `IReadOnlyList<ProductDto>` |
-| Catalog | `SearchProductsQuery` | `SearchProductsHandler` | `IProductReadStore.SearchAsync` | `IReadOnlyList<ProductDto>` |
-| Order | `GetOrderByIdQuery` | `GetOrderByIdHandler` | `IOrderRepository.GetSummaryByIdAsync` | `OrderSummaryDto?` |
-| Order | `GetOrdersByBuyerQuery` | `GetOrdersByBuyerHandler` | `IOrderRepository.GetSummariesByBuyerIdAsync` | `IReadOnlyList<OrderSummaryDto>` |
-| Shipping | `GetShipmentByOrderQuery` | `GetShipmentByOrderHandler` | `IShipmentRepository.GetSummaryByOrderIdAsync` | `ShipmentDto?` |
+| Catalog | `GetProductByIdQuery` | `GetProductByIdHandler` | `context.Products.AsNoTracking().Where(...).Select(ProductDto).FirstOrDefaultAsync` (wrapped in `IProductCache.GetOrLoadAsync`) | `ProductDto?` |
+| Catalog | `GetAllProductsQuery` | `GetAllProductsHandler` | `context.Products.AsNoTracking().OrderBy(Id).Skip().Take().Select(ProductDto).ToListAsync` | `IReadOnlyList<ProductDto>` |
+| Catalog | `SearchProductsQuery` | `SearchProductsHandler` | `context.Products.AsNoTracking().Where(EF.Functions.ILike).Select(ProductDto).ToListAsync` | `IReadOnlyList<ProductDto>` |
+| Order | `GetOrderByIdQuery` | `GetOrderByIdHandler` | `context.Orders.AsNoTracking().Where(...).Select(OrderSummaryDto).FirstOrDefaultAsync` | `OrderSummaryDto?` |
+| Order | `GetOrdersByBuyerQuery` | `GetOrdersByBuyerHandler` | `context.Orders.AsNoTracking().Where(...).OrderByDescending.Skip().Take().Select(OrderSummaryDto).ToListAsync` | `IReadOnlyList<OrderSummaryDto>` |
+| Shipping | `GetShipmentByOrderQuery` | `GetShipmentByOrderHandler` | `context.Shipments.AsNoTracking().Where(...).Select(ShipmentDto).FirstOrDefaultAsync` | `ShipmentDto?` |
 
 ### Command handlers (load tracked entities, mutate, save)
 
 | Service | Command | Handler | Side Effects |
 |---------|---------|---------|--------------|
-| Catalog | `CreateProductCommand` | `CreateProductHandler` | `AddAsync` |
-| Catalog | `UpdateProductCommand` | `UpdateProductHandler` | `IProductRepository.GetByIdAsync` → mutate → `UpdateAsync` |
-| Catalog | `ReserveStockCommand` | `ReserveStockHandler` | `IProductRepository.GetByIdAsync` → mutate → `UpdateAsync` |
+| Catalog | `CreateProductCommand` | `CreateProductHandler` | `context.Products.AddAsync` → `SaveChangesAsync` |
+| Catalog | `UpdateProductCommand` | `UpdateProductHandler` | `context.Products.Include(Category).FirstOrDefaultAsync` → `UpdateDetails()` → `SaveChangesAsync` → `cache.InvalidateAsync` |
+| Catalog | `ReserveStockCommand` | `ReserveStockHandler` | `context.Products.FirstOrDefaultAsync` → `AdjustStock()` → `SaveChangesAsync` → `cache.InvalidateAsync` |
 | Order | `PlaceOrderCommand` | `PlaceOrderHandler` | gRPC validation → `AddAsync` → publish `OrderPlacedEvent` |
 | Payment | `ProcessPaymentCommand` | `ProcessPaymentHandler` | `IPaymentRepository.GetByOrderIdAsync` → gateway → `AddAsync`/`UpdateAsync` → publish event |
 | Shipping | `CreateShipmentCommand` | `CreateShipmentHandler` | `IShipmentRepository.GetByOrderIdAsync` (idempotency check) → `AddAsync` → publish `ShipmentDispatchedEvent` |
@@ -223,9 +199,9 @@ This split is the textbook CQRS data-access pattern. Two interfaces, two impleme
 
 | Service | Event | Handler | Side Effects |
 |---------|-------|---------|--------------|
-| Order | `PaymentCompletedEvent` | `PaymentCompletedHandler` | `IOrderRepository.GetByIdAsync` → `MarkAsPaid()` → `UpdateAsync` |
-| Order | `PaymentFailedEvent` | `PaymentFailedHandler` | `IOrderRepository.GetByIdAsync` → `MarkAsPaymentFailed()` → `UpdateAsync` |
-| Order | `ShipmentDispatchedEvent` | `ShipmentDispatchedHandler` | `IOrderRepository.GetByIdAsync` → `MarkAsShipped()` → `UpdateAsync` |
+| Order | `PaymentCompletedEvent` | `PaymentCompletedHandler` | `context.Orders.FirstOrDefaultAsync` → `MarkAsPaid()` → `SaveChangesAsync` |
+| Order | `PaymentFailedEvent` | `PaymentFailedHandler` | `context.Orders.FirstOrDefaultAsync` → `MarkAsPaymentFailed()` → `SaveChangesAsync` |
+| Order | `ShipmentDispatchedEvent` | `ShipmentDispatchedHandler` | `context.Orders.FirstOrDefaultAsync` → `MarkAsShipped()` → `SaveChangesAsync` |
 | Payment | `OrderPlacedEvent` | `OrderPlacedHandler` | Invokes `ProcessPaymentCommand` |
 | Shipping | `PaymentCompletedEvent` | `PaymentCompletedHandler` | Invokes `CreateShipmentCommand` |
 
@@ -233,9 +209,9 @@ This split is the textbook CQRS data-access pattern. Two interfaces, two impleme
 
 ## Caching interaction (CatalogService)
 
-`GetProductByIdHandler` wraps the read store call in `IProductCache.GetOrLoadAsync`. The cache stores **`ProductDto`** (the projection result), not the entity. On cache hit, no DB load happens; on cache miss, the factory invokes `IProductReadStore.GetByIdAsync` exactly once (HybridCache provides stampede protection).
+`GetProductByIdHandler` wraps the inline projection in `IProductCache.GetOrLoadAsync`. The cache stores **`ProductDto`** (the projection result), not the entity. On cache hit, no DB load happens; on cache miss, the factory runs the EF projection exactly once (HybridCache provides stampede protection).
 
-Key property: **the entity never leaves the Infrastructure layer for the read path.** The cache holds DTOs, the handler receives a DTO, the endpoint serializes a DTO. Projection-in-EF preserves this invariant.
+Key property: **the entity never materializes on the read path.** The projection emits the DTO directly, the cache holds DTOs, the handler returns a DTO, the endpoint serializes a DTO.
 
 ---
 
@@ -254,8 +230,8 @@ The split is a few extra lines per service. Once it's in place, the *signature i
 
 ## Key principles
 
-1. **Query handlers depend on DTO-returning data access methods.** No in-memory mapping from entity to DTO.
-2. **Command/event/saga handlers depend on entity-returning loader methods.** They mutate the aggregate and save through it.
-3. **Repository method shape is the contract.** Returning `Product?` means write path. Returning `ProductDto?` means read path. The caller doesn't have to read documentation to know which they got.
-4. **No N+1.** Read projections inline child collections via `.Select(...)`; entity loaders use `Include` for graph members the mutation actually touches.
-5. **Layer dependencies stay intact.** In Clean Architecture (CatalogService), DTO-returning methods live on a separate interface in the Application layer (`IProductReadStore`), not on the Domain-layer `IProductRepository`.
+1. **Query handlers project to DTO inline.** `context.Foos.AsNoTracking().Where(...).Select(new FooDto { ... }).ToListAsync(ct)` — no in-memory entity-to-DTO mapping.
+2. **Command/event/saga handlers load tracked aggregates.** They mutate via aggregate methods (`MarkAsPaid`, never `Status = Paid`) and save through `SaveChangesAsync`.
+3. **Code shape is the contract.** A handler that calls `AsNoTracking().Select(DTO)` is a read; a handler that loads tracked + mutates + saves is a write. No interface ambiguity to resolve.
+4. **No N+1.** Read projections inline child collections via `.Select(...)`; tracked loads use `Include` for graph members the mutation actually touches.
+5. **No repository wrapper.** `DbContext` IS Unit-of-Work, `DbSet<T>` IS Repository. Wrapping them in `I*Repository` adds layers without capability — and the only thing the wrapper enabled (handler-mocking in unit tests) has been replaced with integration tests against Testcontainers.
