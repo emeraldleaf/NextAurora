@@ -14,10 +14,10 @@
     <PackageVersion Include="Aspire.Hosting.SqlServer" Version="13.3.0" />
 
     <!-- Web -->
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.14.11" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.8" />
     <PackageVersion Include="Asp.Versioning.Http" Version="10.0.0" />
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.0.0" />
 
@@ -35,19 +35,19 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.8" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
     <PackageVersion Include="Dapper" Version="2.1.72" />
 
     <!-- Caching -->
-    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.5.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.6.0" />
 
     <!-- Infrastructure -->
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.1.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.6.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.1.0" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.6.0" />
     <PackageVersion Include="DistributedLock.SqlServer" Version="1.0.5" />
 
     <!-- OpenTelemetry -->
@@ -69,7 +69,7 @@
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
 
     <!-- Identity -->
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
     <PackageVersion Include="Keycloak.AuthServices.Aspire.Hosting" Version="0.3.0" />
 
     <!-- Code Analysis -->
