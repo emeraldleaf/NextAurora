@@ -22,6 +22,14 @@ public class SearchProductsHandler(CatalogDbContext context)
 {
     public async Task<IReadOnlyList<ProductDto>> HandleAsync(SearchProductsQuery request, CancellationToken cancellationToken)
     {
+        // Guard against empty/whitespace queries — without this, `$"%{request.Query}%"` becomes
+        // `"%%"` which `ILike` matches against EVERY row. That turns a "no search term entered"
+        // request into an unbounded full-table dump (subject to pagination, but still an
+        // unintended scan). The endpoint also caps `query.Length > 200`, but doesn't reject
+        // empty strings — they're a separate failure mode worth blocking explicitly.
+        if (string.IsNullOrWhiteSpace(request.Query))
+            return [];
+
         var safePage = request.Page < 1 ? 1 : request.Page;
         var safePageSize = request.PageSize is < 1 or > 100 ? 50 : request.PageSize;
 

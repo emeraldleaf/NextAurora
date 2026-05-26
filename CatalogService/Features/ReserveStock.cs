@@ -40,7 +40,20 @@ public class ReserveStockHandler(CatalogDbContext context, IProductCache cache)
             return false;
 
         product.AdjustStock(product.StockQuantity - request.Quantity);
-        await context.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Postgres `xmin` advanced between our load and our save — another reservation
+            // beat us to this row. The caller (OrderService's PlaceOrderHandler over gRPC)
+            // treats a `false` return as "this product wasn't reservable; abort placement."
+            // Returning false (rather than rethrowing) lets the saga compensation path run
+            // without surfacing a 500 to the buyer. The class summary documents this contract.
+            return false;
+        }
 
         // Invalidate AFTER the save. See UpdateProduct for the cache-ordering rationale.
         await cache.InvalidateAsync(request.ProductId, cancellationToken);

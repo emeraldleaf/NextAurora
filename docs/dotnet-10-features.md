@@ -135,7 +135,7 @@ builder.Services.AddRateLimiter(options =>
 
 ## 8. EF Core 10 — modern patterns we use
 
-**`AsNoTracking()` + projection on every read**: [CatalogService.Infrastructure/Repositories/ProductRepository.cs](../CatalogService/Infrastructure/Repositories/ProductRepository.cs) (`.AsNoTracking().Include(p => p.Category)`). Reads bypass the change tracker entirely; entity graphs aren't allocated for the tracker; SQL is leaner.
+**`AsNoTracking()` + projection on every read**: [CatalogService/Features/GetProductById.cs](../CatalogService/Features/GetProductById.cs) (`.AsNoTracking().Where(...).Select(p => new ProductDto { ... })`). Read handlers project to the DTO inline — no `Include`, no entity materialization, no change-tracker entry. SQL emits only the columns the DTO needs.
 
 **`ExecuteUpdateAsync` / `ExecuteDeleteAsync`**: Bulk operations as single SQL statements. Example in [tests](../tests/CatalogService.Tests.Integration/ProductCachingTests.cs#L58): `await db.Products.Where(p => p.Id == productId).ExecuteDeleteAsync();`.
 

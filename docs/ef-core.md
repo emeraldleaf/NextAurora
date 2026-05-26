@@ -454,13 +454,14 @@ return products.Select(p => new ProductDto
 }).ToList();
 ```
 
-And inside the repository ([ProductRepository.cs:47](../CatalogService/Infrastructure/Repositories/ProductRepository.cs#L47)):
+And inside the handler ([GetAllProductsHandler in Features/GetAllProducts.cs](../CatalogService/Features/GetAllProducts.cs)):
 
 ```csharp
-public async Task<IReadOnlyList<Product>> GetAllAsync(int page, int pageSize, CancellationToken ct = default)
-    => await context.Products.AsNoTracking().Include(p => p.Category)
-        .OrderBy(p => p.Id).Skip((page - 1) * pageSize).Take(pageSize)
-        .ToListAsync(ct);
+public async Task<IReadOnlyList<ProductDto>> HandleAsync(GetAllProductsQuery request, CancellationToken cancellationToken)
+    => await context.Products.AsNoTracking()
+        .OrderBy(p => p.Id).Skip((safePage - 1) * safePageSize).Take(safePageSize)
+        .Select(p => new ProductDto { /* ... projection inline ... */ })
+        .ToListAsync(cancellationToken);
 ```
 
 ### 7.1 Why `AsNoTracking`
@@ -718,13 +719,14 @@ CLAUDE.md captures this:
 
 ## 13. Pagination + ordering
 
-Every list endpoint paginates with a **server-side size cap**. Repository methods take `page` + `pageSize` and apply `OrderBy + Skip + Take`. Example from [ProductRepository.cs:46](../CatalogService/Infrastructure/Repositories/ProductRepository.cs#L46):
+Every list endpoint paginates with a **server-side size cap**. Read handlers take `page` + `pageSize` and apply `OrderBy + Skip + Take` inline against the `DbContext`. Example from [GetAllProducts.cs](../CatalogService/Features/GetAllProducts.cs):
 
 ```csharp
-public async Task<IReadOnlyList<Product>> GetAllAsync(int page, int pageSize, CancellationToken ct = default)
-    => await context.Products.AsNoTracking().Include(p => p.Category)
-        .OrderBy(p => p.Id).Skip((page - 1) * pageSize).Take(pageSize)
-        .ToListAsync(ct);
+public async Task<IReadOnlyList<ProductDto>> HandleAsync(GetAllProductsQuery request, CancellationToken cancellationToken)
+    => await context.Products.AsNoTracking()
+        .OrderBy(p => p.Id).Skip((safePage - 1) * safePageSize).Take(safePageSize)
+        .Select(p => new ProductDto { /* ... projection inline ... */ })
+        .ToListAsync(cancellationToken);
 ```
 
 ### `OrderBy` is not optional
@@ -1063,20 +1065,24 @@ CLAUDE.md hard rule:
 
 CatalogService uses HybridCache (L1 in-process MemoryCache + L2 Redis) for `GetProductByIdQuery` reads. **Every write that mutates a Product must invalidate the cache in the same handler.**
 
-From [UpdateProductHandler.cs](../CatalogService/Features/UpdateProductHandler.cs):
+From [UpdateProduct.cs](../CatalogService/Features/UpdateProduct.cs):
 
 ```csharp
-public async Task HandleAsync(UpdateProductCommand request, CancellationToken cancellationToken)
+public async Task<bool> HandleAsync(UpdateProductCommand request, CancellationToken cancellationToken)
 {
-    var product = await repository.GetByIdAsync(request.ProductId, cancellationToken)
-        ?? throw new InvalidOperationException(...);
+    var product = await context.Products
+        .FirstOrDefaultAsync(p => p.Id == request.ProductId, cancellationToken);
+    if (product is null) return false;
+    if (!string.Equals(product.SellerId, request.SellerId, StringComparison.Ordinal))
+        return false;
 
     product.UpdateDetails(request.Name, request.Description, request.Price);
-    await repository.UpdateAsync(product, cancellationToken);
+    await context.SaveChangesAsync(cancellationToken);
 
     // Invalidate AFTER the save so a concurrent reader can't repopulate the cache with
     // the pre-update DTO between our invalidate and our save.
     await cache.InvalidateAsync(request.ProductId, cancellationToken);
+    return true;
 }
 ```
 
@@ -1143,7 +1149,7 @@ A condensed walkthrough of the key EF Core decisions in this codebase, each mapp
 
 ### "AsNoTracking everywhere?"
 
-> Almost. Reads default to `AsNoTracking()` + `.Select` projection — no tracker overhead, smaller SQL, no entity allocations. The wrinkle is shared repository methods like `GetByIdAsync` that both query handlers AND command handlers call: those keep tracking on, because without it the subsequent mutate + save would silently no-op. The audit flagged that as a "violation"; in context it's the right trade-off until we split into separate read/write repository interfaces.
+> Almost. Read handlers use `AsNoTracking()` + inline `.Select` projection straight into the DTO — no tracker overhead, smaller SQL, no entity allocations. Write handlers do the opposite: they load the aggregate tracked (no `AsNoTracking`), mutate via state-transition methods (`MarkAsPaid`, `AdjustStock`), and call `SaveChangesAsync`. The split lives in the handler's code shape — `AsNoTracking().Select(DTO)` is a read; tracked load + mutate + save is a write. The previous shape (shared `GetByIdAsync` keeping tracking on for both paths) was retired with the repository wrappers.
 
 ### "What's the catch with AsNoTracking + Include?"
 

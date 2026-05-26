@@ -64,7 +64,7 @@ on VSA, but that diff was retired in the VSA-collapse refactor: at ~2k LOC and 2
 CatalogService didn't actually hit the threshold where build-time layer enforcement pays
 for itself, and "we calibrate per service" was a weaker story than "one shape everywhere."
 
-```
+```text
 ServiceName/
   Features/                # One file per use case (command/query + validator + handler co-located).
                           # Saga event handlers live here too — they own real state machines.

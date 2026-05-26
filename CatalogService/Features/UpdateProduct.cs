@@ -47,8 +47,11 @@ public class UpdateProductHandler(CatalogDbContext context, IProductCache cache)
 {
     public async Task<bool> HandleAsync(UpdateProductCommand request, CancellationToken cancellationToken)
     {
+        // Don't Include(p => p.Category) — the handler only writes UpdateDetails(name,
+        // description, price) and SellerId, none of which touch the Category navigation.
+        // The Category join would generate a useless LEFT JOIN that the cache invalidation
+        // doesn't need either (it operates on product ID, not category).
         var product = await context.Products
-            .Include(p => p.Category)
             .FirstOrDefaultAsync(p => p.Id == request.ProductId, cancellationToken);
 
         if (product is null)

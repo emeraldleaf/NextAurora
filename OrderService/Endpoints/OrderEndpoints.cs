@@ -28,9 +28,19 @@ public static class OrderEndpoints
     {
         var group = app.MapV1ApiGroup("Orders", "orders").RequireAuthorization();
 
-        group.MapGet("/{id:guid}", async (Guid id, IMessageBus bus, CancellationToken ct) =>
+        group.MapGet("/{id:guid}", async (Guid id, HttpContext context, IMessageBus bus, CancellationToken ct) =>
         {
-            var order = await bus.InvokeAsync<OrderSummaryDto?>(new GetOrderByIdQuery(id), ct);
+            // Extract the requesting buyer's ID from the JWT NameIdentifier claim and pass it
+            // into the query as `RequestingBuyerId`. The handler filters by both `Id` AND
+            // `BuyerId` in the EF Where clause — non-owner requests return null straight from
+            // the database (never materialize a non-owner row). Translated to 404 here per the
+            // anti-enumeration pattern (CLAUDE.md "Security Requirements"). Missing/invalid JWT
+            // sub → 403 (caller is authenticated but can't be matched to a buyer).
+            var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId is null || !Guid.TryParse(userId, out var authenticatedId))
+                return Results.Forbid();
+
+            var order = await bus.InvokeAsync<OrderSummaryDto?>(new GetOrderByIdQuery(id, authenticatedId), ct);
             return order is not null ? Results.Ok(order) : Results.NotFound();
         });
 

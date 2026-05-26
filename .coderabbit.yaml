@@ -44,9 +44,10 @@ reviews:
         Interfaces earn their keep through consumer substitution (test mock or 2+ impls
         today, OR concrete near-term roadmap) — flag speculative interfaces. Repository
         wrappers around EF Core (IFooRepository + FooRepository) are explicitly NOT
-        justified by the substitution rule — see the "**/Domain/I*Repository.cs" and
-        "**/Infrastructure/*Repository.cs" path_instructions below for why and what
-        to flag.
+        justified by the substitution rule — see the "**/Domain/I*Repository.cs"
+        path_instructions below. No service has repository implementations anymore
+        (they were all retired in the simplicity refactor + CatalogService VSA collapse),
+        so a separate "**/Infrastructure/*Repository.cs" rule is unnecessary.
 
     - path: "**/Features/**/*.cs"
       instructions: |

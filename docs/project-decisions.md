@@ -266,7 +266,7 @@ Register a side-by-side group with `.HasApiVersion(new ApiVersion(2, 0))`. Exist
 
 Every service emits OpenAPI specs and ships an interactive UI in development.
 
-From [CatalogService.Api/Program.cs](../CatalogService/Program.cs):
+From [CatalogService/Program.cs](../CatalogService/Program.cs):
 
 ```csharp
 if (app.Environment.IsDevelopment())
@@ -532,7 +532,7 @@ The `errors` dictionary is keyed by field name and values are arrays of messages
 
 Built-in .NET 7+ `Microsoft.AspNetCore.RateLimiting` middleware, configured per-policy and applied per-endpoint.
 
-From [CatalogService.Api/Program.cs](../CatalogService/Program.cs):
+From [CatalogService/Program.cs](../CatalogService/Program.cs):
 
 ```csharp
 builder.Services.AddRateLimiter(options =>

@@ -163,6 +163,6 @@ There's no `IShipmentRepository` wrapper. Both handlers take `ShippingDbContext`
 
 - [docs/code-flows/paymentservice.md](paymentservice.md) — PaymentService publishes `PaymentCompletedEvent` (Flow 1's input)
 - [docs/code-flows/orderservice.md](orderservice.md) — OrderService consumes `ShipmentDispatchedEvent` (Flow 1's output)
-- [docs/cqrs-data-access.md](../cqrs-data-access.md) — read/write split rule (VSA variant — both methods on same interface)
+- [docs/cqrs-data-access.md](../cqrs-data-access.md) — read/write split rule (DbContext-direct: read handlers project inline, write handlers load tracked + mutate + save)
 - [CLAUDE.md "Security Requirements"](../../CLAUDE.md) — IDOR / null → 404 canonical pattern (this endpoint is a named reference template)
 - [docs/event-catalog.md](../event-catalog.md) — every event's shape and producer/consumer

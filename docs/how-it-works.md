@@ -68,7 +68,7 @@ the VSA-collapse refactor because the layer split wasn't earning its keep at thi
 (~2k LOC, 2 aggregates) and "one consistent shape" is a stronger story than "we calibrate
 per service."
 
-```
+```text
 ServiceName/
   Features/          # Per use case: command/query record + validator + handler co-located.
                     # Saga event handlers live here too (they own real state machines).

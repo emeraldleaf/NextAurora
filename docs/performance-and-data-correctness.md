@@ -271,15 +271,17 @@ public sealed class HybridProductCache(HybridCache cache) : IProductCache
 }
 ```
 
-The handler is now a thin delegate to the cache — see [GetProductByIdHandler.cs](../CatalogService/Features/GetProductByIdHandler.cs):
+The handler is a thin cache-aside wrapper over an inline EF projection — see [GetProductById.cs](../CatalogService/Features/GetProductById.cs):
 
 ```csharp
-public Task<ProductDto?> HandleAsync(GetProductByIdQuery request, CancellationToken ct) =>
-    cache.GetOrLoadAsync(request.ProductId, async cancel =>
-    {
-        var product = await repository.GetByIdAsync(request.ProductId, cancel);
-        return product is null ? null : new ProductDto { /* projection */ };
-    }, ct);
+public Task<ProductDto?> HandleAsync(GetProductByIdQuery request, CancellationToken ct)
+    => cache.GetOrLoadAsync(
+        request.ProductId,
+        innerCt => context.Products.AsNoTracking()
+            .Where(p => p.Id == request.ProductId)
+            .Select(p => new ProductDto { /* projected DTO — no entity hop */ })
+            .FirstOrDefaultAsync(innerCt),
+        ct);
 ```
 
 DI registration in [Program.cs](../CatalogService/Program.cs) and [DependencyInjection.cs](../CatalogService/Infrastructure/DependencyInjection.cs):
