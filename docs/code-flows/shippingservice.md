@@ -78,33 +78,28 @@ sequenceDiagram
     EP->>Bus: bus.InvokeAsync<ShipmentDto?>(<br/>  GetShipmentByOrderQuery(orderId,<br/>    requestingBuyerId), ct)
     Bus->>H: HandleAsync(query, ct)
 
-    H->>Ctx: context.Shipments.AsNoTracking()<br/>.Where(s => s.OrderId == orderId)<br/>.Select(s => new ShipmentDto(...))<br/>.FirstOrDefaultAsync(ct)
-    Ctx->>DB: SELECT id, order_id, buyer_id,<br/>carrier, tracking_number, status,<br/>created_at, dispatched_at,<br/>tracking_events (projected)<br/>FROM shipments WHERE order_id = @id
-    DB-->>Ctx: ShipmentDto or null
+    H->>Ctx: context.Shipments.AsNoTracking()<br/>.Where(s => s.OrderId == orderId<br/>  AND s.BuyerId == requestingBuyerId)<br/>.Select(s => new ShipmentDto(...))<br/>.FirstOrDefaultAsync(ct)
+    Note over H,Ctx: IDOR predicate is in the SQL WHERE clause —<br/>non-owner rows never cross the wire
+    Ctx->>DB: SELECT id, order_id, buyer_id,<br/>carrier, tracking_number, status,<br/>created_at, dispatched_at,<br/>tracking_events (projected)<br/>FROM shipments<br/>WHERE order_id = @id<br/>  AND buyer_id = @requesting_buyer_id
+    DB-->>Ctx: ShipmentDto or null<br/>(null covers BOTH<br/>"no shipment" AND<br/>"shipment exists but not yours")
     Ctx-->>H: ShipmentDto?
 
-    alt shipment is null
-        H-->>EP: null
+    alt result is null — no row matched both predicates
+        H-->>EP: null<br/>(NOT throw, NOT 403)
+        Note over H: indistinguishable from<br/>"shipment not found" —<br/>anti-enumeration property<br/>(CLAUDE.md Security Requirements)
         EP-->>Buyer: 404 Not Found
-    else shipment exists — IDOR ownership check
-        Note over H: shipment.BuyerId == requestingBuyerId?
-        alt mismatch — different buyer
-            H-->>EP: null<br/>(NOT throw, NOT 403)
-            Note over H: indistinguishable from<br/>"shipment not found" —<br/>anti-enumeration property<br/>(CLAUDE.md Security Requirements)
-            EP-->>Buyer: 404 Not Found
-        else buyer is owner
-            H-->>EP: ShipmentDto
-            EP-->>Buyer: 200 OK + ShipmentDto<br/>(includes TrackingEventDto[])
-        end
+    else row matched both order_id AND buyer_id
+        H-->>EP: ShipmentDto
+        EP-->>Buyer: 200 OK + ShipmentDto<br/>(includes TrackingEventDto[])
     end
 ```
 
 **Why null → 404 instead of throw → 403.** Returning 403 on owner mismatch tells an attacker "this shipment exists, just not yours" — they can enumerate the order-ID space. 404 is indistinguishable from "no shipment for this order." The canonical IDOR pattern in [CLAUDE.md "Security Requirements"](../../CLAUDE.md) names this exact endpoint as a reference template. The pattern requires three things at once:
 1. Endpoint reads `ClaimTypes.NameIdentifier` from the JWT and passes it as `RequestingBuyerId` into the query (caller can't lie about identity in the URL).
-2. Handler returns `null` on owner mismatch (NOT throws).
+2. Handler's EF query filters by BOTH `OrderId` AND `BuyerId`. A non-owner request returns `null` straight from the database.
 3. Endpoint translates `null` to 404 (NOT 403).
 
-**Why the ownership check lives on the DTO, not the entity.** The projection-in-EF read path (`GetSummaryByOrderIdAsync`) never materializes a `Shipment` entity — it `.Select`s directly into `ShipmentDto`. The DTO carries `BuyerId` precisely so this check can happen on the projection without an entity hop. See [docs/cqrs-data-access.md](../cqrs-data-access.md) for the read/write split rule.
+**Why the ownership check lives in the SQL predicate, not in C#.** The handler's `Where` clause is `s => s.OrderId == request.OrderId && s.BuyerId == request.RequestingBuyerId`. Non-owner rows never cross the wire — there's no post-materialization filter step where data could leak through a buggy comparison. Single `FirstOrDefaultAsync` call returns `null` if EITHER predicate fails. This is tighter than the previous shape (which filtered by `OrderId` only, then compared `BuyerId` on the materialized DTO) — same external contract, but the database does the gating instead of the handler. See [docs/cqrs-data-access.md](../cqrs-data-access.md) for the read/write split rule.
 
 **Denormalized `BuyerId` on Shipment.** The buyer ID flows through the saga: `OrderPlacedEvent` → `Payment` → `PaymentCompletedEvent` → `CreateShipmentCommand` → `Shipment.BuyerId`. Denormalizing it onto Shipment means the IDOR check is one column comparison, not a join across services. The trade-off: the data is duplicated.
 
