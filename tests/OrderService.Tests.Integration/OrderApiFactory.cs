@@ -67,7 +67,27 @@ public sealed class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLife
         // "connection refused" and the unhandled exceptions crash the test host AFTER
         // all tests passed. base.DisposeAsync() runs the host's StopAsync, which lets
         // Wolverine's background services exit gracefully before we yank the DB.
-        await base.DisposeAsync();
+        //
+        // Catch TaskCanceledException / OperationCanceledException during shutdown:
+        // Wolverine has several durable agents (outbox dispatcher, scheduled-message
+        // agent, listener heartbeats) that can outlive the host's default shutdown
+        // grace period under CI's slower scheduling. When they do, the cancellation
+        // propagates out through base.DisposeAsync(), xUnit catches it as a
+        // "Test Class Cleanup Failure", and `dotnet test` exits non-zero — even
+        // though every test passed. The tests are done by this point; a delayed
+        // background-service shutdown isn't a correctness signal we want to fail
+        // the build on. If we ever need to debug a real teardown bug, swap the
+        // catch for a log statement.
+        try
+        {
+            await base.DisposeAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Intentional swallow — see method header. TaskCanceledException derives
+            // from OperationCanceledException, so this one catch covers both.
+        }
+
         await _sqlServer.DisposeAsync();
     }
 

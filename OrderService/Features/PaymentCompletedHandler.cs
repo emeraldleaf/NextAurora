@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using NextAurora.Contracts.Events;
 using OrderService.Domain;
+using OrderService.Infrastructure.Data;
 
 namespace OrderService.Features;
 
@@ -23,19 +25,21 @@ namespace OrderService.Features;
 /// <b>Concurrency safety:</b> the order's <c>RowVersion</c> token guards the read-modify-save.
 /// If <see cref="ShipmentDispatchedHandler"/> mutates the same order between this handler's
 /// load and save, we get <c>DbUpdateConcurrencyException</c> on save; Wolverine's
-/// <c>AddConcurrencyRetry</c> policy retries with backoff.
+/// <c>AddConcurrencyRetry</c> policy retries with backoff. Wolverine's AutoApplyTransactions
+/// wraps the SaveChangesAsync below in the same DB transaction as any outbox envelope
+/// staged during this handler (none today; the handler is read-modify-save only).
 /// </para>
 /// </summary>
-public class PaymentCompletedHandler(IOrderRepository repository)
+public class PaymentCompletedHandler(OrderDbContext context)
 {
     public async Task HandleAsync(PaymentCompletedEvent @event, CancellationToken cancellationToken)
     {
-        var order = await repository.GetByIdAsync(@event.OrderId, cancellationToken);
+        var order = await context.Orders.FirstOrDefaultAsync(o => o.Id == @event.OrderId, cancellationToken);
         if (order is null) return;
 
         if (order.Status != OrderStatus.Placed) return;
 
         order.MarkAsPaid();
-        await repository.UpdateAsync(order, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
     }
 }

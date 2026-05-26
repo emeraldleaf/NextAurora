@@ -7,8 +7,10 @@ using ShippingService.Infrastructure.Data;
 namespace ShippingService.Infrastructure;
 
 /// <summary>
-/// Composition root for ShippingService. Wires up PostgreSQL (shipping-db), the EF repository,
-/// and the Wolverine-backed event publisher.
+/// Composition root for ShippingService. Wires up PostgreSQL (shipping-db) and the
+/// Wolverine-backed event publisher. There is no IShipmentRepository — handlers take
+/// ShippingDbContext directly (DbContext IS Unit-of-Work; DbSet&lt;T&gt; IS Repository).
+/// See CLAUDE.md "Data access: DbContext directly, no repository wrappers".
 /// </summary>
 public static class DependencyInjection
 {
@@ -20,7 +22,6 @@ public static class DependencyInjection
         services.AddHealthChecks()
             .AddDbContextCheck<ShippingDbContext>();
 
-        services.AddScoped<IShipmentRepository, ShipmentRepository>();
         services.AddScoped<IEventPublisher, WolverineEventPublisher>();
 
         return services;

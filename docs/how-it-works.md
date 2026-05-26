@@ -231,6 +231,36 @@ opts.AddConcurrencyRetry();                                     // retry DbUpdat
 
 Tier-1 detail: validation runs *before* `ContextPropagationMiddleware`, so 400s for invalid commands don't open a logger scope (and don't add noise to the trace). The handler only ever sees valid messages with a correlation ID already restored from the inbound transport.
 
+### Two containers, not one — Wolverine's handler map vs. `IServiceCollection`
+
+`opts.Discovery.IncludeAssembly(typeof(PlaceOrderCommand).Assembly)` builds Wolverine's *own* internal lookup table — a `Dictionary<MessageType, HandlerType>` that `IMessageBus` consults to decide which class to instantiate. Wolverine then constructs the handler itself via `IServiceScopeFactory` (one fresh scope per message), injects its constructor dependencies from the scope, and invokes `HandleAsync`. **The handler type itself is never registered in `IServiceCollection`.**
+
+That's fine for production code because everything goes through `IMessageBus`:
+
+```csharp
+orders.MapGet("/{id:guid}", async (Guid id, IMessageBus bus, CancellationToken ct) =>
+    await bus.InvokeAsync<OrderSummaryDto?>(new GetOrderByIdQuery(id), ct));
+```
+
+But it breaks for any code path that resolves a handler directly. The canonical example is **read-handler integration tests** — these resolve the handler concretely to assert the EF projection SQL without booting auth + HTTP:
+
+```csharp
+await using var scope = _factory.CreateDbScope();
+var handler = scope.ServiceProvider.GetRequiredService<GetOrderByIdHandler>();  // ❌ throws unless registered
+var dto = await handler.HandleAsync(new GetOrderByIdQuery(id), CancellationToken.None);
+```
+
+The fix is one line per handler in `AddXInfrastructure`:
+
+```csharp
+services.AddScoped<GetOrderByIdHandler>();
+services.AddScoped<GetOrdersByBuyerHandler>();
+```
+
+`AddScoped<T>()` (single-type overload) registers the concrete type as both service-key and implementation. Scoped lifetime matches `DbContext`, which keeps the change tracker shared correctly. No interface is needed — there's nothing to substitute.
+
+**How to spot whether you need this:** if you wrote a test calling `GetRequiredService<*Handler>()` for a handler that wasn't there before, also add the `AddScoped<*Handler>()` in the same diff. Reference: [CLAUDE.md "Communication Patterns → Wolverine handler discovery is NOT DI registration"](../CLAUDE.md). The failure mode that surfaced this rule was `OrderReadProjectionTests` breaking in CI after the repository-wrapper drop: pre-refactor the tests resolved `IOrderRepository` (which *was* registered), and the conversion to handler-resolved tests missed the equivalent registration. CI's `No service for type 'OrderService.Features.GetOrderByIdHandler' has been registered` was the first signal.
+
 ---
 
 ## 5. A Complete Request: Placing an Order

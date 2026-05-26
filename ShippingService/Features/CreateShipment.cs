@@ -1,6 +1,8 @@
 using System.Diagnostics.Metrics;
+using Microsoft.EntityFrameworkCore;
 using NextAurora.Contracts.Events;
 using ShippingService.Domain;
+using ShippingService.Infrastructure.Data;
 
 namespace ShippingService.Features;
 
@@ -12,7 +14,11 @@ namespace ShippingService.Features;
 ///
 /// <para>
 /// <b>Idempotency:</b> existence check by <c>OrderId</c> first. Backed by the unique index in
-/// <c>ShippingDbContext</c>, the same defense-in-depth pattern used in PaymentService.
+/// <c>ShippingDbContext</c>, the same defense-in-depth pattern used in PaymentService. If two
+/// at-least-once redeliveries race past the pre-check, the unique-OrderId index trips
+/// <see cref="DbUpdateException"/> on the loser's <c>SaveChangesAsync</c>; we catch it,
+/// re-fetch the winning Shipment, and return its ID. Net: at-least-once delivery still
+/// produces exactly one Shipment per order.
 /// </para>
 /// <para>
 /// <b>Why a random carrier:</b> simulation only — see <see cref="Carriers"/> below. Real
@@ -22,7 +28,7 @@ namespace ShippingService.Features;
 public record CreateShipmentCommand(Guid OrderId, Guid BuyerId);
 
 public class CreateShipmentHandler(
-    IShipmentRepository repository,
+    ShippingDbContext context,
     IEventPublisher eventPublisher)
 {
     // Placeholder carrier list — picked randomly per shipment for demo purposes.
@@ -33,7 +39,8 @@ public class CreateShipmentHandler(
 
     public async Task<Guid> HandleAsync(CreateShipmentCommand request, CancellationToken cancellationToken)
     {
-        var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
+        var existing = await context.Shipments
+            .FirstOrDefaultAsync(s => s.OrderId == request.OrderId, cancellationToken);
         if (existing is not null)
             return existing.Id;
 
@@ -46,10 +53,11 @@ public class CreateShipmentHandler(
         var shipment = Shipment.Create(request.OrderId, request.BuyerId, carrier);
         shipment.Dispatch();
 
-        await repository.AddAsync(shipment, cancellationToken);
+        await context.Shipments.AddAsync(shipment, cancellationToken);
 
-        // Cross-service event. Wolverine's outbox stages this in the same transaction as the
-        // shipment write — no risk of "shipped but no one heard about it".
+        // Cross-service event. Wolverine's AutoApplyTransactions wraps the SaveChanges below
+        // around both the shipment write and the staged ShipmentDispatchedEvent envelope —
+        // no risk of "shipped but no one heard about it".
         await eventPublisher.PublishAsync(new ShipmentDispatchedEvent
         {
             ShipmentId = shipment.Id,
@@ -58,6 +66,28 @@ public class CreateShipmentHandler(
             TrackingNumber = shipment.TrackingNumber,
             DispatchedAt = shipment.DispatchedAt!.Value
         }, cancellationToken);
+
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // The pre-check above races with concurrent at-least-once redeliveries: two
+            // messages can both see "no existing shipment" and both try to insert. The
+            // unique index on OrderId catches the loser. Detach our about-to-be-orphaned
+            // entity, re-fetch the winner, and return its ID. Without this catch the
+            // redelivery model would leak DbUpdateException to Wolverine's retry loop on
+            // every concurrent insert. The staged ShipmentDispatchedEvent envelope rolls
+            // back with the failed SaveChanges (Wolverine's UseEntityFrameworkCoreTransactions
+            // bridge), so the loser doesn't double-publish.
+            context.Entry(shipment).State = EntityState.Detached;
+            var racedExisting = await context.Shipments
+                .FirstOrDefaultAsync(s => s.OrderId == request.OrderId, cancellationToken);
+            if (racedExisting is not null)
+                return racedExisting.Id;
+            throw;
+        }
 
         ShipmentsDispatched.Add(1);
         return shipment.Id;

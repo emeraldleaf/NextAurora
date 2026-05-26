@@ -479,6 +479,8 @@ All services inherit shared infrastructure configuration:
 
 NextAurora implements CQRS at the application layer. Commands and queries are separate record types with dedicated Wolverine handler POCOs. Query handlers return DTOs and never modify state. Command handlers mutate domain entities and publish events. See [docs/cqrs-data-access.md](cqrs-data-access.md) for the full handler inventory and data access analysis.
 
+> **Wolverine vs. DI — handler resolution is asymmetric.** `opts.Discovery` populates Wolverine's *internal* handler-type map for `IMessageBus.InvokeAsync<T>()`. It does NOT register handler types in `IServiceCollection`. Production code is fine because endpoints go through `IMessageBus`. Integration tests that resolve handlers directly (`GetRequiredService<MyHandler>()`) need an explicit `services.AddScoped<MyHandler>()` in `AddXInfrastructure` — otherwise they throw `InvalidOperationException` at first run. See [docs/how-it-works.md "Two containers, not one"](how-it-works.md) and [CLAUDE.md "Communication Patterns → Wolverine handler discovery is NOT DI registration"](../CLAUDE.md).
+
 ### Query Path
 
 ```

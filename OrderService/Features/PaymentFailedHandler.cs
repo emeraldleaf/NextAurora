@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using NextAurora.Contracts.Events;
 using OrderService.Domain;
+using OrderService.Infrastructure.Data;
 
 namespace OrderService.Features;
 
@@ -15,16 +17,16 @@ namespace OrderService.Features;
 /// side (where it can read the order's lines from the event payload) rather than here.
 /// </para>
 /// </summary>
-public class PaymentFailedHandler(IOrderRepository repository)
+public class PaymentFailedHandler(OrderDbContext context)
 {
     public async Task HandleAsync(PaymentFailedEvent @event, CancellationToken cancellationToken)
     {
-        var order = await repository.GetByIdAsync(@event.OrderId, cancellationToken);
+        var order = await context.Orders.FirstOrDefaultAsync(o => o.Id == @event.OrderId, cancellationToken);
         if (order is null) return;
 
         if (order.Status != OrderStatus.Placed) return;
 
         order.MarkAsPaymentFailed();
-        await repository.UpdateAsync(order, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
     }
 }
