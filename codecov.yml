@@ -1,0 +1,57 @@
+# Codecov configuration.
+#
+# Two coverage statuses are tracked:
+#   - project: total coverage across the repo, with an auto target relative to
+#     the base branch. Small dips (≤1%) tolerated; larger regressions fail.
+#   - patch: coverage of lines changed in the PR. Informational only — see
+#     "Why patch is informational" below. Codecov still posts the patch
+#     percentage as a PR comment so the metric is visible during review.
+#
+# Why patch is informational. The project's testing philosophy (see
+# CLAUDE.md "Testing") is:
+#
+#   "Integration tests are the DEFAULT for handler tests. Unit tests are
+#    reserved for PURE domain logic — aggregate state-transition methods,
+#    FluentValidation rules, DTO operations — anything that doesn't touch
+#    DbContext or external IO."
+#
+# That deliberately rejects mocked-handler unit tests, which were the source
+# of high patch coverage in the prior shape (Substitute.For<IFooRepository>
+# + verify call counts). Patch coverage measured as "lines hit by any test"
+# treats those mocked tests as equivalent to integration coverage — they
+# aren't. The integration suite catches the real failure modes (cartesian
+# rows, concurrency-token behavior, cache invalidation, IDOR contracts);
+# mocked unit tests cover only the wiring.
+#
+# A refactor that deletes mocked tests in favor of integration tests will
+# show a temporary patch-coverage dip even when the code is *more* correct
+# overall — the integration tests cover the same handlers via the API
+# surface, which Codecov can't tell is "same coverage" because the
+# attribution is per-test-class, not per-handler-line.
+#
+# Two services are open gaps tracked in docs/STATUS.md ("Open issues"):
+# ShippingService.Tests.Integration and PaymentService.Tests.Integration
+# both need to be stood up. Until they exist, write handlers in those two
+# services will show as uncovered by patch — and that's a real signal,
+# but a STATUS.md item, not a per-PR merge blocker.
+#
+# project: stays a hard gate. patch: stays informational. Codecov still
+# reports both; only project blocks.
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        informational: true
+
+# Comment on PRs with coverage delta + uncovered lines. Helpful even when the
+# patch status doesn't block — the comment surfaces which specific lines
+# weren't hit.
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: false
