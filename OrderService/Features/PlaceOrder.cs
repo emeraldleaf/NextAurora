@@ -18,15 +18,22 @@ namespace OrderService.Features;
 ///         we need a definitive answer before continuing).</item>
 ///   <item>Build the <see cref="Order"/> aggregate via its factory (validates currency, lines,
 ///         buyer ID).</item>
-///   <item>Persist the order via the repository.</item>
+///   <item>Add the aggregate to the tracked DbContext.</item>
 ///   <item>Publish <see cref="OrderPlacedEvent"/> so PaymentService and NotificationService can react.</item>
+///   <item>Call <c>SaveChangesAsync</c> — this is what binds the entity write + the staged
+///         outbox envelope into one DB transaction.</item>
 /// </list>
 ///
 /// <para>
-/// <b>Transactional outbox:</b> when this handler returns, Wolverine wraps the <c>SaveChanges</c>
-/// from <c>orderRepository.AddAsync</c> and the <c>eventPublisher.PublishAsync</c> together —
-/// the event is staged into the <c>wolverine</c> schema in the SAME transaction as the order
-/// write. If publishing to Service Bus fails later, the entity write rolls back too.
+/// <b>Transactional outbox — order matters.</b> <c>eventPublisher.PublishAsync</c> stages the
+/// envelope into Wolverine's in-memory tracker; <c>context.SaveChangesAsync</c> then flushes
+/// BOTH the new <see cref="Order"/> row AND the staged envelope into the SAME DB transaction
+/// (via <c>UseEntityFrameworkCoreTransactions</c>). The publish must happen BEFORE the save —
+/// the previous shape (save first, publish after) committed the entity alone and left a brief
+/// window where the order was in the DB but no event was enqueued. A process death in that
+/// window would stall the saga because PaymentService never sees the <c>OrderPlacedEvent</c>.
+/// With publish-before-save the two writes commit atomically: either both land in the DB or
+/// the transaction rolls back and the handler retries.
 /// </para>
 /// </summary>
 public record PlaceOrderCommand(
@@ -138,9 +145,6 @@ public class PlaceOrderHandler(
 
         var order = Order.Create(request.BuyerId, request.Currency, lines);
         await context.Orders.AddAsync(order, cancellationToken);
-        // SaveChangesAsync below is what Wolverine's AutoApplyTransactions intercepts to
-        // wrap the entity write + the staged OrderPlacedEvent envelope in one DB transaction.
-        await context.SaveChangesAsync(cancellationToken);
 
         var @event = new OrderPlacedEvent
         {
@@ -158,7 +162,19 @@ public class PlaceOrderHandler(
             }).ToList()
         };
 
+        // PUBLISH BEFORE SAVE — required for outbox atomicity. PublishAsync stages the envelope
+        // into Wolverine's in-memory tracker; SaveChangesAsync below then flushes BOTH the new
+        // Order row AND the staged envelope into the SAME DB transaction (via
+        // UseEntityFrameworkCoreTransactions). If we saved first and published after, the entity
+        // would commit alone — leaving a brief window where the order is in the DB but no event
+        // is enqueued. A process death in that window stalls the saga because PaymentService
+        // never sees the OrderPlacedEvent. See class summary for the full rationale.
         await eventPublisher.PublishAsync(@event, cancellationToken);
+
+        // SaveChanges flushes the Order write AND the staged envelope into the same DB
+        // transaction. Atomic — either both land in the DB or both roll back.
+        await context.SaveChangesAsync(cancellationToken);
+
         OrdersPlaced.Add(1);
         return order.Id;
     }
