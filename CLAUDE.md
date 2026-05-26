@@ -94,10 +94,11 @@ ServiceName/
 
 **Why feature folders work here:** each service has 1–6 use cases; finding "where does
 PlaceOrder live?" is `Features/PlaceOrder.cs`. The Domain folder holds what's *genuinely
-shared* across features (the `Order` aggregate, `IOrderRepository`); when something is used
-by only one feature (a port, a command), it lives in that feature's file. NotificationService
-is the canonical minimal case: zero Domain folder, two Features files, one Infrastructure
-folder.
+shared* across features — aggregates (`Order`, `OrderLine`, `OrderStatus`), value objects,
+and consumer-substitution ports (`IEventPublisher`, `ICatalogClient`). When something is
+used by only one feature (a single command, query, validator), it lives in that feature's
+file. NotificationService is the canonical minimal case: zero Domain folder, two Features
+files, one Infrastructure folder.
 
 ### When to use which
 

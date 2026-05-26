@@ -101,12 +101,22 @@ public class ProcessPaymentHandler(
 
         if (result.Success)
         {
-            // Mutate via domain method (status guard validates we're still in Pending), then
-            // persist. The domain entity owns the rule "only Pending can complete" — the
-            // handler doesn't restate it.
+            // Mutate via domain method (status guard validates we're still in Pending). The
+            // domain entity owns the rule "only Pending can complete" — the handler doesn't
+            // restate it.
             payment.MarkAsCompleted(result.TransactionId);
-            await context.SaveChangesAsync(cancellationToken);
 
+            // PUBLISH BEFORE SAVE — required for outbox atomicity. Wolverine's
+            // UseEntityFrameworkCoreTransactions bridge stages the envelope into its tracker
+            // when PublishAsync runs, and SaveChangesAsync flushes the staged envelope into
+            // wolverine.outgoing_envelopes IN THE SAME TRANSACTION as the entity write. If we
+            // save first and publish after, the entity commits alone — leaving a brief window
+            // where the Payment row exists but no event has been enqueued (envelope persists
+            // only on the NEXT SaveChanges, which is Wolverine's automatic post-handler one).
+            // A process death in that window leaves a saved Completed payment with no event,
+            // which the retry's existence check would short-circuit past — saga stalls.
+            // The RepublishTerminalEventAsync helper is the defense-in-depth backstop; this
+            // ordering is the structural fix.
             await eventPublisher.PublishAsync(new PaymentCompletedEvent
             {
                 PaymentId = payment.Id,
@@ -117,16 +127,20 @@ public class ProcessPaymentHandler(
                 CompletedAt = payment.CompletedAt!.Value
             }, cancellationToken);
 
+            // SaveChanges flushes BOTH the MarkAsCompleted mutation AND the staged envelope
+            // into the same DB transaction. Atomic — either both commit or neither does.
+            await context.SaveChangesAsync(cancellationToken);
+
             PaymentsProcessed.Add(1, new KeyValuePair<string, object?>("outcome", "success"));
         }
         else
         {
             payment.MarkAsFailed(result.ErrorMessage ?? "Unknown error");
-            await context.SaveChangesAsync(cancellationToken);
 
             // PaymentFailedEvent carries the reason verbatim — the buyer-facing notification
             // will use a generic message; this raw reason is for OrderService's audit trail and
-            // is logged but never returned to clients.
+            // is logged but never returned to clients. Publish-before-save: same outbox-atomicity
+            // reasoning as the Success branch above.
             await eventPublisher.PublishAsync(new PaymentFailedEvent
             {
                 PaymentId = payment.Id,
@@ -135,6 +149,8 @@ public class ProcessPaymentHandler(
                 Reason = result.ErrorMessage ?? "Unknown error",
                 FailedAt = DateTime.UtcNow
             }, cancellationToken);
+
+            await context.SaveChangesAsync(cancellationToken);
 
             PaymentsProcessed.Add(1, new KeyValuePair<string, object?>("outcome", "failed"));
         }
