@@ -60,9 +60,10 @@ Specific bug-classes that have bitten this repo before. When the target file mat
 - **IDOR check (CRITICAL).** Every GET-by-id, GET-by-scope, PATCH, PUT, DELETE on a buyer/seller-scoped entity must:
   - Read `ClaimTypes.NameIdentifier` from JWT at the endpoint
   - Pass `RequestingBuyerId` (or `RequestingSellerId`) into the query/command
-  - Handler returns `null` on entity-owner mismatch
-  - Endpoint translates `null` → 404 (NOT 403)
-  - Reference: `OrderEndpoints.cs:GET /orders/{id}`, `ShippingEndpoints.cs:GET /shipments/order/{orderId}`. Any deviation is a Must-fix IDOR.
+  - **Read handlers**: push the ownership predicate INTO the EF `Where` clause (`Where(o => o.Id == OrderId && o.BuyerId == RequestingBuyerId)`) so non-owner rows never leave the database. Tighter than a post-materialization C# check — a buggy refactor can't weaken a SQL predicate.
+  - **Write handlers** (need tracked load to mutate): in-memory ownership check on the loaded entity, return `false`/`null` on mismatch.
+  - Endpoint translates `null`/`false` → 404 (NOT 403)
+  - Reference: `OrderEndpoints.cs:GET /orders/{id}` + `Features/GetOrderById.cs` (read, predicate in SQL), `ShippingEndpoints.cs:GET /shipments/order/{orderId}` + `Features/GetShipmentByOrder.cs` (read, predicate in SQL), `CatalogEndpoints.cs:PUT /products/{id}` + `Features/UpdateProduct.cs` (write, in-memory check after tracked load). Any deviation is a Must-fix IDOR. A read handler with the predicate ONLY in C# (i.e. fetch by id, then `if (entity.BuyerId != requestingId) return null`) is a Should-consider — it satisfies the external contract but is structurally weaker; recommend tightening to the SQL-predicate shape.
 - **Mass assignment.** Any `[FromBody]` or minimal-API body parameter binding a record/class that contains a server-controlled field (`BuyerId`, `SellerId`, `Status`, `Price`, `IsDeleted`). The endpoint must verify the field matches the JWT claim or strip it from the bound type.
 - **`MapV1ApiGroup` used** (not hand-rolled `NewVersionedApi().MapGroup().HasApiVersion()` chains).
 - **`.RequireAuthorization()` at group level** unless explicitly public.

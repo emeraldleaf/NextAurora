@@ -195,9 +195,9 @@ The handler's *code shape* is the contract — load-then-mutate-then-save is a w
 
 | Path | Purpose |
 |---|---|
-| [Endpoints/OrderEndpoints.cs](../../OrderService/Endpoints/OrderEndpoints.cs) | HTTP surface: POST/GET buyer-scoped, defense-in-depth JWT check |
+| [Endpoints/OrderEndpoints.cs](../../OrderService/Endpoints/OrderEndpoints.cs) | HTTP surface: POST/GET buyer-scoped, JWT `NameIdentifier` extracted at endpoint and passed in as `RequestingBuyerId` for every scoped query/command |
 | [Features/PlaceOrder.cs](../../OrderService/Features/PlaceOrder.cs) | Command + validator + handler (the entry to the saga) |
-| [Features/GetOrderById.cs](../../OrderService/Features/GetOrderById.cs) | Single-order read; projects to DTO inline via `AsNoTracking() + .Select(...)` |
+| [Features/GetOrderById.cs](../../OrderService/Features/GetOrderById.cs) | Single-order read with **buyer-ownership predicate in the EF Where clause** (`Id == OrderId AND BuyerId == RequestingBuyerId`). Non-owner → null → 404 (anti-enumeration per CLAUDE.md "Security Requirements"). Projects to DTO inline via `AsNoTracking() + .Select(...)`. |
 | [Features/GetOrdersByBuyer.cs](../../OrderService/Features/GetOrdersByBuyer.cs) | Paginated buyer history; same projection shape + pagination clamp |
 | [Features/PaymentCompletedHandler.cs](../../OrderService/Features/PaymentCompletedHandler.cs) | Saga step 2a: payment succeeded → mark paid |
 | [Features/PaymentFailedHandler.cs](../../OrderService/Features/PaymentFailedHandler.cs) | Saga step 2b: payment failed → mark failed |
