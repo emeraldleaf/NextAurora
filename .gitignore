@@ -489,3 +489,6 @@ $RECYCLE.BIN/
 
 # Local smoke-test env (URLs are dynamic per Aspire run; .env.smoke.example is checked in)
 .env.smoke
+
+# Understand-Anything knowledge graphs (per-machine; regenerated via /understand-anything:understand)
+.understand-anything/
