@@ -14,7 +14,11 @@ namespace ShippingService.Features;
 ///
 /// <para>
 /// <b>Idempotency:</b> existence check by <c>OrderId</c> first. Backed by the unique index in
-/// <c>ShippingDbContext</c>, the same defense-in-depth pattern used in PaymentService.
+/// <c>ShippingDbContext</c>, the same defense-in-depth pattern used in PaymentService. If two
+/// at-least-once redeliveries race past the pre-check, the unique-OrderId index trips
+/// <see cref="DbUpdateException"/> on the loser's <c>SaveChangesAsync</c>; we catch it,
+/// re-fetch the winning Shipment, and return its ID. Net: at-least-once delivery still
+/// produces exactly one Shipment per order.
 /// </para>
 /// <para>
 /// <b>Why a random carrier:</b> simulation only — see <see cref="Carriers"/> below. Real
@@ -63,7 +67,27 @@ public class CreateShipmentHandler(
             DispatchedAt = shipment.DispatchedAt!.Value
         }, cancellationToken);
 
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // The pre-check above races with concurrent at-least-once redeliveries: two
+            // messages can both see "no existing shipment" and both try to insert. The
+            // unique index on OrderId catches the loser. Detach our about-to-be-orphaned
+            // entity, re-fetch the winner, and return its ID. Without this catch the
+            // redelivery model would leak DbUpdateException to Wolverine's retry loop on
+            // every concurrent insert. The staged ShipmentDispatchedEvent envelope rolls
+            // back with the failed SaveChanges (Wolverine's UseEntityFrameworkCoreTransactions
+            // bridge), so the loser doesn't double-publish.
+            context.Entry(shipment).State = EntityState.Detached;
+            var racedExisting = await context.Shipments
+                .FirstOrDefaultAsync(s => s.OrderId == request.OrderId, cancellationToken);
+            if (racedExisting is not null)
+                return racedExisting.Id;
+            throw;
+        }
 
         ShipmentsDispatched.Add(1);
         return shipment.Id;
