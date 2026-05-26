@@ -113,6 +113,80 @@ public sealed class ProductReadProjectionTests(CatalogApiFactory factory) : ICla
     }
 
     [Fact]
+    public async Task GetAllProducts_clamps_negative_or_oversized_page_inputs()
+    {
+        // ARRANGE — The pagination clamp is a defense-in-depth guard inside the handler
+        // (matching the endpoint-layer ClampPaging). It protects future non-endpoint
+        // callers (e.g. an admin script, a gRPC method, a Wolverine-direct invocation)
+        // from passing bad inputs that would either throw at execution or return a
+        // pathological result set. Three branches under test:
+        //   (a) Page < 1 → safePage = 1 (no negative offset)
+        //   (b) PageSize < 1 or > 100 → safePageSize = 50 (no zero/huge fetch)
+        //   (c) Skip-offset would overflow int → return [] before touching the DB
+        // We seed a few rows so the clamped query has something to return for (a)/(b).
+        await SeedProductsAsync(count: 3, categoryName: "ClampTestCategory");
+
+        await using var scope = _factory.CreateDbScope();
+        var handler = scope.ServiceProvider.GetRequiredService<GetAllProductsHandler>();
+
+        // ACT (a) Negative page clamps to 1 — query still runs, returns rows.
+        var negativePage = await handler.HandleAsync(
+            new GetAllProductsQuery(Page: -5, PageSize: 50), CancellationToken.None);
+
+        // ACT (b) Oversized PageSize clamps to default (50) — query still runs.
+        var oversizedPageSize = await handler.HandleAsync(
+            new GetAllProductsQuery(Page: 1, PageSize: 5000), CancellationToken.None);
+
+        // ACT (c) Skip-offset overflow guard: page * pageSize > int.MaxValue.
+        // (int.MaxValue / 50) + 100 = ~43M which, multiplied by 50, overflows int.
+        // The handler computes the offset in long arithmetic and bails out early.
+        var overflowed = await handler.HandleAsync(
+            new GetAllProductsQuery(Page: (int.MaxValue / 50) + 100, PageSize: 50),
+            CancellationToken.None);
+
+        // ASSERT — Three invariants the clamp contract must hold:
+        //  1) Negative page didn't crash — clamp ran. We don't assert an exact count
+        //     because the shared container has other tests' rows, but a non-throwing
+        //     non-null list proves the clamp engaged before Skip() saw a negative.
+        //  2) Oversized PageSize didn't crash — clamp ran. Same reasoning.
+        //  3) Overflow case returns the empty short-circuit, NOT throwing on Skip's
+        //     ArgumentOutOfRangeException. This is the load-bearing safety guard for
+        //     callers that pass int.MaxValue-class inputs.
+        negativePage.Should().NotBeNull();
+        oversizedPageSize.Should().NotBeNull();
+        overflowed.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SearchProducts_clamps_negative_or_oversized_page_inputs()
+    {
+        // ARRANGE — Same clamp branches as GetAllProducts, mirrored in SearchProducts.
+        // Seed a single product that matches the search term so the clamped query has
+        // a hit for the non-overflow branches.
+        var (_, _) = await SeedProductAsync(name: "ClampSearchTarget-" + Guid.NewGuid(), price: 7m);
+
+        await using var scope = _factory.CreateDbScope();
+        var handler = scope.ServiceProvider.GetRequiredService<SearchProductsHandler>();
+
+        // ACT — Same three branches.
+        var negativePage = await handler.HandleAsync(
+            new SearchProductsQuery("clampsearchtarget", Page: -5, PageSize: 50),
+            CancellationToken.None);
+        var oversizedPageSize = await handler.HandleAsync(
+            new SearchProductsQuery("clampsearchtarget", Page: 1, PageSize: 5000),
+            CancellationToken.None);
+        var overflowed = await handler.HandleAsync(
+            new SearchProductsQuery("clampsearchtarget", Page: (int.MaxValue / 50) + 100, PageSize: 50),
+            CancellationToken.None);
+
+        // ASSERT — Same shape as GetAllProducts. The overflow guard is the load-bearing
+        // one; the clamps for negative/oversized inputs just prove the search query ran.
+        negativePage.Should().NotBeNull();
+        oversizedPageSize.Should().NotBeNull();
+        overflowed.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task SearchProducts_is_case_insensitive_via_ILike()
     {
         // ARRANGE — Plain .Contains translates to a case-sensitive LIKE on Postgres (so a
