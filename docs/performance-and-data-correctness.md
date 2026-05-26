@@ -126,7 +126,7 @@ See [decision: optimistic concurrency tokens](#decision-optimistic-concurrency-t
 
 **Spec:** the same handler that owns the change owns the invalidation. For domain events that affect cached entities cross-service (e.g., `ProductPriceChanged` invalidating product cache), the event handler invalidates.
 
-**Where it applies:** [CatalogService.Application.Interfaces.IProductCache](../CatalogService/CatalogService.Application/Interfaces/IProductCache.cs), backed by `HybridCache` ([HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs)). [GetProductByIdHandler](../CatalogService/CatalogService.Application/Handlers/GetProductByIdHandler.cs) reads through it; [UpdateProductHandler](../CatalogService/CatalogService.Application/Handlers/UpdateProductHandler.cs) and [ReserveStockHandler](../CatalogService/CatalogService.Application/Handlers/ReserveStockHandler.cs) call `InvalidateAsync` after their save in the same unit of work. Tag-based invalidation clears L1 (in-process) and L2 (Redis) atomically. Full rationale: [decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache).
+**Where it applies:** [CatalogService.Domain.IProductCache](../CatalogService/Domain/IProductCache.cs), backed by `HybridCache` ([HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs)). [GetProductByIdHandler](../CatalogService/Features/GetProductByIdHandler.cs) reads through it; [UpdateProductHandler](../CatalogService/Features/UpdateProductHandler.cs) and [ReserveStockHandler](../CatalogService/Features/ReserveStockHandler.cs) call `InvalidateAsync` after their save in the same unit of work. Tag-based invalidation clears L1 (in-process) and L2 (Redis) atomically. Full rationale: [decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache).
 
 ### 13. Migrations are immutable once applied
 
@@ -169,7 +169,7 @@ entity.Property<uint>("xmin")
 ```
 - `xmin` is a system column on every Postgres row. The engine increments it on every write.
 - No schema change required. Works against existing tables immediately.
-- Configured in [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs) (Product, Category) and [ShippingDbContext.cs](../ShippingService/Infrastructure/Data/ShippingDbContext.cs) (Shipment).
+- Configured in [CatalogDbContext.cs](../CatalogService/Infrastructure/Data/CatalogDbContext.cs) (Product, Category) and [ShippingDbContext.cs](../ShippingService/Infrastructure/Data/ShippingDbContext.cs) (Shipment).
 
 **SQL Server services (Order, Payment):** shadow `byte[] RowVersion` column with `IsRowVersion()`.
 ```csharp
@@ -203,27 +203,27 @@ This is documented in detail in [docs/cqrs-data-access.md](cqrs-data-access.md).
 
 ### What we chose
 
-Read paths and write paths use **different repository methods** with different shapes:
+Read paths and write paths use **different code shapes** in the handler — there is no repository wrapper (`DbContext` IS Unit-of-Work, `DbSet<T>` IS Repository, see CLAUDE.md "Data access: DbContext directly"):
 
-- **Read methods** return DTOs by projecting in EF (`AsNoTracking().Select(...)` inside the IQueryable). Examples: `OrderRepository.GetSummaryByIdAsync`, `OrderRepository.GetSummariesByBuyerIdAsync`, `IProductReadStore.GetByIdAsync` / `GetAllAsync` / `SearchAsync`.
-- **Write methods** return tracked domain entities. Examples: `OrderRepository.GetByIdAsync` (used by `PaymentCompletedHandler`/`PaymentFailedHandler`/`ShipmentDispatchedHandler`), `ProductRepository.GetByIdAsync` (used by `UpdateProductHandler`/`ReserveStockHandler`).
+- **Read handlers** project to DTO inline: `context.Foos.AsNoTracking().Where(...).Select(new FooDto { ... }).ToListAsync(ct)`. Examples: `GetOrderByIdHandler`, `GetOrdersByBuyerHandler`, `GetProductByIdHandler` (cached), `GetAllProductsHandler`, `SearchProductsHandler`, `GetShipmentByOrderHandler`.
+- **Write handlers** load the aggregate tracked, mutate via aggregate methods, and call `SaveChangesAsync`. Examples: `PlaceOrderHandler`, `PaymentCompletedHandler`, `UpdateProductHandler`, `ReserveStockHandler`, `CreateShipmentHandler`.
 
-A single method serving both a query handler and a command handler is the anti-pattern this strategy removes. The signature itself becomes the proof of intent: DTO-returning = read; entity-returning = write loader.
+The handler's code shape becomes the proof of intent: `AsNoTracking().Select(DTO)` = read; tracked load + mutate + save = write. No interface ambiguity to resolve.
 
 ### Why the split
 
-The previous design (one shared `GetByIdAsync` per repo) saved a method declaration at the cost of:
+The pre-refactor design (one shared `GetByIdAsync` per repo) saved a method declaration at the cost of:
 
 - Every read paying for full entity materialization
 - Parent-cartesian rows over the wire when a collection `Include` was in play
 - An in-memory mapper pass on every read
-- A signature that didn't tell you whether you were on a read or write path
+- A method shape that didn't tell you whether you were on a read or write path
 
-The split costs a few extra lines per service. Once in place, the entity layer never leaks into the read path — query handlers receive a DTO straight from the IQueryable.
+The split costs a few extra lines per handler. Once in place, the entity layer never leaks into the read path — query handlers receive a DTO straight from the IQueryable.
 
-### Clean Architecture variant (CatalogService)
+### Where the cache fits
 
-`IProductRepository` lives in `CatalogService.Domain`, which by layer rule cannot reference `NextAurora.Contracts`. So the DTO-returning interface (`IProductReadStore`) lives in `CatalogService.Application/Interfaces/`, with the implementation in `CatalogService.Infrastructure/Repositories/`. Query handlers depend on `IProductReadStore`; command handlers keep depending on `IProductRepository`. Same architectural intent, different interface placement to honor Clean layer rules.
+In CatalogService, `GetProductByIdHandler` wraps the inline projection in `IProductCache.GetOrLoadAsync` — the only port that survives in this service's Domain folder, kept because the test fake is real (`Substitute.For<IProductCache>`) and HybridCache vs. test fake is a genuine consumer-substitution case.
 
 ---
 
@@ -241,7 +241,7 @@ The classical answer is cache-aside backed by Redis. Three failure modes lurk in
 
 ### What we chose
 
-`Microsoft.Extensions.Caching.Hybrid` 10.5.0 — .NET 10's official two-tier cache primitive. Implementation in [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs); abstraction in [IProductCache.cs](../CatalogService/CatalogService.Application/Interfaces/IProductCache.cs).
+`Microsoft.Extensions.Caching.Hybrid` 10.5.0 — .NET 10's official two-tier cache primitive. Implementation in [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs); abstraction in [IProductCache.cs](../CatalogService/Domain/IProductCache.cs).
 
 ```csharp
 public sealed class HybridProductCache(HybridCache cache) : IProductCache
@@ -271,7 +271,7 @@ public sealed class HybridProductCache(HybridCache cache) : IProductCache
 }
 ```
 
-The handler is now a thin delegate to the cache — see [GetProductByIdHandler.cs](../CatalogService/CatalogService.Application/Handlers/GetProductByIdHandler.cs):
+The handler is now a thin delegate to the cache — see [GetProductByIdHandler.cs](../CatalogService/Features/GetProductByIdHandler.cs):
 
 ```csharp
 public Task<ProductDto?> HandleAsync(GetProductByIdQuery request, CancellationToken ct) =>
@@ -282,7 +282,7 @@ public Task<ProductDto?> HandleAsync(GetProductByIdQuery request, CancellationTo
     }, ct);
 ```
 
-DI registration in [Program.cs](../CatalogService/CatalogService.Api/Program.cs) and [DependencyInjection.cs](../CatalogService/CatalogService.Infrastructure/DependencyInjection.cs):
+DI registration in [Program.cs](../CatalogService/Program.cs) and [DependencyInjection.cs](../CatalogService/Infrastructure/DependencyInjection.cs):
 
 ```csharp
 // Program.cs
@@ -610,7 +610,7 @@ The `RowVersion` columns on Order/Payment (added during the concurrency-token wo
 ### What we set up
 
 - **`Microsoft.EntityFrameworkCore.Design`** package referenced from each `*.Infrastructure` project (and from `CatalogService.Api` directly, since Catalog doesn't transitively pull EF Design via Wolverine like the event-publishing services do).
-- **`IDesignTimeDbContextFactory<T>`** for each context: [OrderDbContextFactory.cs](../OrderService/Infrastructure/Data/OrderDbContextFactory.cs), [PaymentDbContextFactory.cs](../PaymentService/Infrastructure/Data/PaymentDbContextFactory.cs), [CatalogDbContextFactory.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContextFactory.cs), [ShippingDbContextFactory.cs](../ShippingService/Infrastructure/Data/ShippingDbContextFactory.cs). Each reads a connection string from `ConnectionStrings__<dbname>` env var with a localhost fallback for design-time use only.
+- **`IDesignTimeDbContextFactory<T>`** for each context: [OrderDbContextFactory.cs](../OrderService/Infrastructure/Data/OrderDbContextFactory.cs), [PaymentDbContextFactory.cs](../PaymentService/Infrastructure/Data/PaymentDbContextFactory.cs), [CatalogDbContextFactory.cs](../CatalogService/Infrastructure/Data/CatalogDbContextFactory.cs), [ShippingDbContextFactory.cs](../ShippingService/Infrastructure/Data/ShippingDbContextFactory.cs). Each reads a connection string from `ConnectionStrings__<dbname>` env var with a localhost fallback for design-time use only.
 - **`InitialCreate` migrations** generated for all four services. Concurrency tokens are baked in: `RowVersion` columns for the SQL Server services, `xmin` shadow properties for the Postgres services.
 - **`MigrateDatabaseAsync<T>()`** extension on `IServiceProvider` in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/Extensions.cs) — opens a scope, resolves the context, calls `Database.MigrateAsync`. Wired into each service's `Program.cs` inside the `app.Environment.IsDevelopment()` block.
 - **`.editorconfig`** updated to suppress style/analysis rules in `**/Migrations/**.cs` (generated code shouldn't fail the build on file-scoped namespace, etc.).
@@ -732,8 +732,8 @@ When you need to discuss specific decisions, here's where the source-of-truth li
 | Correlation/User/Session propagation | [docs/context-propagation.md](context-propagation.md), [CLAUDE.md "Observability & Context Propagation"](../CLAUDE.md#observability--context-propagation) |
 | Event replay (admin endpoints) | [docs/event-replay.md](event-replay.md) |
 | Aggregate invariants & business rules | [docs/architecture.md "Domain Model"](architecture.md#domain-model) |
-| Concurrency token configuration per service | [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs), [OrderDbContext.cs](../OrderService/Infrastructure/Data/OrderDbContext.cs), [PaymentDbContext.cs](../PaymentService/Infrastructure/Data/PaymentDbContext.cs), [ShippingDbContext.cs](../ShippingService/Infrastructure/Data/ShippingDbContext.cs) |
-| Read-cache contract & implementation | [IProductCache.cs](../CatalogService/CatalogService.Application/Interfaces/IProductCache.cs), [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) |
+| Concurrency token configuration per service | [CatalogDbContext.cs](../CatalogService/Infrastructure/Data/CatalogDbContext.cs), [OrderDbContext.cs](../OrderService/Infrastructure/Data/OrderDbContext.cs), [PaymentDbContext.cs](../PaymentService/Infrastructure/Data/PaymentDbContext.cs), [ShippingDbContext.cs](../ShippingService/Infrastructure/Data/ShippingDbContext.cs) |
+| Read-cache contract & implementation | [IProductCache.cs](../CatalogService/Domain/IProductCache.cs), [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs) |
 | EF Core spec & practice — reference walkthrough | [docs/ef-core.md](ef-core.md) |
 | Build settings (warnings as errors, analyzers) | [Directory.Build.props](../Directory.Build.props) |
 | Package versions (CPM) | [Directory.Packages.props](../Directory.Packages.props) |

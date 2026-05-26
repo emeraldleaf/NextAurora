@@ -80,36 +80,30 @@ reviews:
         (Wolverine vs. test fake) and ICatalogClient (gRPC vs. test fake). Those have
         legitimate substitution stories. Anything ending in "Repository" doesn't.
 
-    - path: "CatalogService/CatalogService.Application/Interfaces/IProductReadStore.cs"
-      instructions: |
-        IProductReadStore is the one read-side port that survives the simplicity
-        refactor — it's a Clean Architecture layer-rule consequence (Domain can't
-        reference Contracts where DTOs live), not a wrapper-around-EF pattern.
-        Implementation at CatalogService.Infrastructure/Repositories/ProductReadStore.cs.
-        Methods project to DTO inside the IQueryable via AsNoTracking() + .Select(...).
-        Flag any entity-returning method on the interface or impl — IProductReadStore
-        is read-side by contract. The VSA services don't have this seam — their reads
-        happen directly in handlers because there's no Domain/Application/Contracts
-        layer rule to honor.
-
     - path: "CatalogService/**/*.cs"
       instructions: |
-        This service uses Clean Architecture (Domain / Application / Infrastructure / Api).
-        Domain depends on nothing; Application on Domain; Infrastructure on both; Api is
-        the composition root. Flag any cross-layer leak. Domain entities use factory
-        methods (static Create()) with validation, never public setters.
+        CatalogService is now Vertical Slice Architecture like the other four services —
+        the Clean Architecture four-project split was retired in the VSA-collapse
+        refactor. Single CatalogService.csproj at the service root; Features/ holds the
+        co-located command/query + validator + handler files; Domain/ holds aggregates
+        (Product, Category) and the IProductCache port; Infrastructure/ holds
+        CatalogDbContext + HybridProductCache + migrations + DI; Endpoints/ and Grpc/
+        hold the HTTP and gRPC surfaces.
 
-        DATA-ACCESS SHAPE (Clean variant — CARVE-OUT vs the project-wide
-        "no repository wrappers" rule): CatalogService keeps both IProductRepository
-        (Domain port, write-side) and IProductReadStore (Application port, read-side).
-        CatalogDbContext lives in Infrastructure; Application cannot reference
-        Infrastructure (would create a circular project reference), so Application
-        handlers can't take CatalogDbContext directly — they need the abstractions.
-        Both repositories pass the consumer-substitution test through the Clean layer
-        rules, unlike the VSA services where the wrapper added no capability and was
-        removed. See CLAUDE.md "Interfaces earn their keep" / "Exception — CatalogService".
-        Flag attempts to ADD additional repository wrappers, but DON'T flag the
-        existing IProductRepository/IProductReadStore as speculative coupling.
+        DATA-ACCESS SHAPE: handlers take CatalogDbContext directly. There is NO
+        IProductRepository or IProductReadStore — read handlers project inline via
+        AsNoTracking() + .Select(...) into ProductDto; write handlers load the
+        aggregate tracked, mutate via state-transition methods (Product.UpdateDetails,
+        Product.AdjustStock), and call SaveChangesAsync. Flag any new I*Repository
+        introduced in this service — that pattern was removed for the same reason it
+        was removed from the other four services (DbContext IS Unit-of-Work, DbSet<T>
+        IS Repository; mocking has been replaced by integration tests with Testcontainers
+        in CatalogService.Tests.Integration). See CLAUDE.md "Data access: DbContext
+        directly, no repository wrappers".
+
+        DOMAIN INVARIANTS: Domain entities use factory methods (static Create()) with
+        validation, never public setters. Currency must be 3 chars; Price > 0; stock
+        non-negative.
 
     - path: "**/Endpoints/**/*.cs"
       instructions: |

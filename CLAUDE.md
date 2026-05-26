@@ -16,14 +16,13 @@ NextAurora is a .NET 10 microservices e-commerce platform using Aspire, Azure Se
 - **Interface Segregation**: Keep interfaces focused. Separate read/write repository interfaces if consumers only need one. Do not force unused dependencies.
 - **Dependency Inversion**: Always depend on abstractions (interfaces), never on concrete implementations. Domain and Application layers must never reference Infrastructure.
 - **Interfaces earn their keep through *consumer substitution*, not "future swap"**: a port/adapter interface (`IFooGateway`, `IEventPublisher`, `IFooSender`, `IFooResolver`) is justified when at least one of: **(a)** it's substituted by tests today (NSubstitute mock, fake, in-memory double — verify with `grep "Substitute.For<IFoo"`), **(b)** there are two or more concrete implementations registered against it today (dev + prod adapter, multi-tenant variants), or **(c)** a second implementation is on a *concrete* near-term roadmap item — not "we might want X someday." If none of (a)/(b)/(c) holds, the interface is speculative coupling and should be deleted; the handler can take the concrete class directly.
-- **Repository interfaces are NOT justified by this rule** (see "Data access: DbContext directly, no repository wrappers" below). `DbContext`/`DbSet<T>` already IS the Repository + Unit-of-Work pattern; wrapping it in `IFooRepository` adds layers without adding capability. The test-substitutability defense (mocking `IOrderRepository` in unit tests) fails because the right tests for EF-touching handlers are integration tests with Testcontainers, not unit tests with mocks (see "Testing" rule). Justified ports today: `IEventPublisher` (Wolverine vs. test fake), `IPaymentGateway` (Stripe vs. test fake), `ICatalogClient` (gRPC vs. test fake), `INotificationSender` (console vs. SendGrid/Twilio), `IProductCache` (HybridCache vs. test fake), `IProductReadStore` (CatalogService Clean Architecture variant — Domain can't reference Contracts where DTOs live, so the read interface lives in Application; the alternative is to push DTOs into Domain, which would violate the layer rule). Past deletions: `IRecipientResolver`/`StubRecipientResolver` (no test substitution, no second impl), the four entity-returning repositories (`IOrderRepository`, `IPaymentRepository`, `IShipmentRepository`, `IProductRepository` — handlers now take `DbContext` directly; tests moved to integration).
+- **Repository interfaces are NOT justified by this rule** (see "Data access: DbContext directly, no repository wrappers" below). `DbContext`/`DbSet<T>` already IS the Repository + Unit-of-Work pattern; wrapping it in `IFooRepository` adds layers without adding capability. The test-substitutability defense (mocking `IOrderRepository` in unit tests) fails because the right tests for EF-touching handlers are integration tests with Testcontainers, not unit tests with mocks (see "Testing" rule). Justified ports today: `IEventPublisher` (Wolverine vs. test fake), `IPaymentGateway` (Stripe vs. test fake), `ICatalogClient` (gRPC vs. test fake), `INotificationSender` (console vs. SendGrid/Twilio), `IProductCache` (HybridCache vs. test fake). Past deletions: `IRecipientResolver`/`StubRecipientResolver` (no test substitution, no second impl), the five entity-returning repositories (`IOrderRepository`, `IPaymentRepository`, `IShipmentRepository`, `IProductRepository`, plus the read-side `IProductReadStore` — handlers now take `DbContext` directly; tests moved to integration).
 
 ### Data access: DbContext directly, no repository wrappers
 
 - **Handlers take `DbContext` (or `IDbContextFactory<T>`) directly. No `IFooRepository` interfaces.** `Microsoft.EntityFrameworkCore.DbContext` is already the Unit of Work; `DbSet<T>` is already the Repository. A wrapper interface (`IOrderRepository`) adds a layer without adding capability — and the only reason to add the layer was to enable mocking in unit tests, which we've replaced with integration tests against real Testcontainers DBs.
 - **Reads project to DTOs inside the IQueryable.** `context.Orders.AsNoTracking().Where(...).Select(o => new OrderSummaryDto { ... }).ToListAsync(ct)` — directly in the handler, no method wrapping, no in-memory mapper. The projection IS the read contract. EF auto-splits projected collection navigations, so no parent-cartesian rows on the wire (see [docs/cqrs-data-access.md](docs/cqrs-data-access.md) for the mechanism).
 - **Writes load the aggregate tracked and call `SaveChangesAsync`.** `var order = await context.Orders.Include(o => o.Lines).FirstOrDefaultAsync(o => o.Id == id, ct); ...; order.MarkAsPaid(); await context.SaveChangesAsync(ct);` Optimistic concurrency tokens fire on `SaveChanges`; `AddConcurrencyRetry` handles `DbUpdateConcurrencyException` for handler-pipeline code.
-- **Exception — CatalogService (Clean Architecture variant) keeps both `IProductRepository` (write) and `IProductReadStore` (read).** Application can't reference Infrastructure without creating a circular project reference (`Infrastructure → Application` already exists for `IProductCache`/`IProductReadStore`), and `CatalogDbContext` lives in Infrastructure. So Application handlers cannot take `CatalogDbContext` directly — they need the abstraction. This is a real layer-rule consequence, not "wrapping for the sake of wrapping": both repositories pass the substitution test through Clean Architecture's project-reference constraints. The VSA services have no such constraint (handlers and DbContext live in the same csproj), so they drop the wrapper. The diff between the two patterns — wrapper kept where the layer rule needs it, wrapper dropped where it doesn't — is the project's intentional calibration story. See `CatalogService.Application/Interfaces/IProductReadStore.cs` and `CatalogService.Domain/Interfaces/IProductRepository.cs`.
 - **Exception: outbox-atomic non-handler code.** `BackgroundService` sweepers and other code outside the Wolverine handler pipeline still need an explicit transactional wrap (`BeginTransactionAsync` → work → `SaveChangesAsync` → `CommitAsync`) so Wolverine's staged outbox envelopes persist atomically with entity writes. This used to live in `IPaymentRepository.ExecuteInTransactionAsync`; it now lives inline in the recovery job. Pattern is unchanged; the wrapper interface is gone.
 
 ### Domain-Driven Design
@@ -56,58 +55,48 @@ NextAurora is a .NET 10 microservices e-commerce platform using Aspire, Azure Se
 
 ## Project Structure
 
-**Per-service shape is calibrated to per-service complexity.** Two patterns coexist in this
-repo on purpose, with one rule per pattern:
-
-### Clean Architecture — CatalogService only
-
-The largest service (~2k LOC, multiple aggregates, caching, gRPC, optimistic concurrency,
-integration tests). The four-project split *earns its keep*: enough aggregates that the
-build-time layer enforcement protects against real violations, and the size makes
-"find every handler" / "find every repository" a worthwhile axis to organize on.
-
-```
-CatalogService/
-  CatalogService.Domain/          # Entities, value objects, enums, interfaces (no dependencies)
-  CatalogService.Application/     # Commands, queries, validators, handlers, mappers
-  CatalogService.Infrastructure/  # EF Core, repositories, caching, messaging
-  CatalogService.Api/             # Endpoints, middleware, DI composition root, gRPC service
-```
-
-### Vertical Slice Architecture — Order/Payment/Shipping/Notification
-
-Smaller services (~250–1400 LOC, ≤2 aggregates each). The Clean Architecture project split
-costs more than it pays at this scale — four csprojs, cross-project `using` statements, and
-"find everything related to PlaceOrder" becoming a multi-project search. Collapsed to one
-project per service, organized by *feature* instead of *kind*.
+**Vertical Slice Architecture for every service.** All five services (Catalog, Order, Payment,
+Shipping, Notification) follow the same single-project shape, organized by *feature* instead
+of *kind*. The repo previously used Clean Architecture for CatalogService and VSA for the
+other four; that diff was retired in the simplicity refactor because the layer split wasn't
+earning its keep at this scale (~2k LOC, 2 aggregates) and the two patterns coexisting in
+one repo was inconsistency without payoff.
 
 ```
 ServiceName/
   Features/                       # One file per use case: command/query record + validator + handler co-located.
                                   # Saga event-handler classes also live here (they're features too).
   Domain/                         # Shared aggregates, value objects, enums, ports (interfaces consumed by features).
-  Infrastructure/                 # EF Core (with /Data/ + /Migrations/), repositories, gateways, DI composition.
+  Infrastructure/                 # EF Core (with /Data/ + /Migrations/), caching, gateways, DI composition.
   Endpoints/                      # Minimal-API endpoint registrations (the HTTP surface; not always present).
+  Grpc/                           # gRPC server-side handlers (CatalogService only — gRPC server peer for the catalog client).
   Program.cs                      # Composition root.
   ServiceName.csproj              # Single Web SDK project.
 ```
 
-**Why feature folders work here:** each service has 1–6 use cases; finding "where does
+**Why feature folders work here:** each service has 1–8 use cases; finding "where does
 PlaceOrder live?" is `Features/PlaceOrder.cs`. The Domain folder holds what's *genuinely
-shared* across features — aggregates (`Order`, `OrderLine`, `OrderStatus`), value objects,
-and consumer-substitution ports (`IEventPublisher`, `ICatalogClient`). When something is
-used by only one feature (a single command, query, validator), it lives in that feature's
-file. NotificationService is the canonical minimal case: zero Domain folder, two Features
-files, one Infrastructure folder.
+shared* across features — aggregates (e.g. `Order`, `OrderLine`, `Product`), value objects,
+and consumer-substitution ports (`IEventPublisher`, `ICatalogClient`, `IProductCache`).
+When something is used by only one feature (a single command, query, validator), it lives
+in that feature's file. NotificationService is the canonical minimal case: zero Domain
+folder, two Features files, one Infrastructure folder. CatalogService is the most filled-out:
+6 features, 2 aggregates, EF + HybridCache + gRPC server.
 
-### When to use which
+### Promotion signal — when to consider Clean Architecture
+
+VSA is the default and stays the default. If a single service grows to 5+ aggregates with
+cross-cutting domain rules that several features need to coordinate on, AND `Domain/` is
+growing faster than `Features/`, that's the *earliest* signal to consider promoting to a
+multi-project layout. None of the services are at that scale today and probably won't be —
+the previous attempt at Clean Architecture in CatalogService was retired specifically
+because we hit none of those signals.
 
 | Signal | Shape |
 |---|---|
-| ≤2 aggregates, ≤10 features, single team | VSA |
-| Multiple aggregates with cross-cutting domain rules, heavy caching/gRPC, integration test suite | Clean Architecture |
-| Test-substitution interfaces (`IFooRepository`, `IEventPublisher`) | Either pattern keeps them — the seam is consumer substitution, not the project boundary |
-| Started as VSA but feature folders cross-reference each other 4+ ways | Promote shared concepts to `Domain/`; if `Domain/` is growing fast, that's the signal to consider Clean Architecture |
+| ≤4 aggregates per service, ≤10 features, single team | VSA (current default) |
+| 5+ aggregates with cross-cutting domain rules that several features coordinate on, AND `Domain/` growing faster than `Features/` | Consider Clean Architecture promotion |
+| "I want to mock the DbContext in unit tests" | NOT a reason. Use integration tests with Testcontainers; see "Testing" rule |
 
 **Don't apply both patterns uniformly across a single service.** Pick one shape per service
 and commit. The diff between the two patterns *across services* is intentional — it's the
@@ -216,7 +205,7 @@ These are always-on. Deeper guidance (modern EF features, transactions, caching 
 ## Testing
 
 - Unit tests for domain logic and handlers
-- **Test structure — AAA with narrative comments.** Every test is structured as **Arrange → Act → Assert** with `// ARRANGE`, `// ACT`, `// ASSERT` markers (all caps, em-dash explanation on the same line). Each phase carries a *story comment*: explain what's being set up and *why it matters*, what's being called, and what each assertion is verifying. A junior dev should be able to read a single test top-to-bottom and understand the contract being checked + the failure mode being guarded against — without having to read the SUT first. When the ASSERT phase verifies multiple invariants, number them and explain why each matters (especially for security boundaries, idempotency guards, and ordering-sensitive operations like cache-after-save). Trivial happy-path tests can be shorter; security/concurrency/idempotency tests get the full story. Reference templates: [UpdateProductHandlerTests.cs](tests/CatalogService.Tests.Unit/Application/UpdateProductHandlerTests.cs) (security + cache ordering), [PaymentFailedHandlerTests.cs](tests/OrderService.Tests.Unit/Application/PaymentFailedHandlerTests.cs) (idempotency under at-least-once delivery), [GetShipmentByOrderHandlerTests.cs](tests/ShippingService.Tests.Unit/Application/GetShipmentByOrderHandlerTests.cs) (IDOR-prevention pattern).
+- **Test structure — AAA with narrative comments.** Every test is structured as **Arrange → Act → Assert** with `// ARRANGE`, `// ACT`, `// ASSERT` markers (all caps, em-dash explanation on the same line). Each phase carries a *story comment*: explain what's being set up and *why it matters*, what's being called, and what each assertion is verifying. A junior dev should be able to read a single test top-to-bottom and understand the contract being checked + the failure mode being guarded against — without having to read the SUT first. When the ASSERT phase verifies multiple invariants, number them and explain why each matters (especially for security boundaries, idempotency guards, and ordering-sensitive operations like cache-after-save). Trivial happy-path tests can be shorter; security/concurrency/idempotency tests get the full story. Reference templates: [ProductAuthorizationTests.cs](tests/CatalogService.Tests.Integration/ProductAuthorizationTests.cs) (IDOR-prevention + rejected-write invariants), [PaymentFailedHandlerTests.cs](tests/OrderService.Tests.Unit/Application/PaymentFailedHandlerTests.cs) (idempotency under at-least-once delivery), [GetShipmentByOrderHandlerTests.cs](tests/ShippingService.Tests.Unit/Application/GetShipmentByOrderHandlerTests.cs) (IDOR-prevention pattern, unit-tier).
 - Integration tests with Testcontainers for infrastructure — `tests/{Service}.Tests.Integration`, booting the real API via `WebApplicationFactory<Program>`. **CatalogService** slice (Postgres + Redis: caching + concurrency token) and **OrderService** slice (SQL Server + Wolverine stubbed transport: outbox, saga handlers, `RowVersion` token) exist; pattern documented in each project's README.
 - **Integration tests need Docker.** On macOS, Docker Desktop's socket is at `~/.docker/run/docker.sock`, not `/var/run/docker.sock` — Testcontainers fails fast with `DockerUnavailableException` unless `DOCKER_HOST` points there (or Docker Desktop's "default Docker socket" toggle is on). CI runners have it at the standard path.
 - **IDOR test is required for every new endpoint that returns or mutates a scoped entity.** Add an integration test that authenticates as buyer X, requests a resource owned by buyer Y, and asserts the response is 404 (NOT 200, NOT 403 — see Security Requirements). The absence of such a test is exactly how the original `GET /api/v1/orders/{id}` IDOR survived undetected for the lifetime of the codebase. A `dotnet build` clean and unit tests passing aren't sufficient — *authorization behavior is only proven by an authorization-failure test*.

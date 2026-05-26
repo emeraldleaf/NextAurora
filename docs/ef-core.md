@@ -33,7 +33,7 @@ The hard rules summarized at the end of this doc are codified in [CLAUDE.md "Per
 
 ## 1. Overview — where EF Core fits
 
-EF Core is our **default data-access tool** for every relational write and for most relational reads. It's used through the Infrastructure layer only — Domain and Application never reference EF types. The seam is the repository interface in Domain (e.g. [IProductRepository.cs](../CatalogService/CatalogService.Domain/Interfaces/IProductRepository.cs)) with the EF implementation in Infrastructure ([ProductRepository.cs](../CatalogService/CatalogService.Infrastructure/Repositories/ProductRepository.cs)).
+EF Core is our **default data-access tool** for every relational write and for most relational reads. Handlers take `DbContext` directly — there is no `I*Repository` wrapper interface (CLAUDE.md "Data access: DbContext directly"). `DbContext` IS the Unit of Work; `DbSet<T>` IS the Repository. The previous repository-wrapper pattern was removed in the simplicity refactor (and the CatalogService variant in the VSA-collapse refactor that followed); the only thing the wrapper was buying us was the ability to mock handlers in unit tests, and that was replaced with integration tests against Testcontainers.
 
 **Version pin:** EF Core 10.0.2, declared centrally in [Directory.Packages.props](../Directory.Packages.props). All projects reference packages **without versions** thanks to Central Package Management.
 
@@ -57,7 +57,7 @@ EF Core is our **default data-access tool** for every relational write and for m
 
 | Service | Provider | DbContext | Concurrency token |
 |---|---|---|---|
-| Catalog | PostgreSQL | [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs) | `xmin` (system column) |
+| Catalog | PostgreSQL | [CatalogDbContext.cs](../CatalogService/Infrastructure/Data/CatalogDbContext.cs) | `xmin` (system column) |
 | Shipping | PostgreSQL | [ShippingDbContext.cs](../ShippingService/Infrastructure/Data/ShippingDbContext.cs) | `xmin` (system column) |
 | Order | SQL Server | [OrderDbContext.cs](../OrderService/Infrastructure/Data/OrderDbContext.cs) | `RowVersion` (real column) |
 | Payment | SQL Server | [PaymentDbContext.cs](../PaymentService/Infrastructure/Data/PaymentDbContext.cs) | `RowVersion` (real column) |
@@ -88,7 +88,7 @@ A production decision would also weigh licensing cost (Postgres free, SQL Server
 
 ## 3. DbContext: registration, lifetime, thread safety
 
-Registered as **Scoped** in each service's Infrastructure DI module. Scoped = one instance per HTTP request / per Wolverine message dispatch. Example from [CatalogService.Infrastructure/DependencyInjection.cs](../CatalogService/CatalogService.Infrastructure/DependencyInjection.cs):
+Registered as **Scoped** in each service's Infrastructure DI module. Scoped = one instance per HTTP request / per Wolverine message dispatch. Example from [CatalogService.Infrastructure/DependencyInjection.cs](../CatalogService/Infrastructure/DependencyInjection.cs):
 
 ```csharp
 public static IServiceCollection AddCatalogInfrastructure(this IServiceCollection services, IConfiguration configuration)
@@ -102,9 +102,15 @@ public static IServiceCollection AddCatalogInfrastructure(this IServiceCollectio
 
     services.AddHealthChecks().AddDbContextCheck<CatalogDbContext>();
 
-    services.AddScoped<IProductRepository, ProductRepository>();
-    services.AddScoped<ICategoryRepository, CategoryRepository>();
     services.AddScoped<IProductCache, HybridProductCache>();
+
+    // Read handlers explicitly registered so integration tests can resolve them
+    // directly (Wolverine's handler discovery does NOT register handlers in DI —
+    // see CLAUDE.md "Communication Patterns → Wolverine handler discovery is NOT
+    // DI registration").
+    services.AddScoped<GetProductByIdHandler>();
+    services.AddScoped<GetAllProductsHandler>();
+    services.AddScoped<SearchProductsHandler>();
 
     return services;
 }
@@ -130,7 +136,7 @@ If you legitimately need parallel queries → see [§17 `IDbContextFactory<T>`](
 
 ## 4. Entity configuration patterns
 
-Three patterns recur in every DbContext's `OnModelCreating`. Example: [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs).
+Three patterns recur in every DbContext's `OnModelCreating`. Example: [CatalogDbContext.cs](../CatalogService/Infrastructure/Data/CatalogDbContext.cs).
 
 ### 4.1 Explicit precision on money
 
@@ -189,7 +195,7 @@ Concrete saga example: a `PaymentCompletedEvent` and a `ShipmentDispatchedEvent`
 
 Every Postgres row has a system column `xmin` — the transaction ID that last wrote the row. The engine increments it on every write. Map it as an EF shadow property:
 
-From [CatalogDbContext.cs:63](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs#L63):
+From [CatalogDbContext.cs:63](../CatalogService/Infrastructure/Data/CatalogDbContext.cs#L63):
 
 ```csharp
 entity.Property<uint>("xmin")
@@ -302,7 +308,7 @@ Every `Migrate()` call: read this table → find entries in `Migrations/` that a
 Each Infrastructure project has:
 
 1. **`Microsoft.EntityFrameworkCore.Design` package** with `PrivateAssets="all"` — build-time only, never shipped at runtime.
-2. **`IDesignTimeDbContextFactory<T>` implementation** so `dotnet ef` can construct a context outside the running app. Example: [CatalogDbContextFactory.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContextFactory.cs):
+2. **`IDesignTimeDbContextFactory<T>` implementation** so `dotnet ef` can construct a context outside the running app. Example: [CatalogDbContextFactory.cs](../CatalogService/Infrastructure/Data/CatalogDbContextFactory.cs):
 
    ```csharp
    public sealed class CatalogDbContextFactory : IDesignTimeDbContextFactory<CatalogDbContext>
@@ -331,14 +337,14 @@ Each Infrastructure project has:
 
 # 2. Generate the migration
 dotnet ef migrations add AddPromotionCodes \
-  --project CatalogService/CatalogService.Infrastructure \
-  --startup-project CatalogService/CatalogService.Api
+  --project CatalogService \
+  --startup-project CatalogService
 
 # 3. Apply: just restart the service. MigrateDatabaseAsync runs at startup in dev.
 dotnet run --project NextAurora.AppHost
 ```
 
-`--project` = where migrations live (Infrastructure). `--startup-project` = where the host + `IDesignTimeDbContextFactory` live (Api). Both are required because EF needs Infrastructure for the model and Api for the factory.
+After the VSA collapse, CatalogService is a single Web SDK project — both `--project` and `--startup-project` point at the same csproj. The same shape applies to Order/Payment/Shipping (their migration commands already had a single-project shape).
 
 Behind the scenes, step 2:
 - Uses `CatalogDbContextFactory.CreateDbContext` to construct the context outside the app
@@ -393,8 +399,8 @@ The right way to back out a migration in production is to **write a new migratio
 ```bash
 # In CI, before deploying the new app image:
 dotnet ef database update \
-  --project CatalogService/CatalogService.Infrastructure \
-  --startup-project CatalogService/CatalogService.Api \
+  --project CatalogService \
+  --startup-project CatalogService \
   --connection "$PROD_CATALOG_DB_CONNECTION"
 ```
 
@@ -448,7 +454,7 @@ return products.Select(p => new ProductDto
 }).ToList();
 ```
 
-And inside the repository ([ProductRepository.cs:47](../CatalogService/CatalogService.Infrastructure/Repositories/ProductRepository.cs#L47)):
+And inside the repository ([ProductRepository.cs:47](../CatalogService/Infrastructure/Repositories/ProductRepository.cs#L47)):
 
 ```csharp
 public async Task<IReadOnlyList<Product>> GetAllAsync(int page, int pageSize, CancellationToken ct = default)
@@ -486,68 +492,67 @@ The CLAUDE.md rule says it explicitly:
 | `ctx.Products.AsNoTracking().ToListAsync()` then map manually in C# | No tracking overhead, but still selects all columns |
 | `ctx.Products.AsNoTracking().Select(p => new ProductDto { ... }).ToListAsync()` | ✅ correct — minimal SQL, no tracker |
 
-### 7.4 The canonical shape: project inside the repository, return DTOs
+### 7.4 The canonical shape: project inline in the handler, return DTOs
 
-The read path goes through dedicated repository methods that return DTOs:
-
-- **VSA services** (Order, Shipping, Payment, Notification): sibling DTO-returning methods on the existing repo interface — e.g. `IOrderRepository.GetSummaryByIdAsync` returning `OrderSummaryDto?`. The interface lives in `ServiceName/Domain/`, same csproj as `Features/` and `Infrastructure/`, so referencing `NextAurora.Contracts.DTOs` is allowed.
-- **Clean Architecture** (CatalogService): a separate read-store interface in the Application layer — `IProductReadStore` in `CatalogService.Application/Interfaces/`, implementation in `CatalogService.Infrastructure/Repositories/`. The Domain-layer `IProductRepository` stays entity-returning for the write path only, because Domain cannot reference Contracts.
-
-Implementation: `AsNoTracking().Where(...).Select(p => new ProductDto { ... }).FirstOrDefaultAsync(ct)` — the entity is never materialized, the SQL emits only the columns the DTO needs, and there's no in-memory mapper pass.
+The read path runs an inline `IQueryable` in the handler — no repository wrapper, no in-memory mapper. `AsNoTracking().Where(...).Select(p => new FooDto { ... })` lives in the handler body itself.
 
 ```csharp
-// CatalogService.Infrastructure/Repositories/ProductReadStore.cs (Clean)
-public async Task<ProductDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
-    => await context.Products.AsNoTracking()
-        .Where(p => p.Id == id)
-        .Select(p => new ProductDto { /* ... */ })
-        .FirstOrDefaultAsync(ct);
+// CatalogService/Features/GetProductById.cs
+public class GetProductByIdHandler(CatalogDbContext context, IProductCache cache)
+{
+    public Task<ProductDto?> HandleAsync(GetProductByIdQuery request, CancellationToken cancellationToken)
+        => cache.GetOrLoadAsync(
+            request.ProductId,
+            ct => context.Products.AsNoTracking()
+                .Where(p => p.Id == request.ProductId)
+                .Select(p => new ProductDto { /* ... */ })
+                .FirstOrDefaultAsync(ct),
+            cancellationToken);
+}
 
-// OrderService/Infrastructure/OrderRepository.cs (VSA)
-public async Task<OrderSummaryDto?> GetSummaryByIdAsync(Guid id, CancellationToken ct = default)
-    => await context.Orders.AsNoTracking()
-        .Where(o => o.Id == id)
-        .Select(o => new OrderSummaryDto { /* ... */ })
-        .FirstOrDefaultAsync(ct);
+// OrderService/Features/GetOrderById.cs
+public class GetOrderByIdHandler(OrderDbContext context)
+{
+    public Task<OrderSummaryDto?> HandleAsync(GetOrderByIdQuery request, CancellationToken cancellationToken)
+        => context.Orders.AsNoTracking()
+            .Where(o => o.Id == request.OrderId)
+            .Select(o => new OrderSummaryDto { /* ... */ })
+            .FirstOrDefaultAsync(cancellationToken);
+}
 ```
 
-Loading the entity and mapping in the handler (`GetByIdAsync → entity → Mapper.ToDto(entity)`) is the **anti-pattern this rule eliminates**. See [docs/cqrs-data-access.md](cqrs-data-access.md) for the full rationale and the canonical per-service shape.
+Loading the entity and mapping in the handler (`repo.GetByIdAsync → entity → Mapper.ToDto(entity)`) is the **anti-pattern this rule eliminates**. So is wrapping the projection in a repository interface — the projection itself IS the read contract. See [docs/cqrs-data-access.md](cqrs-data-access.md) for the full rationale.
 
 ---
 
 ## 8. Write-side: tracked load → mutate → SaveChanges
 
-The write path inverts the read pattern: load the aggregate (tracked), mutate via domain methods, save. Example from [UpdateProductHandler.cs](../CatalogService/CatalogService.Application/Handlers/UpdateProductHandler.cs):
+The write path inverts the read pattern: load the aggregate (tracked), mutate via domain methods, save. The handler takes `CatalogDbContext` directly — no repository wrapper. Example from [UpdateProduct.cs](../CatalogService/Features/UpdateProduct.cs):
 
 ```csharp
-public async Task HandleAsync(UpdateProductCommand request, CancellationToken cancellationToken)
+public class UpdateProductHandler(CatalogDbContext context, IProductCache cache)
 {
-    var product = await repository.GetByIdAsync(request.ProductId, cancellationToken)
-        ?? throw new InvalidOperationException($"Product {request.ProductId} not found");
+    public async Task<bool> HandleAsync(UpdateProductCommand request, CancellationToken cancellationToken)
+    {
+        var product = await context.Products
+            .Include(p => p.Category)
+            .FirstOrDefaultAsync(p => p.Id == request.ProductId, cancellationToken);
 
-    product.UpdateDetails(request.Name, request.Description, request.Price);
-    await repository.UpdateAsync(product, cancellationToken);
+        if (product is null) return false;
+        if (!string.Equals(product.SellerId, request.SellerId, StringComparison.Ordinal)) return false;
 
-    await cache.InvalidateAsync(request.ProductId, cancellationToken);
-}
-```
+        product.UpdateDetails(request.Name, request.Description, request.Price);
+        await context.SaveChangesAsync(cancellationToken);
 
-And the repository's update ([ProductRepository.cs:72](../CatalogService/CatalogService.Infrastructure/Repositories/ProductRepository.cs#L72)):
-
-```csharp
-public async Task UpdateAsync(Product product, CancellationToken ct = default)
-{
-    // EF detects changes automatically when the entity was loaded tracked. The explicit
-    // Update() is defensive in case a future refactor accidentally turns on AsNoTracking
-    // for GetByIdAsync — the entity would still save.
-    context.Products.Update(product);
-    await context.SaveChangesAsync(ct);
+        await cache.InvalidateAsync(request.ProductId, cancellationToken);
+        return true;
+    }
 }
 ```
 
 ### Why tracked
 
-Without tracking, EF doesn't know which properties changed. Calling `SaveChanges` on an untracked entity is a silent no-op (unless you explicitly call `.Update()`, which marks all properties as modified).
+Without tracking, EF doesn't know which properties changed. Calling `SaveChanges` on an untracked entity is a silent no-op (the change tracker has no entry for it).
 
 The handler mutates via a **domain method** (`product.UpdateDetails(...)`) — the domain method enforces invariants (e.g. price > 0). EF detects which scalar properties changed and emits a targeted UPDATE.
 
@@ -564,51 +569,61 @@ That `AND xmin = @originalXmin` is the concurrency token in action. If another t
 
 ---
 
-## 9. Read/write method split — the hard rule
+## 9. Read/write code-shape split — the hard rule
 
-The simple rule "always `AsNoTracking` on reads" has a second half: **the read method should not return an entity at all.** It returns a DTO, projected in the IQueryable. Otherwise the handler ends up doing `Mapper.ToDto(entity)` in memory, paying for entity materialization the read path doesn't need.
+The simple rule "always `AsNoTracking` on reads" has a second half: **the read handler should not load an entity at all.** It runs an `IQueryable` that projects to a DTO in EF and returns the DTO directly. Otherwise the handler ends up doing `Mapper.ToDto(entity)` in memory, paying for entity materialization the read path doesn't need.
 
-When the same repository previously had a single `GetByIdAsync` serving both a query handler and a command handler, the split is:
+There are no separate `I*Repository` / `I*ReadStore` interfaces. The split lives in the handler's code shape:
 
 ```csharp
-public interface IProductRepository    // Clean Architecture: Domain interface, write loaders only
+// Read handler — AsNoTracking + project to DTO inline
+public class GetProductByIdHandler(CatalogDbContext context)
 {
-    Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default);   // tracked
-    Task AddAsync(Product product, CancellationToken ct = default);
-    Task UpdateAsync(Product product, CancellationToken ct = default);
+    public Task<ProductDto?> HandleAsync(GetProductByIdQuery request, CancellationToken cancellationToken)
+        => context.Products.AsNoTracking()
+            .Where(p => p.Id == request.ProductId)
+            .Select(p => new ProductDto { /* ... */ })
+            .FirstOrDefaultAsync(cancellationToken);
 }
 
-public interface IProductReadStore     // Clean Architecture: Application interface, read projections
+// Write handler — load tracked, mutate via aggregate method, SaveChanges
+public class UpdateProductHandler(CatalogDbContext context, IProductCache cache)
 {
-    Task<ProductDto?> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<ProductDto>> GetAllAsync(int page, int pageSize, CancellationToken ct = default);
-    Task<IReadOnlyList<ProductDto>> SearchAsync(string query, int page, int pageSize, CancellationToken ct = default);
+    public async Task<bool> HandleAsync(UpdateProductCommand request, CancellationToken cancellationToken)
+    {
+        var product = await context.Products.FirstOrDefaultAsync(p => p.Id == request.ProductId, cancellationToken);
+        if (product is null) return false;
+        product.UpdateDetails(request.Name, request.Description, request.Price);
+        await context.SaveChangesAsync(cancellationToken);
+        await cache.InvalidateAsync(request.ProductId, cancellationToken);
+        return true;
+    }
 }
 ```
 
-`UpdateProductHandler` and `ReserveStockHandler` depend on `IProductRepository` (need the tracked entity). `GetProductByIdHandler`, `GetAllProductsHandler`, `SearchProductsHandler` depend on `IProductReadStore` (get DTOs back, no mapping needed).
-
-For VSA services (Order/Shipping/Payment/Notification) the same split exists, but both methods live on the existing `IOrderRepository` / `IShipmentRepository` etc. — sibling `GetSummaryByIdAsync` returning the DTO, alongside `GetByIdAsync` returning the entity. The VSA shape doesn't have a separate Domain project, so referencing Contracts DTOs from the repository interface is allowed.
-
-The earlier "selective tracking, shared methods preserve tracking deliberately" framing was the wrong trade-off — it saved one method declaration per service at the cost of paying for full entity materialization on every read. The split costs a few lines per service; the signature itself becomes proof of intent (`Task<ProductDto?>` = read; `Task<Product?>` = write loader).
+The earlier "selective tracking, shared methods preserve tracking deliberately" framing was the wrong trade-off — it saved one method declaration per service at the cost of paying for full entity materialization on every read. The split costs a few lines per handler; the *code shape* itself becomes proof of intent (`AsNoTracking().Select(DTO)` = read; tracked load + mutate + save = write).
 
 ---
 
-## 10. Repository pattern — kept, deliberately
+## 10. Repository pattern — removed in the simplicity refactor
 
-Some teams view the repository pattern as a redundant layer over EF Core's `DbContext` (which is already a Unit of Work + Repository). We keep it because:
+NextAurora previously had `I*Repository` interfaces in every service's Domain folder, with EF implementations in Infrastructure. They were all removed: handlers now take `DbContext` directly.
 
-1. **Domain stays free of EF.** Domain references `IProductRepository` (defined in `OrderService.Domain.Interfaces`). The concrete `ProductRepository` is in Infrastructure. Without the interface, Domain would have to take a `DbContext` dependency — violating clean-architecture's dependency direction.
+### Why removed
 
-2. **Test substitutability.** Handler unit tests substitute `IProductRepository` with NSubstitute. No fake DbContext, no in-memory provider, no SQLite-in-memory trickery.
+EF Core's `DbContext` is already the Unit of Work pattern; `DbSet<T>` is already the Repository pattern. The `IFooRepository` wrapper was a layer that added no capability — only the *appearance* of one. The thing the wrapper was actually buying us was the ability to mock handlers in unit tests (`Substitute.For<IFooRepository>` paired with handler logic verification). That justification turned out to be the wrong axis to test on: handlers that touch EF need to be tested with a real database, because the SQL the projection emits, the cartesian-row behavior of collection includes, and the optimistic-concurrency-token behavior are exactly what's load-bearing — and mocks tell you none of those things. So:
 
-3. **Read/write split is a repository concern.** Whether you load a tracked entity (write path) or a projected DTO (read path) is a repository decision encoded in the *method shape* itself. The application layer just calls the method that returns what it needs — `GetByIdAsync` for the aggregate, `GetSummaryByIdAsync` (or `IProductReadStore.GetByIdAsync`) for the DTO. See [docs/cqrs-data-access.md](cqrs-data-access.md).
+1. **Wrapper deleted.** Handlers take `DbContext` directly via constructor injection.
+2. **Mocked handler unit tests deleted.** ~23 tests across the four services that used `Substitute.For<IFooRepository>` were replaced or covered by integration tests against Testcontainers (`tests/CatalogService.Tests.Integration` + `tests/OrderService.Tests.Integration`).
+3. **Read/write split lives in the handler's code shape**, not in separate interface methods (see §9).
 
-4. **One concept per method.** `GetSummariesByBuyerIdAsync(buyerId, page, pageSize)` is more discoverable than scattering `context.Orders.Where(o => o.BuyerId == ...)` across handlers.
+### What survives
 
-### When you'd remove it
+Ports kept because consumer substitution actually justifies them: `IEventPublisher` (Wolverine vs. test fake), `IPaymentGateway` (Stripe vs. test fake), `ICatalogClient` (gRPC vs. test fake), `INotificationSender`, `IProductCache` (HybridCache vs. test fake). These pass the rule in CLAUDE.md "Interfaces earn their keep through consumer substitution."
 
-If your team uses Vertical Slice Architecture, you'd inline the query into each handler and skip the repository abstraction. Both designs are defensible. **NextAurora actually does both** — CatalogService is on Clean Architecture (the example shown here uses CatalogService), so the repository pattern applies. The other four services (Order/Payment/Shipping/Notification) are on VSA — they still keep their repositories *because the interfaces are substituted by unit tests*, which is the seam earning its keep on its own. See [CLAUDE.md "Interfaces earn their keep through consumer substitution"](../CLAUDE.md#solid).
+### When you'd revive the repository wrapper
+
+You wouldn't — for any service-shape NextAurora supports. The exception is if a service grew into multi-data-source territory (e.g. read replica routing, event-sourced + relational dual-write), at which point the abstraction lives at the *capability* level (`IOrderReadModelStore` for read-replica vs. primary), not at the per-aggregate level.
 
 ---
 
@@ -703,7 +718,7 @@ CLAUDE.md captures this:
 
 ## 13. Pagination + ordering
 
-Every list endpoint paginates with a **server-side size cap**. Repository methods take `page` + `pageSize` and apply `OrderBy + Skip + Take`. Example from [ProductRepository.cs:46](../CatalogService/CatalogService.Infrastructure/Repositories/ProductRepository.cs#L46):
+Every list endpoint paginates with a **server-side size cap**. Repository methods take `page` + `pageSize` and apply `OrderBy + Skip + Take`. Example from [ProductRepository.cs:46](../CatalogService/Infrastructure/Repositories/ProductRepository.cs#L46):
 
 ```csharp
 public async Task<IReadOnlyList<Product>> GetAllAsync(int page, int pageSize, CancellationToken ct = default)
@@ -1048,7 +1063,7 @@ CLAUDE.md hard rule:
 
 CatalogService uses HybridCache (L1 in-process MemoryCache + L2 Redis) for `GetProductByIdQuery` reads. **Every write that mutates a Product must invalidate the cache in the same handler.**
 
-From [UpdateProductHandler.cs](../CatalogService/CatalogService.Application/Handlers/UpdateProductHandler.cs):
+From [UpdateProductHandler.cs](../CatalogService/Features/UpdateProductHandler.cs):
 
 ```csharp
 public async Task HandleAsync(UpdateProductCommand request, CancellationToken cancellationToken)
@@ -1124,7 +1139,7 @@ A condensed walkthrough of the key EF Core decisions in this codebase, each mapp
 
 ### "Repository pattern over EF Core — isn't that redundant?"
 
-> EF's DbContext is a Unit of Work + repository, yes. We keep the abstraction for three reasons: the Domain layer/folder stays free of EF (Domain owns the interface, Infrastructure has the impl — true under both Clean Architecture *and* VSA in this repo); handler unit tests substitute the repository without spinning up a fake DbContext; and the selective-tracking decision (which methods are `AsNoTracking` vs not) is a repository-layer concern. Pure Vertical Slice Architecture would inline the queries and skip the abstraction — defensible, but we keep the seam *because tests rely on it* (see CLAUDE.md "Interfaces earn their keep through consumer substitution").
+> Yes — and we removed it. EF's `DbContext` IS the Unit of Work pattern; `DbSet<T>` IS the Repository pattern. The `IFooRepository` wrapper added a layer without adding capability. The only thing it was buying us was the ability to mock handlers in unit tests, and mocked handler tests turned out to be the wrong axis to test on (the SQL, the cartesian-row behavior, the concurrency-token behavior are exactly what's load-bearing — and mocks tell you none of those things). Now handlers take `DbContext` directly; correctness of EF-touching code paths is proven by integration tests against Testcontainers. See CLAUDE.md "Data access: DbContext directly, no repository wrappers" + §10 above.
 
 ### "AsNoTracking everywhere?"
 

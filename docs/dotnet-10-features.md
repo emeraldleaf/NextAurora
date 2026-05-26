@@ -10,7 +10,7 @@ Every entry is anchored to a real file. If you can't point at code, you don't ac
 
 **What it is**: First-party .NET 10 caching abstraction that combines L1 (in-process `IMemoryCache`) and L2 (any `IDistributedCache` — we use Redis) with **stampede protection** baked in. Concurrent misses for the same key fire the factory function once; the other waiters get the result.
 
-**Where**: [CatalogService.Infrastructure/Caching/HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs), wired in [Program.cs](../CatalogService/CatalogService.Api/Program.cs).
+**Where**: [CatalogService.Infrastructure/Caching/HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs), wired in [Program.cs](../CatalogService/Program.cs).
 
 **Why**: Before HybridCache, you'd hand-roll L1+L2 with `IMemoryCache` plus your own coordination logic, plus your own stampede protection (usually a `SemaphoreSlim` per key — error-prone). HybridCache replaces ~50 lines of plumbing per cached entity with a one-line `GetOrCreateAsync`.
 
@@ -24,7 +24,7 @@ Every entry is anchored to a real file. If you can't point at code, you don't ac
 
 **What it is**: Microsoft's built-in OpenAPI document generator that **replaced Swashbuckle** as the ASP.NET Core web template default in .NET 9. Reads endpoint signatures + minimal-API metadata and emits the spec at build/runtime. Source-generated when AOT is on.
 
-**Where**: Every service's `Program.cs`. Example: [CatalogService.Api/Program.cs](../CatalogService/CatalogService.Api/Program.cs#L72).
+**Where**: Every service's `Program.cs`. Example: [CatalogService.Api/Program.cs](../CatalogService/Program.cs#L72).
 
 ```csharp
 builder.Services.AddOpenApi();
@@ -47,7 +47,7 @@ app.MapScalarApiReference();                        // /scalar/v1 — interactiv
 **What it is**: Constructor parameters declared on the class declaration itself, in scope for the entire class body. Eliminates the boilerplate of capturing constructor params into fields.
 
 **Where**:
-- [CatalogService.Infrastructure/Data/CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs#L28) — `public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbContext(options)`
+- [CatalogService.Infrastructure/Data/CatalogDbContext.cs](../CatalogService/Infrastructure/Data/CatalogDbContext.cs#L28) — `public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbContext(options)`
 - [NextAurora.ServiceDefaults/GlobalExceptionHandler.cs](../NextAurora.ServiceDefaults/GlobalExceptionHandler.cs) — `public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler`
 
 **Why**: For DI-heavy classes that just pass parameters through to base or store them as fields, primary constructors save 3-5 lines per class. Especially nice for DbContexts and exception handlers.
@@ -63,7 +63,7 @@ app.MapScalarApiReference();                        // /scalar/v1 — interactiv
 **What it is**: `[]` literal syntax that works for any collection type the compiler can target — arrays, `List<T>`, `IEnumerable<T>`, `ImmutableArray<T>`, `Span<T>`, custom types with the right marker. Plus the `..spread` operator.
 
 **Where**:
-- [CatalogService.Domain/Entities/Category.cs:20](../CatalogService/CatalogService.Domain/Entities/Category.cs#L20) — `public List<Product> Products { get; private set; } = [];`
+- [CatalogService.Domain/Entities/Category.cs:20](../CatalogService/Domain/Category.cs#L20) — `public List<Product> Products { get; private set; } = [];`
 - [ShippingService.Domain/Entities/Shipment.cs:30](../ShippingService/Domain/Shipment.cs#L30) — `public List<TrackingEvent> TrackingEvents { get; private set; } = [];`
 - [NextAurora.Contracts/Events/OrderPlacedEvent.cs:10](../NextAurora.Contracts/Events/OrderPlacedEvent.cs#L10) — `public List<OrderLineContract> Lines { get; init; } = [];`
 - Tests pass empty collections via `Lines = []`
@@ -78,7 +78,7 @@ app.MapScalarApiReference();                        // /scalar/v1 — interactiv
 
 **What it is**: Endpoint registration without MVC controllers — direct `MapGet`/`MapPost`/etc. on routes — combined with `Asp.Versioning.Http` for URL-segment versioning (`/api/v1/...`).
 
-**Where**: Every service's `Endpoints/*.cs`. Example: [CatalogService.Api/Endpoints/CatalogEndpoints.cs](../CatalogService/CatalogService.Api/Endpoints/CatalogEndpoints.cs).
+**Where**: Every service's `Endpoints/*.cs`. Example: [CatalogService.Api/Endpoints/CatalogEndpoints.cs](../CatalogService/Endpoints/CatalogEndpoints.cs).
 
 The `MapV1ApiGroup(tag, resource)` helper in [NextAurora.ServiceDefaults/Extensions.cs](../NextAurora.ServiceDefaults/Extensions.cs) is the canonical entry — returns a `RouteGroupBuilder` rooted at `/api/v1/resource` with version + OpenAPI tag applied in one call. Stops drift across services.
 
@@ -98,7 +98,7 @@ The `MapV1ApiGroup(tag, resource)` helper in [NextAurora.ServiceDefaults/Extensi
 
 **What it is**: Built-in rate limiting middleware introduced in .NET 7, matured through 10. Strategies include `FixedWindow`, `SlidingWindow`, `TokenBucket`, `Concurrency`.
 
-**Where**: [CatalogService.Api/Program.cs:18-27](../CatalogService/CatalogService.Api/Program.cs#L18-L27) — fixed-window limiter for product search (30 requests / 10s).
+**Where**: [CatalogService.Api/Program.cs:18-27](../CatalogService/Program.cs#L18-L27) — fixed-window limiter for product search (30 requests / 10s).
 
 ```csharp
 builder.Services.AddRateLimiter(options =>
@@ -135,13 +135,13 @@ builder.Services.AddRateLimiter(options =>
 
 ## 8. EF Core 10 — modern patterns we use
 
-**`AsNoTracking()` + projection on every read**: [CatalogService.Infrastructure/Repositories/ProductRepository.cs](../CatalogService/CatalogService.Infrastructure/Repositories/ProductRepository.cs) (`.AsNoTracking().Include(p => p.Category)`). Reads bypass the change tracker entirely; entity graphs aren't allocated for the tracker; SQL is leaner.
+**`AsNoTracking()` + projection on every read**: [CatalogService.Infrastructure/Repositories/ProductRepository.cs](../CatalogService/Infrastructure/Repositories/ProductRepository.cs) (`.AsNoTracking().Include(p => p.Category)`). Reads bypass the change tracker entirely; entity graphs aren't allocated for the tracker; SQL is leaner.
 
 **`ExecuteUpdateAsync` / `ExecuteDeleteAsync`**: Bulk operations as single SQL statements. Example in [tests](../tests/CatalogService.Tests.Integration/ProductCachingTests.cs#L58): `await db.Products.Where(p => p.Id == productId).ExecuteDeleteAsync();`.
 
-**`xmin` concurrency token (Postgres-specific)**: [CatalogService.Infrastructure/Data/CatalogDbContext.cs:63](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs#L63) — shadow property bound to Postgres's system column. EF includes `WHERE xmin = N` on every UPDATE. Second writer's WHERE matches zero rows → `DbUpdateConcurrencyException` → handler returns 409. No schema column needed.
+**`xmin` concurrency token (Postgres-specific)**: [CatalogService.Infrastructure/Data/CatalogDbContext.cs:63](../CatalogService/Infrastructure/Data/CatalogDbContext.cs#L63) — shadow property bound to Postgres's system column. EF includes `WHERE xmin = N` on every UPDATE. Second writer's WHERE matches zero rows → `DbUpdateConcurrencyException` → handler returns 409. No schema column needed.
 
-**`HasData()` declarative seeding**: [CatalogService.Infrastructure/Data/CatalogDbContext.cs:73-109](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs) — seed data lives in the model config; `dotnet ef migrations add` generates the INSERT statements automatically; deterministic GUIDs and dates so the migration is reproducible.
+**`HasData()` declarative seeding**: [CatalogService.Infrastructure/Data/CatalogDbContext.cs:73-109](../CatalogService/Infrastructure/Data/CatalogDbContext.cs) — seed data lives in the model config; `dotnet ef migrations add` generates the INSERT statements automatically; deterministic GUIDs and dates so the migration is reproducible.
 
 **Migrations as a contract**: `__EFMigrationsHistory` table in the DB tracks applied migrations; `Migrate()` applies only the new ones. Compare to the ADO.NET + sprocs world where missed migrations are invisible until traffic finds them.
 
@@ -153,7 +153,7 @@ Full deep-dive: [docs/ef-core.md](ef-core.md).
 
 **What it is**: Middleware that trusts proxy-forwarded headers (`X-Forwarded-For`, `X-Forwarded-Proto`) so ASP.NET Core sees the original client IP + scheme instead of the proxy's.
 
-**Where**: [CatalogService.Api/Program.cs](../CatalogService/CatalogService.Api/Program.cs) — DemoMode-gated, configured before `Build()` and used early in the middleware pipeline.
+**Where**: [CatalogService.Api/Program.cs](../CatalogService/Program.cs) — DemoMode-gated, configured before `Build()` and used early in the middleware pipeline.
 
 **Why**: PaaS hosts (Fly.io, AWS App Runner, Azure App Service) terminate TLS at the edge and forward HTTP to your container. Without trusting `X-Forwarded-Proto: https`, ASP.NET Core sees the request as HTTP, and OpenAPI emits `http://...` server URLs — which the browser blocks as mixed content when Scalar tries to make try-it-out requests.
 
@@ -187,7 +187,7 @@ Lets log aggregators index by `UserId` and `OrderId` — searchable, not text-gr
 
 **What it is**: Single library that handles in-process CQRS (the MediatR slot), Service Bus message dispatch (the MassTransit slot), AND the transactional outbox pattern across both.
 
-**Where**: Every service's `Program.cs` has `builder.Host.UseWolverine(opts => ...)`. Example: [CatalogService.Api/Program.cs:29-35](../CatalogService/CatalogService.Api/Program.cs#L29-L35).
+**Where**: Every service's `Program.cs` has `builder.Host.UseWolverine(opts => ...)`. Example: [CatalogService.Api/Program.cs:29-35](../CatalogService/Program.cs#L29-L35).
 
 **Why we picked Wolverine over MediatR + MassTransit**:
 - **MediatR went commercial in 2024** (sponsorware via Jimmy Bogard's company). v12 is the last free version.

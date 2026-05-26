@@ -1,4 +1,4 @@
-using CatalogService.Api.Grpc;
+using CatalogService.Grpc;
 using NextAurora.Contracts.DTOs;
 using OrderService.Domain;
 
