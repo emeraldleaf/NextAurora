@@ -161,9 +161,15 @@ public sealed partial class PaymentRecoveryJob(
             {
                 throw;
             }
-#pragma warning disable CA1031 // Per-row failures must not abort the sweep; log and move on.
-            catch (Exception ex)
-#pragma warning restore CA1031
+            catch (DbUpdateException ex)
+            {
+                LogRowFailed(logger, ex, id);
+            }
+            catch (InvalidOperationException ex)
+            {
+                LogRowFailed(logger, ex, id);
+            }
+            catch (TimeoutException ex)
             {
                 LogRowFailed(logger, ex, id);
             }
