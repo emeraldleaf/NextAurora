@@ -67,6 +67,53 @@ reviews:
         any new IFooRepository interface introduced — those are wrapper-around-EF
         patterns the project removed (see CLAUDE.md "Data access: DbContext directly").
 
+        NON-SARGABLE PREDICATES (Must-fix). A `Where(...)` that wraps an entity column
+        in a function — `u.Email.ToLower() == x`, `o.CreatedAt.Date == today`, or
+        `EF.Functions.ILike(p.Name, "%text%")` with a leading wildcard — defeats any
+        B-tree index on that column. The planner falls back to a full scan even when
+        an index exists. Fix at write time: normalize on insert/update (e.g.
+        `EmailNormalized` column populated by the aggregate factory) and `Where`
+        against the normalized column; or use case-insensitive column collation.
+        Leading-wildcard substring search isn't B-tree-indexable in any database —
+        escalate to Postgres `tsvector` full-text search or a dedicated search engine
+        (Elasticsearch/OpenSearch/Meilisearch) when load justifies it. Reference
+        example with the trade-off documented in the file:
+        CatalogService/Features/SearchProducts.cs (leading wildcard intentional;
+        full-text is the named next step). The deeper principle: indexes carry a
+        write cost — every insert/update touches every index — so an index the
+        planner can't use is pure overhead. See CLAUDE.md "Non-sargable predicates
+        defeat indexes — fix at write time, not at read time".
+
+        PARALLEL INDEPENDENT AWAITS (Should-consider on sequential awaits of independent
+        I/O). When a handler makes N independent I/O calls (N gRPC requests to
+        different services, N HTTP calls to different external APIs, N queries against
+        DIFFERENT DbContexts), sequential `await`s pay the sum of latencies; the right
+        shape is `Task.WhenAll`. Recommend `Task.WhenAll` when you see three or more
+        sequential awaits whose results don't feed each other. Reference shape:
+        OrderService/Features/PlaceOrder.cs:93 (Task.WhenAll over per-line
+        catalogClient.GetProductAsync — gRPC fan-out, no shared mutable state).
+
+        DO NOT recommend Task.WhenAll when: (a) the operations are dependent (output
+        of one feeds input of another), (b) they share the same EF DbContext scope
+        (DbContext is NOT thread-safe — parallel EF queries against the same context
+        throw or corrupt state; use IDbContextFactory<T> for parallel EF queries),
+        or (c) failure observability matters per-operation (Task.WhenAll surfaces only
+        the first exception). See CLAUDE.md "Parallelize independent awaits with
+        Task.WhenAll" + the existing "DbContext is not thread-safe" rule.
+
+        FAN-OUT SHAPE (Must-fix on synchronous in-handler loops over recipients).
+        A handler that iterates a recipient list inline and `await`s a sender per
+        recipient (`foreach (var follower in followers) await _sender.SendAsync(...)`)
+        holds the request open for N × per-recipient-latency and creates traffic
+        spikes that starve the rest of the system. The right shape: publish one
+        Wolverine message per recipient (or per batch of K), return immediately,
+        let per-recipient handlers run in parallel under Wolverine's
+        `MaxDegreeOfParallelism` throttle. Not retroactively violated today
+        (NotificationService consumes one event = one outbound notification), but
+        the rule is preventative for any future broadcast-to-N feature. See
+        CLAUDE.md "Fan-out belongs on the message bus, not in a synchronous
+        handler loop".
+
     - path: "**/Domain/I*Repository.cs"
       instructions: |
         Repository interfaces wrapping EF Core (e.g. IOrderRepository, IPaymentRepository)
@@ -106,6 +153,45 @@ reviews:
         validation, never public setters. Currency must be 3 chars; Price > 0; stock
         non-negative.
 
+    - path: "**/Infrastructure/DependencyInjection.cs"
+      instructions: |
+        Port registrations. Flag two distinct patterns:
+
+        1) PREMATURE FACTORY (Must-fix). A `services.AddKeyedScoped<IPort, OnlyImpl>(key)`
+           or an `IPortFactory` registration with only one impl in the file is the same
+           speculative coupling as the deleted I*Repository wrappers — a layer that
+           adds no capability today and isn't shaped for whatever the second impl
+           actually needs. The right shape for a single-impl port is the plain
+           `services.AddScoped<IPort, OnlyImpl>()`. Recommend deleting the factory/key
+           setup until a second impl actually ships.
+
+        2) MISSING FACTORY when 2+ impls exist with per-call selection (Must-fix).
+           If the same port has multiple AddScoped<IPort, ...> registrations AND
+           per-call routing is intended (e.g. ConsoleNotificationSender +
+           SendGridNotificationSender both registered the same way, and
+           request.Channel is supposed to decide which one runs), the impls collide
+           silently — DI returns the last-registered impl deterministically for
+           every call, dropping the routing intent and producing a latent bug, not
+           a style nit. The fix is .NET keyed services: AddKeyedScoped<IPort,
+           Impl1>("k1") + AddKeyedScoped<IPort, Impl2>("k2"), resolved in the
+           handler via `[FromKeyedServices(key)] IPort sender` parameter. Do NOT
+           introduce a hand-rolled IPortFactory interface — `IServiceProvider.
+           GetRequiredKeyedService` is the canonical factory, and an extra wrapper
+           is the same layer-without-capability as the deleted repositories.
+
+           If the two impls are genuinely interchangeable (either would satisfy
+           any call — e.g. redundant logging targets), Should-consider rather
+           than Must-fix: still tighten to keyed services for explicitness, but
+           it's not a live bug.
+
+        Reference example: NotificationService is "ready for the factory, not yet
+        wearing it." INotificationSender exists (single impl ConsoleNotificationSender
+        today); SendNotificationRequest.Channel already carries the routing key for
+        the day a second adapter ships. When that day comes, this file becomes the
+        natural site of the keyed-services rewrite.
+
+        See CLAUDE.md "Interfaces earn their keep through consumer substitution".
+
     - path: "**/Endpoints/**/*.cs"
       instructions: |
         Every endpoint must use MapV1ApiGroup(tag, name) from NextAurora.ServiceDefaults —
@@ -125,6 +211,30 @@ reviews:
         Flag any GET-by-id, GET-by-scope, PATCH, PUT, or DELETE endpoint missing this pattern.
         Reference templates: OrderEndpoints.cs:GET /orders/{id}, ShippingEndpoints.cs:GET
         /shipments/order/{orderId}, CatalogEndpoints.cs:PUT /products/{id} (seller variant).
+
+        LONG-RUNNING WORK — 202 ACCEPTED SHAPE (Must-fix on minutes-scale handlers,
+        Should-consider on >1s handlers). If a write endpoint synchronously awaits
+        something that can take more than ~1 second — multi-step external API chain
+        (e.g. Stripe + tax calc + fraud check sequentially), aggregation over
+        thousands of rows, bulk import, report generation — it's the wrong shape.
+        Reshape as 202 Accepted: validate + persist a tracking row + publish a
+        Wolverine message + return `202` with the job/correlation ID in the body
+        and a `Location` header pointing to a status endpoint. A background handler
+        does the actual work; the client polls or receives a push (SignalR/SSE/email).
+        The synchronous parts (validate, persist intent, stage envelope) commit in
+        one EF transaction via AutoApplyTransactions.
+
+        NextAurora already has the full infrastructure for this — Wolverine +
+        Service Bus + outbox + saga handlers — so the rule is "use it when a
+        handler would otherwise block on minutes-scale work." Reference shape:
+        POST /api/v1/orders (place → publish OrderPlaced → return OrderId
+        immediately; PaymentService + ShippingService handle the downstream
+        work via the saga). The same rule applies to Wolverine handlers
+        themselves: if a handler body runs for minutes, the work belongs in a
+        follow-up message handler, not in-line.
+
+        See CLAUDE.md "Performance Rules → Long-running work belongs on the
+        message bus, not the synchronous HTTP handler".
 
     - path: "**/*RecoveryJob*.cs"
       instructions: |
