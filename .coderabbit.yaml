@@ -106,6 +106,37 @@ reviews:
         validation, never public setters. Currency must be 3 chars; Price > 0; stock
         non-negative.
 
+    - path: "**/Infrastructure/DependencyInjection.cs"
+      instructions: |
+        Port registrations. Flag two distinct patterns:
+
+        1) PREMATURE FACTORY (Must-fix). A `services.AddKeyedScoped<IPort, OnlyImpl>(key)`
+           or an `IPortFactory` registration with only one impl in the file is the same
+           speculative coupling as the deleted I*Repository wrappers — a layer that
+           adds no capability today and isn't shaped for whatever the second impl
+           actually needs. The right shape for a single-impl port is the plain
+           `services.AddScoped<IPort, OnlyImpl>()`. Recommend deleting the factory/key
+           setup until a second impl actually ships.
+
+        2) MISSING FACTORY when 2+ impls exist (Should-consider). If the same port has
+           multiple AddScoped<IPort, ...> registrations (e.g. ConsoleNotificationSender
+           + SendGridNotificationSender both registered the same way), per-call
+           selection is broken — DI gives back the last-registered impl deterministically.
+           Recommend converting to .NET keyed services: AddKeyedScoped<IPort, Impl1>("k1")
+           + AddKeyedScoped<IPort, Impl2>("k2"), and resolve in the handler via
+           `[FromKeyedServices(key)] IPort sender` parameter. Do NOT introduce a
+           hand-rolled IPortFactory interface — `IServiceProvider.GetRequiredKeyedService`
+           is the canonical factory, and an extra wrapper is the same kind of
+           layer-without-capability as the deleted repositories.
+
+        Reference example: NotificationService is "ready for the factory, not yet
+        wearing it." INotificationSender exists (single impl ConsoleNotificationSender
+        today); SendNotificationRequest.Channel already carries the routing key for
+        the day a second adapter ships. When that day comes, this file becomes the
+        natural site of the keyed-services rewrite.
+
+        See CLAUDE.md "Interfaces earn their keep through consumer substitution".
+
     - path: "**/Endpoints/**/*.cs"
       instructions: |
         Every endpoint must use MapV1ApiGroup(tag, name) from NextAurora.ServiceDefaults —

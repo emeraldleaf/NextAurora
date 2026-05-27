@@ -109,6 +109,16 @@ Specific bug-classes that have bitten this repo before. When the target file mat
 - **Layer dependencies.** Domain depends on nothing — no EF, no logging, no Wolverine.
 - **Concurrency token present** (Postgres `xmin` shadow or SQL Server `RowVersion` shadow `byte[]` property in DbContext config — entity itself stays clean).
 
+### When reviewing Infrastructure DI registrations (`**/Infrastructure/DependencyInjection.cs`) + any new port adapter
+
+- **Factory pattern earns its keep at 2+ impls — not before.** When a `services.AddScoped<IPort, ConcreteImpl>()` registers a port that has exactly one current implementation, that's the right shape today. A pre-built `IPortFactory` or keyed-services setup with a single registration (`AddKeyedScoped<IPort, ConcreteImpl>("console")` and no sibling key) is the same speculative coupling as the deleted `I*Repository` wrappers. **Must-fix when you see a factory introduced for a single-impl port.** The interface itself is fine (justified by consumer substitution); the factory is the part that's premature.
+- **At 2+ impls, the factory shape becomes Aligned (and "Must-fix on absence" when per-call selection is required).** Once a second impl actually ships and per-call channel selection becomes real (e.g. NotificationService gets both `ConsoleNotificationSender` AND `SendGridNotificationSender`, and `request.Channel` decides which one handles a given message), the canonical shape is `.NET keyed services`:
+  - Register each impl with a string key: `services.AddKeyedScoped<INotificationSender, ConsoleNotificationSender>("console")`, `services.AddKeyedScoped<INotificationSender, SendGridNotificationSender>("email")`, etc.
+  - Resolve per-call via `[FromKeyedServices(channel)] INotificationSender sender` in the handler constructor parameter, OR `serviceProvider.GetRequiredKeyedService<INotificationSender>(channel)` inside the method body when the key is dynamic.
+  - Do NOT hand-roll an `IPortFactory` interface — `IServiceProvider`'s keyed-services API is the canonical factory, and an extra wrapper is the same kind of layer-without-capability as the deleted repositories.
+- **Reference example: NotificationService is "ready for the factory, not yet wearing it."** `INotificationSender` exists (justified by condition (c) in CLAUDE.md — concrete near-term roadmap of SendGrid/Twilio). `SendNotificationRequest.Channel` already carries the routing key. But `Infrastructure/DependencyInjection.cs` registers only `ConsoleNotificationSender` because that's the only impl shipping today. **The day a second adapter lands, that file becomes the natural site of the keyed-services rewrite.** Use this service as the reference shape when reviewing similar multi-channel ports.
+- See [CLAUDE.md "Interfaces earn their keep through consumer substitution"](../../CLAUDE.md) for the canonical rule.
+
 ### When reviewing aggregates (`**/Domain/*.cs`)
 
 - **Rich Domain Entity shape.** Factory method (`static Create(...)`) with validation; private setters; named state-transition methods (`MarkAsPaid`, not `Status = Paid`); status-guard inside the transition method for idempotency under at-least-once delivery.
