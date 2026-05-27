@@ -67,6 +67,53 @@ reviews:
         any new IFooRepository interface introduced — those are wrapper-around-EF
         patterns the project removed (see CLAUDE.md "Data access: DbContext directly").
 
+        NON-SARGABLE PREDICATES (Must-fix). A `Where(...)` that wraps an entity column
+        in a function — `u.Email.ToLower() == x`, `o.CreatedAt.Date == today`, or
+        `EF.Functions.ILike(p.Name, "%text%")` with a leading wildcard — defeats any
+        B-tree index on that column. The planner falls back to a full scan even when
+        an index exists. Fix at write time: normalize on insert/update (e.g.
+        `EmailNormalized` column populated by the aggregate factory) and `Where`
+        against the normalized column; or use case-insensitive column collation.
+        Leading-wildcard substring search isn't B-tree-indexable in any database —
+        escalate to Postgres `tsvector` full-text search or a dedicated search engine
+        (Elasticsearch/OpenSearch/Meilisearch) when load justifies it. Reference
+        example with the trade-off documented in the file:
+        CatalogService/Features/SearchProducts.cs (leading wildcard intentional;
+        full-text is the named next step). The deeper principle: indexes carry a
+        write cost — every insert/update touches every index — so an index the
+        planner can't use is pure overhead. See CLAUDE.md "Non-sargable predicates
+        defeat indexes — fix at write time, not at read time".
+
+        PARALLEL INDEPENDENT AWAITS (Should-consider on sequential awaits of independent
+        I/O). When a handler makes N independent I/O calls (N gRPC requests to
+        different services, N HTTP calls to different external APIs, N queries against
+        DIFFERENT DbContexts), sequential `await`s pay the sum of latencies; the right
+        shape is `Task.WhenAll`. Recommend `Task.WhenAll` when you see three or more
+        sequential awaits whose results don't feed each other. Reference shape:
+        OrderService/Features/PlaceOrder.cs:93 (Task.WhenAll over per-line
+        catalogClient.GetProductAsync — gRPC fan-out, no shared mutable state).
+
+        DO NOT recommend Task.WhenAll when: (a) the operations are dependent (output
+        of one feeds input of another), (b) they share the same EF DbContext scope
+        (DbContext is NOT thread-safe — parallel EF queries against the same context
+        throw or corrupt state; use IDbContextFactory<T> for parallel EF queries),
+        or (c) failure observability matters per-operation (Task.WhenAll surfaces only
+        the first exception). See CLAUDE.md "Parallelize independent awaits with
+        Task.WhenAll" + the existing "DbContext is not thread-safe" rule.
+
+        FAN-OUT SHAPE (Must-fix on synchronous in-handler loops over recipients).
+        A handler that iterates a recipient list inline and `await`s a sender per
+        recipient (`foreach (var follower in followers) await _sender.SendAsync(...)`)
+        holds the request open for N × per-recipient-latency and creates traffic
+        spikes that starve the rest of the system. The right shape: publish one
+        Wolverine message per recipient (or per batch of K), return immediately,
+        let per-recipient handlers run in parallel under Wolverine's
+        `MaxDegreeOfParallelism` throttle. Not retroactively violated today
+        (NotificationService consumes one event = one outbound notification), but
+        the rule is preventative for any future broadcast-to-N feature. See
+        CLAUDE.md "Fan-out belongs on the message bus, not in a synchronous
+        handler loop".
+
     - path: "**/Domain/I*Repository.cs"
       instructions: |
         Repository interfaces wrapping EF Core (e.g. IOrderRepository, IPaymentRepository)
