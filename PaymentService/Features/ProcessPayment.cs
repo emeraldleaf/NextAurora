@@ -8,37 +8,46 @@ using PaymentService.Infrastructure.Data;
 namespace PaymentService.Features;
 
 /// <summary>
-/// "Process payment" vertical slice: command + validator + handler co-located.
+/// "Process payment" vertical slice: split into an <b>Acceptor</b> + a <b>Gateway</b>
+/// handler so the slow part (Stripe call) runs on the message bus instead of inside the
+/// HTTP request or the OrderPlaced consumer.
 ///
-/// <para>Two ways into this handler:</para>
+/// <para><b>Why split.</b> The Stripe call is sub-second in the happy path but seconds-to-30s
+/// on degraded gateway states. Doing it inline in <c>ProcessPaymentHandler</c> held the HTTP
+/// request open (and a Wolverine handler slot + DbContext + Service Bus message lease on the
+/// saga path) for the entire duration. The 202 Accepted rule says: validate + persist
+/// intent + publish a Wolverine message + return; let a follow-up handler do the slow work.
+/// See CLAUDE.md "Performance Rules → Long-running work belongs on the message bus".</para>
+///
+/// <para><b>Two entry points still converge on <see cref="ProcessPaymentCommand"/>:</b></para>
 /// <list type="bullet">
 ///   <item>HTTP endpoint <c>POST /api/v1/payments/process</c> (admin/manual processing).</item>
-///   <item>The saga: <c>OrderPlacedHandler</c> in this service receives <c>OrderPlacedEvent</c>
-///         from Service Bus and invokes this command via Wolverine.</item>
+///   <item>The saga: <see cref="OrderPlacedHandler"/> returns a <see cref="ProcessPaymentCommand"/>
+///         as a Wolverine cascading message.</item>
 /// </list>
+/// Both hit <see cref="ProcessPaymentHandler"/> (the Acceptor) which now does only the fast,
+/// idempotent steps and publishes <see cref="PaymentProcessingRequested"/> for the gateway
+/// handler to consume.
 ///
-/// <para>
-/// <b>Idempotency:</b> the very first thing we do is look for an existing Payment for this
-/// order ID. If one exists, we return its ID and stop — we don't double-charge. This handles
-/// every redelivery scenario: Service Bus retries, DLQ replays, or an admin POSTing twice.
-/// The unique index on <c>OrderId</c> in <c>PaymentDbContext</c> is the database-level backstop
-/// if two redeliveries race past the existence check at the same instant: the second insert
-/// throws <see cref="DbUpdateException"/>, we catch it, re-fetch the winning Payment, and
-/// return its ID. Net effect: at-least-once delivery + concurrent inserts still produce
-/// exactly one Payment row per order.
-/// </para>
-/// <para>
-/// <b>Defensive event re-publish on terminal-state re-entry.</b> When the existence check
-/// finds a Payment already in <c>Completed</c> or <c>Failed</c>, we re-publish the
-/// corresponding event before returning. Under Wolverine's <c>AutoApplyTransactions</c> +
-/// <c>UseEntityFrameworkCoreTransactions</c> wrap, the entity write and the outbox-envelope
-/// write commit together — so "saved Completed, missing event" shouldn't happen in the
-/// happy path. But manual DB intervention, outbox-table cleanup, or a future change that
-/// breaks the outbox guarantees can leave a terminal Payment with no enqueued event and
-/// stall the saga (OrderService waits forever for <c>PaymentCompletedEvent</c>). The
-/// re-publish is defense in depth; downstream handlers' status guards
-/// (<c>if (order.Status != Placed) return;</c>) make the eventual double-publish a no-op.
-/// </para>
+/// <para><b>Idempotency:</b> the Acceptor's first action is the same OrderId existence check
+/// as before — if a Payment row already exists for this order, return its ID. On terminal
+/// states (Completed/Failed) we still defensively re-publish the terminal event for saga
+/// progress. On Pending we no-op the existence check (the in-flight gateway handler will
+/// emit the terminal event when it finishes). The unique index on <c>OrderId</c> is the
+/// database-level backstop for concurrent inserts; <see cref="DbUpdateException"/> recovery
+/// detaches the loser entity and returns the winner's ID.</para>
+///
+/// <para><b>Outbox atomicity</b> on the Acceptor's path: <c>AddAsync</c> + <c>PublishAsync</c>
+/// + <c>SaveChangesAsync</c> commit together — Payment(Pending) and the staged
+/// <see cref="PaymentProcessingRequested"/> envelope land in one DB transaction. If the
+/// process dies before the gateway handler runs, the existing <c>PaymentRecoveryJob</c>
+/// sweeper still picks up stuck Pendings and marks them Failed (no behavior regression).</para>
+///
+/// <para><b>Idempotency on the Gateway handler</b> (re-deliveries of
+/// <see cref="PaymentProcessingRequested"/>): pre-check <c>Payment.Status</c> — if not
+/// Pending, return. This handles every redelivery scenario except the
+/// "Stripe charged but process crashed before MarkAsCompleted" double-charge race, which
+/// requires gateway-side idempotency keys (tracked separately in STATUS.md).</para>
 /// </summary>
 public record ProcessPaymentCommand(Guid OrderId, decimal Amount, string Currency, Guid BuyerId);
 
@@ -53,14 +62,22 @@ public class ProcessPaymentCommandValidator : AbstractValidator<ProcessPaymentCo
     }
 }
 
+/// <summary>
+/// Internal continuation message. Published by <see cref="ProcessPaymentHandler"/> and
+/// consumed by <see cref="PaymentProcessingRequestedHandler"/> to actually invoke the
+/// gateway. Lives in PaymentService's assembly only — not exported to
+/// <c>NextAurora.Contracts</c> because no other service is supposed to subscribe to it.
+/// </summary>
+public record PaymentProcessingRequested(Guid PaymentId);
+
+/// <summary>
+/// Acceptor — fast-path handler for <see cref="ProcessPaymentCommand"/>. Idempotency check,
+/// persist Pending, publish the continuation, return PaymentId. No gateway call. Sub-second.
+/// </summary>
 public class ProcessPaymentHandler(
     PaymentDbContext context,
-    IPaymentGateway gateway,
     IEventPublisher eventPublisher)
 {
-    private static readonly Counter<long> PaymentsProcessed =
-        new Meter("NextAurora").CreateCounter<long>("payments.processed");
-
     public async Task<Guid> HandleAsync(ProcessPaymentCommand request, CancellationToken cancellationToken)
     {
         // Idempotency check — see class summary.
@@ -68,27 +85,28 @@ public class ProcessPaymentHandler(
             .FirstOrDefaultAsync(p => p.OrderId == request.OrderId, cancellationToken);
         if (existing is not null)
         {
-            // Defensive re-publish for terminal-state re-entry (see class summary).
             await RepublishTerminalEventAsync(existing, cancellationToken);
             return existing.Id;
         }
 
-        // Create the Payment in Pending state, persist it, THEN call the gateway. We persist
-        // before charging so we have a record even if the gateway call hangs and the process
-        // dies — the PaymentRecoveryJob sweeper picks up stuck Pendings and marks them Failed.
         var payment = Payment.Create(request.OrderId, request.BuyerId, request.Amount, request.Currency, "Stripe");
         await context.Payments.AddAsync(payment, cancellationToken);
+
+        // Stage the continuation envelope BEFORE SaveChanges so Wolverine's outbox bridge
+        // commits Payment(Pending) + PaymentProcessingRequested in one DB transaction. See
+        // CLAUDE.md "Outbox atomicity".
+        await eventPublisher.PublishAsync(new PaymentProcessingRequested(payment.Id), cancellationToken);
+
         try
         {
             await context.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException)
         {
-            // The pre-check above races with concurrent deliveries: two messages can both see
-            // "no existing payment" and both try to insert. The unique index on OrderId catches
-            // the loser. Detach our about-to-be-orphaned entity, re-fetch the winner, and
-            // return its ID. Without this catch, the redelivery model leaks DbUpdateException
-            // to Wolverine's retry loop on every concurrent insert.
+            // Concurrent acceptors raced on the unique-OrderId index. The loser's transaction
+            // (including the staged envelope) rolls back. Detach the about-to-be-orphaned entity,
+            // re-fetch the winning Payment, and return its ID. The winner already published its
+            // own PaymentProcessingRequested — no further action needed here.
             context.Entry(payment).State = EntityState.Detached;
             var racedExisting = await context.Payments
                 .FirstOrDefaultAsync(p => p.OrderId == request.OrderId, cancellationToken);
@@ -97,73 +115,14 @@ public class ProcessPaymentHandler(
             throw;
         }
 
-        var result = await gateway.ProcessPaymentAsync(request.Amount, request.Currency, cancellationToken);
-
-        if (result.Success)
-        {
-            // Mutate via domain method (status guard validates we're still in Pending). The
-            // domain entity owns the rule "only Pending can complete" — the handler doesn't
-            // restate it.
-            payment.MarkAsCompleted(result.TransactionId);
-
-            // PUBLISH BEFORE SAVE — required for outbox atomicity. Wolverine's
-            // UseEntityFrameworkCoreTransactions bridge stages the envelope into its tracker
-            // when PublishAsync runs, and SaveChangesAsync flushes the staged envelope into
-            // wolverine.outgoing_envelopes IN THE SAME TRANSACTION as the entity write. If we
-            // save first and publish after, the entity commits alone — leaving a brief window
-            // where the Payment row exists but no event has been enqueued (envelope persists
-            // only on the NEXT SaveChanges, which is Wolverine's automatic post-handler one).
-            // A process death in that window leaves a saved Completed payment with no event,
-            // which the retry's existence check would short-circuit past — saga stalls.
-            // The RepublishTerminalEventAsync helper is the defense-in-depth backstop; this
-            // ordering is the structural fix.
-            await eventPublisher.PublishAsync(new PaymentCompletedEvent
-            {
-                PaymentId = payment.Id,
-                OrderId = payment.OrderId,
-                BuyerId = request.BuyerId,
-                Amount = payment.Amount,
-                Provider = payment.Provider,
-                CompletedAt = payment.CompletedAt!.Value
-            }, cancellationToken);
-
-            // SaveChanges flushes BOTH the MarkAsCompleted mutation AND the staged envelope
-            // into the same DB transaction. Atomic — either both commit or neither does.
-            await context.SaveChangesAsync(cancellationToken);
-
-            PaymentsProcessed.Add(1, new KeyValuePair<string, object?>("outcome", "success"));
-        }
-        else
-        {
-            payment.MarkAsFailed(result.ErrorMessage ?? "Unknown error");
-
-            // PaymentFailedEvent carries the reason verbatim — the buyer-facing notification
-            // will use a generic message; this raw reason is for OrderService's audit trail and
-            // is logged but never returned to clients. Publish-before-save: same outbox-atomicity
-            // reasoning as the Success branch above.
-            await eventPublisher.PublishAsync(new PaymentFailedEvent
-            {
-                PaymentId = payment.Id,
-                OrderId = payment.OrderId,
-                BuyerId = request.BuyerId,
-                Reason = result.ErrorMessage ?? "Unknown error",
-                FailedAt = DateTime.UtcNow
-            }, cancellationToken);
-
-            await context.SaveChangesAsync(cancellationToken);
-
-            PaymentsProcessed.Add(1, new KeyValuePair<string, object?>("outcome", "failed"));
-        }
-
         return payment.Id;
     }
 
     private async Task RepublishTerminalEventAsync(Payment payment, CancellationToken ct)
     {
-        // Pending: no-op. Either the original handler invocation is still in-flight (this
-        // duplicate redelivery raced it), or the recovery sweeper will eventually mark the
-        // row Failed and publish PaymentFailedEvent itself. Re-publishing on Pending would
-        // be premature.
+        // Pending: no-op. Either the gateway handler is still in-flight (this duplicate
+        // redelivery raced it), or the recovery sweeper will eventually mark the row Failed
+        // and publish PaymentFailedEvent. Re-publishing on Pending would be premature.
         switch (payment.Status)
         {
             case PaymentStatus.Completed:
@@ -178,10 +137,9 @@ public class ProcessPaymentHandler(
                 }, ct);
                 break;
             case PaymentStatus.Failed:
-                // FailedAt isn't persisted on the aggregate; use UtcNow for the re-publish
-                // timestamp. Downstream consumers don't depend on the exact value (their
-                // idempotency guards key on PaymentId + OrderId), and the FailureReason
-                // round-trips from the stored row so the original failure context is preserved.
+                // FailedAt isn't persisted on the aggregate; UtcNow for the re-publish stamp.
+                // Downstream consumers' idempotency guards key on PaymentId + OrderId, not on
+                // FailedAt — the timestamp difference doesn't affect saga correctness.
                 await eventPublisher.PublishAsync(new PaymentFailedEvent
                 {
                     PaymentId = payment.Id,
@@ -194,6 +152,85 @@ public class ProcessPaymentHandler(
             case PaymentStatus.Pending:
             default:
                 break;
+        }
+    }
+}
+
+/// <summary>
+/// Gateway handler — consumes <see cref="PaymentProcessingRequested"/> and does the actual
+/// Stripe call + result publish. This is where the slow work lives. Runs on a Wolverine
+/// worker, not on an HTTP thread.
+///
+/// <para>Wolverine's retry + throttle policies apply here. A transient Stripe failure can be
+/// retried per the global policies (<c>AddConcurrencyRetry</c> + Wolverine's default
+/// retry handling) without affecting the HTTP path that already returned 202.</para>
+/// </summary>
+public class PaymentProcessingRequestedHandler(
+    PaymentDbContext context,
+    IPaymentGateway gateway,
+    IEventPublisher eventPublisher)
+{
+    private static readonly Counter<long> PaymentsProcessed =
+        new Meter("NextAurora").CreateCounter<long>("payments.processed");
+
+    public async Task HandleAsync(PaymentProcessingRequested message, CancellationToken cancellationToken)
+    {
+        var payment = await context.Payments
+            .FirstOrDefaultAsync(p => p.Id == message.PaymentId, cancellationToken);
+        if (payment is null)
+        {
+            // Payment row vanished between Acceptor commit and Gateway handler — shouldn't
+            // happen, but no-op rather than throw (would cause endless Wolverine retries).
+            return;
+        }
+
+        // Idempotency under at-least-once delivery of PaymentProcessingRequested. If a prior
+        // delivery already drove this Payment through the gateway, we'd be Completed or
+        // Failed — the Acceptor's RepublishTerminalEventAsync is the recovery path for the
+        // saga; here we just no-op so we don't double-charge.
+        if (payment.Status != PaymentStatus.Pending)
+            return;
+
+        var result = await gateway.ProcessPaymentAsync(payment.Amount, payment.Currency, cancellationToken);
+
+        if (result.Success)
+        {
+            payment.MarkAsCompleted(result.TransactionId);
+
+            // Publish-before-save: Wolverine's UseEntityFrameworkCoreTransactions stages the
+            // envelope when PublishAsync runs and flushes it to wolverine.outgoing_envelopes
+            // on the next SaveChanges — atomically with the MarkAsCompleted mutation. See
+            // CLAUDE.md "Outbox atomicity".
+            await eventPublisher.PublishAsync(new PaymentCompletedEvent
+            {
+                PaymentId = payment.Id,
+                OrderId = payment.OrderId,
+                BuyerId = payment.BuyerId,
+                Amount = payment.Amount,
+                Provider = payment.Provider,
+                CompletedAt = payment.CompletedAt!.Value
+            }, cancellationToken);
+
+            await context.SaveChangesAsync(cancellationToken);
+
+            PaymentsProcessed.Add(1, new KeyValuePair<string, object?>("outcome", "success"));
+        }
+        else
+        {
+            payment.MarkAsFailed(result.ErrorMessage ?? "Unknown error");
+
+            await eventPublisher.PublishAsync(new PaymentFailedEvent
+            {
+                PaymentId = payment.Id,
+                OrderId = payment.OrderId,
+                BuyerId = payment.BuyerId,
+                Reason = result.ErrorMessage ?? "Unknown error",
+                FailedAt = DateTime.UtcNow
+            }, cancellationToken);
+
+            await context.SaveChangesAsync(cancellationToken);
+
+            PaymentsProcessed.Add(1, new KeyValuePair<string, object?>("outcome", "failed"));
         }
     }
 }
