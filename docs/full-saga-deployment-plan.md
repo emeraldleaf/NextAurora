@@ -2,45 +2,96 @@
 
 > **Cross-session tracking artifact.** Multi-PR, multi-week effort to stand up
 > NextAurora as a portfolio-grade demo deployment running the full
-> Order → Payment → Shipping → Notification saga over real cloud infrastructure
-> with the Stripe gateway stubbed. Pick up here when resuming the work.
+> Order → Payment → Shipping → Notification saga on a **single self-hosted
+> Hetzner VPS managed by Dokploy**, with the Stripe gateway stubbed. Pick up
+> here when resuming the work.
 
-**Last updated:** 2026-05-27 (plan created)
+**Last updated:** 2026-05-27 (rewritten around Hetzner + Dokploy; was Fly.io + AWS SQS)
 
-**Current state:** planning. No new infrastructure provisioned yet beyond the
-existing CatalogService Fly.io demo.
+**Current state:** planning. No new infrastructure provisioned yet. The existing
+CatalogService Fly.io demo is separate and predates this plan (see "What happens
+to the Fly demo" below).
 
 ---
 
 ## Why this doc exists
 
-The CatalogService Fly.io demo proves "I can deploy a .NET service to the cloud."
-A full-saga demo would prove "I can architect, build, deploy, and operate a
-distributed system." Big difference for a portfolio piece. This is the plan that
-turns the second story from architecture-on-disk into infrastructure-running.
+The CatalogService Fly.io demo proves "I can deploy a .NET service to a PaaS."
+A full-saga demo proves "I can architect, build, deploy, and **operate** a
+distributed system on infrastructure I manage." Bigger portfolio story. This is
+the plan that turns the second story from architecture-on-disk into
+infrastructure-running.
 
-The work is several weekends across 5–8 PRs and an ongoing ~$15–40/mo
-infrastructure spend. Big enough to need a tracking artifact so each session
-can pick up coherently instead of re-deriving the plan.
+The work is several weekends across 5–8 PRs and a ~€7–16/mo fixed VPS spend.
+Big enough to need a tracking artifact so each session picks up coherently
+instead of re-deriving the plan.
+
+---
+
+## Why Hetzner + Dokploy (the headline decision)
+
+NextAurora is **already designed as a pile of containers orchestrated by
+Aspire** locally — Postgres, SQL Server, Redis, the message broker, Keycloak
+all spin up as containers on the dev machine. A Hetzner VPS running
+[Dokploy](https://dokploy.com) (an open-source, self-hosted PaaS layer:
+reverse proxy + automatic Let's Encrypt HTTPS + webhook deploys + Postgres/Redis
+templates) is **that exact shape, deployed.** The deployed environment becomes a
+near 1:1 mirror of the Aspire local environment — the strongest dev/prod parity
+of any hosting option.
+
+The stack:
+- **Hetzner VPS** (cheap, reliable; fixed monthly cost regardless of traffic)
+- **Docker images** built straight from .NET, pushed to **GitHub Container
+  Registry (GHCR)** by **GitHub Actions**
+- **Dokploy** on the VPS handles the PaaS layer: Traefik reverse proxy +
+  routing, automatic HTTPS, webhook-triggered deploys (`push → build image →
+  GHCR → webhook → Dokploy pulls + redeploys`), container templates for
+  Postgres / Redis / etc.
+
+**What this wins over the previous Fly.io + AWS SQS plan:**
+- **One box, one Docker network** — every service, database, the broker,
+  Keycloak, and Seq all talk over the internal network. No cross-cloud seam
+  (the AWS-SQS-from-Fly awkwardness is gone), no AWS credentials on the compute
+  layer, no per-message or egress billing surprises.
+- **Always-warm** — no Fly Machine cold start, no Keycloak 30-60s wake. Better
+  for a live demo, and it sidesteps the cold-start risk the Fly plan carried.
+- **Fixed low cost** — ~€7-16/mo flat (see D4), not variable per-instance.
+- **Tightest dev/prod parity** — deployed shape ≈ Aspire local shape.
+
+**The honest trade-offs (you own the box):**
+- **Single point of failure.** One VPS down = everything down. Fine for a
+  demo/portfolio piece; explicitly NOT how you'd run production. Worth saying
+  out loud given the "production-shaped" framing.
+- **You're the sysadmin.** OS patching, Dokploy updates, disk/backup
+  management. Dokploy handles the PaaS layer (TLS, routing, deploys), so it's
+  mostly "keep the OS patched + watch disk space" — but it's real ops Fly
+  abstracts away.
+- **Security surface.** Internet-facing VPS. Needs Hetzner's (free) Cloud
+  Firewall, key-only SSH (no root login), fail2ban. Every IDOR / JWT /
+  rate-limit rule encoded in CLAUDE.md is now genuinely live-fire on a box you
+  own.
+- **No scale-to-zero** — irrelevant here. Scale-to-zero matters when you pay
+  per-compute-second; on a flat VPS the cost is fixed and low regardless, and
+  always-warm is better for a demo.
 
 ---
 
 ## Scope
 
 **In:**
-- All 5 services deployed to Fly.io
-- Real databases (split TBD — see decisions D1)
-- Real messaging (transport TBD — see decision D3)
-- Real Redis (Upstash or Fly Redis)
-- Hosted identity (TBD — see decision D2)
-- Real telemetry (Seq self-hosted on Fly, OTLP-ingested — see Phase 3)
+- All 5 services running as Docker containers on the Hetzner VPS via Dokploy
+- Real databases as containers (both engines — see D1)
+- Real messaging as a container (see D3)
+- Real Redis as a container
+- Keycloak as a container (see D2)
+- Real telemetry — Seq as a container (see Phase 3)
 - Storefront UI with a working checkout flow (minimum viable, not polished)
 - Stripe gateway stubbed; UI banner: *"Payments are stubbed for demo safety"*
 
 **Out:**
 - Real Stripe SDK integration (stub retirement — separate, gated on project-purpose change)
 - PaymentRecoveryJob retry-with-key (gated on stub retirement; tracked in STATUS.md)
-- Production-grade DR / backups / runbooks — this is a demo, not a business
+- Production-grade DR / backups / runbooks / HA — single box, this is a demo
 - SLAs, on-call, alerting beyond basic uptime
 
 **Why "production-shaped, payment-stubbed":**
@@ -51,266 +102,271 @@ can pick up coherently instead of re-deriving the plan.
 
 ---
 
-## Phases
+## Resolved decisions (revised 2026-05-27 for Hetzner + Dokploy)
 
-Three phases, each independently shippable. If life happens between phases,
-each phase ends with something demoable.
+### D1 — Database hosting → **keep both engines as containers (SQL Server + Postgres)**
 
-### Phase 1 — Order saga visible (Catalog + Order + minimal Storefront)
+**Changed from the Fly plan.** On Fly, SQL Server hosting was hard, so D1 was
+"Postgres-only-for-demo (provider swap on Order + Payment)." On a Hetzner box,
+SQL Server is just another Docker container (`mcr.microsoft.com/mssql/server`),
+exactly like Aspire runs it locally. So the deployed shape can **keep the
+two-engine split** — SQL Server for Order + Payment, Postgres for Catalog +
+Shipping — with zero provider-swap work and perfect dev/prod parity.
 
-**Goal.** Land the deployment pattern with the smallest possible footprint.
-Show an Order being placed, persisted, and **stalling at payment because
-PaymentService isn't deployed yet** — itself a teaching demo of "what does the
-saga look like when downstream isn't available?"
+**Implications:**
+- **Eliminates the old Phase 1A entirely.** No `DatabaseProvider` config
+  branching, no Postgres migration regeneration, no `xmin`/`RowVersion`
+  conditional config. The services deploy with the exact same EF + Wolverine
+  config they use in dev.
+- **The "two database engines on purpose" architectural story stays true in
+  prod** — a stronger portfolio narrative than "two in dev, collapsed to one in
+  prod." CLAUDE.md + README need no demo-exception footnote.
+- **RAM cost.** SQL Server wants ~2GB RAM minimum — this is the main driver of
+  VPS sizing (see D4). A Postgres-only fallback (CX32, ~€7/mo) remains available
+  if we want to trade parity for cost, but on Hetzner it would mean doing the
+  provider-swap work for no parity benefit — not worth it.
+- Both DB containers managed by Dokploy (or via a `docker-compose` stack
+  Dokploy supervises); persistent volumes for each.
 
-**Why this is the right starting point.**
-- First-deployment gotchas (Dockerfile cold start, EF migration on boot, JWT
-  config, gRPC over TLS, secrets binding) get caught once, not three times.
-- Visible milestone: a deployed Order saga that stalls is itself a portfolio
-  piece. If something interrupts the work, you've landed something coherent.
-- Cost validation: real bills for a week before committing to Phase 2's larger
-  footprint.
+### D2 — Identity provider → **Keycloak as a Dokploy container**
 
-**Deliverables.**
-- [ ] `OrderService` Dockerfile + `fly.toml` + GitHub Actions deploy workflow
-      (mirrors CatalogService's pattern at [Dockerfile.catalog](../Dockerfile.catalog))
-- [ ] `OrderService` Fly app + database hosting per decision D1
-- [ ] Minimal Storefront deployed — single "place an order" flow
-      (the existing Blazor WASM scaffold or a simpler Razor Pages slice — decide
-      during phase, not now)
-- [ ] JWT validation working against deployed identity provider (decision D2)
-- [ ] gRPC Catalog ↔ Order working over TLS in the deployed environment
-- [ ] `DemoMode` flag applied to `OrderService` (mirrors CatalogService's
-      pattern: gates Scalar + OpenAPI + skip-HTTPS-redirect + migrate-on-startup)
-- [ ] Cost ledger first entry; verify ≤ $15/mo target
+Same IdP in dev and prod (parity argument unchanged from the Fly plan), but now
+a container on the box instead of a Fly Machine. **Strictly better than the Fly
+version:** always-warm (no 30-60s Java + realm-import cold start), on the same
+internal Docker network as the services.
 
-**Risk callouts.**
-- **D1 (SQL Server hosting) is the biggest cost lever.** Azure SQL serverless
-  with auto-pause is ~$15-30/mo for two DBs; Postgres-only-for-demo is free
-  with Fly Postgres but breaks the "two engines on purpose" architectural
-  story in the deployed shape (would need a footnote in the README + Wolverine
-  outbox provider swap).
-- **D2 (identity)** — deploying Keycloak is operationally heavy. Hosted
-  alternatives (Auth0, Azure AD B2C) are simpler but introduce vendor lock-in.
-- **First-deployment Dockerfile gotchas** — cold start can be 10+ seconds for
-  a fresh Fly Machine; EF migration on boot adds to that. May need a warmup
-  endpoint or accept it in demo copy.
+**Implications:**
+- Keycloak container + its own Postgres (a second Postgres container, or a
+  separate database in the shared Postgres instance) for Keycloak state.
+- Realm import on boot: `--import-realm` + volume-mounted
+  `realms/nextaurora-realm.json` (exported from local dev via `kc.sh export`).
+- Persistent volume for Keycloak data so user/realm changes survive restarts.
+- Two-stage readiness (Keycloak serves HTTP before realm import finishes) —
+  Dokploy health check needs to wait for both.
+- ServiceDefaults JWT config is already config-driven; deployed
+  `Authentication:Authority` points at the internal Keycloak container URL (or
+  its Traefik-routed hostname for the browser-facing auth-code flow). Zero
+  service code change.
 
-**Definition of done.** Place an Order via the Storefront, see it persist in
-the Order DB, see `OrderPlacedEvent` staged in `wolverine.outgoing_envelopes`,
-see the saga stall because PaymentService isn't deployed yet. All over real
-cloud infrastructure with real JWT auth. Reachable via public URL.
+### D3 — Messaging transport → **RabbitMQ container in deployed; dev keeps the ASB emulator (config-driven, swappable)**
 
-### Phase 2 — Full saga (Payment + Shipping + Notification)
+**Changed from the Fly plan, sub-point resolved 2026-05-27.** On Fly, D3 was
+AWS SQS+SNS (free tier, but cross-cloud). On one box, run **RabbitMQ** as a
+container on the internal network — no cross-cloud, no AWS credentials, no
+egress. RabbitMQ over NATS because it maps cleanly onto the existing Azure
+Service Bus topic/subscription topology (exchanges + queues), Wolverine has a
+first-class RabbitMQ transport, and the management UI is a nice demo artifact.
 
-**Goal.** Light up the remaining three services so the saga completes
-end-to-end with stubbed Stripe.
+**Resolved: RabbitMQ in the deployed environment only; dev keeps the Azure
+Service Bus emulator already wired in the Aspire AppHost.** The transport is
+selected by environment config so the two don't fight. Chose deployed-only over
+RabbitMQ-everywhere because it leaves the working dev setup untouched, and the
+dev/prod transport difference costs almost nothing here (see the
+Wolverine-abstraction note below — handlers, outbox, saga are identical
+regardless of transport). Can flip to RabbitMQ-everywhere later for ~free if
+the ASB emulator's flakiness (see STATUS.md's smoke-test debugging arc) becomes
+annoying in dev.
 
-**Deliverables.**
-- [ ] Same deployment pattern (Dockerfile + fly.toml + GitHub Actions) for
-      PaymentService, ShippingService, NotificationService
-- [ ] Real Azure Service Bus namespace OR alternative transport (decision D3)
-- [ ] `DemoMode` flag sweep — apply the existing CatalogService pattern to
-      PaymentService, ShippingService, NotificationService
-- [ ] Stripe stub remains; optionally make it slightly more interesting
-      (latency variation, decline-by-amount) for a richer demo
-- [ ] Banner in Storefront UI: *"Payments are stubbed for demo safety"*
+**RabbitMQ licensing (verified 2026-05-27):** the core broker is **MPL 2.0,
+free and open-source, self-host at no cost, no vendor lock-in.** Broadcom's
+commercial offering — **Tanzu RabbitMQ** (24/7 support, DR, compliance
+assistance) — is a separate product for mission-critical shops wanting a
+support contract; the OSS broker we'd run as a container is untouched by it and
+needs no license. (If even-stronger no-rug-pull governance ever mattered, NATS
+is CNCF-foundation-governed — but it doesn't map onto the topic/subscription
+model as cleanly, so RabbitMQ wins here.)
 
-**Risk callouts.**
-- Messaging cost: real ASB Basic ~$10/mo + per-message. Alternative: NATS or
-  RabbitMQ on Fly (cheaper but more ops surface), or AWS SQS+SNS (free tier
-  generous, but Wolverine reconfig).
-- Cold-start latency compounds across 5 services. May need to keep one or
-  more services warm (small extra cost) or document the first-request delay.
+**Why the transport choice is low-stakes — Wolverine abstracts it.** The only
+transport-specific code is a ~3-5 line block in each event-publishing service's
+`Program.cs`. Everything else is transport-agnostic, so neither the RabbitMQ
+choice nor a future move to Azure Service Bus (e.g. if NextAurora ever goes
+all-Azure) is a lock-in — it's a localized config swap, not a rewrite:
 
-**Definition of done.** Place an Order, watch it progress through Payment
-(stubbed) → Shipping → Notification end-to-end. View it in observability
-tooling. Demoable in ≤ 60 seconds after warmup, or document the cold-start
-delay honestly in the demo copy.
+```csharp
+// What changes per service (Order, Payment, Shipping, Notification):
+opts.UseAzureServiceBus(conn);                       // ← UseRabbitMq(conn)
+opts.PublishMessage<PaymentCompletedEvent>()
+    .ToAzureServiceBusTopic("payment-events");       // ← .ToRabbitExchange("payment-events")
+opts.ListenToAzureServiceBusSubscription("order-events/payment-orders-sub");
+                                                     // ← .ListenToRabbitQueue("payment-orders")
 
-### Phase 3 — Polish (observability + ops + UX)
+// What does NOT change — transport-agnostic:
+opts.PersistMessagesWithSqlServer(db, "wolverine");  // outbox = DB concern
+opts.Policies.AutoApplyTransactions();               // outbox staging
+opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+opts.AddNextAuroraContextPropagation();              // correlation/user/session
+// + every handler, the entire saga, all domain logic
+```
 
-**Goal.** Make it actually demoable to other humans.
+**Implications:**
+- `Wolverine.RabbitMQ` added to `Directory.Packages.props`.
+- Each event-publishing service's `Program.cs` transport block branches on
+  environment: ASB emulator in `Development`, RabbitMQ in deployed. Topic→
+  exchange, subscription→queue mapping.
+- The transactional outbox is **unaffected** — it's a DB concern
+  (`PersistMessagesWith{SqlServer|Postgresql}`, which per D1 is SqlServer for
+  Order+Payment, Postgresql for Catalog+Shipping), independent of the wire
+  transport.
+- The RabbitMQ container is provisioned in Phase 0 with its management UI; the
+  service transport-config branch lands when each service deploys (Phase 1-2).
 
-**Deliverables.**
-- [ ] **Real telemetry endpoint wired — Seq self-hosted on Fly.** Seq is the
-      strongest fit for this deployment shape: unified logs + traces in one
-      UI (no "App Insights for traces, somewhere-else for logs" split),
-      self-hostable on Fly with a persistent volume (matches the Keycloak
-      pattern from D2), free tier covers demo scope, OTLP-native so it
-      slots into the existing OpenTelemetry export with one config-line
-      change (`http://seq:5341/ingest/otlp/v1/traces`). Gotcha to pin
-      around: `OpenTelemetry.Instrumentation.*` packages — non-stable RC
-      versions for instrumentations like StackExchangeRedis differ across
-      major bumps, so pin versions explicitly in `Directory.Packages.props`
-      rather than relying on floating ranges.
-- [ ] Dashboards for the saga flow (one timeline per Order, CorrelationId-keyed)
-- [ ] Storefront UX polished enough to live-demo (minimal, not feature-rich)
-- [ ] `README` "Try the live demo" section with auth credentials, expected
-      flow, known cold-start gotchas
-- [ ] Cost dashboard + monthly review cadence
-- [ ] **Rate-limit audit + Redis-backed swap if multi-instance.** Catalog
-      search + Payment process both use ASP.NET Core's built-in in-memory
-      limiter. If any service runs 2+ Fly Machines for resilience after
-      Phase 2, the in-memory limit silently multiplies by N — bypassable.
-      Swap those endpoints to a Redis-backed limiter using the Redis
-      instance already present for HybridCache. See CLAUDE.md
-      "Security Requirements → Rate Limiting" for the rule details.
+### D4 — Cost ceiling → **~€16/mo VPS, $50/mo hard ceiling**
 
-**Risk callouts.**
-- Storefront UX scope creep — keep it minimal, the demo is the architecture
-  not the UI.
-- Internet-exposed = real security surface. Every IDOR / JWT / CSRF rule
-  encoded in CLAUDE.md is now live-fire, not theoretical. Worth an explicit
-  security pass before sharing the URL.
+Fixed VPS cost, not variable. Rough RAM math (both DB engines):
 
-**Definition of done.** Send the live URL to someone who's never seen the
-codebase; they can place an order and watch the saga complete.
+| Component | ~RAM |
+|---|---|
+| 5 .NET services (~150MB each) | ~750MB |
+| SQL Server | ~2GB |
+| Postgres (app) + Postgres (Keycloak) | ~400MB |
+| Keycloak (JVM) | ~700MB |
+| RabbitMQ | ~150MB |
+| Redis | ~50MB |
+| Seq | ~512MB |
+| Dokploy + Traefik | ~200MB |
+| OS | ~300MB |
+| **Total (idle)** | **~5–5.5GB** |
+
+- **Both engines:** Hetzner **CX42** (8 vCPU / 16GB) ~€16/mo — comfortable
+  headroom for SQL Server's appetite + load spikes.
+- **Postgres-only fallback:** CX32 (4 vCPU / 8GB) ~€7/mo — only if we drop SQL
+  Server (and do the provider-swap work, which negates the Hetzner parity win).
+- **Hard ceiling: $50/mo.** A single VPS won't approach this; the ceiling
+  mostly guards against accidental over-provisioning. Set a Hetzner billing
+  alert anyway.
 
 ---
 
-## Resolved decisions (2026-05-27)
+## Phases
 
-### D1 — SQL Server hosting → **Postgres-only-for-demo (provider swap)**
+Four phases now (a single box means a foundational "stand up the box + infra"
+phase that everything else builds on). Each phase is independently shippable.
 
-Deployed shape uses Postgres for all four services with state. Dev environment
-keeps the two-engine split (SQL Server for Order + Payment, Postgres for
-Catalog + Shipping) — the "two engines on purpose" architectural story is
-still genuine in the dev/learning context; the deployed shape gets a README
-footnote explaining the demo exception.
+### Phase 0 — Provision the box + Dokploy + infra containers
 
-**Implications:**
-- **Provider swap on Order + Payment.** Both services need
-  `PersistMessagesWithPostgresql` (currently `PersistMessagesWithSqlServer`)
-  and `xmin` concurrency tokens (currently `RowVersion` shadow column).
-  Config-driven via a `DatabaseProvider` setting so dev keeps SQL Server.
-- **Postgres-flavored migrations** for Order + Payment. Either regenerate
-  from scratch against the Postgres provider, or maintain parallel migration
-  histories per provider (EF Core supports `ContextType` partitioning).
-- **README footnote.** "Two database engines on purpose" gets a "demo
-  deployment exception" callout linking here. CLAUDE.md unchanged — the
-  rule is still genuine for dev/learning.
-- Free with Fly Postgres → keeps Phase 1 cost ≤ $15/mo target.
-
-### D2 — Identity provider → **Keycloak self-hosted on Fly**
-
-Same IdP in dev and prod. The local Aspire-managed Keycloak container already
-imports `realms/nextaurora-realm.json` on boot — the deployed Keycloak does
-the same with the same realm export. One IdP, one realm, two environments.
-Removes a class of "works in dev, breaks in prod" bugs around realm shape,
-claim names, and test users.
-
-**Implications:**
-- **Keycloak Fly app + Postgres database** for Keycloak's own state
-  (~$5-10/mo for the Fly Machine; Postgres free with Fly's shared instance).
-- **Realm import on boot** via `KC_DB_*` + `KEYCLOAK_ADMIN*` env vars +
-  `--import-realm` startup flag pointing at the volume-mounted realm export.
-- **Persistent volume** for Keycloak's data dir so realm changes (new users,
-  password resets) survive Machine restarts.
-- **Two-stage readiness probe** — Keycloak serves HTTP before the realm
-  import completes; health check has to know about both. Documented gotcha
-  in the article.
-- **Boot cost** — Keycloak is a Java app, ~512MB RAM minimum, ~30-60s cold
-  start. Scale-to-zero is unrealistic; keep one Machine always-on or accept
-  the first-request wait.
-- **Realm export workflow** — `kc.sh export` from local Keycloak → commit
-  the JSON → deploy reads it. Document this in the deployment recipe.
-- ServiceDefaults JWT config is already config-driven; deployed
-  `Authentication:Authority` points at the Fly Keycloak URL. Zero code
-  change in any service.
-
-### D3 — Messaging transport → **AWS SQS+SNS free tier**
-
-Free tier covers 1M req/mo, comfortably more than demo volume. Wolverine has
-an AWS provider package.
-
-**Implications:**
-- AWS account setup + IAM user for the demo with SQS/SNS-only permissions.
-- `Wolverine.AmazonSqs` (and SNS support if needed) added to
-  `Directory.Packages.props`.
-- `Program.cs` in each event-publishing service: `UseAzureServiceBus(...)` →
-  `UseAmazonSqs(...)`. Config-driven so local dev keeps the ASB emulator.
-- Topic/subscription topology recreated as SQS queues + SNS topics. The
-  existing per-service subscription names (e.g. `notify-orders-sub`) map to
-  SQS queue names; topics (`order-events`, `payment-events`) map to SNS
-  topics.
-- AWS credentials wiring: env vars in Fly Machine secrets + dev secrets via
-  `dotnet user-secrets` locally if cross-stack work is needed in dev.
-
-### D4 — Cost ceiling → **$30/mo target, $50/mo hard ceiling**
-
-- Phase 1 target: ≤ $15/mo (Postgres free with Fly + Auth0 free tier + SQS
-  free tier + small Fly Machines)
-- Phase 2 target: ≤ $30/mo (additional Fly Machines for Payment + Shipping +
-  Notification + Storefront)
-- Phase 3 target: unchanged
-- **Hard ceiling: $50/mo.** If actual costs exceed this: stop, audit, decide
-  before resuming. Set Fly.io spend cap to $50 before provisioning anything.
-
-## Implementation order
-
-Given the resolved decisions, Phase 1 splits naturally into three sub-PRs.
-Each is independently shippable.
-
-### Phase 1A — Postgres provider swap (code only, no deployment)
-
-**Goal.** Land the dual-provider config plumbing in `main` so Phase 1C's
-deployment can simply set `DatabaseProvider=Postgres` and pick up the right
-EF + Wolverine + concurrency-token combo.
+**Goal.** Stand up the VPS, Dokploy, and every *non-application* container
+(databases, broker, Keycloak, Seq) before any .NET service deploys. This is the
+foundation; nothing application-level happens here.
 
 **Deliverables:**
-- [ ] `DatabaseProvider` config setting (defaults `SqlServer` in dev, override
-      to `Postgres` in deployed `appsettings.Production.json` or via env var)
-- [ ] Order + Payment `Program.cs`: branch on `DatabaseProvider` for `AddDbContext`
-      + Wolverine outbox provider
-- [ ] Order + Payment EF migrations re-generated against the Postgres provider
-      (parallel migration history or `ContextType` partitioning)
-- [ ] Order + Payment concurrency-token config branches on provider
-      (`RowVersion` for SqlServer, `xmin` for Postgres)
-- [ ] Integration tests verify both code paths build + run (the existing
-      OrderService.Tests.Integration uses SQL Server Testcontainer; add a
-      Postgres Testcontainer slice for the new path)
-- [ ] README footnote: "demo deployment uses Postgres-only as an exception"
-
-### Phase 1B — Deploy Keycloak self-hosted on Fly (infrastructure, no service code change)
-
-**Goal.** Stand up the deployed identity provider before any application
-service tries to validate JWTs against it. ServiceDefaults already handles
-JWT validation config-driven, so this phase is pure infrastructure.
-
-**Deliverables:**
-- [ ] Fly Postgres database provisioned for Keycloak's state
-- [ ] `Dockerfile.keycloak` + `fly.keycloak.toml` + GitHub Actions deploy
-      workflow for Keycloak
-- [ ] Persistent volume for Keycloak data dir
-- [ ] Realm export workflow documented in [demo-deployment.md](demo-deployment.md):
-      `kc.sh export --realm nextaurora` from local dev → commit the JSON →
-      deploy reads it on boot
-- [ ] Two-stage readiness probe (Keycloak serves HTTP before realm import
-      completes; both have to be green before traffic flows)
-- [ ] Test users from local realm (buyer, seller, admin) imported in deployed
-      Keycloak
-- [ ] Documented public Keycloak URL for future services to point at via
-      `Authentication:Authority` env var
-- [ ] Cost verification — Fly Machine for Keycloak + free Postgres ≤ $10/mo
+- [ ] Hetzner VPS provisioned (CX42 per D4) + Hetzner Cloud Firewall (allow 80/443/SSH only)
+- [ ] SSH hardened — key-only, no root login, fail2ban
+- [ ] Dokploy installed + its dashboard reachable over HTTPS
+- [ ] Postgres container (app DBs: catalog-db, shipping-db) + persistent volume
+- [ ] SQL Server container (orders-db, payments-db) + persistent volume
+- [ ] Postgres container (or shared DB) for Keycloak state
+- [ ] Redis container
+- [ ] RabbitMQ container + management UI (per D3)
+- [ ] Keycloak container — realm imported from `realms/nextaurora-realm.json`,
+      test users (buyer/seller/admin) present, two-stage health check green
+- [ ] Seq container + persistent volume (telemetry sink, wired in Phase 3)
+- [ ] All infra reachable on the internal Docker network; document the internal
+      hostnames services will use
+- [ ] Cost ledger first entry — confirm VPS ≤ €16/mo
 
 **Risk callouts.**
-- Keycloak cold start is real (~30-60s for Java + realm import). Either keep
-  one Machine always-on (cost) or accept the first-request wait in demo copy.
-- Realm export format can change across Keycloak versions; pin the version
-  in `Dockerfile.keycloak` and document the export-format-version dependency.
+- SQL Server container RAM appetite — confirm the box doesn't OOM under the full
+  infra load before adding services.
+- Keycloak two-stage readiness — Dokploy must not route traffic until realm
+  import completes.
 
-### Phase 1C — Deploy Order + minimal Storefront
+**Definition of done.** All infra containers healthy on the box, reachable on
+the internal network, Keycloak serving the imported realm. No .NET services yet.
 
-**Goal.** Phase 1's original visible-saga goal: deployed Order with auth.
+### Phase 1 — Order saga visible (Catalog + Order + Storefront)
 
-**Deliverables:** as already listed in Phase 1 above, plus:
-- [ ] Fly Postgres provisioned for OrderService
-- [ ] OrderService deployed with `DatabaseProvider=Postgres` and
-      `Authentication:Authority` pointing at deployed Keycloak (1B)
-- [ ] Minimal Storefront deployed
-- [ ] End-to-end smoke test: log into Storefront with Keycloak test user,
-      place an order, watch it stall at payment
+**Goal.** Deploy the first application services. Show an Order placed,
+persisted, and **stalling at payment because PaymentService isn't deployed yet**
+— a teaching demo of "what does the saga look like when downstream is absent?"
+
+**Deliverables:**
+- [ ] GitHub Actions: build CatalogService + OrderService images → push to GHCR
+- [ ] Dokploy apps for Catalog + Order, webhook-triggered deploy on image push
+- [ ] Both services wired to their DB containers (Catalog→Postgres,
+      Order→SQL Server) + RabbitMQ + Keycloak, all over the internal network
+- [ ] gRPC Catalog ↔ Order over the internal network
+- [ ] JWT validation against the Keycloak container
+- [ ] `DemoMode` flag applied to OrderService (Catalog already has it) — the
+      existing `ForwardedHeaders` handling works behind Traefik exactly as it
+      does behind Fly's proxy
+- [ ] Minimal Storefront deployed — single "place an order" flow
+- [ ] End-to-end smoke: log in via Keycloak, place an order, watch it persist +
+      stage `OrderPlacedEvent`, see the saga stall (no PaymentService)
+
+**Risk callouts.**
+- Traefik routing + the `DemoMode` forwarded-headers path — verify Scalar's
+  try-it-out works over HTTPS (same mixed-content gotcha the Fly deploy hit).
+- GHCR auth from Dokploy — the webhook pull needs a GHCR read token.
+
+**Definition of done.** Public URL; log in, place an order, see it stall at
+payment, all on the Hetzner box.
+
+### Phase 2 — Full saga (Payment + Shipping + Notification)
+
+**Goal.** Deploy the remaining three services so the saga completes end-to-end
+with stubbed Stripe.
+
+**Deliverables:**
+- [ ] GitHub Actions + Dokploy apps for PaymentService, ShippingService,
+      NotificationService (same image→GHCR→webhook pattern)
+- [ ] All three wired to their DBs + RabbitMQ + Keycloak on the internal network
+- [ ] `DemoMode` flag sweep — apply to Payment, Shipping, Notification
+- [ ] Stripe stub remains; optionally richer (latency variation, decline-by-amount)
+- [ ] Banner in Storefront: *"Payments are stubbed for demo safety"*
+
+**Risk callouts.**
+- RabbitMQ topology — confirm exchanges/queues match the saga's event routing
+  (the old ASB topic/subscription names map to RabbitMQ exchanges/queues).
+- Box load with all 5 services + infra running — watch RAM/CPU headroom.
+
+**Definition of done.** Place an order, watch it flow Payment (stubbed) →
+Shipping → Notification end-to-end. Visible in Seq.
+
+### Phase 3 — Polish (observability + ops + UX)
+
+**Goal.** Make it demoable to other humans.
+
+**Deliverables:**
+- [ ] Wire all services' OpenTelemetry OTLP export to the Seq container
+      (`http://seq:5341/ingest/otlp/v1/traces` on the internal network). Seq is
+      already running from Phase 0. **Gotcha:** pin `OpenTelemetry.Instrumentation.*`
+      versions explicitly in `Directory.Packages.props` — non-stable RC versions
+      (e.g. StackExchangeRedis) differ across major bumps.
+- [ ] Seq dashboards for the saga flow (one timeline per Order, CorrelationId-keyed)
+- [ ] Storefront UX polished enough to live-demo (minimal, not feature-rich)
+- [ ] `README` "Try the live demo" section — URL, test credentials, expected flow
+- [ ] Security pass — the box is internet-facing; review every IDOR / JWT /
+      rate-limit boundary against the live surface
+- [ ] Cost confirmation (fixed VPS; just confirm no surprise add-ons)
+
+**Note on rate limiting:** on a single box each service runs as a single
+instance, so the in-memory ASP.NET Core limiter is correct — the Redis-backed
+swap (CLAUDE.md "Security Requirements → Rate Limiting") only becomes necessary
+if a service is scaled to multiple Dokploy replicas. Single-replica is the
+default here, so this is N/A unless we deliberately scale out.
+
+**Risk callouts.**
+- Storefront UX scope creep — keep it minimal, the demo is the architecture.
+- Internet-exposed security surface — the explicit security pass is the
+  mitigation. Don't share the URL before it's done.
+
+**Definition of done.** Send the live URL to someone who's never seen the
+codebase; they place an order and watch the saga complete in Seq.
+
+---
+
+## What happens to the existing Fly CatalogService demo
+
+The current [Fly.io CatalogService demo](demo-deployment-story.md) predates this
+plan. Two options once the Hetzner Catalog is verified in Phase 1:
+- **Retire it** — the Hetzner box becomes the single demo home (one URL, full
+  saga). Cleaner story.
+- **Keep it** as a "single-service PaaS reference" alongside the Hetzner
+  full-saga demo, if the contrast is useful.
+
+Decide in Phase 1; no need to commit now. The Fly demo's `DemoMode` +
+`ForwardedHeaders` machinery is reused on Hetzner regardless (Traefik terminates
+TLS + forwards HTTP just like Fly's proxy), so the work isn't wasted either way.
 
 ---
 
@@ -320,28 +376,29 @@ JWT validation config-driven, so this phase is pure infrastructure.
 |---|---|---|---|---|---|
 | (none yet) | | | | | |
 
-Existing CatalogService demo (separate ledger): ~$0–$5/mo on Fly.io (scale-to-zero, $25 prepaid cap).
+Existing CatalogService Fly demo (separate ledger): ~$0–$5/mo (scale-to-zero, $25 prepaid cap).
 
 ---
 
 ## Prerequisites before any phase starts
 
-- [ ] All four open decisions (D1–D4) resolved and captured in this doc
-- [ ] Fly.io account billing set up with a hard spend cap matching D4
-- [ ] Identity provider account created per D2
-- [ ] Messaging provider account created per D3 (if D3 ≠ Fly-native)
-- [ ] Branch convention agreed: `deploy/phase-1-order-saga-visible`, etc.
+- [x] D3 sub-point confirmed (2026-05-27): RabbitMQ-deployed-only — dev keeps
+      the ASB emulator, transport branches on environment config
+- [ ] Hetzner account + billing alert set
+- [ ] GHCR access token for Dokploy's image pulls
+- [ ] Domain/subdomain for the demo (for Traefik routing + Let's Encrypt)
+- [ ] Branch convention: `deploy/phase-0-vps-infra`, `deploy/phase-1-order-saga`, etc.
 
 ---
 
 ## Related docs
 
 - [docs/demo-deployment.md](demo-deployment.md) — Recipe for the existing
-  single-service (CatalogService) Fly.io deployment. Phase 1 builds on this.
+  single-service (CatalogService) Fly.io deployment. The `DemoMode` +
+  `ForwardedHeaders` machinery carries over to the Hetzner Traefik setup.
 - [docs/demo-deployment-story.md](demo-deployment-story.md) — Narrative of the
-  single-service deployment, gotchas, decisions. Useful context for what to
-  expect in Phase 1.
+  single-service Fly deployment, gotchas, decisions. Context for what to expect.
 - [docs/STATUS.md](STATUS.md) — Cross-session entry point. Has a one-line
   pointer to this doc under "Next" (currently the active multi-PR effort).
-- [README.md](../README.md) — Demo URL + scope callout will need updating
-  after Phase 2 lands.
+- [README.md](../README.md) — Demo URL + scope callout will need updating after
+  Phase 2 lands.
