@@ -44,10 +44,18 @@ namespace PaymentService.Features;
 /// sweeper still picks up stuck Pendings and marks them Failed (no behavior regression).</para>
 ///
 /// <para><b>Idempotency on the Gateway handler</b> (re-deliveries of
-/// <see cref="PaymentProcessingRequested"/>): pre-check <c>Payment.Status</c> — if not
-/// Pending, return. This handles every redelivery scenario except the
-/// "Stripe charged but process crashed before MarkAsCompleted" double-charge race, which
-/// requires gateway-side idempotency keys (tracked separately in STATUS.md).</para>
+/// <see cref="PaymentProcessingRequested"/>): two layers.
+/// <list type="number">
+///   <item><b>Local status guard:</b> pre-check <c>Payment.Status</c> — if not Pending,
+///         return. Handles the common redelivery case (prior delivery already drove this
+///         Payment through to Completed/Failed and saved).</item>
+///   <item><b>Gateway-side idempotency key:</b> the call passes <c>Payment.Id.ToString()</c>
+///         as Stripe's <c>Idempotency-Key</c>. Closes the "Stripe charged but process
+///         crashed before MarkAsCompleted" race — on redelivery the status guard still
+///         passes (Payment is still Pending), but Stripe recognizes the duplicate key
+///         and returns the original response instead of re-charging. See
+///         <see cref="IPaymentGateway"/> XML doc for provider semantics.</item>
+/// </list></para>
 /// </summary>
 public record ProcessPaymentCommand(Guid OrderId, decimal Amount, string Currency, Guid BuyerId);
 
@@ -191,7 +199,12 @@ public class PaymentProcessingRequestedHandler(
         if (payment.Status != PaymentStatus.Pending)
             return;
 
-        var result = await gateway.ProcessPaymentAsync(payment.Amount, payment.Currency, cancellationToken);
+        // Gateway-side idempotency: pass payment.Id as the Stripe Idempotency-Key. This
+        // closes the "Stripe charged but process crashed before MarkAsCompleted" race — on
+        // redelivery the status guard above passes (still Pending), but Stripe recognizes
+        // the duplicate key and returns the original response without re-charging. See
+        // IPaymentGateway XML doc for the provider semantics.
+        var result = await gateway.ProcessPaymentAsync(payment.Amount, payment.Currency, payment.Id.ToString(), cancellationToken);
 
         if (result.Success)
         {
