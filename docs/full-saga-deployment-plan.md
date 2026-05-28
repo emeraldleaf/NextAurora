@@ -139,6 +139,13 @@ delay honestly in the demo copy.
 - [ ] `README` "Try the live demo" section with auth credentials, expected
       flow, known cold-start gotchas
 - [ ] Cost dashboard + monthly review cadence
+- [ ] **Rate-limit audit + Redis-backed swap if multi-instance.** Catalog
+      search + Payment process both use ASP.NET Core's built-in in-memory
+      limiter. If any service runs 2+ Fly Machines for resilience after
+      Phase 2, the in-memory limit silently multiplies by N — bypassable.
+      Swap those endpoints to a Redis-backed limiter using the Redis
+      instance already present for HybridCache. See CLAUDE.md
+      "Security Requirements → Rate Limiting" for the rule details.
 
 **Risk callouts.**
 - Storefront UX scope creep — keep it minimal, the demo is the architecture
@@ -175,19 +182,32 @@ footnote explaining the demo exception.
   rule is still genuine for dev/learning.
 - Free with Fly Postgres → keeps Phase 1 cost ≤ $15/mo target.
 
-### D2 — Identity provider → **Auth0 free tier**
+### D2 — Identity provider → **Keycloak self-hosted on Fly**
 
-7k MAU free, simplest setup (paste OIDC config). Local dev keeps Keycloak in
-the Aspire container; deployed environment points at the Auth0 tenant.
+Same IdP in dev and prod. The local Aspire-managed Keycloak container already
+imports `realms/nextaurora-realm.json` on boot — the deployed Keycloak does
+the same with the same realm export. One IdP, one realm, two environments.
+Removes a class of "works in dev, breaks in prod" bugs around realm shape,
+claim names, and test users.
 
 **Implications:**
-- Auth0 tenant setup (one-time).
-- `Authentication:Authority` config swaps to the Auth0 issuer URL in deployed
-  environments. ServiceDefaults already reads from config — no code change.
-- Test buyer + seller users in Auth0 (matching the test users currently in
-  the local Keycloak realm).
-- JWT claim mapping (`sub`, `preferred_username`, `realm_access.roles`) needs
-  verification — Auth0's claim names may differ from Keycloak's.
+- **Keycloak Fly app + Postgres database** for Keycloak's own state
+  (~$5-10/mo for the Fly Machine; Postgres free with Fly's shared instance).
+- **Realm import on boot** via `KC_DB_*` + `KEYCLOAK_ADMIN*` env vars +
+  `--import-realm` startup flag pointing at the volume-mounted realm export.
+- **Persistent volume** for Keycloak's data dir so realm changes (new users,
+  password resets) survive Machine restarts.
+- **Two-stage readiness probe** — Keycloak serves HTTP before the realm
+  import completes; health check has to know about both. Documented gotcha
+  in the article.
+- **Boot cost** — Keycloak is a Java app, ~512MB RAM minimum, ~30-60s cold
+  start. Scale-to-zero is unrealistic; keep one Machine always-on or accept
+  the first-request wait.
+- **Realm export workflow** — `kc.sh export` from local Keycloak → commit
+  the JSON → deploy reads it. Document this in the deployment recipe.
+- ServiceDefaults JWT config is already config-driven; deployed
+  `Authentication:Authority` points at the Fly Keycloak URL. Zero code
+  change in any service.
 
 ### D3 — Messaging transport → **AWS SQS+SNS free tier**
 
@@ -219,11 +239,12 @@ an AWS provider package.
 
 ## Implementation order
 
-Given the resolved decisions, Phase 1 splits naturally into two sub-PRs:
+Given the resolved decisions, Phase 1 splits naturally into three sub-PRs.
+Each is independently shippable.
 
 ### Phase 1A — Postgres provider swap (code only, no deployment)
 
-**Goal.** Land the dual-provider config plumbing in `main` so Phase 1B's
+**Goal.** Land the dual-provider config plumbing in `main` so Phase 1C's
 deployment can simply set `DatabaseProvider=Postgres` and pick up the right
 EF + Wolverine + concurrency-token combo.
 
@@ -241,15 +262,45 @@ EF + Wolverine + concurrency-token combo.
       Postgres Testcontainer slice for the new path)
 - [ ] README footnote: "demo deployment uses Postgres-only as an exception"
 
-### Phase 1B — Deploy Order + minimal Storefront
+### Phase 1B — Deploy Keycloak self-hosted on Fly (infrastructure, no service code change)
 
-**Goal.** Phase 1's original goal: deployed Order saga visible.
+**Goal.** Stand up the deployed identity provider before any application
+service tries to validate JWTs against it. ServiceDefaults already handles
+JWT validation config-driven, so this phase is pure infrastructure.
+
+**Deliverables:**
+- [ ] Fly Postgres database provisioned for Keycloak's state
+- [ ] `Dockerfile.keycloak` + `fly.keycloak.toml` + GitHub Actions deploy
+      workflow for Keycloak
+- [ ] Persistent volume for Keycloak data dir
+- [ ] Realm export workflow documented in [demo-deployment.md](demo-deployment.md):
+      `kc.sh export --realm nextaurora` from local dev → commit the JSON →
+      deploy reads it on boot
+- [ ] Two-stage readiness probe (Keycloak serves HTTP before realm import
+      completes; both have to be green before traffic flows)
+- [ ] Test users from local realm (buyer, seller, admin) imported in deployed
+      Keycloak
+- [ ] Documented public Keycloak URL for future services to point at via
+      `Authentication:Authority` env var
+- [ ] Cost verification — Fly Machine for Keycloak + free Postgres ≤ $10/mo
+
+**Risk callouts.**
+- Keycloak cold start is real (~30-60s for Java + realm import). Either keep
+  one Machine always-on (cost) or accept the first-request wait in demo copy.
+- Realm export format can change across Keycloak versions; pin the version
+  in `Dockerfile.keycloak` and document the export-format-version dependency.
+
+### Phase 1C — Deploy Order + minimal Storefront
+
+**Goal.** Phase 1's original visible-saga goal: deployed Order with auth.
 
 **Deliverables:** as already listed in Phase 1 above, plus:
-- [ ] Auth0 tenant set up with test buyer/seller users
 - [ ] Fly Postgres provisioned for OrderService
-- [ ] OrderService deployed with `DatabaseProvider=Postgres`
+- [ ] OrderService deployed with `DatabaseProvider=Postgres` and
+      `Authentication:Authority` pointing at deployed Keycloak (1B)
 - [ ] Minimal Storefront deployed
+- [ ] End-to-end smoke test: log into Storefront with Keycloak test user,
+      place an order, watch it stall at payment
 
 ---
 
