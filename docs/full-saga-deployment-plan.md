@@ -33,7 +33,7 @@ can pick up coherently instead of re-deriving the plan.
 - Real messaging (transport TBD — see decision D3)
 - Real Redis (Upstash or Fly Redis)
 - Hosted identity (TBD — see decision D2)
-- Real telemetry (App Insights or OpenTelemetry ingestion)
+- Real telemetry (Seq self-hosted on Fly, OTLP-ingested — see Phase 3)
 - Storefront UI with a working checkout flow (minimum viable, not polished)
 - Stripe gateway stubbed; UI banner: *"Payments are stubbed for demo safety"*
 
@@ -133,7 +133,17 @@ delay honestly in the demo copy.
 **Goal.** Make it actually demoable to other humans.
 
 **Deliverables.**
-- [ ] Real telemetry endpoint wired (App Insights or OpenTelemetry collector)
+- [ ] **Real telemetry endpoint wired — Seq self-hosted on Fly.** Seq is the
+      strongest fit for this deployment shape: unified logs + traces in one
+      UI (no "App Insights for traces, somewhere-else for logs" split),
+      self-hostable on Fly with a persistent volume (matches the Keycloak
+      pattern from D2), free tier covers demo scope, OTLP-native so it
+      slots into the existing OpenTelemetry export with one config-line
+      change (`http://seq:5341/ingest/otlp/v1/traces`). Gotcha to pin
+      around: `OpenTelemetry.Instrumentation.*` packages — non-stable RC
+      versions for instrumentations like StackExchangeRedis differ across
+      major bumps, so pin versions explicitly in `Directory.Packages.props`
+      rather than relying on floating ranges.
 - [ ] Dashboards for the saga flow (one timeline per Order, CorrelationId-keyed)
 - [ ] Storefront UX polished enough to live-demo (minimal, not feature-rich)
 - [ ] `README` "Try the live demo" section with auth credentials, expected
@@ -332,6 +342,6 @@ Existing CatalogService demo (separate ledger): ~$0–$5/mo on Fly.io (scale-to-
   single-service deployment, gotchas, decisions. Useful context for what to
   expect in Phase 1.
 - [docs/STATUS.md](STATUS.md) — Cross-session entry point. Has a one-line
-  pointer to this doc under "Open issues."
+  pointer to this doc under "Next" (currently the active multi-PR effort).
 - [README.md](../README.md) — Demo URL + scope callout will need updating
   after Phase 2 lands.
