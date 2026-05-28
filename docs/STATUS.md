@@ -100,7 +100,7 @@ These two commits collectively add:
 
 ## Next
 
-**Active multi-PR effort:** [Full-saga demo deployment](full-saga-deployment-plan.md) — four-phase plan to stand up NextAurora as a portfolio-grade demo running the full Order → Payment → Shipping → Notification saga on a **single self-hosted Hetzner VPS managed by Dokploy** (Stripe stubbed). Decisions revised 2026-05-27 for Hetzner: D1 keep both DB engines as containers (no provider swap — perfect dev/prod parity), D2 Keycloak as a Dokploy container (always-warm), D3 RabbitMQ container (no cross-cloud seam), D4 ~€16/mo CX42 VPS / $50 hard ceiling. Next concrete work: Phase 0 (provision the box + Dokploy + infra containers — Postgres, SQL Server, Redis, RabbitMQ, Keycloak, Seq). One sub-point to confirm before starting: RabbitMQ-everywhere vs RabbitMQ-deployed-only (see plan D3).
+**Active multi-PR effort:** [Full-saga demo deployment](full-saga-deployment-plan.md) — four-phase plan to stand up NextAurora as a portfolio-grade demo running the full Order → Payment → Shipping → Notification saga on a **single self-hosted Hetzner VPS managed by Dokploy** (Stripe stubbed). Decisions revised 2026-05-27 for Hetzner: D1 keep both DB engines as containers (no provider swap — perfect dev/prod parity), D2 Keycloak as a Dokploy container (always-warm), D3 RabbitMQ container — deployed-only, dev keeps the ASB emulator, transport branches on env config (RabbitMQ core is free MPL-2.0 OSS; Wolverine abstracts the transport so RabbitMQ↔ASB is a per-service Program.cs swap, no lock-in), D4 ~€16/mo CX42 VPS / $50 hard ceiling. Next concrete work: Phase 0 (provision the box + Dokploy + infra containers — Postgres, SQL Server, Redis, RabbitMQ, Keycloak, Seq).
 
 **Active item:** smoke-run the system end-to-end.
 

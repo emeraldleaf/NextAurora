@@ -148,33 +148,67 @@ internal Docker network as the services.
   its Traefik-routed hostname for the browser-facing auth-code flow). Zero
   service code change.
 
-### D3 — Messaging transport → **RabbitMQ as a container (dev + deployed)**
+### D3 — Messaging transport → **RabbitMQ container in deployed; dev keeps the ASB emulator (config-driven, swappable)**
 
-**Changed from the Fly plan.** On Fly, D3 was AWS SQS+SNS (free tier, but
-cross-cloud). On one box, run the broker as a container on the internal network
-— no cross-cloud, no AWS credentials, no egress. Recommend **RabbitMQ** over
-NATS: it maps cleanly onto the existing Azure Service Bus topic/subscription
-topology (exchanges + queues), Wolverine has a first-class RabbitMQ transport,
-and the management UI is a nice demo artifact.
+**Changed from the Fly plan, sub-point resolved 2026-05-27.** On Fly, D3 was
+AWS SQS+SNS (free tier, but cross-cloud). On one box, run **RabbitMQ** as a
+container on the internal network — no cross-cloud, no AWS credentials, no
+egress. RabbitMQ over NATS because it maps cleanly onto the existing Azure
+Service Bus topic/subscription topology (exchanges + queues), Wolverine has a
+first-class RabbitMQ transport, and the management UI is a nice demo artifact.
+
+**Resolved: RabbitMQ in the deployed environment only; dev keeps the Azure
+Service Bus emulator already wired in the Aspire AppHost.** The transport is
+selected by environment config so the two don't fight. Chose deployed-only over
+RabbitMQ-everywhere because it leaves the working dev setup untouched, and the
+dev/prod transport difference costs almost nothing here (see the
+Wolverine-abstraction note below — handlers, outbox, saga are identical
+regardless of transport). Can flip to RabbitMQ-everywhere later for ~free if
+the ASB emulator's flakiness (see STATUS.md's smoke-test debugging arc) becomes
+annoying in dev.
+
+**RabbitMQ licensing (verified 2026-05-27):** the core broker is **MPL 2.0,
+free and open-source, self-host at no cost, no vendor lock-in.** Broadcom's
+commercial offering — **Tanzu RabbitMQ** (24/7 support, DR, compliance
+assistance) — is a separate product for mission-critical shops wanting a
+support contract; the OSS broker we'd run as a container is untouched by it and
+needs no license. (If even-stronger no-rug-pull governance ever mattered, NATS
+is CNCF-foundation-governed — but it doesn't map onto the topic/subscription
+model as cleanly, so RabbitMQ wins here.)
+
+**Why the transport choice is low-stakes — Wolverine abstracts it.** The only
+transport-specific code is a ~3-5 line block in each event-publishing service's
+`Program.cs`. Everything else is transport-agnostic, so neither the RabbitMQ
+choice nor a future move to Azure Service Bus (e.g. if NextAurora ever goes
+all-Azure) is a lock-in — it's a localized config swap, not a rewrite:
+
+```csharp
+// What changes per service (Order, Payment, Shipping, Notification):
+opts.UseAzureServiceBus(conn);                       // ← UseRabbitMq(conn)
+opts.PublishMessage<PaymentCompletedEvent>()
+    .ToAzureServiceBusTopic("payment-events");       // ← .ToRabbitExchange("payment-events")
+opts.ListenToAzureServiceBusSubscription("order-events/payment-orders-sub");
+                                                     // ← .ListenToRabbitQueue("payment-orders")
+
+// What does NOT change — transport-agnostic:
+opts.PersistMessagesWithSqlServer(db, "wolverine");  // outbox = DB concern
+opts.Policies.AutoApplyTransactions();               // outbox staging
+opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+opts.AddNextAuroraContextPropagation();              // correlation/user/session
+// + every handler, the entire saga, all domain logic
+```
 
 **Implications:**
-- **For maximum parity, use RabbitMQ in dev too** — swap the Aspire AppHost's
-  Azure Service Bus emulator resource for a RabbitMQ container resource. Then
-  dev and deployed run the identical transport. (The ASB emulator has been a
-  source of gotchas — see STATUS.md's smoke-test debugging arc — so RabbitMQ
-  everywhere may be *more* reliable, not just more parallel.)
-- `Program.cs` in each event-publishing service: `UseAzureServiceBus(...)` →
-  `UseRabbitMq(...)`. Topic→exchange, subscription→queue mapping. Config-driven
-  so the transport is environment-selectable if we want to keep ASB emulator in
-  dev after all.
 - `Wolverine.RabbitMQ` added to `Directory.Packages.props`.
-- The transactional outbox is **unaffected** — the outbox is a DB concern
-  (`PersistMessagesWith{SqlServer|Postgresql}`), independent of the wire
-  transport. Only the `UseAzureServiceBus` → `UseRabbitMq` line changes.
-- **Decision sub-point to confirm:** RabbitMQ-everywhere (touches dev AppHost)
-  vs RabbitMQ-deployed-only (transport branches on environment, dev keeps ASB
-  emulator). Recommend everywhere for parity; flag because it touches the
-  working dev setup.
+- Each event-publishing service's `Program.cs` transport block branches on
+  environment: ASB emulator in `Development`, RabbitMQ in deployed. Topic→
+  exchange, subscription→queue mapping.
+- The transactional outbox is **unaffected** — it's a DB concern
+  (`PersistMessagesWith{SqlServer|Postgresql}`, which per D1 is SqlServer for
+  Order+Payment, Postgresql for Catalog+Shipping), independent of the wire
+  transport.
+- The RabbitMQ container is provisioned in Phase 0 with its management UI; the
+  service transport-config branch lands when each service deploys (Phase 1-2).
 
 ### D4 — Cost ceiling → **~€16/mo VPS, $50/mo hard ceiling**
 
@@ -348,8 +382,8 @@ Existing CatalogService Fly demo (separate ledger): ~$0–$5/mo (scale-to-zero, 
 
 ## Prerequisites before any phase starts
 
-- [ ] D3 sub-point confirmed: RabbitMQ-everywhere (touches dev AppHost) vs
-      RabbitMQ-deployed-only (transport branches on environment)
+- [x] D3 sub-point confirmed (2026-05-27): RabbitMQ-deployed-only — dev keeps
+      the ASB emulator, transport branches on environment config
 - [ ] Hetzner account + billing alert set
 - [ ] GHCR access token for Dokploy's image pulls
 - [ ] Domain/subdomain for the demo (for Traefik routing + Let's Encrypt)
