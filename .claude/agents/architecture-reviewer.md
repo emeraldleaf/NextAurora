@@ -132,6 +132,7 @@ Also applies generally to new port-adapter additions (`I*Sender`, `I*Gateway`, `
 - **No mutable collection exposure.** `public IReadOnlyList<T>` over `private readonly List<T> _items`; add via named methods (`AddLine`), not direct mutation.
 - **Layer dependencies.** Domain depends on nothing — no EF, no logging, no Wolverine.
 - **Concurrency token present** (Postgres `xmin` shadow or SQL Server `RowVersion` shadow byte[] property in DbContext config — entity itself stays clean).
+- **Entity ID generation uses `Guid.CreateVersion7()`, not `Guid.NewGuid()` (Should-consider on new aggregate factories).** UUID v7 is time-ordered, so PK inserts append-extend the index instead of fragmenting it. .NET 9+ API. Flag a `Guid.NewGuid()` call inside a new `static Create(...)` factory method on an aggregate. **Don't** recommend sweeping existing factories — the rule applies opportunistically; existing v4 IDs in the DB coexist fine with new v7 IDs (same `Guid` column, no migration). **Aligned** when a new factory uses `Guid.CreateVersion7()`. **Should-consider** when the new ID is exposed publicly AND the mint time is sensitive (security tokens, admin-only refs) — there, keep `Guid.NewGuid()` with an inline comment explaining why. See CLAUDE.md "Performance Rules → Entity IDs use Guid.CreateVersion7()".
 
 ### When reviewing tests (`tests/**/*.cs`)
 

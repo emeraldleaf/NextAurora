@@ -153,6 +153,27 @@ reviews:
         validation, never public setters. Currency must be 3 chars; Price > 0; stock
         non-negative.
 
+        ENTITY ID GENERATION (Should-consider on new aggregate factory using
+        Guid.NewGuid()). Aggregate factory methods (`static Create()` on Order,
+        Payment, Shipment, Product, Category, etc.) should mint entity IDs with
+        `Guid.CreateVersion7()`, not `Guid.NewGuid()`. UUID v7 is time-ordered
+        (first 48 bits = Unix-ms timestamp), so PK inserts append-extend the
+        B-tree index instead of fragmenting it. .NET 9+ API, same `Guid` type,
+        no third-party package needed.
+
+        Trade-off worth flagging: v7's timestamp is decodable from the ID, so
+        the mint time leaks to anyone holding it. Acceptable for buyer-scoped
+        resources (IDOR-gated) and naturally-timestamped public resources
+        (Product creation time isn't sensitive). DO NOT use v7 for IDs where
+        the mint time IS sensitive (security tokens, admin-only references) —
+        in those cases keep `Guid.NewGuid()` and note the reason inline.
+
+        Don't recommend a sweep of existing `Guid.NewGuid()` call sites — the
+        rule applies opportunistically to new aggregate code; existing v4 IDs
+        in the DB coexist fine with new v7 IDs (same column, no migration).
+
+        See CLAUDE.md "Performance Rules → Entity IDs use Guid.CreateVersion7()".
+
     - path: "**/Infrastructure/DependencyInjection.cs"
       instructions: |
         Port registrations. Flag two distinct patterns:
