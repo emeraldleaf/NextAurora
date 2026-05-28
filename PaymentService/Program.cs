@@ -26,7 +26,8 @@ builder.AddServiceDefaults();
 // its own; a client hitting any Machine gets a fresh 10-allowance). Fix at that point:
 // swap to a Redis-backed limiter, with the increment + TTL pair wrapped in a Lua `EVAL`
 // so it's atomic under concurrency. Tracked as a Phase 3 deliverable in
-// docs/full-saga-deployment-plan.md. See CLAUDE.md "Security Requirements → Rate Limiting".
+// docs/full-saga-deployment-plan.md. Rule: Security Requirements → Rate Limiting.
+// See CLAUDE.md.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
