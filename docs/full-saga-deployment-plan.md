@@ -339,12 +339,17 @@ Shipping → Notification end-to-end. Visible in Seq.
       client side of the 202 Accepted pattern. The upgrade: an SSE endpoint
       (`text/event-stream`) that pushes status transitions to the Storefront as
       the saga advances, so the buyer watches the order move Placed → Paid →
-      Shipped → Notified **live**. ASP.NET Core has native SSE support
-      (`IAsyncEnumerable<T>` streamed as `text/event-stream`); a Wolverine
-      handler subscribed to the saga events fans each status delta to connected
-      clients — in-process, no backplane needed since the box runs one instance
-      of each service. Works behind Traefik (SSE is just a long-lived HTTP
-      response). **Why it's a candidate, not a requirement:** polling already
+      Shipped → Notified **live**. Use .NET 10's dedicated SSE result —
+      `TypedResults.ServerSentEvents(IAsyncEnumerable<SseItem<T>>)` — which emits
+      the correct wire framing (`data:` lines, the `\n\n` frame delimiter, and
+      optional `event:`/`id:`/`retry:` fields). Don't hand-roll a raw
+      `IAsyncEnumerable<T>` with `Content-Type: text/event-stream` set manually —
+      that does NOT produce valid SSE frames on its own and is the easy mistake
+      here. A Wolverine handler subscribed to the saga events fans each status
+      delta into the stream — in-process, no backplane needed since the box runs
+      one instance of each service. Works behind Traefik (SSE is just a
+      long-lived HTTP response; ensure proxy response-buffering is off so frames
+      flush immediately). **Why it's a candidate, not a requirement:** polling already
       satisfies the demo; SSE is a "watch it happen" upgrade — high demo value,
       zero correctness value. Scope it only if Phase 3 has runway after the
       required deliverables. (SSE is item #7 on the production-readiness checklist
