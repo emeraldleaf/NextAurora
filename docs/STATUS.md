@@ -100,6 +100,8 @@ These two commits collectively add:
 
 ## Next
 
+**Active multi-PR effort:** [Full-saga demo deployment](full-saga-deployment-plan.md) — three-phase plan to stand up NextAurora as a portfolio-grade demo running the full Order → Payment → Shipping → Notification saga over real cloud infrastructure (Stripe stubbed). Currently planning; four open decisions (D1–D4) block Phase 1.
+
 **Active item:** smoke-run the system end-to-end.
 
 ### How to run
