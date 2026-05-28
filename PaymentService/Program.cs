@@ -18,6 +18,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
+// Fixed-window limiter for the manual /payments/process endpoint: 10 requests / 10s.
+// Counter is in-process (ASP.NET Core's built-in `AddFixedWindowLimiter`). Correct here
+// today — PaymentService isn't deployed yet, and the deployment plan starts it as
+// single-instance. **If/when this service scales to 2+ Machines** for resilience, the
+// in-memory counter silently multiplies the effective limit by N (each Machine enforces
+// its own; a client hitting any Machine gets a fresh 10-allowance). Fix at that point:
+// swap to a Redis-backed limiter, with the increment + TTL pair wrapped in a Lua `EVAL`
+// so it's atomic under concurrency. Tracked as a Phase 3 deliverable in
+// docs/full-saga-deployment-plan.md. Rule: Security Requirements → Rate Limiting.
+// See CLAUDE.md.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

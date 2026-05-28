@@ -257,6 +257,32 @@ reviews:
         See CLAUDE.md "Performance Rules → Long-running work belongs on the
         message bus, not the synchronous HTTP handler".
 
+        RATE-LIMIT SHAPE (Should-consider on single-instance, Must-fix on
+        multi-instance scale). ASP.NET Core's built-in RequireRateLimiting +
+        AddFixedWindowLimiter / AddSlidingWindowLimiter store counters
+        in-process — correct for single-instance deployment, but the limit
+        silently multiplies by N when scaled to N instances (each instance
+        enforces its own counter, a client hitting any instance gets a fresh
+        allowance). NextAurora is single-instance everywhere today so the
+        in-memory limiter is correct.
+
+        Flag two scenarios:
+        1. A new `RequireRateLimiting` on an endpoint without a comment at the
+           call site or registration site (`AddFixedWindowLimiter` /
+           `AddSlidingWindowLimiter` in `Program.cs`) justifying why in-memory
+           is correct for current scale + naming the swap-to-Redis trigger.
+        2. A deployment-config PR (`Dockerfile.*`, `fly.toml`, GitHub Actions
+           deploy workflow) that scales a rate-limited service past 1 Machine
+           without a paired swap to a Redis-backed limiter.
+
+        The fix when scale-out happens: Redis-backed limiter using the
+        existing HybridCache Redis. The increment + TTL pair (INCR then
+        EXPIRE) has a race window under concurrency — wrap in a Lua script
+        via EVAL so the operation is atomic.
+
+        See CLAUDE.md "Security Requirements → Rate Limiting" +
+        docs/full-saga-deployment-plan.md Phase 3 audit deliverable.
+
     - path: "**/*RecoveryJob*.cs"
       instructions: |
         BackgroundService sweepers + recovery jobs run OUTSIDE Wolverine's handler pipeline,
