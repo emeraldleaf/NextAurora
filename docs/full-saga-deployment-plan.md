@@ -152,59 +152,104 @@ codebase; they can place an order and watch the saga complete.
 
 ---
 
-## Open decisions
+## Resolved decisions (2026-05-27)
 
-These block Phase 1. Resolve before infrastructure provisioning starts.
+### D1 — SQL Server hosting → **Postgres-only-for-demo (provider swap)**
 
-### D1 — SQL Server hosting
+Deployed shape uses Postgres for all four services with state. Dev environment
+keeps the two-engine split (SQL Server for Order + Payment, Postgres for
+Catalog + Shipping) — the "two engines on purpose" architectural story is
+still genuine in the dev/learning context; the deployed shape gets a README
+footnote explaining the demo exception.
 
-OrderService + PaymentService both use SQL Server (RowVersion shadow column +
-Wolverine outbox via `PersistMessagesWithSqlServer`). Options:
+**Implications:**
+- **Provider swap on Order + Payment.** Both services need
+  `PersistMessagesWithPostgresql` (currently `PersistMessagesWithSqlServer`)
+  and `xmin` concurrency tokens (currently `RowVersion` shadow column).
+  Config-driven via a `DatabaseProvider` setting so dev keeps SQL Server.
+- **Postgres-flavored migrations** for Order + Payment. Either regenerate
+  from scratch against the Postgres provider, or maintain parallel migration
+  histories per provider (EF Core supports `ContextType` partitioning).
+- **README footnote.** "Two database engines on purpose" gets a "demo
+  deployment exception" callout linking here. CLAUDE.md unchanged — the
+  rule is still genuine for dev/learning.
+- Free with Fly Postgres → keeps Phase 1 cost ≤ $15/mo target.
 
-- **(a) Azure SQL Database serverless with auto-pause.** ~$15-30/mo for two
-  databases. Auto-pause after 1h idle → cold start on first request after
-  pause (~30s spin-up).
-- **(b) Postgres-only-for-demo with provider swap.** Free with Fly Postgres.
-  Requires swapping Order + Payment to `xmin` concurrency + `PersistMessagesWithPostgresql`
-  outbox. README "two engines on purpose" framing gets a "demo deployment
-  exception" footnote.
-- **(c) Defer the decision** — deploy Phase 1 (Order only) on Postgres
-  temporarily, re-evaluate after seeing real cold-start + cost data.
+### D2 — Identity provider → **Auth0 free tier**
 
-### D2 — Identity provider
+7k MAU free, simplest setup (paste OIDC config). Local dev keeps Keycloak in
+the Aspire container; deployed environment points at the Auth0 tenant.
 
-Local dev uses Keycloak in an Aspire container. For deployed: options:
+**Implications:**
+- Auth0 tenant setup (one-time).
+- `Authentication:Authority` config swaps to the Auth0 issuer URL in deployed
+  environments. ServiceDefaults already reads from config — no code change.
+- Test buyer + seller users in Auth0 (matching the test users currently in
+  the local Keycloak realm).
+- JWT claim mapping (`sub`, `preferred_username`, `realm_access.roles`) needs
+  verification — Auth0's claim names may differ from Keycloak's.
 
-- **(a) Keycloak self-hosted on Fly.** Free-ish but operationally heavy
-  (DB, persistence, realm import on boot).
-- **(b) Auth0 free tier.** 7k MAU free. Simpler, but vendor lock-in. JWT
-  validation config in ServiceDefaults stays the same.
-- **(c) Azure AD B2C free tier.** 50k MAU free. Deeper Azure integration,
-  same JWT story.
-- **(d) Static JWKS with hardcoded test users.** Zero cost. Fake auth — only
-  acceptable if banner is explicit ("this is a demo, anyone can log in as
-  the test buyer").
+### D3 — Messaging transport → **AWS SQS+SNS free tier**
 
-### D3 — Messaging transport
+Free tier covers 1M req/mo, comfortably more than demo volume. Wolverine has
+an AWS provider package.
 
-Currently uses Azure Service Bus via Aspire emulator (dev only). Options:
+**Implications:**
+- AWS account setup + IAM user for the demo with SQS/SNS-only permissions.
+- `Wolverine.AmazonSqs` (and SNS support if needed) added to
+  `Directory.Packages.props`.
+- `Program.cs` in each event-publishing service: `UseAzureServiceBus(...)` →
+  `UseAmazonSqs(...)`. Config-driven so local dev keeps the ASB emulator.
+- Topic/subscription topology recreated as SQS queues + SNS topics. The
+  existing per-service subscription names (e.g. `notify-orders-sub`) map to
+  SQS queue names; topics (`order-events`, `payment-events`) map to SNS
+  topics.
+- AWS credentials wiring: env vars in Fly Machine secrets + dev secrets via
+  `dotnet user-secrets` locally if cross-stack work is needed in dev.
 
-- **(a) Real Azure Service Bus Basic tier.** ~$10/mo + per-message. Smallest
-  code change (existing routing config works).
-- **(b) NATS or RabbitMQ on Fly.** Cheaper, more ops surface. Wolverine
-  supports both — but the existing `UseAzureServiceBus` config swaps.
-- **(c) AWS SQS+SNS.** Free tier covers our volume (1M req/mo free). Wolverine
-  has an AWS provider. Bigger code change but no ongoing cost at demo scale.
+### D4 — Cost ceiling → **$30/mo target, $50/mo hard ceiling**
 
-### D4 — Cost ceiling
+- Phase 1 target: ≤ $15/mo (Postgres free with Fly + Auth0 free tier + SQS
+  free tier + small Fly Machines)
+- Phase 2 target: ≤ $30/mo (additional Fly Machines for Payment + Shipping +
+  Notification + Storefront)
+- Phase 3 target: unchanged
+- **Hard ceiling: $50/mo.** If actual costs exceed this: stop, audit, decide
+  before resuming. Set Fly.io spend cap to $50 before provisioning anything.
 
-Hard cap before provisioning anything. Suggested:
+## Implementation order
 
-- Phase 1 target: ≤ $15/mo, hard ceiling $20/mo
-- Phase 2 target: ≤ $30/mo, hard ceiling $50/mo
-- Phase 3 target: unchanged (no new persistent infrastructure)
+Given the resolved decisions, Phase 1 splits naturally into two sub-PRs:
 
-If costs exceed ceiling: stop, audit, decide before resuming.
+### Phase 1A — Postgres provider swap (code only, no deployment)
+
+**Goal.** Land the dual-provider config plumbing in `main` so Phase 1B's
+deployment can simply set `DatabaseProvider=Postgres` and pick up the right
+EF + Wolverine + concurrency-token combo.
+
+**Deliverables:**
+- [ ] `DatabaseProvider` config setting (defaults `SqlServer` in dev, override
+      to `Postgres` in deployed `appsettings.Production.json` or via env var)
+- [ ] Order + Payment `Program.cs`: branch on `DatabaseProvider` for `AddDbContext`
+      + Wolverine outbox provider
+- [ ] Order + Payment EF migrations re-generated against the Postgres provider
+      (parallel migration history or `ContextType` partitioning)
+- [ ] Order + Payment concurrency-token config branches on provider
+      (`RowVersion` for SqlServer, `xmin` for Postgres)
+- [ ] Integration tests verify both code paths build + run (the existing
+      OrderService.Tests.Integration uses SQL Server Testcontainer; add a
+      Postgres Testcontainer slice for the new path)
+- [ ] README footnote: "demo deployment uses Postgres-only as an exception"
+
+### Phase 1B — Deploy Order + minimal Storefront
+
+**Goal.** Phase 1's original goal: deployed Order saga visible.
+
+**Deliverables:** as already listed in Phase 1 above, plus:
+- [ ] Auth0 tenant set up with test buyer/seller users
+- [ ] Fly Postgres provisioned for OrderService
+- [ ] OrderService deployed with `DatabaseProvider=Postgres`
+- [ ] Minimal Storefront deployed
 
 ---
 
