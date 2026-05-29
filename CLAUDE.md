@@ -118,7 +118,9 @@ only when genuine domain complexity makes you want the *compiler* (not a test) t
 line, or when separate deploy/versioning units justify it. NextAurora enforces the dependency
 rule today via *convention + the architecture-reviewer agent + CodeRabbit*; adding
 architecture tests would be the next rung and would make it deterministic **without changing
-the VSA shape**.
+the VSA shape**. Full portable decision guide (the two meanings of "Clean," the
+convention→arch-tests→project-split spectrum, the Testcontainers testing shift, the
+duplication tradeoff, when-to-use): [docs/vsa-vs-clean-architecture.md](docs/vsa-vs-clean-architecture.md).
 
 | Signal | Shape |
 |---|---|
