@@ -13,7 +13,8 @@ namespace CatalogService.Features;
 /// <c>LIKE</c> on Postgres, so a search for "laptop" misses "Laptop". <c>ILike</c> is Postgres's
 /// case-insensitive variant — translates to <c>name ILIKE @pattern</c>. The leading wildcard
 /// means no B-tree index can be used either way; full-text search (<c>tsvector</c>) is the next
-/// step if this becomes a bottleneck. See CLAUDE.md "Measure before optimizing".
+/// step if this becomes a bottleneck. This is the canonical reference example for the rule —
+/// see CLAUDE.md "Non-sargable predicates defeat indexes — fix at write time, not at read time".
 /// </para>
 /// </summary>
 public record SearchProductsQuery(string Query, int Page = 1, int PageSize = 50);

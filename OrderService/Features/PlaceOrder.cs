@@ -135,7 +135,8 @@ public class PlaceOrderHandler(
 
         // Build OrderLine entities. Notice: we use `product.Price` from CatalogService, NOT a
         // price the client sent. Server-side pricing — never trust client-submitted prices for
-        // money calculations. See CLAUDE.md.
+        // money calculations. See CLAUDE.md "Security Requirements → Server-controlled fields
+        // are computed server-side, never trusted from the client".
         for (int i = 0; i < request.Lines.Count; i++)
         {
             var product = products[i]!; // null-forgiving: throw-on-null check above
