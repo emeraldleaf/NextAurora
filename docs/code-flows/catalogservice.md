@@ -86,8 +86,9 @@ sequenceDiagram
     Val-->>Bus: ok (or rejected before reaching handler)
     Bus->>H: HandleAsync(command, ct)
 
-    H->>Ctx: Products.Include(Category).FirstOrDefaultAsync(p=>p.Id==id)
-    Ctx->>DB: SELECT * FROM products<br/>JOIN categories<br/>WHERE id = @id (tracked)
+    H->>Ctx: Products.FirstOrDefaultAsync(p=>p.Id==id)
+    Note over H,Ctx: NO Include(Category) — handler only writes<br/>UpdateDetails(name, description, price) +<br/>SellerId. Avoids a useless LEFT JOIN.
+    Ctx->>DB: SELECT * FROM products<br/>WHERE id = @id (tracked)
     DB-->>Ctx: Product entity + xmin
     Ctx-->>H: Product (tracked)
 
@@ -171,7 +172,10 @@ sequenceDiagram
             gRPC-->>Order: ReserveStockResponse { Success = true }
         else xmin stale (concurrent reservation won)
             DB-->>Ctx: DbUpdateConcurrencyException
-            Note over H: bubbles up as gRPC Internal status —<br/>OrderService sees the call fail and<br/>aborts the order.<br/>xmin is the race protection,<br/>last-write-wins is impossible.
+            Note over H: caught in try/catch — handler returns false<br/>(NOT bubbles up). gRPC response is<br/>ReserveStockResponse { Success = false }.<br/>OrderService sees the same "couldn't reserve"<br/>shape as insufficient stock and aborts the<br/>order cleanly (no 500). xmin is still the<br/>race protection — last-write-wins is impossible.
+            H-->>Bus: false
+            Bus-->>gRPC: false
+            gRPC-->>Order: ReserveStockResponse { Success = false }
         end
     end
 ```

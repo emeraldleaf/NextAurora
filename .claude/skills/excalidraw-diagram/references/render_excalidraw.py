@@ -143,11 +143,23 @@ def render(
             device_scale_factor=scale,
         )
 
+        # Capture console and network failures — when the esm.sh bundle fails
+        # to load, the surfaced error is a generic Timeout. The actual cause
+        # (CORS, 404, syntax error, etc.) shows up in the page console; route
+        # it to stderr so the script's output explains what went wrong.
+        page.on("console", lambda msg: print(f"  [page console.{msg.type}] {msg.text}", file=sys.stderr))
+        page.on("pageerror", lambda exc: print(f"  [page error] {exc}", file=sys.stderr))
+        page.on("requestfailed", lambda req: print(f"  [request failed] {req.url} — {req.failure}", file=sys.stderr))
+
         # Load the template
         page.goto(template_url)
 
-        # Wait for the ES module to load (imports from esm.sh)
-        page.wait_for_function("window.__moduleReady === true", timeout=30000)
+        # Wait for the ES module to load (imports from esm.sh). The
+        # `@excalidraw/excalidraw?bundle` URL serves a small entry shim but
+        # the browser pulls in many transitive modules afterwards; 30s was
+        # too tight on slower networks. 90s is a comfortable ceiling — if we
+        # ever hit that, the CDN is genuinely down rather than slow.
+        page.wait_for_function("window.__moduleReady === true", timeout=90000)
 
         # Inject the diagram data and render
         json_str = json.dumps(data)

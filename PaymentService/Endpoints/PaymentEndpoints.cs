@@ -25,8 +25,12 @@ public static class PaymentEndpoints
         var group = app.MapV1ApiGroup("Payments", "payments");
 
         // POST /api/v1/payments/process — manual processing trigger.
-        // Returns 202 Accepted: payment processing involves a gateway call, not a synchronous
-        // commitment. The PaymentId in the location header lets the caller poll for status.
+        // Returns 202 Accepted with PaymentId. The Acceptor handler (ProcessPaymentHandler)
+        // validates + persists Payment(Pending) + publishes PaymentProcessingRequested and
+        // returns the ID in milliseconds — NO gateway call on this code path. The Stripe
+        // call lives in PaymentProcessingRequestedHandler, which runs on a Wolverine worker.
+        // The Location header points at /api/v1/payments/{id} for the caller to poll status.
+        // See CLAUDE.md "Performance Rules → Long-running work belongs on the message bus".
         group.MapPost("/process", async (ProcessPaymentCommand command, IMessageBus bus, CancellationToken ct) =>
         {
             var paymentId = await bus.InvokeAsync<Guid>(command, ct);
