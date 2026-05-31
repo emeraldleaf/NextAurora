@@ -10,11 +10,9 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 
 > **Live demo:** [catalog-api-demo.fly.dev/scalar/v1](https://catalog-api-demo.fly.dev/scalar/v1) — CatalogService deployed to Fly.io with an interactive Scalar API explorer. Try `GET /api/v1/products` for the 7 seeded products. Auto-stops when idle, so the first request after a quiet period takes ~10s to wake the machine. *Scope: Catalog only — the full Order → Payment → Shipping → Notification saga runs locally via Aspire (see [Getting Started](#getting-started)).*
 
-> **About this repo — three design choices to read before judging consistency:**
-> - **Two architectural eras live in this repo's git history.** The **current `main`** demonstrates the [simplicity refactor](docs/STATUS.md): handlers in the VSA services (Order, Payment, Shipping, Notification) take `DbContext` directly — no `IFooRepository` wrappers — and integration tests with Testcontainers replace mocked-repository unit tests. CatalogService keeps its repositories as a deliberate Clean Architecture carve-out (Application can't reference Infrastructure without a circular project ref, so the abstractions are layer-rule artifacts, not speculative coupling). The pre-refactor state is preserved at the **[`v1-repository-pattern`](https://github.com/emeraldleaf/NextAurora/releases/tag/v1-repository-pattern)** tag — a textbook EF Repository pattern across all 5 services. Both shapes coexist as a teaching reference: `git diff v1-repository-pattern..main` shows the full delta; `git checkout v1-repository-pattern` browses the older shape. The motivation + reasoning is documented in [`STATUS.md`](docs/STATUS.md) ("Simplicity refactor" entry).
-> - **Monorepo.** All five services live in this repo. Sized for one developer to navigate; a polyrepo split is sketched in [docs/STATUS.md](docs/STATUS.md) but unwarranted at this scale.
-> - **Mixed per-service architecture (deliberate, not transitional).** **CatalogService** uses **Clean Architecture** (4-project split: Domain / Application / Infrastructure / Api) because its complexity earns it — multiple aggregates, gRPC server, HybridCache + Redis, optimistic concurrency, integration tests. The other four services (**Order, Payment, Shipping, Notification**) use **Vertical Slice Architecture** (single project, feature folders) because at ≤2 aggregates each, the project-split ceremony costs more than it pays. The diff *between* services is the lesson — see [CLAUDE.md "Project Structure"](CLAUDE.md#project-structure) for the per-service decision rule and signals for when to promote VSA → Clean.
-> - **Two database engines on purpose.** **CatalogService** + **ShippingService** run on **PostgreSQL** (Npgsql); **OrderService** + **PaymentService** run on **SQL Server** (Microsoft.Data.SqlClient). NotificationService is stateless. The split exercises both EF Core providers and the per-provider primitives the architecture actually leans on: **Postgres `xmin`** (system column, no schema change) vs **SQL Server `rowversion`** (real column, requires migration) for optimistic-concurrency tokens; **Wolverine's `PersistMessagesWithPostgresql` vs `PersistMessagesWithSqlServer`** for the transactional outbox; **`DistributedLock.SqlServer` (`sp_getapplock`)** for the PaymentRecoveryJob sweeper. *What MySQL would look like:* swap the EF provider to [Pomelo.EntityFrameworkCore.MySql](https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql), use a shadow `byte[]` RowVersion mapped to a TIMESTAMP column with `ON UPDATE CURRENT_TIMESTAMP` (MySQL has no native rowversion); the Wolverine outbox would need either a third-party adapter or a self-rolled `IMessageStore` (Wolverine ships first-party persistence for Postgres + SQL Server only); distributed locks via [`DistributedLock.MySql`](https://github.com/madelson/DistributedLock) (which wraps MySQL's `GET_LOCK`). Everything above the EF provider — handlers, domain rules, the saga — stays unchanged.
+> **About this repo:**
+> - **Monorepo, single architectural shape.** All five services use **Vertical Slice Architecture** — single Web SDK project, `Features/<UseCase>.cs` co-locating command/query + validator + handler, aggregates in `Domain/`. CatalogService originally used Clean Architecture (4 projects); it was collapsed to VSA in the [simplicity refactor](docs/STATUS.md) once the layer split stopped earning its keep at this scale. Handlers take `DbContext` directly — no `IFooRepository` wrappers — and integration tests with Testcontainers replace mocked-repository unit tests. See [CLAUDE.md "Project Structure"](CLAUDE.md#project-structure) for the promotion signal (5+ aggregates with cross-cutting rules → consider Clean). The original shape is preserved at the **[`v1-repository-pattern`](https://github.com/emeraldleaf/NextAurora/releases/tag/v1-repository-pattern)** tag — `git checkout v1-repository-pattern` browses a textbook EF Repository pattern across all 5 services for comparison.
+> - **Two database engines on purpose.** **CatalogService** + **ShippingService** run on **PostgreSQL** (Npgsql); **OrderService** + **PaymentService** run on **SQL Server** (Microsoft.Data.SqlClient). NotificationService is stateless. The split exercises both EF Core providers and the per-provider primitives the architecture leans on: **Postgres `xmin`** (system column, no schema change) vs **SQL Server `rowversion`** (real column, requires migration) for optimistic-concurrency tokens; **Wolverine's `PersistMessagesWithPostgresql` vs `PersistMessagesWithSqlServer`** for the transactional outbox; **`DistributedLock.SqlServer` (`sp_getapplock`)** for the PaymentRecoveryJob sweeper.
 
 > **How it was built — AI-assisted, multi-model review, verification at every layer.**
 > - **Two AI reviewers, not one.** [Claude Code](https://claude.com/claude-code) (Opus 4.7) is the primary pair-programmer — reads [`CLAUDE.md`](CLAUDE.md), the project-specific [`.claude/skills/`](.claude/skills/) (e.g. the `dotnet-performance` skill loaded for EF Core review, `excalidraw-diagram` for architecture visuals), and a persistent project memory. **GitHub Copilot (GPT-5)** sits in-editor for second-opinion diff review, with project conventions encoded in [`.github/copilot-instructions.md`](.github/copilot-instructions.md). Disagreement between the two is treated as a signal to dig deeper, not pick the louder voice. The principle is not "AI wrote it" — it's *two models + a human author + automated checks all sign off before merge*. The working loop: implement → run unit + integration tests → cross-model review → fix → commit.
@@ -23,7 +21,7 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 
 [![NextAurora architecture — full system in one view](docs/nextaurora-architecture.svg)](docs/nextaurora-architecture.svg)
 
-*Full system in one view — services, Service Bus topology, databases, and the 10-step order-placement saga. Click to view full-size. Source: [`nextaurora-architecture.excalidraw`](docs/nextaurora-architecture.excalidraw) — open with the [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or [excalidraw.com](https://excalidraw.com) to edit.*
+*Full system in one view — services, Service Bus topology, databases, and the 10-step order-placement saga. Click to view full-size.*
 
 **Drill down into specific subsystems:** [service request lifecycle](#service-request-lifecycle) · [HybridCache flow](#hybridcache-flow) · [transactional outbox](#transactional-outbox) · [EF Core read and write](#ef-core-read-and-write) · [EF Core migrations](#ef-core-migrations) — all six diagrams in the [Reference diagrams](#reference-diagrams) section below.
 
@@ -196,27 +194,30 @@ NextAurora/
   NextAurora.AppHost/          # Aspire orchestrator
   NextAurora.ServiceDefaults/  # Shared OpenTelemetry, health checks, resilience
   NextAurora.Contracts/        # Shared events, commands, DTOs
-  CatalogService/             # Clean Architecture (largest service)
-    CatalogService.Domain/        # Entities, interfaces
-    CatalogService.Application/   # CQRS handlers, mappers
-    CatalogService.Infrastructure/# EF Core, repositories, caching
-    CatalogService.Api/           # Endpoints, gRPC server
-  OrderService/               # Vertical Slice Architecture (single project)
+  CatalogService/             # VSA — largest service (2 aggregates, gRPC server, HybridCache)
+    Features/                     # GetProductById.cs, UpdateProduct.cs, ReserveStock.cs, etc.
+    Domain/                       # Product, Category aggregates; IProductCache port
+    Infrastructure/               # EF Core (Postgres + Migrations), HybridProductCache, DI
+    Endpoints/                    # Minimal-API HTTP surface
+    Grpc/                         # gRPC server (CatalogGrpcService — the peer for OrderService's client)
+    Protos/catalog.proto          # Shared proto contract
+    Program.cs                    # Composition root
+  OrderService/               # VSA
     Features/                     # One file per use case: PlaceOrder.cs, GetOrderById.cs, saga handlers
     Domain/                       # Order aggregate, OrderLine, ports
-    Infrastructure/               # EF Core (Data/ + Migrations/), repositories, gRPC client
-    Endpoints/                    # Minimal-API HTTP surface
-    Program.cs                    # Composition root
+    Infrastructure/               # EF Core (Data/ + Migrations/), gRPC client to Catalog
+    Endpoints/
+    Program.cs
   PaymentService/             # VSA
     Features/                     # ProcessPayment.cs (command + validator + handler), OrderPlacedHandler.cs
     Domain/                       # Payment aggregate, ports (incl. IPaymentGateway)
-    Infrastructure/               # EF Core, repository, Stripe ACL (Gateway/), Wolverine adapter
+    Infrastructure/               # EF Core, Stripe ACL (Gateway/), Wolverine adapter, recovery job
     Endpoints/
     Program.cs
   ShippingService/            # VSA
     Features/                     # CreateShipment.cs, GetShipmentByOrder.cs, PaymentCompletedHandler.cs
     Domain/                       # Shipment aggregate, TrackingEvent, ports
-    Infrastructure/               # EF Core, repository, Wolverine adapter
+    Infrastructure/               # EF Core, Wolverine adapter
     Endpoints/
     Program.cs
   NotificationService/        # VSA — smallest service, stateless
@@ -227,12 +228,14 @@ NextAurora/
   SellerPortal/               # ASP.NET Core static-file host scaffold (UI framework TBD)
 ```
 
-**Why two shapes:** the cross-service diff is intentional. CatalogService is
-the largest service (multiple aggregates, caching, gRPC, optimistic concurrency)
-and earns the four-project Clean Architecture split. The other four services
-are smaller (≤2 aggregates each) and got more value from VSA's "find everything
-related to PlaceOrder in one folder" than from build-time layer enforcement.
-See [CLAUDE.md](CLAUDE.md#project-structure) "Project Structure" for the decision rule.
+**One shape across all five services.** Vertical Slice Architecture everywhere — features
+are co-located by use case (`Features/<UseCase>.cs` containing command/query + validator +
+handler), aggregates live in `Domain/`, and each service is a single Web SDK project.
+CatalogService previously used Clean Architecture (4 projects) but was collapsed to VSA in
+the simplicity refactor — at ~2k LOC and 2 aggregates the layer split wasn't earning its
+keep, and one consistent shape is a stronger story than "we calibrate per service."
+See [CLAUDE.md](CLAUDE.md#project-structure) "Project Structure" for the promotion signal
+(when 5+ aggregates with cross-cutting domain rules emerge, consider Clean Architecture).
 
 ## Event Flow
 
@@ -378,7 +381,7 @@ This is documented as a hard rule in [CLAUDE.md "Communication Patterns → Wolv
 
 | Guide | Description |
 |-------|-------------|
-| [How It Works](docs/how-it-works.md) | Developer walkthrough — Clean Architecture, CQRS via Wolverine, request lifecycle, outbox, event flow, testing |
+| [How It Works](docs/how-it-works.md) | Developer walkthrough — VSA layout, CQRS via Wolverine, request lifecycle, outbox, event flow, testing |
 | [Architecture](docs/architecture.md) | Service diagrams, communication matrix, domain model, design patterns |
 | [Performance & Data Correctness](docs/performance-and-data-correctness.md) | Hard rules + decisions: AsNoTracking strategy, optimistic concurrency tokens, Wolverine outbox, HybridCache, Dapper escape hatch |
 | [EF Core: Spec & Practice](docs/ef-core.md) | Reference guide: how we use EF Core, every decision + trade-off + code example, from concurrency tokens to the Dapper escape hatch |
@@ -393,19 +396,17 @@ This is documented as a hard rule in [CLAUDE.md "Communication Patterns → Wolv
 
 ### Reference diagrams
 
-Six diagrams break the system down — one concept per visual. Each is self-contained: title + numbered steps + side annotations explaining the *what* and *why*, designed so you can study one diagram and then describe the flow out loud. SVGs render inline on GitHub (click any image for full-size); the source `.excalidraw` files alongside open in the [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or at [excalidraw.com](https://excalidraw.com) for editing.
+Six diagrams break the system down — one concept per visual. Each is self-contained: title + numbered steps + side annotations explaining the *what* and *why*. Click any image for full-size. Editable `.excalidraw` sources live alongside each `.svg` in [`docs/`](docs/).
 
 #### Full system architecture
 
-5 services, Service Bus topology, databases, 10-step order-placement saga, cache + outbox callouts — embedded above in the overview. Source: [`nextaurora-architecture.excalidraw`](docs/nextaurora-architecture.excalidraw).
+5 services, Service Bus topology, databases, 10-step order-placement saga, cache + outbox callouts — embedded above in the overview.
 
 #### Service request lifecycle
 
-Generic write-command lifecycle — every step from HTTP POST → CorrelationIdMiddleware → versioned routing → auth + buyer-scope check → Wolverine pipeline (validation / context propagation / AutoApplyTransactions) → handler → repo → SaveChanges → 201/202. Plus the GlobalExceptionHandler error-routing sidebar.
+Generic write-command lifecycle — every step from HTTP POST → CorrelationIdMiddleware → versioned routing → auth + buyer-scope check → Wolverine pipeline (validation / context propagation / AutoApplyTransactions) → handler → SaveChanges → 201/202. Plus the GlobalExceptionHandler error-routing sidebar.
 
 [![Service request lifecycle](docs/service-request-flow.svg)](docs/service-request-flow.svg)
-
-Source: [`service-request-flow.excalidraw`](docs/service-request-flow.excalidraw)
 
 #### HybridCache flow
 
@@ -413,15 +414,11 @@ Catalog's cache flow: GetOrLoadAsync → L1 (μs) → L2 (ms) → factory (once 
 
 [![HybridCache flow](docs/hybridcache-flow.svg)](docs/hybridcache-flow.svg)
 
-Source: [`hybridcache-flow.excalidraw`](docs/hybridcache-flow.excalidraw)
-
 #### Transactional outbox
 
 The load-bearing reliability mechanism behind every cross-service event. Entity write + outbox-row write committed in ONE transaction (visual: dotted "TRANSACTION BOUNDARY" wrapping both). Background dispatcher → Service Bus → delete envelope. All failure modes spelled out.
 
 [![Transactional outbox](docs/transactional-outbox.svg)](docs/transactional-outbox.svg)
-
-Source: [`transactional-outbox.excalidraw`](docs/transactional-outbox.excalidraw)
 
 #### EF Core read and write
 
@@ -429,15 +426,11 @@ Side-by-side READ (LINQ → expression tree → provider SQL → DataReader → 
 
 [![EF Core read and write paths](docs/efcore-query-write.svg)](docs/efcore-query-write.svg)
 
-Source: [`efcore-query-write.excalidraw`](docs/efcore-query-write.excalidraw)
-
 #### EF Core migrations
 
 Dev round-trip (`dotnet ef migrations add` → `IDesignTimeDbContextFactory` → snapshot diff → emitted classes → `MigrateDatabaseAsync` at startup) vs prod (separate CI pre-deploy step — *never* in-process at startup, because replicas race). Plus the immutable-once-applied rule with the multi-step destructive-change recipe.
 
 [![EF Core migrations](docs/efcore-migrations.svg)](docs/efcore-migrations.svg)
-
-Source: [`efcore-migrations.excalidraw`](docs/efcore-migrations.excalidraw)
 
 ## License
 

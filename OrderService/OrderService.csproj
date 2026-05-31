@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="../CatalogService/CatalogService.Api/Protos/catalog.proto" GrpcServices="Client" Link="Protos/catalog.proto" />
+    <Protobuf Include="../CatalogService/Protos/catalog.proto" GrpcServices="Client" Link="Protos/catalog.proto" />
   </ItemGroup>
 
   <ItemGroup>

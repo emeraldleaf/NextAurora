@@ -1,6 +1,5 @@
-using CatalogService.Application.Commands;
-using CatalogService.Application.Validators;
 using AwesomeAssertions;
+using CatalogService.Features;
 
 namespace CatalogService.Tests.Unit.Application;
 

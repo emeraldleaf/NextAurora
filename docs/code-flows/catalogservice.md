@@ -2,7 +2,7 @@
 
 > **What this is.** A walk through the code paths a new contributor will hit first in [CatalogService](../../CatalogService/). CatalogService owns the product catalog: HTTP for buyer browsing + seller mutations, and a **gRPC server** that OrderService calls synchronously during order placement. Reads go through a two-tier `HybridCache` (in-process L1 + Redis L2); writes invalidate the cache in the same handler that performs the mutation.
 >
-> **Architecture style:** Clean Architecture, four projects. [`CatalogService.Domain/`](../../CatalogService/CatalogService.Domain) (entities + write-side interfaces, no dependencies), [`CatalogService.Application/`](../../CatalogService/CatalogService.Application) (commands, queries, handlers, read-side interfaces), [`CatalogService.Infrastructure/`](../../CatalogService/CatalogService.Infrastructure) (EF, repositories, cache), [`CatalogService.Api/`](../../CatalogService/CatalogService.Api) (HTTP endpoints, gRPC service, composition root).
+> **Architecture style:** Vertical Slice Architecture, single csproj. [`Features/`](../../CatalogService/Features) (one file per use case: command/query + validator + handler), [`Domain/`](../../CatalogService/Domain) (Product + Category aggregates, `IProductCache` port), [`Infrastructure/`](../../CatalogService/Infrastructure) (EF `CatalogDbContext` + `HybridProductCache` + migrations + DI), [`Endpoints/`](../../CatalogService/Endpoints) (REST), [`Grpc/`](../../CatalogService/Grpc) (gRPC server). Same shape as the other four services. Previously Clean Architecture (4 projects); collapsed in the VSA refactor because at 2 aggregates the layer split wasn't earning its keep.
 >
 > **Three flows to understand:**
 > 1. **GET product by ID** — HTTP read through `HybridCache` (stampede-protected).
@@ -17,13 +17,13 @@
 sequenceDiagram
     autonumber
     actor Buyer
-    participant EP as CatalogEndpoints<br/>Api/Endpoints/CatalogEndpoints.cs
+    participant EP as CatalogEndpoints<br/>Endpoints/CatalogEndpoints.cs
     participant Bus as IMessageBus<br/>(Wolverine)
-    participant H as GetProductByIdHandler<br/>Application/Handlers/GetProductByIdHandler.cs
-    participant Cache as IProductCache<br/>Application/Interfaces/IProductCache.cs<br/>(HybridProductCache impl)
+    participant H as GetProductByIdHandler<br/>Features/GetProductById.cs
+    participant Cache as IProductCache<br/>Domain/IProductCache.cs<br/>(HybridProductCache impl)
     participant L1 as L1 MemoryCache<br/>(in-process)
     participant L2 as L2 Redis
-    participant RS as IProductReadStore<br/>Infrastructure/Repositories/ProductReadStore.cs
+    participant Ctx as CatalogDbContext<br/>Infrastructure/Data/CatalogDbContext.cs
     participant DB as Postgres<br/>(catalog DB)
 
     Buyer->>EP: GET /api/v1/products/{id}
@@ -43,10 +43,10 @@ sequenceDiagram
             Cache-->>H: ProductDto
         else L2 miss — invoke factory
             Note over Cache: STAMPEDE PROTECTION —<br/>concurrent misses for the same key<br/>invoke factory only ONCE
-            Cache->>RS: factory(ct) → readStore.GetByIdAsync
-            RS->>DB: SELECT id, name, price, ... ,<br/>category.Name<br/>FROM products LEFT JOIN categories<br/>WHERE id = @id<br/>(AsNoTracking + .Select to ProductDto)
-            DB-->>RS: 1 row (DTO shape only)
-            RS-->>Cache: ProductDto (or null)
+            Cache->>Ctx: factory(ct) → projection IQueryable
+            Ctx->>DB: SELECT id, name, price, ... ,<br/>category.Name<br/>FROM products LEFT JOIN categories<br/>WHERE id = @id<br/>(AsNoTracking + .Select to ProductDto)
+            DB-->>Ctx: 1 row (DTO shape only)
+            Ctx-->>Cache: ProductDto (or null)
             Cache->>L2: store with tag product:{id}
             Cache->>L1: store with tag product:{id}
             Cache-->>H: ProductDto
@@ -58,7 +58,7 @@ sequenceDiagram
     EP-->>Buyer: 200 OK + ProductDto<br/>(or 404 if null)
 ```
 
-**Why projection-in-EF.** The factory hits [`IProductReadStore.GetByIdAsync`](../../CatalogService/CatalogService.Infrastructure/Repositories/ProductReadStore.cs), which projects directly to `ProductDto` inside the `IQueryable` — no entity materialization, no in-memory mapper. The cache stores the DTO, so on hit there's literally nothing to map. See [docs/cqrs-data-access.md](../cqrs-data-access.md) for the rule.
+**Why projection-in-EF.** The factory runs an inline `context.Products.AsNoTracking().Where(...).Select(p => new ProductDto { ... }).FirstOrDefaultAsync(ct)` — projects directly to `ProductDto` inside the `IQueryable` with no entity materialization and no in-memory mapper. The cache stores the DTO, so on hit there's literally nothing to map. See [docs/cqrs-data-access.md](../cqrs-data-access.md) for the rule.
 
 **Negative caching.** If `GetByIdAsync` returns `null`, the cache stores `null`. Subsequent lookups for that ID skip the DB. Safe here because product IDs are server-generated GUIDs — a "not found now, exists later" race is effectively impossible.
 
@@ -70,12 +70,12 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor Seller
-    participant EP as CatalogEndpoints<br/>Api/Endpoints/CatalogEndpoints.cs
+    participant EP as CatalogEndpoints<br/>Endpoints/CatalogEndpoints.cs
     participant Bus as IMessageBus<br/>(Wolverine)
-    participant Val as UpdateProductCommandValidator<br/>Application/Validators/<br/>(FluentValidation, runs in pipeline)
-    participant H as UpdateProductHandler<br/>Application/Handlers/UpdateProductHandler.cs
-    participant Repo as IProductRepository<br/>Domain/Interfaces/<br/>(ProductRepository impl)
-    participant Agg as Product aggregate<br/>Domain/Entities/Product.cs
+    participant Val as UpdateProductCommandValidator<br/>Features/<br/>(FluentValidation, runs in pipeline)
+    participant H as UpdateProductHandler<br/>Features/UpdateProduct.cs
+    participant Ctx as CatalogDbContext<br/>Infrastructure/Data/CatalogDbContext.cs
+    participant Agg as Product aggregate<br/>Domain/Product.cs
     participant Cache as IProductCache
     participant DB as Postgres
 
@@ -86,10 +86,11 @@ sequenceDiagram
     Val-->>Bus: ok (or rejected before reaching handler)
     Bus->>H: HandleAsync(command, ct)
 
-    H->>Repo: GetByIdAsync(productId, ct)
-    Repo->>DB: SELECT * FROM products<br/>WHERE id = @id (tracked)
-    DB-->>Repo: Product entity + xmin
-    Repo-->>H: Product (tracked)
+    H->>Ctx: Products.FirstOrDefaultAsync(p=>p.Id==id)
+    Note over H,Ctx: NO Include(Category) — handler only writes<br/>UpdateDetails(name, description, price) +<br/>SellerId. Avoids a useless LEFT JOIN.
+    Ctx->>DB: SELECT * FROM products<br/>WHERE id = @id (tracked)
+    DB-->>Ctx: Product entity + xmin
+    Ctx-->>H: Product (tracked)
 
     alt product is null
         H-->>Bus: false
@@ -103,14 +104,14 @@ sequenceDiagram
     else owner match
         H->>Agg: UpdateDetails(name, description, price)
         Note over Agg: domain method validates<br/>invariants (price > 0, etc.)
-        H->>Repo: UpdateAsync(product, ct)
-        Repo->>DB: UPDATE products<br/>SET ..., xmin (auto)<br/>WHERE id = @id AND xmin = @originalXmin
+        H->>Ctx: SaveChangesAsync(ct)
+        Ctx->>DB: UPDATE products<br/>SET ..., xmin (auto)<br/>WHERE id = @id AND xmin = @originalXmin
         alt xmin matches
-            DB-->>Repo: 1 row affected
+            DB-->>Ctx: 1 row affected
         else concurrency conflict
-            DB-->>Repo: 0 rows → DbUpdateConcurrencyException<br/>(GlobalExceptionHandler → 409)
+            DB-->>Ctx: 0 rows → DbUpdateConcurrencyException<br/>(GlobalExceptionHandler → 409)
         end
-        Repo-->>H: ok
+        Ctx-->>H: ok
 
         H->>Cache: InvalidateAsync(productId, ct)
         Note over Cache: invalidate AFTER save —<br/>order matters. Invalidating first<br/>would let a concurrent reader<br/>repopulate the cache with the OLD<br/>value between invalidate and save.
@@ -124,7 +125,7 @@ sequenceDiagram
 
 **Two-tier ownership check.** The endpoint catches the case where a caller submits SOMEONE ELSE's `SellerId` in the body (403 — that's authentication-mismatch, the caller lied about identity). The handler catches the case where a caller submits THEIR own `SellerId` paired with another seller's product ID (404 — IDOR, anti-enumeration). Both layers are required: each one alone has a bypass.
 
-**Multi-replica cache caveat.** `HybridCache` has no backplane in .NET 10. `InvalidateAsync` clears L2 (Redis) and the L1 of *this* replica only; other replicas continue serving stale `ProductDto` from their own L1 for up to `LocalCacheExpiration` (5 min). Documented in [HybridProductCache.cs](../../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) and the deferred follow-up in [STATUS.md](../STATUS.md).
+**Multi-replica cache caveat.** `HybridCache` has no backplane in .NET 10. `InvalidateAsync` clears L2 (Redis) and the L1 of *this* replica only; other replicas continue serving stale `ProductDto` from their own L1 for up to `LocalCacheExpiration` (5 min). Documented in [HybridProductCache.cs](../../CatalogService/Infrastructure/Caching/HybridProductCache.cs) and the deferred follow-up in [STATUS.md](../STATUS.md).
 
 ---
 
@@ -138,8 +139,8 @@ sequenceDiagram
     participant Order as OrderService<br/>(GrpcCatalogClient)
     participant gRPC as CatalogGrpcService<br/>Api/Services/CatalogGrpcService.cs
     participant Bus as IMessageBus
-    participant H as ReserveStockHandler<br/>Application/Handlers/ReserveStockHandler.cs
-    participant Repo as IProductRepository
+    participant H as ReserveStockHandler<br/>Features/ReserveStock.cs
+    participant Ctx as CatalogDbContext
     participant Agg as Product aggregate
     participant Cache as IProductCache
     participant DB as Postgres
@@ -149,10 +150,10 @@ sequenceDiagram
     gRPC->>Bus: bus.InvokeAsync<bool>(ReserveStockCommand)
     Bus->>H: HandleAsync(command, ct)
 
-    H->>Repo: GetByIdAsync(productId, ct)
-    Repo->>DB: SELECT * FROM products<br/>WHERE id = @id (tracked)
-    DB-->>Repo: Product (tracked) + xmin
-    Repo-->>H: Product
+    H->>Ctx: Products.Include(Category).FirstOrDefaultAsync(p=>p.Id==id)
+    Ctx->>DB: SELECT * FROM products<br/>JOIN categories<br/>WHERE id = @id (tracked)
+    DB-->>Ctx: Product (tracked) + xmin
+    Ctx-->>H: Product
 
     alt product is null OR stock < qty
         H-->>Bus: false
@@ -160,18 +161,21 @@ sequenceDiagram
         gRPC-->>Order: ReserveStockResponse { Success = false }
     else stock available
         H->>Agg: AdjustStock(stock - qty)
-        H->>Repo: UpdateAsync(product, ct)
-        Repo->>DB: UPDATE products<br/>SET stock_quantity = @new,<br/>xmin = NEW<br/>WHERE id = @id AND xmin = @originalXmin
+        H->>Ctx: SaveChangesAsync(ct)
+        Ctx->>DB: UPDATE products<br/>SET stock_quantity = @new,<br/>xmin = NEW<br/>WHERE id = @id AND xmin = @originalXmin
         alt xmin matches (this caller won the race)
-            DB-->>Repo: 1 row
-            Repo-->>H: ok
+            DB-->>Ctx: 1 row
+            Ctx-->>H: ok
             H->>Cache: InvalidateAsync(productId, ct)
             H-->>Bus: true
             Bus-->>gRPC: true
             gRPC-->>Order: ReserveStockResponse { Success = true }
         else xmin stale (concurrent reservation won)
-            DB-->>Repo: DbUpdateConcurrencyException
-            Note over H: bubbles up as gRPC Internal status —<br/>OrderService sees the call fail and<br/>aborts the order.<br/>xmin is the race protection,<br/>last-write-wins is impossible.
+            DB-->>Ctx: DbUpdateConcurrencyException
+            Note over H: caught in try/catch — handler returns false<br/>(NOT bubbles up). gRPC response is<br/>ReserveStockResponse { Success = false }.<br/>OrderService sees the same "couldn't reserve"<br/>shape as insufficient stock and aborts the<br/>order cleanly (no 500). xmin is still the<br/>race protection — last-write-wins is impossible.
+            H-->>Bus: false
+            Bus-->>gRPC: false
+            gRPC-->>Order: ReserveStockResponse { Success = false }
         end
     end
 ```
@@ -184,48 +188,37 @@ sequenceDiagram
 
 ## Read/write data-access split
 
-CatalogService is the Clean Architecture variant of the [CQRS data-access rule](../cqrs-data-access.md): write loaders live on the Domain-layer `IProductRepository`; read projections live on a separate Application-layer `IProductReadStore`. The split exists because the Domain project doesn't reference `NextAurora.Contracts` (where DTOs live), so a DTO-returning method can't sit on a Domain interface.
+CatalogService follows the VSA-everywhere shape of the [CQRS data-access rule](../cqrs-data-access.md): handlers take `CatalogDbContext` directly. The read/write split lives in the *handler's code shape*, not in separate interface methods. There is no `IProductRepository` or `IProductReadStore` — `DbContext` IS Unit-of-Work, `DbSet<T>` IS Repository.
 
 ```mermaid
 graph LR
-    subgraph Domain["CatalogService.Domain"]
-        IPR["IProductRepository<br/>(write loaders)"]
+    subgraph Domain["Domain/"]
+        IPC["IProductCache<br/>(cache port — survives because<br/>HybridCache vs test fake)"]
     end
 
-    subgraph App["CatalogService.Application"]
-        IPRS["IProductReadStore<br/>(read projections)"]
-        IPC["IProductCache"]
+    subgraph Features["Features/"]
+        Readers["Read handlers<br/>GetProductByIdHandler<br/>GetAllProductsHandler<br/>SearchProductsHandler"]
+        Writers["Write handlers<br/>CreateProductHandler<br/>UpdateProductHandler<br/>ReserveStockHandler"]
     end
 
-    subgraph Infra["CatalogService.Infrastructure"]
-        PR["ProductRepository<br/>GetByIdAsync<br/>AddAsync, UpdateAsync"]
-        PRS["ProductReadStore<br/>GetByIdAsync<br/>GetAllAsync<br/>SearchAsync"]
+    subgraph Infra["Infrastructure/"]
+        Ctx["CatalogDbContext<br/>(EF — Postgres)"]
         HPC["HybridProductCache<br/>GetOrLoadAsync<br/>InvalidateAsync"]
     end
 
-    subgraph Writers["Write handlers"]
-        CW["CreateProductHandler<br/>UpdateProductHandler<br/>ReserveStockHandler"]
-    end
-
-    subgraph Readers["Read handlers"]
-        CR["GetProductByIdHandler<br/>GetAllProductsHandler<br/>SearchProductsHandler"]
-    end
-
-    IPR -.->|impl| PR
-    IPRS -.->|impl| PRS
     IPC -.->|impl| HPC
 
-    CW -->|tracked entity| IPR
-    CW -->|invalidate after save| IPC
-    CR -->|cache-aside| IPC
-    IPC -->|miss → factory| IPRS
+    Readers -->|AsNoTracking + .Select to ProductDto| Ctx
+    Readers -->|cache-aside wrapping projection| IPC
+    Writers -->|tracked load + mutate + SaveChanges| Ctx
+    Writers -->|invalidate after save| IPC
+    IPC -->|miss → factory runs projection| Ctx
 
-    style PR fill:#dbeafe,stroke:#1e3a5f
-    style PRS fill:#a7f3d0,stroke:#047857
+    style Ctx fill:#dbeafe,stroke:#1e3a5f
     style HPC fill:#ddd6fe,stroke:#6d28d9
 ```
 
-The method signature is the contract: anything returning `Product` is a write loader; anything returning `ProductDto` is a read projection. The write path also invalidates the cache in the same handler.
+The handler's code shape is the contract: `AsNoTracking().Select(DTO)` is a read; tracked load + mutate via aggregate methods + `SaveChangesAsync` is a write. The write path also invalidates the cache in the same handler.
 
 ---
 
@@ -233,34 +226,28 @@ The method signature is the contract: anything returning `Product` is a write lo
 
 | Path | Purpose |
 |---|---|
-| [Api/Endpoints/CatalogEndpoints.cs](../../CatalogService/CatalogService.Api/Endpoints/CatalogEndpoints.cs) | HTTP surface: GET (public), POST/PUT (seller-scoped with two-tier check) |
-| [Api/Services/CatalogGrpcService.cs](../../CatalogService/CatalogService.Api/Services/CatalogGrpcService.cs) | gRPC server — translates to Wolverine commands/queries (same handlers as HTTP) |
-| [Api/Protos/catalog.proto](../../CatalogService/CatalogService.Api/Protos/catalog.proto) | gRPC contract for `GetProduct`, `GetProducts`, `ReserveStock` |
-| [Api/Program.cs](../../CatalogService/CatalogService.Api/Program.cs) | Composition root: Wolverine, EF, HybridCache, gRPC, OpenAPI/Scalar |
-| [Application/Commands/](../../CatalogService/CatalogService.Application/Commands) | `CreateProductCommand`, `UpdateProductCommand`, `ReserveStockCommand` |
-| [Application/Queries/](../../CatalogService/CatalogService.Application/Queries) | `GetProductByIdQuery`, `GetAllProductsQuery`, `SearchProductsQuery` |
-| [Application/Handlers/UpdateProductHandler.cs](../../CatalogService/CatalogService.Application/Handlers/UpdateProductHandler.cs) | Write + IDOR seller-scope check + cache invalidation |
-| [Application/Handlers/ReserveStockHandler.cs](../../CatalogService/CatalogService.Application/Handlers/ReserveStockHandler.cs) | Stock mutation under xmin token + cache invalidation |
-| [Application/Handlers/GetProductByIdHandler.cs](../../CatalogService/CatalogService.Application/Handlers/GetProductByIdHandler.cs) | Cache-aside read; factory hits the read store on miss |
-| [Application/Handlers/GetAllProductsHandler.cs](../../CatalogService/CatalogService.Application/Handlers/GetAllProductsHandler.cs) | Paginated list via read store (no cache) |
-| [Application/Handlers/SearchProductsHandler.cs](../../CatalogService/CatalogService.Application/Handlers/SearchProductsHandler.cs) | ILIKE search via read store (Postgres `ILike`, case-insensitive) |
-| [Application/Interfaces/IProductCache.cs](../../CatalogService/CatalogService.Application/Interfaces/IProductCache.cs) | Cache port: `GetOrLoadAsync` (factory) + `InvalidateAsync` (by tag) |
-| [Application/Interfaces/IProductReadStore.cs](../../CatalogService/CatalogService.Application/Interfaces/IProductReadStore.cs) | Read-side port: DTO-returning projection methods |
-| [Application/Validators/](../../CatalogService/CatalogService.Application/Validators) | FluentValidation rules; run automatically in Wolverine pipeline |
-| [Domain/Entities/Product.cs](../../CatalogService/CatalogService.Domain/Entities/Product.cs) | Aggregate root — factory + invariants + `UpdateDetails` / `AdjustStock` |
-| [Domain/Entities/Category.cs](../../CatalogService/CatalogService.Domain/Entities/Category.cs) | Owned by Product (1-to-many) |
-| [Domain/Interfaces/IProductRepository.cs](../../CatalogService/CatalogService.Domain/Interfaces/IProductRepository.cs) | Write-side port (tracked entity loaders + Add/Update) |
-| [Infrastructure/Repositories/ProductRepository.cs](../../CatalogService/CatalogService.Infrastructure/Repositories/ProductRepository.cs) | EF write-side impl; `Include(p => p.Category)` for tracked loads |
-| [Infrastructure/Repositories/ProductReadStore.cs](../../CatalogService/CatalogService.Infrastructure/Repositories/ProductReadStore.cs) | EF read-side impl; `AsNoTracking` + `.Select` projection + `ILike` search |
-| [Infrastructure/Caching/HybridProductCache.cs](../../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) | `IProductCache` over `Microsoft.Extensions.Caching.Hybrid` (L1+L2 + stampede + tags) |
-| [Infrastructure/Data/CatalogDbContext.cs](../../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs) | EF context — `xmin` concurrency token configured here |
-| [Infrastructure/DependencyInjection.cs](../../CatalogService/CatalogService.Infrastructure/DependencyInjection.cs) | DI wiring — registers Repo + ReadStore + Cache |
+| [Endpoints/CatalogEndpoints.cs](../../CatalogService/Endpoints/CatalogEndpoints.cs) | HTTP surface: GET (public), POST/PUT (seller-scoped with two-tier check) |
+| [Grpc/CatalogGrpcService.cs](../../CatalogService/Grpc/CatalogGrpcService.cs) | gRPC server — translates to Wolverine commands/queries (same handlers as HTTP) |
+| [Protos/catalog.proto](../../CatalogService/Protos/catalog.proto) | gRPC contract for `GetProduct`, `GetProducts`, `ReserveStock` |
+| [Program.cs](../../CatalogService/Program.cs) | Composition root: Wolverine, EF, HybridCache, gRPC, OpenAPI/Scalar |
+| [Features/CreateProduct.cs](../../CatalogService/Features/CreateProduct.cs) | Command + validator + handler: create product (seller-scoped at endpoint) |
+| [Features/UpdateProduct.cs](../../CatalogService/Features/UpdateProduct.cs) | Write + IDOR seller-scope check + cache invalidation |
+| [Features/ReserveStock.cs](../../CatalogService/Features/ReserveStock.cs) | Stock mutation under xmin token + cache invalidation |
+| [Features/GetProductById.cs](../../CatalogService/Features/GetProductById.cs) | Cache-aside read; factory runs the inline EF projection on miss |
+| [Features/GetAllProducts.cs](../../CatalogService/Features/GetAllProducts.cs) | Paginated list (no cache); inline `AsNoTracking().Select(ProductDto)` |
+| [Features/SearchProducts.cs](../../CatalogService/Features/SearchProducts.cs) | ILIKE search via inline projection (Postgres `EF.Functions.ILike`) |
+| [Domain/Product.cs](../../CatalogService/Domain/Product.cs) | Aggregate root — factory + invariants + `UpdateDetails` / `AdjustStock` |
+| [Domain/Category.cs](../../CatalogService/Domain/Category.cs) | Owned by Product (1-to-many) |
+| [Domain/IProductCache.cs](../../CatalogService/Domain/IProductCache.cs) | Cache port: `GetOrLoadAsync` (factory) + `InvalidateAsync` (by tag) |
+| [Infrastructure/Caching/HybridProductCache.cs](../../CatalogService/Infrastructure/Caching/HybridProductCache.cs) | `IProductCache` over `Microsoft.Extensions.Caching.Hybrid` (L1+L2 + stampede + tags) |
+| [Infrastructure/Data/CatalogDbContext.cs](../../CatalogService/Infrastructure/Data/CatalogDbContext.cs) | EF context — `xmin` concurrency token configured here |
+| [Infrastructure/DependencyInjection.cs](../../CatalogService/Infrastructure/DependencyInjection.cs) | DI wiring — DbContext + HybridCache + read-handler registrations |
 
 ---
 
 ## Open questions
 
-**`HybridCache` has no cross-replica L1 invalidation backplane.** This is documented inline in [HybridProductCache.cs](../../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs) and in [STATUS.md](../STATUS.md). When a write handler calls `InvalidateAsync`, L2 (Redis) is cleared globally, but L1 (in-process MemoryCache) is cleared only on **this replica** — other replicas continue serving the stale `ProductDto` from their own L1 for up to `LocalCacheExpiration` (5 min). For Catalog reads this is tolerable; for permissions, pricing, or feature flags it wouldn't be. Today this doesn't bite because we deploy single-replica.
+**`HybridCache` has no cross-replica L1 invalidation backplane.** This is documented inline in [HybridProductCache.cs](../../CatalogService/Infrastructure/Caching/HybridProductCache.cs) and in [STATUS.md](../STATUS.md). When a write handler calls `InvalidateAsync`, L2 (Redis) is cleared globally, but L1 (in-process MemoryCache) is cleared only on **this replica** — other replicas continue serving the stale `ProductDto` from their own L1 for up to `LocalCacheExpiration` (5 min). For Catalog reads this is tolerable; for permissions, pricing, or feature flags it wouldn't be. Today this doesn't bite because we deploy single-replica.
 
 **Two real fixes when multi-replica lands**, both spelled out in [Milan Jovanović — *Solving the distributed cache invalidation problem with Redis and HybridCache*](https://www.milanjovanovic.tech/blog/solving-the-distributed-cache-invalidation-problem-with-redis-and-hybridcache):
 
@@ -276,7 +263,7 @@ The band-aid mitigation (dropping `LocalCacheExpiration` to 60s) is what [STATUS
 ## See also
 
 - [docs/code-flows/orderservice.md](orderservice.md) — OrderService is the caller for `gRPC ReserveStock`
-- [docs/cqrs-data-access.md](../cqrs-data-access.md) — read/write split rule (Clean Architecture variant uses `IProductReadStore`)
+- [docs/cqrs-data-access.md](../cqrs-data-access.md) — read/write split rule (handlers take `DbContext` directly across all services)
 - [docs/hybridcache-flow.svg](../hybridcache-flow.svg) — diagram of the L1/L2/stampede/tag-invalidation mechanics
 - [docs/performance-and-data-correctness.md](../performance-and-data-correctness.md) — full perf rationale incl. caching decisions
 - [Milan Jovanović — *Solving the distributed cache invalidation problem with Redis and HybridCache*](https://www.milanjovanovic.tech/blog/solving-the-distributed-cache-invalidation-problem-with-redis-and-hybridcache) — external; source of the "Open questions" framing above

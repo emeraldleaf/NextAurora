@@ -13,7 +13,11 @@
   <div id="root"></div>
 
   <script type="module">
-    import { exportToSvg } from "https://esm.sh/@excalidraw/excalidraw?bundle";
+    // Pinned to 0.18.0 — the unpinned `?bundle` URL was hanging (esm.sh
+    // serves `latest`, which on @excalidraw/excalidraw 0.18.1 pulls in
+    // transitive imports that never finish initializing in headless
+    // Chromium even at a 90s timeout). 0.18.0 still resolves cleanly.
+    import { exportToSvg } from "https://esm.sh/@excalidraw/excalidraw@0.18.0?bundle";
 
     window.renderDiagram = async function(jsonData) {
       try {

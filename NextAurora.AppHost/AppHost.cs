@@ -103,7 +103,7 @@ static IResourceBuilder<ProjectResource> WithOptionalAppInsights(
     => insights is null ? project : project.WithReference(insights);
 
 var catalogService = WithOptionalAppInsights(
-    builder.AddProject<Projects.CatalogService_Api>("catalog-service")
+    builder.AddProject<Projects.CatalogService>("catalog-service")
         .WithReference(catalogDb).WaitFor(catalogDb)
         .WithReference(redis).WaitFor(redis), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);

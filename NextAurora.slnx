@@ -1,9 +1,6 @@
 <Solution>
   <Folder Name="/CatalogService/">
-    <Project Path="CatalogService/CatalogService.Api/CatalogService.Api.csproj" />
-    <Project Path="CatalogService/CatalogService.Application/CatalogService.Application.csproj" />
-    <Project Path="CatalogService/CatalogService.Domain/CatalogService.Domain.csproj" />
-    <Project Path="CatalogService/CatalogService.Infrastructure/CatalogService.Infrastructure.csproj" />
+    <Project Path="CatalogService/CatalogService.csproj" />
   </Folder>
   <Folder Name="/NotificationService/">
     <Project Path="NotificationService/NotificationService.csproj" />

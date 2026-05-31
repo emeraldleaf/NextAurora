@@ -57,7 +57,7 @@ public sealed class OrderReadProjectionTests(OrderApiFactory factory) : IClassFi
         // ACT — Hit the projection method directly. No HTTP, no Wolverine, no cache —
         // just the SQL EF generates for the AsNoTracking().Where(...).Select(...) chain
         // with the nested collection sub-projection.
-        var dto = await handler.HandleAsync(new GetOrderByIdQuery(order.Id), CancellationToken.None);
+        var dto = await handler.HandleAsync(new GetOrderByIdQuery(order.Id, buyerId), CancellationToken.None);
 
         // ASSERT — Five invariants the projection contract has to hold:
         //  1) Non-null — the row exists and the projection materializes it.
@@ -90,10 +90,47 @@ public sealed class OrderReadProjectionTests(OrderApiFactory factory) : IClassFi
         await using var scope = _factory.CreateDbScope();
         var handler = scope.ServiceProvider.GetRequiredService<GetOrderByIdHandler>();
 
-        // ACT — Project on a non-existent id.
-        var dto = await handler.HandleAsync(new GetOrderByIdQuery(Guid.NewGuid()), CancellationToken.None);
+        // ACT — Project on a non-existent id. RequestingBuyerId is arbitrary — the handler
+        // filters by both Id AND BuyerId; no row matches either way.
+        var dto = await handler.HandleAsync(
+            new GetOrderByIdQuery(Guid.NewGuid(), Guid.NewGuid()),
+            CancellationToken.None);
 
         // ASSERT — Null, not a default-constructed DTO.
+        dto.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetSummaryByIdAsync_returns_null_for_non_owner_buyer_IDOR_protection()
+    {
+        // ARRANGE — Seed an order owned by buyer A. A different buyer B will request it.
+        // CLAUDE.md "Security Requirements" mandates an IDOR test for every scoped-entity
+        // endpoint: buyer X must not see buyer Y's order, and the response must be 404
+        // (NOT 403, NOT 200) — the canonical anti-enumeration property. Without the EF
+        // Where-clause BuyerId predicate, this test would surface the bug as a non-null
+        // DTO containing buyer A's order returned to buyer B.
+        var buyerA = Guid.NewGuid();
+        var buyerB = Guid.NewGuid();
+        var order = Order.Create(buyerA, "USD", [OrderLine.Create(Guid.NewGuid(), "P", 1, 10m)]);
+        await SeedOrderAsync(order);
+
+        await using var scope = _factory.CreateDbScope();
+        var handler = scope.ServiceProvider.GetRequiredService<GetOrderByIdHandler>();
+
+        // ACT — Buyer B requests buyer A's order by its real ID.
+        var dto = await handler.HandleAsync(
+            new GetOrderByIdQuery(order.Id, RequestingBuyerId: buyerB),
+            CancellationToken.None);
+
+        // ASSERT — Two invariants:
+        //  1) dto is null — proves the Where clause (Id == OrderId AND BuyerId ==
+        //     RequestingBuyerId) filtered at the SQL layer. If the predicate were
+        //     OrderId-only with a post-materialization C# check, a buggy comparison
+        //     could still leak the row; pushing it into SQL closes that gap entirely.
+        //  2) Null is indistinguishable from "order doesn't exist" — the endpoint maps
+        //     null to 404. Returning 403 would tell attacker "this order exists, just
+        //     not yours" and enable enumeration of the order-ID space. Don't relax this
+        //     to 403 even if it feels more informative.
         dto.Should().BeNull();
     }
 

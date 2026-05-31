@@ -489,3 +489,11 @@ $RECYCLE.BIN/
 
 # Local smoke-test env (URLs are dynamic per Aspire run; .env.smoke.example is checked in)
 .env.smoke
+
+# Understand-Anything knowledge graphs (per-machine; regenerated via /understand-anything:understand)
+.understand-anything/
+
+# Excalidraw PNG renders — the .claude/scripts/rebuild-diagrams.sh script
+# generates both .svg (committed, inlined into README + docs) and .png
+# (local-only side-effect — large binaries, not referenced anywhere).
+docs/*.png

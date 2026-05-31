@@ -1,5 +1,5 @@
 using Bogus;
-using CatalogService.Domain.Entities;
+using CatalogService.Domain;
 
 namespace CatalogService.Tests.Unit.Builders;
 

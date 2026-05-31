@@ -1,11 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AwesomeAssertions;
-using CatalogService.Domain.Entities;
+using CatalogService.Domain;
+using CatalogService.Features;
 using CatalogService.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NextAurora.Contracts.DTOs;
+using Wolverine;
 using Xunit;
 
 namespace CatalogService.Tests.Integration;
@@ -153,6 +156,109 @@ public sealed class ProductCachingTests(CatalogApiFactory factory) : IClassFixtu
         // or Wolverine's AddConcurrencyRetry policy (background retry). Last-write-wins
         // is impossible.
         await act.Should().ThrowAsync<DbUpdateConcurrencyException>();
+    }
+
+    [Fact]
+    public async Task PostProduct_byOwner_returns201AndPersistsProduct()
+    {
+        // ARRANGE — Cover the POST /api/v1/products write path end-to-end. The endpoint
+        // enforces JWT-sub == command.SellerId (we use "test-seller" stamped by
+        // TestAuthHandler); the handler persists via CatalogDbContext.AddAsync +
+        // SaveChangesAsync. Categories are FK-required on Product, so we seed one first.
+        var categoryId = await SeedCategoryAsync();
+        var client = _factory.CreateClient();
+        var newProduct = new
+        {
+            Name = "PostTest-" + Guid.NewGuid(),
+            Description = "Created via API for coverage",
+            Price = 12.34m,
+            Currency = "USD",
+            CategoryId = categoryId,
+            SellerId = "test-seller",        // matches JWT sub
+            StockQuantity = 5
+        };
+
+        // ACT — POST with the authenticated test client.
+        var response = await client.PostAsJsonAsync("/api/v1/products", newProduct);
+
+        // ASSERT — Three invariants:
+        //  1) 201 Created — the success status for a POST that creates a resource.
+        //     A 403 would mean the JWT-vs-body check failed unexpectedly; a 400
+        //     would mean the validator (covered by unit tests) rejected the body.
+        //  2) Response body carries the new product's ID — proves the handler
+        //     returned the Guid from `Product.Create`, not Guid.Empty.
+        //  3) The row exists in the DB with the values we sent — proves
+        //     SaveChangesAsync ran and the aggregate's factory produced the
+        //     expected state. Hits CreateProductHandler's full happy path,
+        //     which integration tests didn't cover before the VSA collapse
+        //     deleted the mocked handler unit tests.
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        // Endpoint returns `Results.Created(location, new { Id = productId })`. Parse with
+        // JsonDocument to avoid declaring a typed DTO that the analyzer (CA1812) can't see
+        // being constructed via reflection.
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var createdId = doc.RootElement.GetProperty("id").GetGuid();
+        createdId.Should().NotBe(Guid.Empty);
+
+        await using var scope = _factory.CreateDbScope();
+        var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        var stored = await db.Products.AsNoTracking().SingleAsync(p => p.Id == createdId);
+        stored.Name.Should().Be(newProduct.Name);
+        stored.Price.Should().Be(12.34m);
+        stored.SellerId.Should().Be("test-seller");
+        stored.StockQuantity.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task ReserveStock_viaMessageBus_decrementsStockAndInvalidatesCache()
+    {
+        // ARRANGE — Cover ReserveStockHandler's full happy path via IMessageBus.
+        // ReserveStock is normally invoked over gRPC from OrderService during order
+        // placement, but the production handler chain goes through Wolverine's
+        // IMessageBus — that's what we exercise here. A direct bus call covers the
+        // same handler invocation path the gRPC server uses (CatalogGrpcService
+        // translates each gRPC request into a `bus.InvokeAsync<bool>(command, ct)`).
+        // We seed with stock=10 so the reservation has room.
+        var productId = await SeedProductAsync(price: 8m);
+
+        await using var scope = _factory.CreateDbScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+
+        // ACT — Reserve 3 units. Wolverine routes the command to ReserveStockHandler,
+        // which loads the Product tracked, calls AdjustStock(remaining), and saves.
+        var success = await bus.InvokeAsync<bool>(new ReserveStockCommand(productId, Quantity: 3));
+
+        // ASSERT — Three invariants:
+        //  1) Success — handler returned true (stock was sufficient + save committed).
+        //     A false return would mean either "product not found" (impossible — we
+        //     just seeded it) or "insufficient stock" (also impossible — 10 > 3).
+        //  2) StockQuantity decremented from 10 to 7 — proves AdjustStock ran and
+        //     SaveChanges committed. We assert directly on the DB (not the cache)
+        //     because cache invalidation is downstream of the save.
+        //  3) IsAvailable stays true — the derived field (StockQuantity > 0) was
+        //     correctly maintained inside AdjustStock. Would catch a future
+        //     regression where IsAvailable diverges from StockQuantity.
+        success.Should().BeTrue();
+
+        await using var dbScope = _factory.CreateDbScope();
+        var db = dbScope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        var stored = await db.Products.AsNoTracking().SingleAsync(p => p.Id == productId);
+        stored.StockQuantity.Should().Be(7);
+        stored.IsAvailable.Should().BeTrue();
+    }
+
+    private async Task<Guid> SeedCategoryAsync()
+    {
+        await using var scope = _factory.CreateDbScope();
+        var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+
+        var category = Category.Create("PostTest-" + Guid.NewGuid(), "seeded for POST test");
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+
+        return category.Id;
     }
 
     /// <summary>

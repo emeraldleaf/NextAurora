@@ -58,53 +58,38 @@ NextAurora is a distributed e-commerce platform built as a microservices archite
 
 ## Service Architecture
 
-The project deliberately uses **two patterns side-by-side**, calibrated to each
-service's complexity:
+All five services use **Vertical Slice Architecture** — one csproj per service, organized
+by feature. The repo previously had CatalogService on Clean Architecture and the other four
+on VSA, but that diff was retired in the VSA-collapse refactor: at ~2k LOC and 2 aggregates,
+CatalogService didn't actually hit the threshold where build-time layer enforcement pays
+for itself, and "we calibrate per service" was a weaker story than "one shape everywhere."
 
-### CatalogService — Clean Architecture (4 projects)
-
-The largest service: multiple aggregates, two-tier caching, gRPC server, optimistic
-concurrency, integration tests. The four-project split earns its keep here — enough
-aggregates and cross-cutting concerns that build-time layer enforcement protects
-against real violations.
-
-```
-CatalogService/
-  CatalogService.Domain/          # Entities, enums, repository interfaces
-  CatalogService.Application/     # Commands, queries, handlers, mappers (Wolverine)
-  CatalogService.Infrastructure/  # EF Core, repositories, caching, messaging
-  CatalogService.Api/             # ASP.NET Core host, endpoints, gRPC server, DI composition
-```
-
-| Layer | Responsibility | Dependencies |
-|-------|---------------|-------------|
-| **Domain** | Entities, value objects, domain interfaces, business rules | None |
-| **Application** | CQRS commands/queries, Wolverine handler POCOs, application interfaces | Domain |
-| **Infrastructure** | EF Core DbContext, repositories, Service Bus, external gateways | Domain, Application |
-| **Api** | HTTP endpoints, gRPC services, DI registration, host configuration | All layers |
-
-### Order / Payment / Shipping / Notification — Vertical Slice Architecture (1 project)
-
-Smaller services (~250–1400 LOC, ≤2 aggregates each). The four-project split costs
-more than it pays at this scale; collapsed to one project with **feature folders**:
-
-```
+```text
 ServiceName/
-  Features/                # One file per use case (command/query + handler co-located).
+  Features/                # One file per use case (command/query + validator + handler co-located).
                           # Saga event handlers live here too — they own real state machines.
   Domain/                  # Aggregates, value objects, ports (interfaces consumed by features).
-  Infrastructure/          # EF Core (Data/ + Migrations/), repositories, gateways, DI composition.
+  Infrastructure/          # EF Core (Data/ + Migrations/), caching, gateways, DI composition.
   Endpoints/               # Minimal-API HTTP surface (not always present).
+  Grpc/                    # gRPC server handlers (CatalogService only).
   Program.cs               # Composition root.
   ServiceName.csproj       # Single Web SDK project.
 ```
 
-The Domain folder is *just a folder* in this shape — not a build-time boundary.
-Discipline enforces what Clean Architecture's project references used to. NotificationService
-is the canonical minimal example: no Domain folder, two Features files, one Infrastructure
-folder, a Program.cs.
+The Domain folder is *just a folder* in this shape — not a build-time boundary. Discipline
+enforces what Clean Architecture's project references used to. NotificationService is the
+canonical minimal example: no Domain folder, two Features files, one Infrastructure folder,
+a Program.cs. CatalogService is the most filled-out: 6 features, 2 aggregates, EF +
+HybridCache + gRPC server.
 
-See [CLAUDE.md](../CLAUDE.md#project-structure) for the "which pattern when" decision rule.
+### Promotion signal — when to consider Clean Architecture
+
+VSA is the default. Consider promoting a single service to Clean Architecture only when
+**all** of these hit at once: 5+ aggregates with cross-cutting domain rules that several
+features need to coordinate on, AND `Domain/` is growing faster than `Features/`, AND the
+service has its own dedicated team. None of the current services are at that scale.
+
+See [CLAUDE.md](../CLAUDE.md#project-structure) for the canonical rule.
 
 ### Service Breakdown
 
@@ -423,7 +408,7 @@ All services inherit shared infrastructure configuration:
 ### gRPC Setup
 
 **Server (CatalogService):**
-- Proto file: `CatalogService.Api/Protos/catalog.proto`
+- Proto file: `CatalogService/Protos/catalog.proto`
 - Service: `CatalogGrpcService` wraps existing Wolverine handler POCOs via `IMessageBus.InvokeAsync<T>()`
 - Registered via `builder.Services.AddGrpc()` and `app.MapGrpcService<CatalogGrpcService>()`
 
@@ -494,27 +479,27 @@ Query handlers (6 total across Catalog, Order, and Shipping) map domain entities
 
 ```
 HTTP Request or Service Bus Message → IMessageBus.InvokeAsync<TResult>(command)
-  → CommandHandler.Handle() → Repository (read + write) → Domain Entity → Event Published
+  → CommandHandler.Handle() → DbContext (load tracked) → Domain Entity → SaveChanges → Event Published
 ```
 
-Command handlers create or mutate entities, persist changes, and publish domain events. Event handlers follow the same pattern — they read an entity, mutate its state via domain methods, and save.
+Command handlers take `DbContext` directly, load the aggregate tracked, mutate via aggregate methods, and call `SaveChangesAsync`. Wolverine's `AutoApplyTransactions` wraps the SaveChanges + outbox staging in one DB transaction. Event handlers follow the same pattern — they read an entity, mutate its state via domain methods, and save.
 
-### EF Core Read/Write Method Split
+### EF Core Read/Write Code Split
 
-Read and write paths take **different methods** on the repository, by design — see [docs/cqrs-data-access.md](cqrs-data-access.md) for the full pattern. The signature itself is proof of intent: a method returning a DTO is a read; a method returning a tracked entity is a write loader.
+Read and write paths take **different code shapes**, by design — see [docs/cqrs-data-access.md](cqrs-data-access.md) for the full pattern.
 
-**Read methods** (`AsNoTracking() + .Select(...)` projection to DTO, returns the DTO directly):
-- `IProductReadStore` (CatalogService.Application): `GetByIdAsync`, `GetAllAsync`, `SearchAsync` — implementation in `CatalogService.Infrastructure.Repositories.ProductReadStore`. Lives in Application (not Domain) because DTOs are a Contracts concern and Clean Architecture's Domain layer cannot reference Contracts.
-- `IOrderRepository` (OrderService.Domain): `GetSummaryByIdAsync`, `GetSummariesByBuyerIdAsync` — VSA shape lets the read methods sit alongside writes on the same interface.
-- `IShipmentRepository` (ShippingService.Domain): `GetSummaryByOrderIdAsync`.
+**Read handlers** (`AsNoTracking() + .Select(...)` projection to DTO inline, returns the DTO directly):
+- CatalogService: `GetProductByIdHandler` (cached), `GetAllProductsHandler`, `SearchProductsHandler` (uses Postgres `EF.Functions.ILike` for case-insensitive search).
+- OrderService: `GetOrderByIdHandler`, `GetOrdersByBuyerHandler` (paginated).
+- ShippingService: `GetShipmentByOrderHandler`.
 
-**Write loaders** (tracked entity, called by command/event/saga handlers that mutate via aggregate methods and call SaveChanges):
-- `IProductRepository.GetByIdAsync` — `UpdateProductHandler`, `ReserveStockHandler`
-- `IOrderRepository.GetByIdAsync` — `PaymentCompletedHandler`, `PaymentFailedHandler`, `ShipmentDispatchedHandler`
-- `IPaymentRepository.GetByOrderIdAsync` — `ProcessPaymentHandler`
-- `IShipmentRepository.GetByOrderIdAsync` — `CreateShipmentHandler` (idempotency check)
+**Write handlers** (load aggregate tracked, mutate via aggregate methods, call `SaveChangesAsync`):
+- CatalogService: `CreateProductHandler`, `UpdateProductHandler`, `ReserveStockHandler`.
+- OrderService: `PlaceOrderHandler`, `PaymentCompletedHandler`, `PaymentFailedHandler`, `ShipmentDispatchedHandler`.
+- PaymentService: `ProcessPaymentHandler` (loads-or-creates Payment; concurrent inserts race the unique OrderId index — `DbUpdateException` is caught and the winning row is re-fetched).
+- ShippingService: `CreateShipmentHandler` (handles idempotency by checking for an existing shipment for the OrderId first).
 
-Read methods can't share a single `GetByIdAsync` with the write path: untracked-then-mutate would silently no-op on `SaveChanges`, and tracked-then-project-in-handler reintroduces the entity-materialization anti-pattern. The split is enforced — see [cqrs-data-access.md](cqrs-data-access.md) for the canonical shape per architecture style.
+Read paths never load tracked entities (would over-read columns + materialize entity graphs the projection doesn't need). Write paths never `AsNoTracking().Select()` (untracked-then-mutate is a silent no-op on `SaveChanges`). The split is enforced by code-shape discipline — see [cqrs-data-access.md](cqrs-data-access.md) for the canonical projection pattern.
 
 ---
 
@@ -523,7 +508,7 @@ Read methods can't share a single `GetByIdAsync` with the write path: untracked-
 | Pattern | Implementation |
 |---------|---------------|
 | **CQRS** | Separate command and query objects; Wolverine handler POCOs discovered by convention (`Handle()` method) |
-| **Repository** | EF Core repositories behind domain interfaces |
+| **Repository (built-in)** | `DbContext` IS Unit-of-Work; `DbSet<T>` IS Repository. No `I*Repository` wrappers. |
 | **Domain-Driven Design** | Aggregates with factory methods, guard clauses, encapsulated collections (`IReadOnlyList`), no public setters |
 | **Validation Pipeline** | FluentValidation + Wolverine `opts.UseFluentValidation()` for pre-handler validation |
 | **Event-Driven Architecture** | Azure Service Bus pub/sub with topic/subscription model |
@@ -551,7 +536,7 @@ Read methods can't share a single `GetByIdAsync` with the write path: untracked-
 - **Authentication & Authorization** - JWT Bearer authentication wired in `NextAurora.ServiceDefaults` (`AddJwtBearerAuthentication()`); identity provider is **Keycloak** (Aspire-managed container, `nextaurora-realm` imported from `realms/nextaurora-realm.json`). `AddJwtBearer` validates issuer, audience, lifetime; claim mapping uses `preferred_username` → name and `realm_access.roles` → role. `.RequireAuthorization()` on every state-changing endpoint and buyer-scoped reads (Catalog write endpoints, all of `/api/v1/orders`, `/api/v1/payments/process`, all of `/api/v1/shipments`). Buyer-scope endpoints additionally verify the JWT `sub` claim matches the route/body buyer ID. `GET /api/v1/products` remains anonymous.
 - **API Versioning** - URL-segment versioning via `Asp.Versioning.Http`. Routes follow `/api/v{version:apiVersion}/...` with the version required in the URL (`AssumeDefaultVersionWhenUnspecified = false`). Default version is `1.0`; `Asp.Versioning.Mvc.ApiExplorer` integrates with OpenAPI so versioned endpoints show up under group `v1` in the OpenAPI spec (rendered in Scalar). Configured globally in `AddServiceDefaults()` so every service inherits the same policy. gRPC is versioned separately via `.proto` `package` (out of scope here).
 - **Dead Letter Queue Processing** - `messages.abandoned` metric counter on all processors. Replay/audit available via Wolverine's `IMessageStore` API or by querying the `wolverine` schema directly.
-- **Distributed Caching (Catalog)** - `IProductCache` (read-side, factory-based `GetOrLoadAsync` + `InvalidateAsync`) backed by `Microsoft.Extensions.Caching.Hybrid` 10.5.0: **L1 in-process MemoryCache + L2 Redis**, stampede protection (concurrent misses for the same key invoke the factory once), and tag-based invalidation that clears both layers atomically. `GetProductByIdHandler` reads through the cache; `UpdateProductHandler` and `ReserveStockHandler` call `InvalidateAsync` in the write path. 5-min absolute TTL on both tiers as the safety net for missed invalidations. Cache stores the `ProductDto` projection (not the EF entity) — see [IProductCache.cs](../CatalogService/CatalogService.Application/Interfaces/IProductCache.cs) and [HybridProductCache.cs](../CatalogService/CatalogService.Infrastructure/Caching/HybridProductCache.cs). List queries (`GetAllProducts`, `SearchProducts`) are intentionally not cached — paginated reads are less hot than single-product lookups, and cross-page invalidation is harder. Full rationale and trade-offs: [docs/performance-and-data-correctness.md "Decision: distributed read caching with HybridCache"](performance-and-data-correctness.md#decision-distributed-read-caching-with-hybridcache).
+- **Distributed Caching (Catalog)** - `IProductCache` (read-side, factory-based `GetOrLoadAsync` + `InvalidateAsync`) backed by `Microsoft.Extensions.Caching.Hybrid` 10.5.0: **L1 in-process MemoryCache + L2 Redis**, stampede protection (concurrent misses for the same key invoke the factory once), and tag-based invalidation that clears both layers atomically. `GetProductByIdHandler` reads through the cache; `UpdateProductHandler` and `ReserveStockHandler` call `InvalidateAsync` in the write path. 5-min absolute TTL on both tiers as the safety net for missed invalidations. Cache stores the `ProductDto` projection (not the EF entity) — see [IProductCache.cs](../CatalogService/Domain/IProductCache.cs) and [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs). List queries (`GetAllProducts`, `SearchProducts`) are intentionally not cached — paginated reads are less hot than single-product lookups, and cross-page invalidation is harder. Full rationale and trade-offs: [docs/performance-and-data-correctness.md "Decision: distributed read caching with HybridCache"](performance-and-data-correctness.md#decision-distributed-read-caching-with-hybridcache).
 - **OpenAPI Output (JSON + YAML) + Scalar UI** - All five services emit OpenAPI specs at `/openapi/v1.json` and `/openapi/v1.yaml` in development. Built on `Microsoft.AspNetCore.OpenApi`'s extension-driven format selection — same `MapOpenApi(pattern)` call, different file extension. **Interactive API documentation UI** at `/scalar/v1` via `Scalar.AspNetCore` — reads the same OpenAPI doc and renders it as a polished, searchable reference with try-it-out support. Dev-only (gated on `IsDevelopment()`).
 
 ### Not Yet Implemented

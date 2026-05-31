@@ -44,9 +44,10 @@ reviews:
         Interfaces earn their keep through consumer substitution (test mock or 2+ impls
         today, OR concrete near-term roadmap) — flag speculative interfaces. Repository
         wrappers around EF Core (IFooRepository + FooRepository) are explicitly NOT
-        justified by the substitution rule — see the "**/Domain/I*Repository.cs" and
-        "**/Infrastructure/*Repository.cs" path_instructions below for why and what
-        to flag.
+        justified by the substitution rule — see the "**/Domain/I*Repository.cs"
+        path_instructions below. No service has repository implementations anymore
+        (they were all retired in the simplicity refactor + CatalogService VSA collapse),
+        so a separate "**/Infrastructure/*Repository.cs" rule is unnecessary.
 
     - path: "**/Features/**/*.cs"
       instructions: |
@@ -66,6 +67,53 @@ reviews:
         any new IFooRepository interface introduced — those are wrapper-around-EF
         patterns the project removed (see CLAUDE.md "Data access: DbContext directly").
 
+        NON-SARGABLE PREDICATES (Must-fix). A `Where(...)` that wraps an entity column
+        in a function — `u.Email.ToLower() == x`, `o.CreatedAt.Date == today`, or
+        `EF.Functions.ILike(p.Name, "%text%")` with a leading wildcard — defeats any
+        B-tree index on that column. The planner falls back to a full scan even when
+        an index exists. Fix at write time: normalize on insert/update (e.g.
+        `EmailNormalized` column populated by the aggregate factory) and `Where`
+        against the normalized column; or use case-insensitive column collation.
+        Leading-wildcard substring search isn't B-tree-indexable in any database —
+        escalate to Postgres `tsvector` full-text search or a dedicated search engine
+        (Elasticsearch/OpenSearch/Meilisearch) when load justifies it. Reference
+        example with the trade-off documented in the file:
+        CatalogService/Features/SearchProducts.cs (leading wildcard intentional;
+        full-text is the named next step). The deeper principle: indexes carry a
+        write cost — every insert/update touches every index — so an index the
+        planner can't use is pure overhead. See CLAUDE.md "Non-sargable predicates
+        defeat indexes — fix at write time, not at read time".
+
+        PARALLEL INDEPENDENT AWAITS (Should-consider on sequential awaits of independent
+        I/O). When a handler makes N independent I/O calls (N gRPC requests to
+        different services, N HTTP calls to different external APIs, N queries against
+        DIFFERENT DbContexts), sequential `await`s pay the sum of latencies; the right
+        shape is `Task.WhenAll`. Recommend `Task.WhenAll` when you see three or more
+        sequential awaits whose results don't feed each other. Reference shape:
+        OrderService/Features/PlaceOrder.cs:93 (Task.WhenAll over per-line
+        catalogClient.GetProductAsync — gRPC fan-out, no shared mutable state).
+
+        DO NOT recommend Task.WhenAll when: (a) the operations are dependent (output
+        of one feeds input of another), (b) they share the same EF DbContext scope
+        (DbContext is NOT thread-safe — parallel EF queries against the same context
+        throw or corrupt state; use IDbContextFactory<T> for parallel EF queries),
+        or (c) failure observability matters per-operation (Task.WhenAll surfaces only
+        the first exception). See CLAUDE.md "Parallelize independent awaits with
+        Task.WhenAll" + the existing "DbContext is not thread-safe" rule.
+
+        FAN-OUT SHAPE (Must-fix on synchronous in-handler loops over recipients).
+        A handler that iterates a recipient list inline and `await`s a sender per
+        recipient (`foreach (var follower in followers) await _sender.SendAsync(...)`)
+        holds the request open for N × per-recipient-latency and creates traffic
+        spikes that starve the rest of the system. The right shape: publish one
+        Wolverine message per recipient (or per batch of K), return immediately,
+        let per-recipient handlers run in parallel under Wolverine's
+        `MaxDegreeOfParallelism` throttle. Not retroactively violated today
+        (NotificationService consumes one event = one outbound notification), but
+        the rule is preventative for any future broadcast-to-N feature. See
+        CLAUDE.md "Fan-out belongs on the message bus, not in a synchronous
+        handler loop".
+
     - path: "**/Domain/I*Repository.cs"
       instructions: |
         Repository interfaces wrapping EF Core (e.g. IOrderRepository, IPaymentRepository)
@@ -80,36 +128,90 @@ reviews:
         (Wolverine vs. test fake) and ICatalogClient (gRPC vs. test fake). Those have
         legitimate substitution stories. Anything ending in "Repository" doesn't.
 
-    - path: "CatalogService/CatalogService.Application/Interfaces/IProductReadStore.cs"
-      instructions: |
-        IProductReadStore is the one read-side port that survives the simplicity
-        refactor — it's a Clean Architecture layer-rule consequence (Domain can't
-        reference Contracts where DTOs live), not a wrapper-around-EF pattern.
-        Implementation at CatalogService.Infrastructure/Repositories/ProductReadStore.cs.
-        Methods project to DTO inside the IQueryable via AsNoTracking() + .Select(...).
-        Flag any entity-returning method on the interface or impl — IProductReadStore
-        is read-side by contract. The VSA services don't have this seam — their reads
-        happen directly in handlers because there's no Domain/Application/Contracts
-        layer rule to honor.
-
     - path: "CatalogService/**/*.cs"
       instructions: |
-        This service uses Clean Architecture (Domain / Application / Infrastructure / Api).
-        Domain depends on nothing; Application on Domain; Infrastructure on both; Api is
-        the composition root. Flag any cross-layer leak. Domain entities use factory
-        methods (static Create()) with validation, never public setters.
+        CatalogService is now Vertical Slice Architecture like the other four services —
+        the Clean Architecture four-project split was retired in the VSA-collapse
+        refactor. Single CatalogService.csproj at the service root; Features/ holds the
+        co-located command/query + validator + handler files; Domain/ holds aggregates
+        (Product, Category) and the IProductCache port; Infrastructure/ holds
+        CatalogDbContext + HybridProductCache + migrations + DI; Endpoints/ and Grpc/
+        hold the HTTP and gRPC surfaces.
 
-        DATA-ACCESS SHAPE (Clean variant — CARVE-OUT vs the project-wide
-        "no repository wrappers" rule): CatalogService keeps both IProductRepository
-        (Domain port, write-side) and IProductReadStore (Application port, read-side).
-        CatalogDbContext lives in Infrastructure; Application cannot reference
-        Infrastructure (would create a circular project reference), so Application
-        handlers can't take CatalogDbContext directly — they need the abstractions.
-        Both repositories pass the consumer-substitution test through the Clean layer
-        rules, unlike the VSA services where the wrapper added no capability and was
-        removed. See CLAUDE.md "Interfaces earn their keep" / "Exception — CatalogService".
-        Flag attempts to ADD additional repository wrappers, but DON'T flag the
-        existing IProductRepository/IProductReadStore as speculative coupling.
+        DATA-ACCESS SHAPE: handlers take CatalogDbContext directly. There is NO
+        IProductRepository or IProductReadStore — read handlers project inline via
+        AsNoTracking() + .Select(...) into ProductDto; write handlers load the
+        aggregate tracked, mutate via state-transition methods (Product.UpdateDetails,
+        Product.AdjustStock), and call SaveChangesAsync. Flag any new I*Repository
+        introduced in this service — that pattern was removed for the same reason it
+        was removed from the other four services (DbContext IS Unit-of-Work, DbSet<T>
+        IS Repository; mocking has been replaced by integration tests with Testcontainers
+        in CatalogService.Tests.Integration). See CLAUDE.md "Data access: DbContext
+        directly, no repository wrappers".
+
+        DOMAIN INVARIANTS: Domain entities use factory methods (static Create()) with
+        validation, never public setters. Currency must be 3 chars; Price > 0; stock
+        non-negative.
+
+        ENTITY ID GENERATION (Should-consider on new aggregate factory using
+        Guid.NewGuid()). Aggregate factory methods (`static Create()` on Order,
+        Payment, Shipment, Product, Category, etc.) should mint entity IDs with
+        `Guid.CreateVersion7()`, not `Guid.NewGuid()`. UUID v7 is time-ordered
+        (first 48 bits = Unix-ms timestamp), so PK inserts append-extend the
+        B-tree index instead of fragmenting it. .NET 9+ API, same `Guid` type,
+        no third-party package needed.
+
+        Trade-off worth flagging: v7's timestamp is decodable from the ID, so
+        the mint time leaks to anyone holding it. Acceptable for buyer-scoped
+        resources (IDOR-gated) and naturally-timestamped public resources
+        (Product creation time isn't sensitive). DO NOT use v7 for IDs where
+        the mint time IS sensitive (security tokens, admin-only references) —
+        in those cases keep `Guid.NewGuid()` and note the reason inline.
+
+        Don't recommend a sweep of existing `Guid.NewGuid()` call sites — the
+        rule applies opportunistically to new aggregate code; existing v4 IDs
+        in the DB coexist fine with new v7 IDs (same column, no migration).
+
+        See CLAUDE.md "Performance Rules → Entity IDs use Guid.CreateVersion7()".
+
+    - path: "**/Infrastructure/DependencyInjection.cs"
+      instructions: |
+        Port registrations. Flag two distinct patterns:
+
+        1) PREMATURE FACTORY (Must-fix). A `services.AddKeyedScoped<IPort, OnlyImpl>(key)`
+           or an `IPortFactory` registration with only one impl in the file is the same
+           speculative coupling as the deleted I*Repository wrappers — a layer that
+           adds no capability today and isn't shaped for whatever the second impl
+           actually needs. The right shape for a single-impl port is the plain
+           `services.AddScoped<IPort, OnlyImpl>()`. Recommend deleting the factory/key
+           setup until a second impl actually ships.
+
+        2) MISSING FACTORY when 2+ impls exist with per-call selection (Must-fix).
+           If the same port has multiple AddScoped<IPort, ...> registrations AND
+           per-call routing is intended (e.g. ConsoleNotificationSender +
+           SendGridNotificationSender both registered the same way, and
+           request.Channel is supposed to decide which one runs), the impls collide
+           silently — DI returns the last-registered impl deterministically for
+           every call, dropping the routing intent and producing a latent bug, not
+           a style nit. The fix is .NET keyed services: AddKeyedScoped<IPort,
+           Impl1>("k1") + AddKeyedScoped<IPort, Impl2>("k2"), resolved in the
+           handler via `[FromKeyedServices(key)] IPort sender` parameter. Do NOT
+           introduce a hand-rolled IPortFactory interface — `IServiceProvider.
+           GetRequiredKeyedService` is the canonical factory, and an extra wrapper
+           is the same layer-without-capability as the deleted repositories.
+
+           If the two impls are genuinely interchangeable (either would satisfy
+           any call — e.g. redundant logging targets), Should-consider rather
+           than Must-fix: still tighten to keyed services for explicitness, but
+           it's not a live bug.
+
+        Reference example: NotificationService is "ready for the factory, not yet
+        wearing it." INotificationSender exists (single impl ConsoleNotificationSender
+        today); SendNotificationRequest.Channel already carries the routing key for
+        the day a second adapter ships. When that day comes, this file becomes the
+        natural site of the keyed-services rewrite.
+
+        See CLAUDE.md "Interfaces earn their keep through consumer substitution".
 
     - path: "**/Endpoints/**/*.cs"
       instructions: |
@@ -130,6 +232,56 @@ reviews:
         Flag any GET-by-id, GET-by-scope, PATCH, PUT, or DELETE endpoint missing this pattern.
         Reference templates: OrderEndpoints.cs:GET /orders/{id}, ShippingEndpoints.cs:GET
         /shipments/order/{orderId}, CatalogEndpoints.cs:PUT /products/{id} (seller variant).
+
+        LONG-RUNNING WORK — 202 ACCEPTED SHAPE (Must-fix on minutes-scale handlers,
+        Should-consider on >1s handlers). If a write endpoint synchronously awaits
+        something that can take more than ~1 second — multi-step external API chain
+        (e.g. Stripe + tax calc + fraud check sequentially), aggregation over
+        thousands of rows, bulk import, report generation — it's the wrong shape.
+        Reshape as 202 Accepted: validate + persist a tracking row + publish a
+        Wolverine message + return `202` with the job/correlation ID in the body
+        and a `Location` header pointing to a status endpoint. A background handler
+        does the actual work; the client polls or receives a push (SignalR/SSE/email).
+        The synchronous parts (validate, persist intent, stage envelope) commit in
+        one EF transaction via AutoApplyTransactions.
+
+        NextAurora already has the full infrastructure for this — Wolverine +
+        Service Bus + outbox + saga handlers — so the rule is "use it when a
+        handler would otherwise block on minutes-scale work." Reference shape:
+        POST /api/v1/orders (place → publish OrderPlaced → return OrderId
+        immediately; PaymentService + ShippingService handle the downstream
+        work via the saga). The same rule applies to Wolverine handlers
+        themselves: if a handler body runs for minutes, the work belongs in a
+        follow-up message handler, not in-line.
+
+        See CLAUDE.md "Performance Rules → Long-running work belongs on the
+        message bus, not the synchronous HTTP handler".
+
+        RATE-LIMIT SHAPE (Should-consider on single-instance, Must-fix on
+        multi-instance scale). ASP.NET Core's built-in RequireRateLimiting +
+        AddFixedWindowLimiter / AddSlidingWindowLimiter store counters
+        in-process — correct for single-instance deployment, but the limit
+        silently multiplies by N when scaled to N instances (each instance
+        enforces its own counter, a client hitting any instance gets a fresh
+        allowance). NextAurora is single-instance everywhere today so the
+        in-memory limiter is correct.
+
+        Flag two scenarios:
+        1. A new `RequireRateLimiting` on an endpoint without a comment at the
+           call site or registration site (`AddFixedWindowLimiter` /
+           `AddSlidingWindowLimiter` in `Program.cs`) justifying why in-memory
+           is correct for current scale + naming the swap-to-Redis trigger.
+        2. A deployment-config PR (`Dockerfile.*`, `fly.toml`, GitHub Actions
+           deploy workflow) that scales a rate-limited service past 1 Machine
+           without a paired swap to a Redis-backed limiter.
+
+        The fix when scale-out happens: Redis-backed limiter using the
+        existing HybridCache Redis. The increment + TTL pair (INCR then
+        EXPIRE) has a race window under concurrency — wrap in a Lua script
+        via EVAL so the operation is atomic.
+
+        See CLAUDE.md "Security Requirements → Rate Limiting" +
+        docs/full-saga-deployment-plan.md Phase 3 audit deliverable.
 
     - path: "**/*RecoveryJob*.cs"
       instructions: |
