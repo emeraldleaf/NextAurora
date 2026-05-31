@@ -109,10 +109,14 @@ public sealed class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLife
 
         // Syntactically-valid Azure Service Bus connection string. Never used over the wire —
         // DisableAllExternalWolverineTransports below routes outgoing messages to local stubs —
-        // but Wolverine's UseAzureServiceBus(...) registration parses it eagerly.
+        // but Wolverine's UseAzureServiceBus(...) registration parses it eagerly. SharedAccessKey
+        // base64-decodes to "fake-shared-key-for-testing-only". The inline `gitleaks:allow`
+        // marker on the literal line is the suppressor; .gitleaks.toml documents the project's
+        // convention but its [[allowlists]] block does not reliably override the extended-default
+        // `generic-api-key` rule in gitleaks 8.x. See CLAUDE.md.
         builder.UseSetting(
             "ConnectionStrings:messaging",
-            "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZS1zaGFyZWQta2V5LWZvci10ZXN0aW5nLW9ubHk=");
+            "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZS1zaGFyZWQta2V5LWZvci10ZXN0aW5nLW9ubHk="); // gitleaks:allow
 
         builder.ConfigureTestServices(services =>
         {

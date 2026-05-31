@@ -1,0 +1,33 @@
+# gitleaks configuration — extends the default ruleset rather than replacing it.
+# The default rules (AWS keys, JWTs, private keys, .env values, etc.) stay active.
+#
+# How findings are actually suppressed in this repo: **inline `// gitleaks:allow`
+# markers at the end of the offending line.** That mechanism is reliable across
+# gitleaks 8.x. The `[[allowlists]]` block below was tried first but does NOT
+# reliably suppress findings from extended-default rules in 8.24.x — the
+# config loads (CI log shows "using gitleaks config from GITLEAKS_CONFIG env
+# var") and the [extend] block works, but the allowlist's path+regex match
+# doesn't fire against generic-api-key findings. Kept here as supplementary
+# documentation of the project's fake-credential convention; the inline
+# `gitleaks:allow` marker on the literal line is the load-bearing mechanism.
+#
+# See CLAUDE.md "Testing → fake credentials in test fixtures" for the
+# rule + reference factories.
+
+[extend]
+useDefault = true
+
+# Documentation of intent. The inline `gitleaks:allow` markers on the literal
+# lines in each of the three factories are what actually suppresses the
+# findings; this block is kept for the convention-encoding it carries.
+[[allowlists]]
+description = "Fake ASB connection string in integration test factories (documentation; primary suppressor is inline `gitleaks:allow`)"
+paths = [
+    '''tests/OrderService\.Tests\.Integration/OrderApiFactory\.cs''',
+    '''tests/PaymentService\.Tests\.Integration/PaymentApiFactory\.cs''',
+    '''tests/ShippingService\.Tests\.Integration/ShippingApiFactory\.cs''',
+]
+regexes = [
+    '''SharedAccessKey=[A-Za-z0-9+/=]{20,}''',
+]
+regexTarget = "line"

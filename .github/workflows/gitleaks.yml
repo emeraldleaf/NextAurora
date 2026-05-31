@@ -38,3 +38,8 @@ jobs:
         env:
           # GITLEAKS_LICENSE only required for private/org repos; public OSS is free.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pin the config path explicitly. gitleaks-action auto-discovers
+          # `.gitleaks.toml` at repo root, but pinning is auditable in CI logs
+          # ("loaded config from .gitleaks.toml") and prevents silent fallback
+          # to default-only rules if the file is renamed or moved. See CLAUDE.md.
+          GITLEAKS_CONFIG: .gitleaks.toml
