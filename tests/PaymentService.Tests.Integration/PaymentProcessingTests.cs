@@ -158,6 +158,60 @@ public sealed class PaymentProcessingTests(PaymentApiFactory factory) : IClassFi
         await act.Should().ThrowAsync<DbUpdateConcurrencyException>();
     }
 
+    [Fact]
+    public async Task ProcessPayment_ignores_spoofed_BuyerId_in_request_body_and_uses_JWT_claim()
+    {
+        // ARRANGE — The IDOR vector CodeRabbit flagged: an authenticated buyer X submits a
+        // ProcessPaymentCommand with a spoofed BuyerId field set to some other buyer Y. Pre-fix,
+        // the endpoint trusted the body's BuyerId and the Payment row got attributed to Y.
+        // Post-fix, the endpoint binds a ProcessPaymentRequest (no BuyerId on the wire) and
+        // constructs the internal command with BuyerId sourced from the JWT NameIdentifier
+        // claim, so the spoofed field is silently ignored by deserialization.
+        //
+        // We submit JSON via an anonymous object so we can include a BuyerId field that
+        // ProcessPaymentRequest does not declare — System.Text.Json drops it during binding.
+        var orderId = Guid.NewGuid();
+        var spoofedBuyer = Guid.NewGuid();
+        spoofedBuyer.Should().NotBe(TestAuthHandler.BuyerId, "the test only proves the right thing if the spoof differs from the authenticated buyer");
+        StubGatewaySuccess(transactionId: "stripe_txn_idor_test");
+
+        var spoofingBody = new
+        {
+            OrderId = orderId,
+            Amount = 12.34m,
+            Currency = "USD",
+            BuyerId = spoofedBuyer,
+        };
+
+        var host = _factory.Services.GetRequiredService<IHost>();
+        var client = _factory.CreateClient();
+
+        // ACT — POST with the spoofed BuyerId in the JSON body. The endpoint binds
+        // ProcessPaymentRequest (no BuyerId), reads BuyerId from the JWT, and constructs the
+        // internal command with the authenticated buyer. TrackActivity waits for the Acceptor
+        // → Gateway cascade to settle.
+        await host.TrackActivity().Timeout(TimeSpan.FromSeconds(30))
+            .ExecuteAndWaitAsync(_ => client.PostAsJsonAsync("/api/v1/payments/process", spoofingBody));
+
+        // ASSERT — Two invariants, both load-bearing:
+        //  1) The Payment row's BuyerId equals TestAuthHandler.BuyerId (the authenticated buyer),
+        //     NOT spoofedBuyer. Pre-fix this assertion would fail because the body's BuyerId
+        //     would have been trusted. The whole point of the fix is to make the spoofed value
+        //     unreachable as the canonical BuyerId.
+        //  2) No Payment row exists attributed to spoofedBuyer for this OrderId. Defensive
+        //     redundancy — invariant (1) implies it, but stating it explicitly makes the
+        //     anti-attribution contract obvious to future readers and to a regression where the
+        //     handler might somehow construct a Payment with the wrong BuyerId.
+        await using var scope = _factory.CreateDbScope();
+        var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+
+        var payment = await db.Payments.AsNoTracking().SingleAsync(p => p.OrderId == orderId);
+        payment.BuyerId.Should().Be(TestAuthHandler.BuyerId, "BuyerId must come from the JWT claim, not the request body");
+
+        var spoofedExists = await db.Payments.AsNoTracking().AnyAsync(p => p.OrderId == orderId && p.BuyerId == spoofedBuyer);
+        spoofedExists.Should().BeFalse("no Payment row may be attributed to the spoofed BuyerId");
+    }
+
     private void StubGatewaySuccess(string transactionId) =>
         _factory.Gateway
             .ProcessPaymentAsync(Arg.Any<decimal>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())

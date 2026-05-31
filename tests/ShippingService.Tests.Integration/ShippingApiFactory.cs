@@ -78,9 +78,9 @@ public sealed class ShippingApiFactory : WebApplicationFactory<Program>, IAsyncL
 
         // Syntactically-valid ASB connection string — parsed eagerly, never used over the wire.
         // SharedAccessKey base64-decodes to "fake-shared-key-for-testing-only". The inline
-        // `gitleaks:allow` marker on the literal line is the suppressor; .gitleaks.toml documents
-        // the project's convention but its [[allowlists]] block does not reliably override the
-        // extended-default `generic-api-key` rule in gitleaks 8.x. See CLAUDE.md.
+        // `gitleaks:allow` marker on the literal line is the suppressor. There is no project-level
+        // gitleaks config (global [[allowlists]] needs gitleaks 8.25+, runner ships 8.24.x); the
+        // inline marker is the load-bearing mechanism. See CLAUDE.md.
         builder.UseSetting(
             "ConnectionStrings:messaging",
             "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZS1zaGFyZWQta2V5LWZvci10ZXN0aW5nLW9ubHk="); // gitleaks:allow
