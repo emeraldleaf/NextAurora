@@ -128,18 +128,48 @@ Is the work a recurring motion you want as a single keystroke?
 - `description` (load-bearing — this is what triggers auto-invocation; include trigger keywords)
 - Optional sub-files (`references/`, `scripts/`) referenced from `SKILL.md`
 
-**Current inventory:**
-| Skill | When it fires |
+**Current inventory — when to invoke each:**
+
+Skills only earn their keep if you *notice the moment* to invoke them. The
+table below names the **trigger phrase** — the specific thought, symptom, or
+word that should make you reach for the skill — instead of an abstract
+"when it fires." Memorize the moments, not the skills.
+
+Grouped by how the dev-loop actually uses them:
+
+**Tier 1 — Actively used (load on demand)**
+
+| Skill | Trigger phrase (the catch-yourself moment) |
 |---|---|
-| `dotnet-performance` | EF Core queries, async/await, concurrency, GC, caching, middleware, migrations |
-| `excalidraw-diagram` | Generating architecture diagrams |
-| `skill-security-auditor` | Pre-install security gate for community skills |
-| `verification-before-completion` | About to claim "done/fixed/passing" without evidence |
-| `systematic-debugging` | Any bug, test failure, unexpected behavior (auto-triggers) |
-| `variant-analysis` | Find one bug, search for sibling patterns across the codebase |
-| `test-driven-development` | RED-GREEN-REFACTOR enforcement |
-| `using-git-worktrees` | Feature work needing workspace isolation |
-| `writing-plans` + `executing-plans` | Spec-driven multi-step work with review checkpoints |
+| `dotnet-performance` | *"I'm about to touch an EF query / async path / cache / migration / middleware."* Load it **before** writing the code, not after. Also the canonical reference target for CLAUDE.md "Performance Rules." |
+| `excalidraw-diagram` | *"A picture would make this argument load-bearing"* — explaining an architecture verbally and realizing the flow is hard to follow without one. Or: an existing diagram has drifted from reality. |
+| `writing-plans` + `executing-plans` | *"This will take more than one session, has reviewable checkpoints, and the wrong direction is expensive to undo."* Big tell: >3 files + >1 architectural decision. Canonical use: the Hetzner full-saga deployment plan. |
+
+**Tier 2 — Ambient (discipline absorbed into CLAUDE.md; skill is the reach-for surface)**
+
+| Skill | Trigger phrase (the catch-yourself moment) |
+|---|---|
+| `verification-before-completion` | You're about to type *"should work,"* *"I think this is right,"* or *"done"* — but you haven't actually run it. The word **"should"** is the signal. |
+| `systematic-debugging` | You've made **two attempts** at a bug and neither worked. Or: you can describe the *symptom* but not the *mechanism*. Random-fix loop → load this. |
+| `test-driven-development` | *Greenfield logic with non-trivial branching* (state machine, authorization predicate, calculation with edge cases). OR: fixing a bug — write the **failing test that reproduces it FIRST**, then fix. |
+| `variant-analysis` | *"I just fixed one — are there siblings?"* Any time a fix lands or the architecture-reviewer flags something, ask: "is this a *category*?" If yes → load. |
+
+**Tier 3 — Dormant by design (fire only on specific triggers)**
+
+| Skill | Trigger phrase (the catch-yourself moment) |
+|---|---|
+| `using-git-worktrees` | *"I need to work on two things in parallel without context-switch friction"* — reviewing a PR mid-feature, running a long benchmark while editing, or the agent's about to do something risky and you want the main tree untouched. |
+| `skill-security-auditor` | *"I'm about to install a community skill from a repo I don't fully trust."* Run this on its `SKILL.md` **before** install, not after. |
+
+**The meta-pattern.** Most triggers are catch-yourself moments — a specific
+phrase you're about to use or a behavior you're about to do. The phrases that
+should trip the wire:
+
+- *"should work"* → `verification-before-completion`
+- *"two attempts and still broken"* → `systematic-debugging`
+- *"I just fixed one — are there more?"* → `variant-analysis`
+- *"this will take a while"* → `writing-plans`
+- *"I'm about to write a query/cache/migration"* → `dotnet-performance`
 
 ---
 
