@@ -7,11 +7,11 @@
     <!-- Aspire Hosting: must match the SDK in NextAurora.AppHost.csproj exactly (or SDK ≥ packages),
          including minor. Major mismatch surfaces at startup as TypeLoadException; minor mismatch
          surfaces as DCP rejecting startup. Bump SDK and packages together. See CLAUDE.md. -->
-    <PackageVersion Include="Aspire.Hosting.Azure.ApplicationInsights" Version="13.3.0" />
-    <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="13.3.0" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.3.0" />
-    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.3.0" />
-    <PackageVersion Include="Aspire.Hosting.SqlServer" Version="13.3.0" />
+    <PackageVersion Include="Aspire.Hosting.Azure.ApplicationInsights" Version="13.3.5" />
+    <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="13.3.5" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.3.5" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.3.5" />
+    <PackageVersion Include="Aspire.Hosting.SqlServer" Version="13.3.5" />
 
     <!-- Web -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
