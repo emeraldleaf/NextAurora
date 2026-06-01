@@ -38,3 +38,7 @@ jobs:
         env:
           # GITLEAKS_LICENSE only required for private/org repos; public OSS is free.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No project-level gitleaks config. Default ruleset is sufficient; fake
+          # credentials in integration test factories are suppressed by inline
+          # `// gitleaks:allow` markers on the literal lines. See CLAUDE.md
+          # "Testing → fake credentials in test fixtures."
