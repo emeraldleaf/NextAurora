@@ -104,7 +104,7 @@ public static class Extensions
         return builder;
     }
 
-    private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    private static void AddOpenTelemetryExporters<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
         var useOtlpExporter = !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
 
@@ -119,8 +119,6 @@ public static class Extensions
         //    builder.Services.AddOpenTelemetry()
         //       .UseAzureMonitor();
         //}
-
-        return builder;
     }
 
     public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
@@ -166,7 +164,7 @@ public static class Extensions
         return app;
     }
 
-    private static TBuilder AddDefaultAuthentication<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    private static void AddDefaultAuthentication<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
         var authority = builder.Configuration["Authentication:Authority"]
             ?? builder.Configuration["Keycloak:Url"];
@@ -177,7 +175,7 @@ public static class Extensions
             // so UseAuthentication/UseAuthorization don't throw, but no tokens are validated.
             builder.Services.AddAuthentication();
             builder.Services.AddAuthorization();
-            return builder;
+            return;
         }
 
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -207,8 +205,6 @@ public static class Extensions
             });
 
         builder.Services.AddAuthorization();
-
-        return builder;
     }
 
     /// <summary>
@@ -231,7 +227,7 @@ public static class Extensions
     /// migrations a behavior-change debugging nightmare.
     /// </para>
     /// </summary>
-    private static TBuilder AddNextAuroraApiVersioning<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    private static void AddNextAuroraApiVersioning<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
         builder.Services
             .AddApiVersioning(options =>
@@ -249,8 +245,6 @@ public static class Extensions
                 // generated docs/URLs (so Swagger UI shows "/api/v1/products" not the template).
                 options.SubstituteApiVersionInUrl = true;
             });
-
-        return builder;
     }
 
     /// <summary>
