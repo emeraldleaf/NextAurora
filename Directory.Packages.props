@@ -36,7 +36,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.8" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.8" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageVersion Include="Dapper" Version="2.1.72" />
 
     <!-- Caching -->
@@ -73,9 +73,9 @@
     <PackageVersion Include="Keycloak.AuthServices.Aspire.Hosting" Version="0.3.0" />
 
     <!-- Code Analysis -->
-    <PackageVersion Include="Meziantou.Analyzer" Version="2.0.257" />
-    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.16.0.128591" />
-    <PackageVersion Include="Roslynator.Analyzers" Version="4.14.1" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.98" />
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.27.0.140913" />
+    <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4" />
 
     <!-- Testing -->
