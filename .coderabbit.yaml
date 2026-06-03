@@ -41,6 +41,17 @@ reviews:
         HandleAsync (NOT Handle). Private instance fields prefixed with _; constants and
         static readonly use PascalCase. Sync-over-async patterns (.Result, .Wait(),
         .GetAwaiter().GetResult()) are banned at build time — flag any sneak-through.
+
+        MODEL NAMING (intent-based, by role). Flag a generic `*Dto` suffix on a
+        REQUEST model — name inbound CQRS messages `*Command` (writes) / `*Query`
+        (reads), gRPC contracts `*Request`/`*Response`. `*Dto` is reserved for
+        read-side projections (the shape a query handler projects to, e.g.
+        OrderSummaryDto) and is acceptable ONLY there. So: a new `CreateXDto` or
+        `XRequestDto` on a command/query is a Should-consider (rename to
+        `*Command`/`*Query`); a `*Dto` on a query-result projection is fine. Don't
+        recommend renaming existing `*Dto` read projections to `*Response` —
+        they're query contracts, not HTTP-response models. See CLAUDE.md
+        "Coding Standards → Model names are intent-based, by role".
         Interfaces earn their keep through consumer substitution (test mock or 2+ impls
         today, OR concrete near-term roadmap) — flag speculative interfaces. Repository
         wrappers around EF Core (IFooRepository + FooRepository) are explicitly NOT
