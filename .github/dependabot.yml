@@ -43,6 +43,21 @@ updates:
           - "AwesomeAssertions"
           - "NSubstitute"
           - "Bogus"
+    # Major-version bumps for packages with known migration surface area are
+    # deferred — Dependabot shouldn't open a weekly PR that breaks every
+    # integration test until someone has time to read the release notes,
+    # restructure code, and verify the saga + outbox + concurrency-retry
+    # paths still behave. Add majors back to the ignore list as they ship
+    # breaking changes; remove when a dedicated migration PR has landed.
+    ignore:
+      # Wolverine 6.0 split the runtime code generator into a separate
+      # WolverineFx.RuntimeCompilation package (GH-2876). Every integration
+      # test fails at host startup with "no IAssemblyGenerator registered"
+      # until production code either references the new package or pre-
+      # generates code via `dotnet run -- codegen write` + TypeLoadMode.Static.
+      # Stay on 5.x (Dependabot will still bump 5.x patches/minors).
+      - dependency-name: "WolverineFx*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /

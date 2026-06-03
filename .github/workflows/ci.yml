@@ -85,7 +85,7 @@ jobs:
       # using GitHub Actions (Codecov reads the GITHUB_TOKEN claim automatically).
       - name: Upload coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./test-results/**/coverage.cobertura.xml
           flags: unit
@@ -172,7 +172,7 @@ jobs:
       # reportgenerator's aggregation in CLAUDE.md).
       - name: Upload integration coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./test-results/**/coverage.cobertura.xml
           flags: integration
