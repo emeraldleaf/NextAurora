@@ -51,7 +51,7 @@ across as many of the **six surfaces** below as apply.
 | 2 | [`.coderabbit.yaml`](../.coderabbit.yaml) `path_instructions` | File-pattern-scoped guidance — add a new glob if no existing one fits | PR-time CodeRabbit review |
 | 3 | [`.claude/agents/architecture-reviewer.md`](../.claude/agents/architecture-reviewer.md) Pattern Checklist | Per-file-category scan rule the agent applies on every review | Local agent invocation, before code lands |
 | 4 | [`.claude/skills/`](../.claude/skills/) | Procedural knowledge worth a dedicated bundle (multi-step, specialized vocab) | On-demand, or when the user describes the right intent |
-| 5 | [`docs/STATUS.md`](STATUS.md) "Open issues" | Deferred or partial fixes — the cross-session ledger | Cross-session pickup |
+| 5 | [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues) (labels: `rule-encoding-deferred`, `type/*`, `area/*`) | Deferred or partial fixes — the durable work ledger. STATUS.md is the entry-point doc; the issues board is where individual work items live. | Cross-session pickup, board triage |
 | 6 | Supporting docs ([architecture.md](architecture.md), [performance-and-data-correctness.md](performance-and-data-correctness.md), this file) | The *why* behind a rule when it's longer than one line | Onboarding, future-you |
 
 ### What triggers an encoding (the threshold)

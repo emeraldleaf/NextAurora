@@ -1,0 +1,41 @@
+name: Work item
+description: Anything worth tracking — feature, refactor, perf work, test gap, chore, follow-up
+title: "<short imperative title — e.g. 'Add X', 'Fix Y', 'Decide whether to Z'>"
+labels: []
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What
+      description: One paragraph. The work to do. If a fix, what's broken. If a decision, what's the question.
+      placeholder: |
+        e.g. Align the Promotion Signal table in docs/dev-loop.md with the canonical 4-row version in CLAUDE.md (added in #50). dev-loop.md currently has the 3-row pre-#50 version.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: Why it matters now. What's the cost of not doing it.
+      placeholder: |
+        e.g. Paraphrase drift between CLAUDE.md (canonical) and dev-loop.md (paraphrase). The `See CLAUDE.md.` convention assumes paraphrases track the canonical rule; this one is now stale.
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance — how we know it's done
+      description: Concrete checklist. Don't say "X works"; say "Y file shows Z" or "/check-rules audit returns 0 hits for this section."
+      placeholder: |
+        - [ ] docs/dev-loop.md "Promotion Signal" table has 4 rows matching CLAUDE.md
+        - [ ] /check-rules audit finds zero drift on this section
+        - [ ] PR body includes the audit note
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes / context / references
+      description: Links, related PRs, prior discussion, deferred decisions, anything that helps the next person pick this up.
+      placeholder: |
+        - Related PR: #54 (dev-loop refresh), #50 (CLAUDE.md Promotion Signal refinement)
+        - Source-of-truth: CLAUDE.md "Promotion signal" section

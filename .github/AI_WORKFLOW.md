@@ -145,8 +145,6 @@ section of the PR. If the boxes aren't checked, that's a flag to push back.
 
 - **Verification claims are concrete.** "Manually exercised the changed code path" with
   the actual curl / command run, not "looks good locally".
-- **Open issues stay in STATUS.md** — explicitly, not hidden. The README "About this
-  repo" callout admits up front that this is a monorepo with two architectures and not
-  every code path has been runtime-verified.
+- **Open work lives in [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues)** — explicitly, not hidden. STATUS.md is the entry-point doc (where we are, how to run, what just shipped); the issues board is the durable work tracker. The README "About this repo" callout admits up front that this is a monorepo with two architectures and not every code path has been runtime-verified.
 - **`See CLAUDE.md` paraphrases get audited** via `/check-rules` so the canonical and
   the inline don't drift.
