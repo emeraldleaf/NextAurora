@@ -334,6 +334,27 @@ Shipping → Notification end-to-end. Visible in Seq.
       (e.g. StackExchangeRedis) differ across major bumps.
 - [ ] Seq dashboards for the saga flow (one timeline per Order, CorrelationId-keyed)
 - [ ] Storefront UX polished enough to live-demo (minimal, not feature-rich)
+- [ ] **(Enhancement candidate) Live order-status via Server-Sent Events.** The
+      baseline order-status UX is polling `GET /api/v1/orders/{id}` — the natural
+      client side of the 202 Accepted pattern. The upgrade: an SSE endpoint
+      (`text/event-stream`) that pushes status transitions to the Storefront as
+      the saga advances, so the buyer watches the order move Placed → Paid →
+      Shipped → Notified **live**. Use .NET 10's dedicated SSE result —
+      `TypedResults.ServerSentEvents(IAsyncEnumerable<SseItem<T>>)` — which emits
+      the correct wire framing (`data:` lines, the `\n\n` frame delimiter, and
+      optional `event:`/`id:`/`retry:` fields). Don't hand-roll a raw
+      `IAsyncEnumerable<T>` with `Content-Type: text/event-stream` set manually —
+      that does NOT produce valid SSE frames on its own and is the easy mistake
+      here. A Wolverine handler subscribed to the saga events fans each status
+      delta into the stream — in-process, no backplane needed since the box runs
+      one instance of each service. Works behind Traefik (SSE is just a
+      long-lived HTTP response; ensure proxy response-buffering is off so frames
+      flush immediately). **Why it's a candidate, not a requirement:** polling already
+      satisfies the demo; SSE is a "watch it happen" upgrade — high demo value,
+      zero correctness value. Scope it only if Phase 3 has runway after the
+      required deliverables. (SSE is item #7 on the production-readiness checklist
+      NextAurora was audited against — one of two gaps; the other, feature flags,
+      is deferred — see "Considered and deferred" below.)
 - [ ] `README` "Try the live demo" section — URL, test credentials, expected flow
 - [ ] Security pass — the box is internet-facing; review every IDOR / JWT /
       rate-limit boundary against the live surface
@@ -367,6 +388,51 @@ plan. Two options once the Hetzner Catalog is verified in Phase 1:
 Decide in Phase 1; no need to commit now. The Fly demo's `DemoMode` +
 `ForwardedHeaders` machinery is reused on Hetzner regardless (Traefik terminates
 TLS + forwards HTTP just like Fly's proxy), so the work isn't wasted either way.
+
+---
+
+## Considered and deferred
+
+### Feature flags / feature management
+
+**Decision: deferred — not a Phase 3 deliverable.** Surfaced because feature
+flags are a standard production-readiness feature (gradual rollout, A/B testing,
+deploy-decoupled-from-release, kill-switch on a misbehaving feature). Considered
+honestly and set aside.
+
+**Why deferred for NextAurora:**
+- **No audience to roll out to.** Gradual rollout + A/B testing need real
+  production traffic segmented across cohorts. A single-developer portfolio demo
+  has neither — there's no population to flip 5% of.
+- **No deploy/release decoupling pressure.** Feature flags earn their keep when
+  you ship code dark and flip it on later, independently of deploy. With one
+  developer and Dokploy webhook deploys, *deploy is release* — there's no
+  release train to decouple from.
+- **`DemoMode` is already enough crude gating.** It's a single config bool that
+  surfaces Scalar/OpenAPI + relaxes HTTPS-redirect for the demo. That's a config
+  toggle, not a feature-flag *system*, and it's all the gating the demo needs.
+- **Flags carry a real maintenance tax.** Per the scaling-failure article
+  reviewed earlier, feature flags accumulate into a maze: stale flags linger
+  long after rollout, each flag is a branch in the code plus (if remote) a
+  config-service lookup that becomes a high-traffic dependency. Adding a flag
+  *system* before there's a flag to justify it is the same speculative coupling
+  the project deletes elsewhere — cf. the CLAUDE.md factory-pattern rule
+  ("don't pre-build the factory while there's only one impl"). A feature-flag
+  framework with zero real flags is a layer that buys nothing today.
+
+**The trigger to revisit:** a concrete need to ship a feature dark and flip it
+per-cohort, OR run an experiment, OR a kill-switch on a risky feature. When that
+lands, [`Microsoft.FeatureManagement`](https://learn.microsoft.com/en-us/azure/azure-app-configuration/feature-management-dotnet-reference)
+is the natural .NET choice — config-driven (`appsettings` or Azure App
+Configuration), plugs into the existing `IConfiguration`, supports
+percentage/targeting filters. Until then, no flag system.
+
+### Server-Sent Events (SSE)
+
+**Promoted to a Phase 3 enhancement candidate** (see Phase 3 deliverables) rather
+than deferred — it has real demo value (live saga progression in the Storefront)
+and a clean in-process implementation on a single box. Still optional: polling
+is the baseline; SSE is scoped only if Phase 3 has runway.
 
 ---
 
