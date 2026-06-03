@@ -406,7 +406,7 @@ dotnet ef database update \
 
 Then deploy the app image. The pods boot, hit `IsDevelopment() == false`, skip the `MigrateDatabaseAsync` call, and start serving against the already-up-to-date schema.
 
-The tooling for this exists; the CI automation does not yet. Tracked in [STATUS.md "Open issues"](STATUS.md).
+The tooling for this exists; the CI automation does not yet. Tracked in [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%2Finfra).
 
 ### 6.7 The immutable-once-applied rule
 
