@@ -57,6 +57,21 @@ namespace PaymentService.Features;
 ///         <see cref="IPaymentGateway"/> XML doc for provider semantics.</item>
 /// </list></para>
 /// </summary>
+/// <summary>
+/// HTTP request body for <c>POST /api/v1/payments/process</c>. <b>Does not include BuyerId</b> —
+/// the endpoint reads the authenticated buyer from the JWT <c>NameIdentifier</c> claim and
+/// constructs the internal <see cref="ProcessPaymentCommand"/>. Trusting <c>BuyerId</c> from the
+/// request body would let any authenticated buyer mint payments attributed to other buyers
+/// (CWE-639 / mass-assignment). See CLAUDE.md "Security Requirements → Server-controlled fields
+/// are computed server-side."
+/// </summary>
+public record ProcessPaymentRequest(Guid OrderId, decimal Amount, string Currency);
+
+/// <summary>
+/// Internal command. <c>BuyerId</c> is set by the HTTP endpoint from the JWT claim, or by the
+/// saga (<see cref="OrderPlacedHandler"/>) from the trusted <c>OrderPlacedEvent</c> — never
+/// from a client-controlled HTTP body.
+/// </summary>
 public record ProcessPaymentCommand(Guid OrderId, decimal Amount, string Currency, Guid BuyerId);
 
 public class ProcessPaymentCommandValidator : AbstractValidator<ProcessPaymentCommand>

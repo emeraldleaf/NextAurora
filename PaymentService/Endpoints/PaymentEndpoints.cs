@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using PaymentService.Features;
 using Wolverine;
 
@@ -31,8 +32,19 @@ public static class PaymentEndpoints
         // call lives in PaymentProcessingRequestedHandler, which runs on a Wolverine worker.
         // The Location header points at /api/v1/payments/{id} for the caller to poll status.
         // See CLAUDE.md "Performance Rules → Long-running work belongs on the message bus".
-        group.MapPost("/process", async (ProcessPaymentCommand command, IMessageBus bus, CancellationToken ct) =>
+        //
+        // BuyerId is derived from the JWT NameIdentifier claim, NOT the request body.
+        // The HTTP body is ProcessPaymentRequest (no BuyerId field); the internal
+        // ProcessPaymentCommand sets BuyerId from the trusted claim. Without this, an
+        // authenticated buyer could submit any BuyerId in the body and attribute payments
+        // to other buyers. See CLAUDE.md "Security Requirements → Server-controlled fields".
+        group.MapPost("/process", async (ProcessPaymentRequest body, HttpContext httpContext, IMessageBus bus, CancellationToken ct) =>
         {
+            var sub = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (sub is null || !Guid.TryParse(sub, out var buyerId))
+                return Results.Unauthorized();
+
+            var command = new ProcessPaymentCommand(body.OrderId, body.Amount, body.Currency, buyerId);
             var paymentId = await bus.InvokeAsync<Guid>(command, ct);
             return Results.Accepted($"/api/v1/payments/{paymentId}", new { Id = paymentId });
         }).RequireRateLimiting("payments").RequireAuthorization();
