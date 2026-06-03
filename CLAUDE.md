@@ -95,10 +95,38 @@ multi-project layout. None of the services are at that scale today and probably 
 the previous attempt at Clean Architecture in CatalogService was retired specifically
 because we hit none of those signals.
 
+**What "promote to Clean" actually means — the dependency rule vs. the project split.** Two
+different things wear the name "Clean Architecture," and only one of them is what you'd
+promote *to*:
+
+- **The dependency rule** (Domain → nothing; infrastructure/IO at the edges) is *already in
+  force* in VSA and applies at every scale. It is **not earned, not complexity-gated, and
+  not what the promotion signal is about** — NextAurora keeps it today as single-project VSA
+  (see "Layer Dependencies"). Decoupling the domain from frameworks is always worth it.
+- **The multi-project structure** (separate Domain/Application/Infrastructure/Api csprojs) is
+  the only part that carries ceremony, and the only thing the promotion signal gates. All it
+  buys over single-project VSA is **compile-time enforcement** of the dependency rule via
+  project references.
+
+So the real axis is *how you enforce the dependency rule*, escalating only as the cost of a
+violated boundary rises: **convention → architecture tests → project split.** The middle rung
+is the one most teams skip: an **architecture test** (NetArchTest / ArchUnitNET, or a Roslyn
+analyzer) asserting "Domain references no EF/Infrastructure namespaces" enforces the *same*
+boundary the 4-project split does — deterministically, in CI, **without the project
+ceremony**. The project split is therefore rarely needed *for enforcement alone*; reach for it
+only when genuine domain complexity makes you want the *compiler* (not a test) to hold the
+line, or when separate deploy/versioning units justify it. NextAurora enforces the dependency
+rule today via *convention + the architecture-reviewer agent + CodeRabbit*; adding
+architecture tests would be the next rung and would make it deterministic **without changing
+the VSA shape**. Full portable decision guide (the two meanings of "Clean," the
+convention→arch-tests→project-split spectrum, the Testcontainers testing shift, the
+duplication tradeoff, when-to-use): [docs/vsa-vs-clean-architecture.md](docs/vsa-vs-clean-architecture.md).
+
 | Signal | Shape |
 |---|---|
 | ≤4 aggregates per service, ≤10 features, single team | VSA (current default) |
-| 5+ aggregates with cross-cutting domain rules that several features coordinate on, AND `Domain/` growing faster than `Features/` | Consider Clean Architecture promotion |
+| "I want the dependency rule enforced, not just held by convention" | **Architecture tests** (NetArchTest / analyzer) — NOT a project split. Same boundary, no ceremony |
+| 5+ aggregates with cross-cutting domain rules that several features coordinate on, AND `Domain/` growing faster than `Features/` | Consider the multi-project split — when you want the *compiler* to hold the boundary, or need separate deploy/versioning units |
 | "I want to mock the DbContext in unit tests" | NOT a reason. Use integration tests with Testcontainers; see "Testing" rule |
 
 **Don't apply both patterns uniformly across a single service.** Pick one shape per service
