@@ -135,8 +135,14 @@ jobs:
                      | sed -E 's/.*\(([^)]+)\)/\1/')
           done < <(find . -type f -name '*.md' \
                      -not -path './bin/*' -not -path './obj/*' \
-                     -not -path '*/node_modules/*' -not -path '*/.git/*')
+                     -not -path '*/node_modules/*' -not -path '*/.git/*' \
+                     -not -path './.claude/audits/INDEX.md')
           exit "$fail"
+          # `.claude/audits/INDEX.md` is intentionally excluded — it links to per-article audit
+          # files under `.claude/audits/*.md` that are gitignored for copyright reasons (they
+          # contain verbatim quoted prose from external articles). See `.claude/commands/article-audit.md`
+          # step 5 "Copyright note" — the contract is "INDEX ships, per-article files don't."
+          # On a contributor's machine the links resolve; on the CI runner they don't, by design.
 
   # Testcontainers-based integration tests, in their own job: they need Docker (the
   # ubuntu-latest runner ships it at the standard /var/run/docker.sock, so Testcontainers
