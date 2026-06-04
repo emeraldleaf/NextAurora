@@ -125,7 +125,45 @@ on each developer's machine; INDEX.md ships in the repo so the audit log
 survives across contributors. You do not need to remove quotes from the
 per-article files because they never reach the public repo.
 
-### 6. Produce the chat output
+### 6. Ship the INDEX row
+
+INDEX.md is the only file that reaches the repo (per-article audit files
+are gitignored). Don't leave the row sitting uncommitted — every previous
+audit needed a separate "we need to commit?" prompt and a one-row PR to
+finish the job. Roll that into the routine.
+
+**Default — on `main` with only INDEX changed (the common case):**
+
+```bash
+SLUG=<the slug from step 5>
+git checkout -b chore/audit-log-$SLUG
+git add .claude/audits/INDEX.md
+git commit -m "docs(audits): log $SLUG audit" -m "<one-line verdict + outcome>"
+git push -u origin chore/audit-log-$SLUG
+gh pr create --title "docs(audits): log $SLUG audit" --body "Single-row INDEX update for the $SLUG audit. <Verdict bucket>. <Outcome: 'No action' / 'Opened #N' / 'Updated #N in place'>."
+gh pr merge --admin --squash --delete-branch
+git checkout main && git pull --ff-only
+```
+
+Safe because INDEX is single-row append + metadata only, the admin-merge
+bypass is configured for exactly this self-merge pattern (precedents:
+#106, #107), and the chat output gives the user the verdict before
+the merge — they can `gh pr edit` or `gh pr close` if something is off.
+
+**On a feature branch** (rare — audit ran while other work in flight):
+just commit the INDEX row to the current branch. It'll ship with the
+next push. Mention it in the chat output so it's not forgotten.
+
+**When the audit also opened an issue / PR**: ship the INDEX row *after*
+the issue/PR work — the INDEX `Outcome` column references the issue
+number (`Opened #N`), so #N has to exist first.
+
+**User signals "wait" or "batch"**: skip the auto-ship; commit on the
+current branch (if branching is needed, ask first). Surface the
+unshipped row in the chat output. Subsequent audits in the same session
+can batch onto the same branch.
+
+### 7. Produce the chat output
 
 Write directly to the user. Structure:
 
