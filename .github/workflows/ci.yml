@@ -144,6 +144,81 @@ jobs:
           # step 5 "Copyright note" — the contract is "INDEX ships, per-article files don't."
           # On a contributor's machine the links resolve; on the CI runner they don't, by design.
 
+      # Broken-COPY audit: Dockerfile* COPY/ADD lines that reference source paths which
+      # don't exist in the build context (the repo root). This is the gap the markdown
+      # audit above can't close — `Dockerfile.catalog` rotted silently for months after
+      # PR #31 (VSA collapse) because the broken paths only failed at deploy time, not
+      # at build/test time. The Fly demo at https://catalog-api-demo.fly.dev kept running
+      # pre-collapse code; any redeploy would have failed on the first COPY of a
+      # nonexistent csproj. Same shape as the markdown audit: parse, check existence, fail.
+      # Handles the common COPY forms: `COPY src dst`, `COPY src1 src2 dst` (multi-src),
+      # and `COPY --from=stage src dst` (cross-stage; skips the src check since src is in
+      # another build stage, not the repo). Skips wildcards (`COPY src/*.json .`) since
+      # those resolve at build time, not against the repo tree. See CLAUDE.md "File-move
+      # discipline" for the canonical rule.
+      - name: Broken-COPY audit — Dockerfile source paths
+        run: |
+          fail=0
+          while IFS= read -r dockerfile; do
+            # Read each COPY/ADD line, strip the destination (last token), check each source.
+            while IFS= read -r line; do
+              # Skip `COPY --from=...` cross-stage copies (src is from a build stage, not the repo).
+              case "$line" in *"--from="*) continue ;; esac
+              # Strip the instruction keyword and any flags.
+              args=$(echo "$line" | sed -E 's/^[[:space:]]*(COPY|ADD)[[:space:]]+//; s/--[a-zA-Z0-9=._/-]+[[:space:]]+//g')
+              # Last token is the destination; everything before is source(s).
+              srcs=$(echo "$args" | awk 'NF>1 {for(i=1;i<NF;i++) print $i}')
+              for src in $srcs; do
+                # Skip wildcards (resolved at build time, not against the repo tree).
+                case "$src" in *"*"*|*"?"*|*"["*) continue ;; esac
+                # Skip absolute paths (rare; not a build-context drift case).
+                case "$src" in /*) continue ;; esac
+                # Trim any trailing slash for the existence check.
+                target="${src%/}"
+                if [ ! -e "$target" ]; then
+                  echo "::error file=$dockerfile::COPY/ADD source does not exist → $src"
+                  fail=1
+                fi
+              done
+            done < <(grep -iE '^[[:space:]]*(COPY|ADD)[[:space:]]+' "$dockerfile" || true)
+          done < <(find . -type f \( -name 'Dockerfile' -o -name 'Dockerfile.*' \) \
+                     -not -path './bin/*' -not -path './obj/*' \
+                     -not -path '*/node_modules/*' -not -path '*/.git/*')
+          exit "$fail"
+
+      # Diagram-pair audit: every diagram in docs/ MUST exist as both an .excalidraw
+      # source and a .svg export. Reviewers (humans + CodeRabbit) look at the .svg to
+      # understand the system; the .excalidraw is the authoritative source that
+      # contributors edit. If one exists without the other, the diagram is broken — a
+      # .svg with no .excalidraw can't be edited at the source level, and a .excalidraw
+      # with no .svg means reviewers see the stale state on github.com (rendered SVGs
+      # are inline-viewable; .excalidraw files aren't). Catches the case "I added a
+      # new diagram source but forgot to render the SVG" and the inverse.
+      #
+      # This DOES NOT verify the .svg matches what would be regenerated from the
+      # .excalidraw source — that needs the Playwright/excalidraw rendering pipeline
+      # (see .claude/scripts/rebuild-diagrams.sh). That heavier check belongs in its
+      # own workflow gated on .excalidraw changes; the pair-existence check is the
+      # cheap mechanical floor. See CLAUDE.md "Doc-and-diagram discipline".
+      - name: Diagram-pair audit — every .excalidraw needs a sibling .svg
+        run: |
+          fail=0
+          while IFS= read -r excalidraw; do
+            svg="${excalidraw%.excalidraw}.svg"
+            if [ ! -f "$svg" ]; then
+              echo "::error file=$excalidraw::diagram source without rendered .svg → expected $svg"
+              fail=1
+            fi
+          done < <(find docs -maxdepth 2 -type f -name '*.excalidraw' 2>/dev/null || true)
+          while IFS= read -r svg; do
+            excalidraw="${svg%.svg}.excalidraw"
+            if [ ! -f "$excalidraw" ]; then
+              echo "::error file=$svg::rendered .svg without .excalidraw source → expected $excalidraw"
+              fail=1
+            fi
+          done < <(find docs -maxdepth 2 -type f -name '*.svg' 2>/dev/null || true)
+          exit "$fail"
+
   # Testcontainers-based integration tests, in their own job: they need Docker (the
   # ubuntu-latest runner ships it at the standard /var/run/docker.sock, so Testcontainers
   # auto-detects — no DOCKER_HOST override, unlike macOS Docker Desktop locally). Kept

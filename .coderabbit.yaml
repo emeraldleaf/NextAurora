@@ -447,6 +447,48 @@ reviews:
         in bash run blocks, missing `permissions:` blocks, missing
         `concurrency:` groups, secrets in plaintext, hardcoded tokens.
 
+    - path: "NextAurora.AppHost/AppHost.cs"
+      instructions: |
+        TOPOLOGY DOC PAIRING (CLAUDE.md "Doc-and-diagram discipline"). AppHost.cs
+        is the canonical source of the system topology — service count, transport
+        wiring, DB choices, external deps. When this file changes in a PR (new
+        service registration, new `WithReference`, new `AddAzure*`, new
+        `WaitFor`, removed resource), the topology depiction artifacts MUST be
+        updated in the same PR, OR the PR description names a tracking issue
+        for the deferred update.
+
+        Required pairing:
+          - `docs/architecture.md` (the prose system map + communication patterns)
+          - `docs/nextaurora-architecture.svg` (rendered diagram github.com inlines)
+          - `docs/nextaurora-architecture.excalidraw` (editable source)
+
+        Reviewers look at the .svg on the PR page to understand "what does this
+        system look like now?" — if the .svg doesn't show the new service or
+        transport, every subsequent PR review reasons against a stale picture.
+        Same for architecture.md: it's the doc people grep when onboarding or
+        debugging a comms issue. Flag this as a finding when AppHost.cs changes
+        without paired updates. Acceptable PR-description waivers: "topology
+        change is internal/transient (smoke-test scaffold) and will be reverted
+        in PR #N" or "docs/diagram updated in tracking issue #N, this PR ships
+        the code only because [reason]."
+
+    - path: "NextAurora.ServiceDefaults/Extensions.cs"
+      instructions: |
+        SERVICE-REQUEST-FLOW DOC PAIRING (CLAUDE.md "Doc-and-diagram discipline").
+        Extensions.cs configures the middleware pipeline ordering (auth →
+        correlation-id → authorization), JWT validation, and the
+        AddDefaultAuthentication / MapDefaultEndpoints contracts every service
+        composes with. When this changes (middleware order, JWT params, default
+        endpoint behavior), the service-request-flow depiction artifacts MUST
+        be updated in the same PR or named in a deferred issue:
+
+        Required pairing:
+          - `docs/architecture.md` Observability section (middleware-order rules)
+          - `docs/service-request-flow.svg` + `docs/service-request-flow.excalidraw`
+
+        Same reasoning as the AppHost.cs rule above — reviewers reason against
+        the .svg picture of the request lifecycle. Flag missing pairs.
+
     - path: "**"
       instructions: |
         FILE-MOVE DISCIPLINE (CLAUDE.md "File-move discipline"). When this PR's
