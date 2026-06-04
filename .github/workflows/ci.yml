@@ -109,6 +109,35 @@ jobs:
             exit 1
           fi
 
+      # Broken-link audit: relative markdown links to local source files (.cs/.csproj/.props/
+      # .yml/.svg/.excalidraw/.md) that don't resolve. Catches drift from file renames and
+      # the kind of fallout the simplicity refactor produced — CLAUDE.md citations pointing at
+      # deleted PaymentRepository.cs, demo docs pointing at the pre-VSA-collapse 4-project
+      # layout. Same shape as the static-mutable-collections check above: grep + fail. Skips
+      # external URLs (https?://) and anchors-only (#section); resolves paths relative to
+      # the markdown file's directory. Uses process substitution everywhere so the failure
+      # flag survives the loop (a piped while runs in a subshell and loses its updates).
+      - name: Broken-link audit — markdown citations to local files
+        run: |
+          fail=0
+          while IFS= read -r mdfile; do
+            dir=$(dirname "$mdfile")
+            while IFS= read -r link; do
+              case "$link" in http*|//*) continue ;; esac
+              candidate="${link%%#*}"
+              candidate="${candidate%%\?*}"
+              if [ "$dir" = "." ]; then target="$candidate"; else target="$dir/$candidate"; fi
+              if [ ! -e "$target" ] && [ ! -e "$candidate" ]; then
+                echo "::error file=$mdfile::broken link → $link"
+                fail=1
+              fi
+            done < <(grep -oE '\[[^]]+\]\(([^)#]+\.(cs|csproj|props|sh|yml|yaml|svg|excalidraw|cls|md))[^)#]*\)' "$mdfile" \
+                     | sed -E 's/.*\(([^)]+)\)/\1/')
+          done < <(find . -type f -name '*.md' \
+                     -not -path './bin/*' -not -path './obj/*' \
+                     -not -path '*/node_modules/*' -not -path '*/.git/*')
+          exit "$fail"
+
   # Testcontainers-based integration tests, in their own job: they need Docker (the
   # ubuntu-latest runner ships it at the standard /var/run/docker.sock, so Testcontainers
   # auto-detects — no DOCKER_HOST override, unlike macOS Docker Desktop locally). Kept

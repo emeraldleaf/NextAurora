@@ -1,6 +1,6 @@
 # Deployment Story — Getting CatalogService Live on Fly.io
 
-A step-by-step narrative of what we actually did to deploy [CatalogService.Api](../CatalogService/CatalogService.Api/) to a public URL, including the dead ends and why we ended up where we did. Useful for walking someone through the deployment story or refreshing your own memory.
+A step-by-step narrative of what we actually did to deploy [CatalogService](../CatalogService/) to a public URL, including the dead ends and why we ended up where we did. Useful for walking someone through the deployment story or refreshing your own memory.
 
 For the reusable checklist (do this from scratch), see [demo-deployment.md](demo-deployment.md). This doc is the *story*; that doc is the *recipe*.
 
@@ -8,7 +8,7 @@ For the reusable checklist (do this from scratch), see [demo-deployment.md](demo
 
 ## Goal
 
-Get a working public URL serving `CatalogService.Api` with the Scalar API documentation reachable, on as little budget and complexity as possible — without breaking any of the existing local development paths (Aspire, integration tests, future production deploy).
+Get a working public URL serving `CatalogService` with the Scalar API documentation reachable, on as little budget and complexity as possible — without breaking any of the existing local development paths (Aspire, integration tests, future production deploy).
 
 ## What "done" looks like
 
@@ -39,9 +39,9 @@ Get a working public URL serving `CatalogService.Api` with the Scalar API docume
 
 ## Step 1 — Make the code deploy-aware (`DemoMode` flag)
 
-**Problem**: `CatalogService.Api` was wired for two environments — local development (where Scalar/OpenAPI are exposed) and a hypothetical production (where they're hidden because OpenAPI specs are reconnaissance gold). For the demo we needed a *third* mode: Production-environment behavior PLUS Scalar visibility, because the whole point is showing the API documentation.
+**Problem**: `CatalogService` was wired for two environments — local development (where Scalar/OpenAPI are exposed) and a hypothetical production (where they're hidden because OpenAPI specs are reconnaissance gold). For the demo we needed a *third* mode: Production-environment behavior PLUS Scalar visibility, because the whole point is showing the API documentation.
 
-**Solution**: a `DemoMode` configuration flag in [Program.cs](../CatalogService/CatalogService.Api/Program.cs). When set, it:
+**Solution**: a `DemoMode` configuration flag in [Program.cs](../CatalogService/Program.cs). When set, it:
 1. Exposes `/openapi/v1.json`, `/openapi/v1.yaml`, `/scalar/v1` even outside Development
 2. Skips `UseHttpsRedirection()` (PaaS hosts terminate TLS at the edge — would cause redirect loops)
 3. Runs EF Core migrations on startup (so we don't need a separate "deploy migrations" step)
@@ -50,7 +50,7 @@ Get a working public URL serving `CatalogService.Api` with the Scalar API docume
 
 ## Step 2 — Make Redis optional
 
-`CatalogService.Infrastructure` registers Redis via HybridCache's L2 tier. For a single-replica demo we don't want to pay for managed Redis. The registration is now conditional: if no `cache` connection string is configured, Redis isn't registered, and HybridCache gracefully degrades to L1-only (in-process MemoryCache). When run via Aspire locally, Redis IS registered because `WithReference(cache)` provides the connection string — so local dev is unchanged.
+`CatalogService.Infrastructure` (the `Infrastructure/` folder inside the single CatalogService project) registers Redis via HybridCache's L2 tier. For a single-replica demo we don't want to pay for managed Redis. The registration is now conditional: if no `cache` connection string is configured, Redis isn't registered, and HybridCache gracefully degrades to L1-only (in-process MemoryCache). When run via Aspire locally, Redis IS registered because `WithReference(cache)` provides the connection string — so local dev is unchanged.
 
 ## Step 3 — Containerize
 
@@ -102,7 +102,7 @@ Postgres provisioning prints the connection details once — **password is unrec
 
 **Problem**: Fly's secret names only allow `[A-Z0-9_]` — hyphens are rejected. But our app reads `GetConnectionString("catalog-db")` (kebab-case, set by Aspire's `WithReference()` convention). The corresponding env var name would be `ConnectionStrings__catalog-db`, which Fly bounces.
 
-**Solution**: a tiny adapter in [Program.cs](../CatalogService/CatalogService.Api/Program.cs) that, only when `DemoMode=true`, reads from a Fly-compatible secret name (`CATALOG_DB_CONNECTION_STRING`) and copies it into the `ConnectionStrings:catalog-db` slot the Infrastructure layer reads from. 5 lines, fully gated behind the demo flag, doesn't touch Aspire wiring.
+**Solution**: a tiny adapter in [Program.cs](../CatalogService/Program.cs) that, only when `DemoMode=true`, reads from a Fly-compatible secret name (`CATALOG_DB_CONNECTION_STRING`) and copies it into the `ConnectionStrings:catalog-db` slot the Infrastructure layer reads from. 5 lines, fully gated behind the demo flag, doesn't touch Aspire wiring.
 
 Then set the secret:
 
@@ -138,7 +138,7 @@ This is the one decision in the demo deploy that deliberately *violates* a produ
 
 ### What actually happens
 
-[Program.cs](../CatalogService/CatalogService.Api/Program.cs) ends its startup with:
+[Program.cs](../CatalogService/Program.cs) ends its startup with:
 
 ```csharp
 if (app.Environment.IsDevelopment() || isDemoMode)
@@ -194,9 +194,7 @@ The `xmin` system column is Postgres-specific — it's the transaction ID of the
 If we change a domain entity later (e.g. add a `Sku` field to `Product`):
 
 ```bash
-dotnet ef migrations add AddProductSku \
-  --project CatalogService/CatalogService.Infrastructure \
-  --startup-project CatalogService/CatalogService.Api
+dotnet ef migrations add AddProductSku --project CatalogService
 ```
 
 This generates a new `.cs` file in `Migrations/`. Commit it. Next `fly deploy --remote-only` ships the new code + new migration, the Machine reboots, `Migrate()` notices `AddProductSku` is unapplied, runs the `ALTER TABLE` it contains, and the new boot is serving with the new schema. Zero downtime if the change is backward-compatible (additive columns, new indexes, new tables). Forward-incompatible changes (drop column, rename, NOT NULL on existing column) need the multi-step plan described in [ef-core.md "The immutable-once-applied rule"](ef-core.md#67-the-immutable-once-applied-rule).
@@ -207,17 +205,14 @@ After the first deploy worked, the catalog was empty (`GET /api/v1/products` ret
 
 ### Adding the seed
 
-In [CatalogDbContext.cs](../CatalogService/CatalogService.Infrastructure/Data/CatalogDbContext.cs), `OnModelCreating` calls a private `SeedDemoData` method that uses `modelBuilder.Entity<T>().HasData(...)` to declaratively register 3 categories and 7 products. Fixed GUIDs and a fixed `CreatedAt` (not `Guid.NewGuid()` / `DateTime.UtcNow`) so the generated migration is **deterministic** — re-running the model snapshot wouldn't emit a diff.
+In [CatalogDbContext.cs](../CatalogService/Infrastructure/Data/CatalogDbContext.cs), `OnModelCreating` calls a private `SeedDemoData` method that uses `modelBuilder.Entity<T>().HasData(...)` to declaratively register 3 categories and 7 products. Fixed GUIDs and a fixed `CreatedAt` (not `Guid.NewGuid()` / `DateTime.UtcNow`) so the generated migration is **deterministic** — re-running the model snapshot wouldn't emit a diff.
 
 `HasData` writes via reflection, which **bypasses** the entity's factory method (`Product.Create`) and private setters. That's the right trade for curated design-time data — validation is unnecessary because we control the values. We still set `IsAvailable` explicitly to match the `StockQuantity > 0` invariant the factory would have enforced.
 
 Then generate the migration:
 
 ```bash
-dotnet ef migrations add SeedDemoCatalog \
-  --project CatalogService/CatalogService.Infrastructure \
-  --startup-project CatalogService/CatalogService.Api \
-  --context CatalogDbContext
+dotnet ef migrations add SeedDemoCatalog --project CatalogService --context CatalogDbContext
 ```
 
 EF Core produced two files:
@@ -323,7 +318,7 @@ In rough order:
 2. **Local Docker daemon was corrupted** from an earlier disk-full event. → `--remote-only` builds on Fly's builder, sidestepping local Docker entirely.
 3. **Fly removed dashboard-level spending caps**; only soft alerts remain. → Bought $25 prepaid credits and didn't save a card. When credits hit $0, Fly suspends instead of charging. Effective hard cap.
 4. **Fly's `fly postgres create` warns it's "unmanaged"** and pushes Managed Postgres ($15+/mo). → Legacy unmanaged is fine for throwaway demo data; ignored the nudge.
-5. **Fly secret names reject hyphens** (`[A-Z0-9_]` only). → Added a `DemoMode`-only bridge in [Program.cs](../CatalogService/CatalogService.Api/Program.cs) that copies `CATALOG_DB_CONNECTION_STRING` into `ConnectionStrings:catalog-db`. Aspire wiring untouched.
+5. **Fly secret names reject hyphens** (`[A-Z0-9_]` only). → Added a `DemoMode`-only bridge in [Program.cs](../CatalogService/Program.cs) that copies `CATALOG_DB_CONNECTION_STRING` into `ConnectionStrings:catalog-db`. Aspire wiring untouched.
 6. **Docker build failed: analyzer errors (CA1062/CA2007/CA1724/MA0004) under `TreatWarningsAsErrors=true`.** → The `.editorconfig` at the repo root suppresses these; wasn't being copied into the build context. Added to the COPY line in [Dockerfile.catalog](../Dockerfile.catalog).
 7. **First deploy crashed: `Exception while performing SSL handshake / Received an unexpected EOF`** on the EF Core migration's first Postgres connection. → Fly's legacy unmanaged Postgres on `.flycast` doesn't speak SSL. Npgsql's default `SSL Mode=Prefer` crashes hard instead of falling back to plain. Fix: append `SSL Mode=Disable` to the connection string. Flycast is already a private encrypted network, so disabling Postgres-layer SSL is safe inside that perimeter.
 8. **Health-check grace period was too short** for first boot (20s default vs ~30-60s for migration + Postgres connect). → Bumped to 120s in fly.toml. Subsequent boots are fast because `Migrate()` finds the migration already applied and returns in ms.

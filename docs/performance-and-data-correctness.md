@@ -126,7 +126,7 @@ See [decision: optimistic concurrency tokens](#decision-optimistic-concurrency-t
 
 **Spec:** the same handler that owns the change owns the invalidation. For domain events that affect cached entities cross-service (e.g., `ProductPriceChanged` invalidating product cache), the event handler invalidates.
 
-**Where it applies:** [CatalogService.Domain.IProductCache](../CatalogService/Domain/IProductCache.cs), backed by `HybridCache` ([HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs)). [GetProductByIdHandler](../CatalogService/Features/GetProductByIdHandler.cs) reads through it; [UpdateProductHandler](../CatalogService/Features/UpdateProductHandler.cs) and [ReserveStockHandler](../CatalogService/Features/ReserveStockHandler.cs) call `InvalidateAsync` after their save in the same unit of work. Tag-based invalidation clears L1 (in-process) and L2 (Redis) atomically. Full rationale: [decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache).
+**Where it applies:** [CatalogService.Domain.IProductCache](../CatalogService/Domain/IProductCache.cs), backed by `HybridCache` ([HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs)). [GetProductByIdHandler](../CatalogService/Features/GetProductById.cs) reads through it; [UpdateProductHandler](../CatalogService/Features/UpdateProduct.cs) and [ReserveStockHandler](../CatalogService/Features/ReserveStock.cs) call `InvalidateAsync` after their save in the same unit of work. Tag-based invalidation clears L1 (in-process) and L2 (Redis) atomically. Full rationale: [decision: distributed read caching with HybridCache](#decision-distributed-read-caching-with-hybridcache).
 
 ### 13. Migrations are immutable once applied
 
@@ -323,7 +323,7 @@ This is broken in two specific ways:
 1. **The `Get` then `Set` sequence cannot dedupe concurrent misses.** By the time the second caller calls `Get` and sees a miss, the first caller is already between `Get` and `Set`. Stampede protection requires the cache to know about the in-flight load — it has to hand back the same `Task<T>` to all concurrent miss-callers and `await` it once. That's only possible if the cache *owns* the factory call.
 2. **The handler is the wrong owner of the policy.** Every new cached entity in a new handler reinvents the same five lines, and small differences (forgetting to filter null on `Set`, not propagating `CancellationToken`, swallowing exceptions from the load) are how staleness bugs ship.
 
-The factory-based shape pushes all of that into the cache. The handler describes *intent* ("how to load on miss"); the cache owns the *flow* (try L1, try L2, dedupe, run factory, populate both layers, return). Test surface drops to the projection logic — see [GetProductByIdHandlerTests.cs](../tests/CatalogService.Tests.Unit/Application/GetProductByIdHandlerTests.cs).
+The factory-based shape pushes all of that into the cache. The handler describes *intent* ("how to load on miss"); the cache owns the *flow* (try L1, try L2, dedupe, run factory, populate both layers, return). Test surface drops to the projection logic — see [ProductCachingTests.cs](../tests/CatalogService.Tests.Integration/ProductCachingTests.cs) (integration tier, exercises the real HybridCache against Testcontainers Postgres + Redis — the right tier for cache-projection behavior).
 
 ### What we cache, and why
 
