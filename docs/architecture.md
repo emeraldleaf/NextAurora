@@ -543,7 +543,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 - **API Gateway** - Centralized routing, rate limiting, auth
 - **Saga Compensation** - Rollback logic for failed payments/shipments
 - **Frontend Implementation** - Storefront and SellerPortal business logic
-- **Cross-service integration tests over the real wire** - CatalogService and OrderService single-service slices exist (`tests/{CatalogService,OrderService}.Tests.Integration` — Testcontainers Postgres+Redis and SQL Server respectively, Wolverine transports stubbed). The remaining gap is an end-to-end `OrderPlacedEvent → PaymentService → PaymentCompletedEvent` test over the real Azure Service Bus emulator container. See [docs/STATUS.md](STATUS.md) "After the smoke run."
+- **Cross-service integration tests over the real wire** - Single-service slices exist for all four DB-touching services (`tests/{CatalogService,OrderService,PaymentService,ShippingService}.Tests.Integration` — Testcontainers Postgres+Redis for Catalog, SQL Server for Order + Payment, Postgres for Shipping, Wolverine transports stubbed in each). The remaining gap is an end-to-end `OrderPlacedEvent → PaymentService → PaymentCompletedEvent` test over the real Azure Service Bus emulator container — wire-level cross-service coverage is still pending. See [docs/STATUS.md](STATUS.md) "After the smoke run."
 - **Order Cancellation Flow** - Cancel event and compensation logic
 - **Production migration deployment step** - In dev, `MigrateDatabaseAsync<T>()` runs at startup; production should run migrations as a separate deploy step (not in-process) to avoid races between replicas. Tooling exists; deploy automation does not.
 
