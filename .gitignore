@@ -497,3 +497,12 @@ $RECYCLE.BIN/
 # generates both .svg (committed, inlined into README + docs) and .png
 # (local-only side-effect — large binaries, not referenced anywhere).
 docs/*.png
+
+# Article-audit outputs — `/article-audit` writes per-article markdown files
+# under `.claude/audits/` for local persistence. These files contain verbatim
+# quotes from the audited articles (copyrighted material — third-party blog
+# posts, newsletters, LinkedIn posts). Keep them local-only. The INDEX.md
+# stays committed because it's pure verdict metadata (article title + author
+# + verdict bucket + outcome) which is fair-use commentary, not quoted content.
+.claude/audits/*
+!.claude/audits/INDEX.md
