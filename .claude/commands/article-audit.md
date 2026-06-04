@@ -39,6 +39,21 @@ Identify 5–10 specific claims the article makes. Bullet form. Examples:
 
 Skip throat-clearing, ad copy, and "subscribe to my course" bits.
 
+**Comment threads count.** When the article is a LinkedIn post, Hacker News
+submission, blog post with substantive replies, etc., **treat senior-author
+or technically-substantive comments as part of the article for claim-
+extraction purposes**. Real engineering rules often arrive in the reply
+threads rather than the original post — a Microsoft MVP dropping a
+load-bearing caveat in a 19-hour-old comment matters as much as the
+post's main bullets. Don't dismiss an article as "outside scope" because
+the original post is shallow; check whether the comments carry the
+substance.
+
+If you can't see the comments (URL fetched, comment thread not in the
+response, no pasted thread context), note that in the chat output so the
+user knows the audit didn't cover them. Don't fabricate claims from
+imagined commenters.
+
 ### 3. Map each claim against the project's encoding surfaces
 
 For each claim, search **systematically** through these surfaces in this
@@ -80,7 +95,37 @@ Each claim falls into one of these buckets:
   doc pass. (This was #86 — sidecar reconsideration triggers.)
 - **"Genuine gap"** — the project has no encoded stance. Real work to do.
 
-### 5. Produce the output
+### 5. Persist the audit to `.claude/audits/`
+
+After producing the chat output (step 6 below), **also write the audit to a
+markdown file** under `.claude/audits/YYYY-MM-DD-<slug>.md` where:
+
+- `YYYY-MM-DD` is today's date (use the current session date, not a hardcoded one)
+- `<slug>` is a short kebab-case derivation of the article topic
+  (e.g. `circuit-breaker`, `csharp-14-extension-members`, `vsa-code-duplication`)
+
+The file holds: article title + author/source + verdict + the comparison
+table + the divergence section (if any) + the outcome ("No action" / "Opened
+#N" / link to issue body).
+
+Then **append a one-line row to `.claude/audits/INDEX.md`** in the existing
+log table. The legend at the top of INDEX.md defines verdict buckets:
+
+- ✅ No action
+- ⚙️ Divergence
+- 🔧 Consolidation
+- 🌱 Gap
+
+**Copyright note.** Audit files contain verbatim quotes from the audited
+article. The `.gitignore` excludes `.claude/audits/*` from version control
+(see the rule in `.gitignore`) but explicitly allows `INDEX.md` through —
+INDEX is just verdict metadata (title + author + bucket + outcome), which
+is fair-use commentary, not quoted content. Per-article files stay local-only
+on each developer's machine; INDEX.md ships in the repo so the audit log
+survives across contributors. You do not need to remove quotes from the
+per-article files because they never reach the public repo.
+
+### 6. Produce the chat output
 
 Write directly to the user. Structure:
 
