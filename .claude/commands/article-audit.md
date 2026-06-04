@@ -39,6 +39,21 @@ Identify 5–10 specific claims the article makes. Bullet form. Examples:
 
 Skip throat-clearing, ad copy, and "subscribe to my course" bits.
 
+**Comment threads count.** When the article is a LinkedIn post, Hacker News
+submission, blog post with substantive replies, etc., **treat senior-author
+or technically-substantive comments as part of the article for claim-
+extraction purposes**. Real engineering rules often arrive in the reply
+threads rather than the original post — a Microsoft MVP dropping a
+load-bearing caveat in a 19-hour-old comment matters as much as the
+post's main bullets. Don't dismiss an article as "outside scope" because
+the original post is shallow; check whether the comments carry the
+substance.
+
+If you can't see the comments (URL fetched, comment thread not in the
+response, no pasted thread context), note that in the chat output so the
+user knows the audit didn't cover them. Don't fabricate claims from
+imagined commenters.
+
 ### 3. Map each claim against the project's encoding surfaces
 
 For each claim, search **systematically** through these surfaces in this
