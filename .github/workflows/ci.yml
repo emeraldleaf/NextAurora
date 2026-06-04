@@ -157,6 +157,22 @@ jobs:
           --results-directory ./test-results
           --collect:"XPlat Code Coverage"
 
+      - name: Integration tests — Payment (SQL Server, outbox-in-non-handler wrap)
+        if: ${{ !cancelled() }}
+        run: >
+          dotnet test tests/PaymentService.Tests.Integration/PaymentService.Tests.Integration.csproj
+          --logger "trx;LogFileName=payment-integration.trx"
+          --results-directory ./test-results
+          --collect:"XPlat Code Coverage"
+
+      - name: Integration tests — Shipping (Postgres, IDOR + saga handlers)
+        if: ${{ !cancelled() }}
+        run: >
+          dotnet test tests/ShippingService.Tests.Integration/ShippingService.Tests.Integration.csproj
+          --logger "trx;LogFileName=shipping-integration.trx"
+          --results-directory ./test-results
+          --collect:"XPlat Code Coverage"
+
       - name: Publish integration test results
         uses: dorny/test-reporter@v3
         if: ${{ !cancelled() }}
