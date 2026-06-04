@@ -338,7 +338,7 @@ public async Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, 
     await tx.CommitAsync(ct);
 }
 ```
-Reference: [PaymentRepository.ExecuteInTransactionAsync](PaymentService/Infrastructure/PaymentRepository.cs) (fixed in the commit captured by docs/STATUS.md). When adding a non-handler code path that publishes events, **either** wrap it in this pattern **or** factor the publish back into a Wolverine handler triggered by an internal scheduled message.
+Reference: [PaymentRecoveryJob](PaymentService/Infrastructure/PaymentRecoveryJob.cs) — the canonical inline implementation of this wrapper (the previous `IPaymentRepository.ExecuteInTransactionAsync` wrapper was deleted in the simplicity refactor; the pattern itself is unchanged, just inlined). When adding a non-handler code path that publishes events, **either** wrap it in this pattern **or** factor the publish back into a Wolverine handler triggered by an internal scheduled message.
 
 ### Event Replay
 

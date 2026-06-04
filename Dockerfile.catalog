@@ -1,6 +1,6 @@
-# Multi-stage build for CatalogService.Api targeting single-service demo deploys (App Runner,
-# Container Apps, Lightsail, etc.). Build context is the repo root because the API project
-# transitively references ServiceDefaults, Contracts, Application, Infrastructure, Domain.
+# Multi-stage build for CatalogService targeting single-service demo deploys (Fly.io,
+# App Runner, Container Apps, Lightsail, etc.). Build context is the repo root because
+# CatalogService transitively references NextAurora.ServiceDefaults and NextAurora.Contracts.
 #
 # Build:   docker build -f Dockerfile.catalog -t catalog-api .
 # Run:     docker run --rm -p 8080:8080 \
@@ -9,6 +9,11 @@
 #            -e DemoMode=true \
 #            -e ConnectionStrings__catalog-db="Host=...;Database=...;Username=...;Password=..." \
 #            catalog-api
+#
+# Single-project layout (post the VSA-collapse refactor — see CLAUDE.md "Project Structure"):
+# CatalogService is one Web SDK project under CatalogService/, not the four-project Clean
+# layout that existed up to PR #31. If you're rolling back to a pre-#31 commit, this Dockerfile
+# won't build — that's intentional, the pre-#31 Dockerfile is preserved in git history.
 
 # ─── Build stage ──────────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
@@ -19,15 +24,14 @@ WORKDIR /src
 # their stricter defaults — CA2007/CA1062/CA1724 etc. become errors under TreatWarningsAsErrors).
 COPY .editorconfig Directory.Build.props Directory.Packages.props BannedSymbols.txt NextAurora.slnx ./
 
-# Copy only the project files needed for the Catalog dependency graph.
-COPY CatalogService/CatalogService.Api/CatalogService.Api.csproj                       CatalogService/CatalogService.Api/
-COPY CatalogService/CatalogService.Application/CatalogService.Application.csproj       CatalogService/CatalogService.Application/
-COPY CatalogService/CatalogService.Domain/CatalogService.Domain.csproj                 CatalogService/CatalogService.Domain/
-COPY CatalogService/CatalogService.Infrastructure/CatalogService.Infrastructure.csproj CatalogService/CatalogService.Infrastructure/
+# Copy only the project files needed for the Catalog dependency graph. csproj-then-source is
+# the standard Docker .NET layer-caching pattern: the restore layer only invalidates when a
+# csproj actually changes, not on every source edit.
+COPY CatalogService/CatalogService.csproj                                              CatalogService/
 COPY NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj                      NextAurora.ServiceDefaults/
 COPY NextAurora.Contracts/NextAurora.Contracts.csproj                                  NextAurora.Contracts/
 
-RUN dotnet restore CatalogService/CatalogService.Api/CatalogService.Api.csproj
+RUN dotnet restore CatalogService/CatalogService.csproj
 
 # Copy the actual source after restore — keeps the dependency-graph layer cached unless a
 # .csproj actually changes.
@@ -35,7 +39,7 @@ COPY CatalogService/                CatalogService/
 COPY NextAurora.ServiceDefaults/    NextAurora.ServiceDefaults/
 COPY NextAurora.Contracts/          NextAurora.Contracts/
 
-RUN dotnet publish CatalogService/CatalogService.Api/CatalogService.Api.csproj \
+RUN dotnet publish CatalogService/CatalogService.csproj \
     --configuration Release \
     --output /app/publish \
     --no-restore \
@@ -56,4 +60,4 @@ EXPOSE 8080
 USER app
 
 COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "CatalogService.Api.dll"]
+ENTRYPOINT ["dotnet", "CatalogService.dll"]

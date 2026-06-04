@@ -1,6 +1,6 @@
 # Demo Deployment — CatalogService
 
-One-time setup to get [CatalogService.Api](../CatalogService/CatalogService.Api/) running on a public URL with the Scalar UI exposed for a public demo.
+One-time setup to get [CatalogService](../CatalogService/) running on a public URL with the Scalar UI exposed for a public demo.
 
 For a narrative walkthrough of the actual deploy session (what we did, why we made each call, dead ends along the way), see [demo-deployment-story.md](demo-deployment-story.md). This doc is the *recipe*; that one is the *story*.
 
@@ -21,20 +21,20 @@ The demo scaffolding is fully additive. Local Aspire development, the test suite
 
 | Surface | When `DemoMode` is absent | Why |
 |---|---|---|
-| `dotnet run --project NextAurora.AppHost` (local Aspire) | Unchanged | All three `DemoMode` branches in [Program.cs](../CatalogService/CatalogService.Api/Program.cs) short-circuit: `IsDevelopment() \|\| false` → `IsDevelopment()`. |
+| `dotnet run --project NextAurora.AppHost` (local Aspire) | Unchanged | All three `DemoMode` branches in [Program.cs](../CatalogService/Program.cs) short-circuit: `IsDevelopment() \|\| false` → `IsDevelopment()`. |
 | Redis registration | Unchanged | Aspire's `WithReference(cache)` sets `ConnectionStrings__cache`, so the new conditional still registers `AddStackExchangeRedisCache`. Skipping only triggers when no `cache` conn string is wired at all. |
 | `dotnet build` | Unchanged | Zero new warnings under `TreatWarningsAsErrors`. |
 | Integration tests | Unchanged | Testcontainers provides Redis via the same `ConnectionStrings__cache` path. |
 | Existing CI workflows ([ci.yml](../.github/workflows/ci.yml), [codeql.yml](../.github/workflows/codeql.yml)) | Unchanged | New workflows are `workflow_dispatch` only — never fire on push or PR. |
 | Production posture (if/when we deploy real prod) | Unchanged | `DemoMode` defaults to `false`. OpenAPI + Scalar stay hidden. HTTPS redirection stays on. Migrate-on-startup stays off. |
 
-**Watch-out**: if you ever export `ConnectionStrings__catalog-db=<remote-endpoint>` in your local shell, a bare `dotnet run --project CatalogService/CatalogService.Api` would try to talk to the remote DB. This is self-inflicted-only — `dotnet run --project NextAurora.AppHost` overrides connection strings before child processes inherit them, so Aspire-driven local runs are immune.
+**Watch-out**: if you ever export `ConnectionStrings__catalog-db=<remote-endpoint>` in your local shell, a bare `dotnet run --project CatalogService` would try to talk to the remote DB. This is self-inflicted-only — `dotnet run --project NextAurora.AppHost` overrides connection strings before child processes inherit them, so Aspire-driven local runs are immune.
 
 The [Dockerfile.catalog](../Dockerfile.catalog) and [.dockerignore](../.dockerignore) at the repo root are pure opt-in — Aspire runs the .NET services as `dotnet` processes (only infra deps like Postgres/SQL/Redis/Keycloak/ASB-emulator run in containers), so nothing in the local workflow invokes `docker build`.
 
 ## What gets deployed (either path)
 
-- **CatalogService.Api** as a single replica, scale-to-zero when idle
+- **CatalogService** as a single replica, scale-to-zero when idle
 - **Managed Postgres** for product/stock data (Fly Postgres or AWS RDS depending on path)
 - **No Redis** — HybridCache degrades to L1-only (in-process MemoryCache). Real prod would add a managed Redis for L2.
 - **No Service Bus / no other services** — single-service demo. Cross-service choreography (Order → Payment → Shipping saga) doesn't fit a free-tier budget; flag this as a "would need ASB + ≥2 services" caveat when walking through the deployment.
@@ -161,7 +161,7 @@ Use this path if you want AWS specifically — slower setup, ~$5/mo. Requires a 
 
 ## What gets deployed (AWS specifics)
 
-- **CatalogService.Api** as an App Runner service
+- **CatalogService** as an App Runner service
 - **RDS Postgres** (`db.t4g.micro`, free tier 12 mo)
 
 ## Architecture
