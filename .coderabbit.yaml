@@ -447,6 +447,39 @@ reviews:
         in bash run blocks, missing `permissions:` blocks, missing
         `concurrency:` groups, secrets in plaintext, hardcoded tokens.
 
+    - path: "**"
+      instructions: |
+        FILE-MOVE DISCIPLINE (CLAUDE.md "File-move discipline"). When this PR's
+        diff includes a file deletion or rename, grep the repo for refs to the
+        OLD path and flag any matches as findings. Look in: every `*.md`
+        (README, docs/, .claude/, .github/), inline comments in `*.cs`
+        (especially comments ending with literal `See CLAUDE.md.`), `Dockerfile*`
+        COPY/ADD instructions, `*.csproj` ProjectReference Include="...",
+        `.github/workflows/*.yml` `run:` blocks, `.coderabbit.yaml`
+        path_instructions, `.claude/scripts/*.sh` literal-path strings,
+        and `.claude/commands/*.md` slash-command bodies.
+
+        Failing to update these is exactly the drift class that produced the
+        broken-Dockerfile + broken-CLAUDE.md-link + stale-demo-doc fallout from
+        the simplicity refactor (PR #31 collapsed CatalogService to a single
+        project; refs to the pre-collapse 4-project layout sat silent in
+        `Dockerfile.catalog`, `docs/demo-deployment*.md`, and
+        `docs/performance-and-data-correctness.md` for months — only caught
+        when the doc-currency sweep happened in PR #112). Even a single missed
+        ref is a finding.
+
+        Mechanical enforcement already covers part of this: the
+        `.github/workflows/ci.yml` "Broken-link audit" step blocks the merge
+        when relative markdown links to local source files don't resolve.
+        That catches the broken-link case but not the "ref still points at a
+        file that happens to exist for a different reason" case — which is
+        where this CodeRabbit pass earns its keep.
+
+        Allowlist: `.claude/audits/INDEX.md` legitimately links to gitignored
+        per-article files (copyright reason — see
+        `.claude/commands/article-audit.md` step 5 "Copyright note"). The CI
+        guard excludes it; do NOT flag links from INDEX.md as drift.
+
 # Chat: allow @coderabbitai mentions to ask follow-up questions on a PR.
 chat:
   auto_reply: true

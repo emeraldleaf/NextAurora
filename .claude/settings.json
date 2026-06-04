@@ -61,6 +61,15 @@
             "command": "/Users/joshuadell/NovaCraft/.claude/scripts/check-claude-md-refs.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/joshuadell/NovaCraft/.claude/scripts/check-file-moves.sh"
+          }
+        ]
       }
     ]
   }

@@ -170,7 +170,9 @@ The bar isn't "document every bug fix." It's: **if the failure mode would surpri
 
 **When tightening or changing a CLAUDE.md rule**, grep the repo for files that paraphrase it (inline comments in `.cs`/`.props`/`.csproj`, supporting docs, README sections) and update each so they stay aligned. CLAUDE.md is canonical; everywhere else summarizes. Convention: any inline comment that summarizes a CLAUDE.md rule ends with `See CLAUDE.md.` so it's findable via `grep -rn "See CLAUDE.md"`. A PostToolUse hook surfaces candidate files automatically when CLAUDE.md is edited (see `.claude/settings.json`).
 
-This rule is for everyone working in this repo (humans, AI assistants, future-you). Don't wait to be asked.
+**File-move discipline — when deleting or renaming a file**, grep the repo for refs to the *old* path and update them in the same PR. Look in: `*.md` (docs, READMEs, INDEX), inline comments in `*.cs`, `Dockerfile*` COPY/ADD lines, `*.csproj` ProjectReference Include, `.github/workflows/*.yml` `run:` blocks, `.coderabbit.yaml` path_instructions. **Same compounding-loop principle as the CLAUDE.md rule above**, just for file structure instead of rule text. Failing to do this is the same drift class as the simplicity refactor fallout — `Dockerfile.catalog` referenced `CatalogService/CatalogService.Api/CatalogService.Api.csproj` for months after PR #31 collapsed CatalogService to a single project, broken silently until someone tried to redeploy. Enforcement is layered: (a) the `check-file-moves.sh` PostToolUse hook prints stale-ref candidates after `git mv` / `git rm`, (b) the CI broken-link audit in `.github/workflows/ci.yml` catches stale markdown links at PR-merge gate, (c) the `.coderabbit.yaml` "**" path_instruction flags missed refs at review time, (d) this rule documents the discipline.
+
+Both rules are for everyone working in this repo (humans, AI assistants, future-you). Don't wait to be asked.
 
 ## Continuous Rule Encoding (the compounding loop)
 
