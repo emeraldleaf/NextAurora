@@ -109,6 +109,24 @@ jobs:
             exit 1
           fi
 
+      # CLAUDE.md size budget — enforces the "Keep this file lean" discipline from
+      # CLAUDE.md "Continuous Rule Encoding" surface 1. Every byte of CLAUDE.md is loaded
+      # into every Claude Code session AND is cognitive overhead for human readers. Soft
+      # warning at 400 lines, hard fail at 500. When approaching either, audit each rule
+      # and move detail to the relevant paired doc in docs/ or skill in .claude/skills/;
+      # CLAUDE.md keeps headline + one-paragraph summary + link.
+      - name: CLAUDE.md size budget
+        run: |
+          lines=$(wc -l < CLAUDE.md)
+          echo "CLAUDE.md is $lines lines."
+          if [ "$lines" -gt 500 ]; then
+            echo "::error file=CLAUDE.md::CLAUDE.md exceeds 500-line hard limit (current: $lines). Move detail to docs/ or .claude/skills/ and leave a headline + link. See CLAUDE.md 'Continuous Rule Encoding' surface 1."
+            exit 1
+          fi
+          if [ "$lines" -gt 400 ]; then
+            echo "::warning file=CLAUDE.md::CLAUDE.md is approaching the size budget ($lines lines; soft limit 400, hard limit 500). Consider moving detail out."
+          fi
+
       # Broken-link audit: relative markdown links to local source files (.cs/.csproj/.props/
       # .yml/.svg/.excalidraw/.md) that don't resolve. Catches drift from file renames and
       # the kind of fallout the simplicity refactor produced — CLAUDE.md citations pointing at

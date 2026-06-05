@@ -41,18 +41,26 @@ Per [CLAUDE.md "Continuous Rule Encoding"](../CLAUDE.md#continuous-rule-encoding
 when *any* review surface (PR-time CodeRabbit, architecture-reviewer agent
 pass, integration-test failure, prod incident, security audit) surfaces a
 pattern or antipattern worth keeping, it gets encoded the same session —
-across as many of the **six surfaces** below as apply.
+across as many of the **five surfaces** below as apply. Default to the
+**smallest set** — and the *smallest entry on CLAUDE.md*, because every
+byte there is loaded into every session.
 
-### The six surfaces (canonical list)
+### The five surfaces (canonical list)
 
 | # | Surface | What goes here | Catches violations at... |
 |---|---|---|---|
-| 1 | [`CLAUDE.md`](../CLAUDE.md) | Canonical hard/soft rule with reference templates and the *why* in one line | Code-generation time (Claude reads CLAUDE.md every session) |
-| 2 | [`.coderabbit.yaml`](../.coderabbit.yaml) `path_instructions` | File-pattern-scoped guidance — add a new glob if no existing one fits | PR-time CodeRabbit review |
+| 1 | [`CLAUDE.md`](../CLAUDE.md) | **Always-on** rules only. Prefer one-line headline + link to the deeper doc; full paragraphs are usually a sign the rule belongs in surface 5 with a pointer here. | Code-generation time (Claude reads CLAUDE.md every session) |
+| 2 | [`.coderabbit.yaml`](../.coderabbit.yaml) `path_instructions` | File-pattern-scoped guidance — add a new glob if no existing one fits. **Most per-file rules belong here, not in CLAUDE.md.** | PR-time CodeRabbit review |
 | 3 | [`.claude/agents/architecture-reviewer.md`](../.claude/agents/architecture-reviewer.md) Pattern Checklist | Per-file-category scan rule the agent applies on every review | Local agent invocation, before code lands |
-| 4 | [`.claude/skills/`](../.claude/skills/) | Procedural knowledge worth a dedicated bundle (multi-step, specialized vocab) | On-demand, or when the user describes the right intent |
-| 5 | [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues) (labels: `rule-encoding-deferred`, `type/*`, `area/*`) | Deferred or partial fixes — the durable work ledger. STATUS.md is the entry-point doc; the issues board is where individual work items live. | Cross-session pickup, board triage |
-| 6 | Supporting docs ([architecture.md](architecture.md), [performance-and-data-correctness.md](performance-and-data-correctness.md), this file) | The *why* behind a rule when it's longer than one line | Onboarding, future-you |
+| 4 | [`.claude/skills/`](../.claude/skills/) + [`.claude/commands/`](../.claude/commands/) | Procedural knowledge worth a dedicated bundle (multi-step, specialized vocab) | On-demand, or when the user describes the right intent |
+| 5 | Supporting docs + paired diagrams ([architecture.md](architecture.md), [performance-and-data-correctness.md](performance-and-data-correctness.md), this file, and `docs/*.{svg,excalidraw}` pairs) | The *why* behind a rule, the visual depiction reviewers reason against | Onboarding, PR review, future-you |
+
+**Deferral surface (NOT part of the loop):** [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues)
+with the `rule-encoding-deferred` label tracks findings where code shipped
+but the encoding hasn't yet. The issue is a placeholder — a TODO that the
+encoding eventually happens. **It is not itself the encoding** — closed
+issues aren't read by future sessions. The rule lives in surfaces 1–5; the
+issue exists only until it does.
 
 ### What triggers an encoding (the threshold)
 
@@ -295,7 +303,7 @@ suggestions. Every PR-review pass checks for them.
 
 ### `.coderabbit.yaml` `path_instructions` — surface #2 of the encoding loop
 
-`.coderabbit.yaml` is one of the six surfaces from "The reflexive step" — it's
+`.coderabbit.yaml` is one of the five surfaces from "The reflexive step" — it's
 how a rule encoded once in CLAUDE.md gets re-checked at PR-review time without
 re-deriving it. Today's glob set (~12 entries) covers:
 
