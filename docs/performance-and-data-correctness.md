@@ -147,6 +147,105 @@ See [decision: optimistic concurrency tokens](#decision-optimistic-concurrency-t
 
 ---
 
+## Additional always-on patterns
+
+These extend the 14 rules above with patterns that don't fit cleanly into a single rule shape. Same enforcement bar.
+
+### Non-sargable predicates defeat indexes — fix at write time
+
+A `Where(...)` that wraps the column in a function (`u.Email.ToLower() == x`, `o.CreatedAt.Date == today`) can't use a B-tree index on that column even if one exists — the planner falls back to a full scan.
+
+**The fix is at write time, not at read time:**
+- Normalize on insert/update (e.g. an `EmailNormalized` column populated by the aggregate factory + projected to in `Where(u => u.EmailNormalized == emailNormalized)`)
+- Or use a case-insensitive collation at the column level
+
+**Leading-wildcard substring search (`LIKE '%text%'`, `EF.Functions.ILike(p.Name, "%text%")`) isn't B-tree-indexable in any database** — escalate to Postgres `tsvector` full-text search or a dedicated search engine (Elasticsearch / OpenSearch / Meilisearch) when load justifies it. Reference: [`CatalogService/Features/SearchProducts.cs`](../CatalogService/Features/SearchProducts.cs) documents the leading-wildcard trade-off explicitly (intentional; full-text is the named next step if it becomes a bottleneck).
+
+**Deeper principle:** indexes carry a write cost — every insert/update touches every index on the table — so an index the planner can't use is pure overhead, not free defense-in-depth. Adding more indexes isn't a universal speed-up; treat the index list like an interface — each one earns its keep against a real query.
+
+### Parallelize independent awaits with `Task.WhenAll`
+
+Sequential `await`s serialize latency for free. Async makes a single wait non-blocking; it does not make a *sequence* of waits cheap. When a handler makes N independent I/O calls — N gRPC requests to different services, N HTTP calls to different external APIs, N queries against *different* DbContexts (one per service) — sequential `await`s pay the sum of all latencies, while `Task.WhenAll` pays the max.
+
+**Anti-shape:**
+```csharp
+var user = await GetUserAsync(id, ct);
+var orders = await GetOrdersAsync(otherId, ct);      // doesn't depend on user
+var notifications = await GetNotificationsAsync(ct); // doesn't depend on either
+```
+
+**Right shape:** kick all three off, await once, project the results.
+
+**Reference shape:** [`OrderService/Features/PlaceOrder.cs:93`](../OrderService/Features/PlaceOrder.cs) — `Task.WhenAll(request.Lines.Select(line => catalogClient.GetProductAsync(line.ProductId, ct)))` is the canonical gRPC fan-out over independent line items, parallelism over the wire, no shared mutable state. The file documents the DbContext safety caveat at lines 89–92 explicitly.
+
+**Don't parallelize:**
+- (a) **Dependent operations** where the output of one feeds the input of another (`var user = await ...; var orders = await GetByUserId(user.Id, ct);`)
+- (b) **Operations sharing the same EF `DbContext` scope** — DbContext is NOT thread-safe and parallel EF queries against the same context throw or corrupt state. Use `IDbContextFactory<T>` to mint one context per task (see rule 8 above)
+- (c) **Operations whose failures must be observed independently** — `Task.WhenAll` surfaces only the first exception; the rest run to completion but get swallowed. Use `Task.WhenAll(...)` followed by inspection of each task's `.Exception` (or `Task.WhenEach` in .NET 10) when multi-failure surfacing matters
+
+### Long-running work belongs on the message bus, not the synchronous HTTP handler
+
+If a write path would take more than ~1s (multi-step external API chain, aggregation over thousands of rows, bulk import, report generation), reshape the endpoint as **202 Accepted**: validate + persist a tracking row + publish a Wolverine message + return `202` with the polling key in the body and a `Location` header pointing to a status endpoint. A background handler does the actual work; the client polls (`GET /jobs/{id}`, `GET /orders/{id}`, etc.) or receives a push (SignalR / SSE / email when the job completes).
+
+**What counts as "the tracking row":** the aggregate being created can BE the tracking row when its ID is the polling key — that's the `POST /api/v1/orders` shape (the `Order` row IS the tracking record; `GET /api/v1/orders/{id}` IS the polling endpoint). A separate jobs table is only needed when there's no natural aggregate (bulk import of CSV with no per-row entity, report generation with no persistent output).
+
+**The synchronous parts commit atomically two ways:**
+- (a) when the endpoint dispatches via `bus.InvokeAsync<T>(command, ct)`, `AutoApplyTransactions` wraps the handler — `SaveChanges` flushes the entity write and Wolverine's staged envelope in one DB transaction
+- (b) when the endpoint persists + publishes inline (no handler dispatch), use the `BeginTransactionAsync` → work + `PublishAsync` → `SaveChangesAsync` → `CommitAsync` wrap from the Outbox-outside-handler trap (see [observability-and-context-propagation.md "Outbox outside a Wolverine handler"](observability-and-context-propagation.md#outbox-outside-a-wolverine-handler--atomicity-trap)). Skipping `SaveChangesAsync` after `PublishAsync` and before `Commit` silently drops the staged envelope
+
+**Why it matters:** the HTTP request holds a thread, a DB connection, and a concurrency-budget slot for the full duration of the handler — a small spike on a slow endpoint can starve the rest of the API. Response time and work duration are different things; the rule is to keep response time bounded.
+
+NextAurora already has the full machinery — Wolverine + Service Bus + outbox + saga handlers — so the rule is "use it when a handler would otherwise block." The current `POST /api/v1/orders` is the canonical reference: the handler validates + persists the `Order` + stages `OrderPlacedEvent` + returns `OrderId`, then PaymentService + ShippingService handle downstream work async via the saga. Note that `bus.InvokeAsync<Guid>` awaits the *Place Order handler* synchronously — what makes this the right shape isn't the response code, it's that the handler only does validate-persist-stage and stays sub-second; the minutes-scale work is downstream consumers of the staged event.
+
+**Same rule for Wolverine handlers themselves**: a handler body that runs for minutes is the same anti-pattern with a different colored connection — break the work into a follow-up message handler.
+
+**Cloud-managed alternatives** when the worker pool needs scale-to-zero or a multi-step durable workflow:
+- AWS SQS + Lambda or Azure Service Bus + Azure Functions for stateless workers
+- Azure Durable Functions or AWS Step Functions for multi-step orchestration with timers/retries
+- Temporal for hours-to-days workflows with first-class durable execution
+
+Trade-off is the usual one — less ops, more vendor coupling.
+
+### Fan-out belongs on the message bus, not in a synchronous handler loop
+
+A handler that iterates a recipient list inline (`foreach (var follower in followers) await _sender.SendAsync(...)`) holds the request open for N × per-recipient-latency, concentrates the work on one process, and creates traffic spikes that can starve the rest of the system (millions of follower notifications fired by one celebrity post).
+
+**The right shape:** publish **one Wolverine message per recipient** (or per batch of K recipients) and return immediately; per-recipient handlers run in parallel under Wolverine's `MaxDegreeOfParallelism` throttle, set per-handler in `Program.cs`:
+
+```csharp
+opts.LocalQueueFor<SendNotificationRequest>().MaxDegreeOfParallelism(N);
+```
+
+The throttle gives natural back-pressure — fast producers can't starve slow consumers, and a notification spike doesn't pin a thread or saturate the downstream provider. This is the same principle as "Long-running work belongs on the message bus" applied to fan-out specifically: **accept the work, don't do the work.**
+
+Not retroactively violated today (NotificationService receives one inbound event = one outbound notification), but the rule is preventative for any future broadcast-to-N feature (multi-tenant announcements, post-with-followers, abandoned-cart drips, etc.).
+
+### Entity IDs use `Guid.CreateVersion7()`, not `Guid.NewGuid()`
+
+UUID v7 (first 48 bits = Unix-ms timestamp, remaining 74 bits random) is **time-ordered**, so PK inserts append-extend the B-tree index instead of splitting pages everywhere — kills the index-fragmentation tax that random UUID v4 inserts pay on every write. .NET 9+ API, no third-party package needed, drop-in same `Guid` type.
+
+Apply in aggregate factory methods (`Order.Create`, `Payment.Create`, etc.) — the canonical spot to mint domain IDs.
+
+**Trade-off:** v7's timestamp is decodable from the ID, so the mint time leaks to anyone holding it. Fine for:
+- Buyer-scoped resources (IDOR check gates visibility — non-owners can't see the ID at all)
+- Naturally-public timestamped resources (Product creation time isn't sensitive; often returned in the response anyway)
+
+**Don't use v7** for IDs where the mint time IS sensitive (security tokens, admin-only internal references).
+
+Existing v4 IDs in the DB stay as-is — v4 and v7 coexist in the same `Guid` column with no migration required; the rule applies to *new* IDs.
+
+### `AsSpan` over `Substring` for zero-allocation slicing — narrow tool
+
+`Substring(...)` allocates a new `string` per call; `AsSpan(...)` returns a `ReadOnlySpan<char>` view over the original with no allocation, and `string.Concat`, `int.Parse`, etc. have span overloads. Real win in *synchronous, hot, string-heavy loops* — parsers, formatters, tokenizers, bulk ID/field manipulation.
+
+**Two guardrails make it a narrow tool, not a default:**
+1. It's a micro-optimization governed by "Measure before optimizing" (rule 14) — apply where profiling shows string-allocation pressure, not reflexively
+2. **`Span<T>` / `ReadOnlySpan<T>` is a `ref struct` — stack-only, can't cross an `await` boundary or be captured in a lambda/field**, so it's rarely usable inside NextAurora's async-everywhere request handlers (the compiler will stop you)
+
+NextAurora has no such hot path today — its string work is incidental (log templates, IDs), and the bottleneck is always I/O (EF, gRPC, HTTP), never `Substring`. The rule is preventative: *if* a synchronous string-crunching hot path appears and profiling justifies it, reach for `AsSpan`; until then, `Substring` is fine and clearer.
+
+---
+
 ## Decision: optimistic concurrency tokens
 
 ### Problem
