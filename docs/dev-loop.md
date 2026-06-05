@@ -164,6 +164,8 @@ This is where most code originates. The tooling here shapes proposed edits
 | Command | Purpose |
 |---|---|
 | [/new-feature-slice](../.claude/commands/new-feature-slice.md) | Scaffolds a VSA feature slice matching the [OrderService/Features/PlaceOrder.cs](../OrderService/Features/PlaceOrder.cs) canonical shape. |
+| [/feature-spec](../.claude/commands/feature-spec.md) | Drafts a structured feature spec (goal + acceptance + auto-referenced CLAUDE.md constraints) — the handoff between intent and implementation. Feeds the encoding loop. |
+| [/article-audit](../.claude/commands/article-audit.md) | Audits an external article (community blog, post, conference talk) against CLAUDE.md and the encoding surfaces — outputs a coverage map + verdict + draft issue body for any gaps. |
 | [/sync-status](../.claude/commands/sync-status.md) | Refreshes STATUS.md from `git log` + open issues. |
 | [/check-rules](../.claude/commands/check-rules.md) | Audits every `See CLAUDE.md` paraphrase against the canonical rule and flags drift. |
 
