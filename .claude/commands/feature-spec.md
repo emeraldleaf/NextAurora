@@ -23,9 +23,28 @@ The pattern is: spec → code → encode lessons → smarter next session.
 
 ## What to do
 
-### 1. Clarify the scope (2–4 targeted questions)
+### 1. Value gate (before drafting anything)
 
-Lock in the things the spec needs but the user's one-liner didn't say:
+Three questions to answer honestly **before** the spec is drafted. If the
+answers don't land, this isn't a feature spec — it's an experiment, and the
+right output is a token budget + a stop-time, not a spec.
+
+1. **Who needs this, and what breaks for them if it never exists?**
+   If the honest answer is "no one," this is an experiment. Treat it as one.
+2. **Would we still build it if it cost a week of engineering time instead
+   of an afternoon of tokens?**
+   This is the cost question, asked deliberately now that generation is cheap.
+   Most feature inflation will not survive it.
+3. **Who owns saying no to this?**
+   A decision with no owner is a trap. Name the person whose job is the
+   refusal. (For solo work: you. For team work: a named role.)
+
+If question 1 surfaces "no one," propose running it as a time-boxed experiment
+(token budget + stop-time) instead of drafting a full spec. If question 3
+surfaces "nobody, really," go find the owner first.
+
+Once the value gate passes, lock in the things the spec needs that the user's
+one-liner didn't say (2–4 targeted scoping questions):
 
 - Which service(s)? (Catalog / Order / Payment / Shipping / Notification — or new)
 - New endpoint, modifying existing behavior, or a saga step?
@@ -40,11 +59,29 @@ Produce markdown with these sections:
 
 **Goal** — one sentence: the user-facing outcome.
 
+> **Two-implementations test for the goal.** Apply this test: *"Can two
+> completely different implementations both satisfy this goal?"* If yes,
+> you wrote a goal. If only one implementation could possibly satisfy it,
+> you wrote a spec disguised as a goal — and demoted the agent from
+> decision-maker to typist. Counter-example: *"Build a Go microservice
+> using gRPC, with Postgres for storage and Redis for state, behind an
+> Envoy sidecar"* is a spec in goal's clothes. *"Build a microservice
+> that handles the user-facing product catalog"* is a goal.
+
 **Acceptance criteria** — bullets, externally observable:
 - API contract (request shape, response shape, status codes)
 - Saga progression (events fired, events consumed)
 - Side effects (DB rows written, events emitted, cache invalidations)
 - Failure modes (invalid input, race, downstream unavailable)
+
+> **Constraints vs failure conditions — decision rule.** For each line you're
+> about to write, ask: *"Would knowing this change how the builder writes
+> code?"* If yes → it's a constraint and goes in the constraints/affects
+> section (the builder needs it to make a design call). If no → it's a
+> failure condition that goes in acceptance (the validator catches it after
+> the code exists). Example: *"Must not introduce a new runtime dependency"*
+> → constraint. *"Unit test coverage must stay above 90%"* → failure
+> condition. Mixing them invites coverage gaming and reward-hacking.
 
 **Affects** — surfaces this touches:
 - New / changed endpoints
@@ -52,6 +89,36 @@ Produce markdown with these sections:
 - New / changed events
 - New / changed gRPC contracts
 - New external dependencies
+
+**Upstream dependencies (assumptions that could shift)** — list the
+load-bearing assumptions this spec depends on. If any of these change
+mid-build, the spec becomes invalid and the AI should flag it:
+
+- Deployment target (Fly.io / Aspire local / future Hetzner)
+- DB engine version (Postgres major bumps, SQL Server provider quirks)
+- External API contracts (Stripe, ASB protocol versions)
+- Auth model (JWT claim shape, Keycloak realm structure)
+- gRPC contracts shared with other services
+- CLAUDE.md rules that are themselves in flux (see open `rule-encoding-deferred` issues)
+
+Naming these inline lets the AI flag *during build* if it notices any of them
+shifting (e.g., "you bumped EF Core; this spec assumed the old behavior of X").
+Closes the failure mode of *"every downstream task inheriting assumptions that
+no longer held."*
+
+**Non-functional constraints** (optional — include only when relevant) —
+*qualities the outcome must carry*, in business language, **5–7 lines maximum**:
+
+- ✅ "Support 1,000 concurrent users at peak"
+- ✅ "p99 latency under 200ms on read endpoints"
+- ✅ "99.99% uptime against the published SLO"
+- ❌ "Use Wolverine with the standard outbox setup" (this is Context — already
+  in CLAUDE.md / `docs/architecture.md`)
+- ❌ "Wrap the handler with PolicyExecutor.Standard" (this is implementation)
+
+When the constraints list grows past a handful, stop — something on it doesn't
+belong. It's either Context (what the canon has already standardized) or a
+failure condition (validator-checkable after).
 
 **Constraints from CLAUDE.md** — auto-reference the rules that apply, pulled
 from the *current* CLAUDE.md (read it; don't reconstruct from memory). For
@@ -129,7 +196,28 @@ Produce:
    - Note any DI registration that needs adding to `AddXInfrastructure`
    - Note any new aggregate that needs migration + factory method
 
-### 5. Closing the loop
+### 5. Hole-test — close the gaps before shipping
+
+Before the user opens the GitHub issue or runs `/new-feature-slice`, run one
+final completeness check:
+
+> *"Imagine handing this spec to someone who was not in your head — or to the
+> AI implementing it next session. Where would they have to guess?"*
+
+Walk through each section and mark every place an implementer (human or AI)
+would infer rather than read. Common holes:
+
+- Acceptance criteria that don't name failure modes (just success paths)
+- Affects that name "OrderService" without naming which endpoints or events
+- Constraints that say "follow IDOR pattern" without naming the predicate site
+- Upstream dependencies that mention "Postgres version" without specifying which behavior the spec assumes
+- Connections to other features that say "this touches the cart" without naming the cart endpoint contract
+
+Every guess-point is a hole the agent will fill with its own assumption.
+Close them in the spec before implementation starts. Per Kapil Viren Ahuja's
+ICE framing: *"Every place they point is a hole you were about to let fill."*
+
+### 6. Closing the loop
 
 End with this prompt to the user (verbatim, so the loop-close is consistent):
 

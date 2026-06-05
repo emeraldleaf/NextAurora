@@ -29,9 +29,30 @@ Last updated: 2026-05-29.
 
 Five forward stages — *Edit → Build → Test → PR → Merge/Runtime* — closed by a
 sixth, **reflexive** step: every non-obvious finding gets encoded across the
-six destinations described under "The reflexive step" so the next instance is
+five surfaces described under "The reflexive step" so the next instance is
 caught earlier, not re-derived. The reflexive step is what makes the loop
 compound. Without it, the same findings recur every PR cycle.
+
+---
+
+## This is a method, not a harness
+
+Claude Code, CodeRabbit, GitHub Actions, Excalidraw, the `dotnet-performance` skill — these are **harnesses** that carry out work. The encoding loop is the **method** that defines what the work is, where rules live, and how findings turn into durable encoded knowledge.
+
+- Harness without method → agents fill gaps the human never thought through; the "spec was good but the model strayed" failure mode
+- Method without harness → well-defined rules nobody runs
+- Method paired with the right harnesses → the encoding loop
+
+When comparing the loop to Spec Kit, BMAD, Kiro, Tessl, Agent OS, Kapil Viren Ahuja's Garura: **those are harnesses**. The encoding loop is the method. Adopting a harness without a method is the default failure mode today because the harness is the part with a download button.
+
+The encoding loop's method consists of:
+- **`CLAUDE.md` + the `.claude/` folder** (the canon + agents + skills + commands + hooks)
+- **The 5 encoding surfaces** (where rules live — see next section)
+- **The 3-tier enforcement spectrum** (how rules get caught — see [The enforcement spectrum](#the-enforcement-spectrum))
+- **Continuous Rule Encoding** (how lessons compound — see [The reflexive step](#the-reflexive-step-continuous-rule-encoding))
+- **`/feature-spec`** (the per-feature handoff that ties intent + canon together)
+
+Claude Code, CodeRabbit, the GitHub Actions runner — those are the harnesses that carry it out.
 
 ---
 
@@ -544,6 +565,35 @@ for the curation rationale.)
 | **CI/CD pipeline generator skills** | Existing CI works; adding a generator is anti-pragmatic. |
 | **Differential-review skill** (trailofbits) | Direct overlap with architecture-reviewer agent + CodeRabbit. |
 | **Spec Kit `/specify` + `/plan` + `/tasks` flow** | Per-feature spec authoring would convert this project's compounding-rule speed advantage into ceremony. See "Loop comparison" — the rule-encoding loop is the dual, not a replacement. |
+
+---
+
+## Lineage and grounding
+
+The encoding loop isn't a new idea. It's the latest iteration of a long lineage of iterative + invariant-encoding methodologies:
+
+- **Larman & Basili 2003 (IEEE Computer)** — iterative development goes back to the 1950s; the single-pass document-driven ideal was doubted from the start, even by Royce
+- **Ostroff, Makalsky, Paige 2004 (XP)** — *"Agile Specification-Driven Development"* argued *"a 'complete' specification is a flawed ideal"* and specs should emerge as tests and contracts
+- **METR 2025 controlled trial** — experienced developers were measurably slower with AI but felt faster. *"Being wrong while feeling fast is the whole failure in one sentence"*
+- **Anthropic September 2025 postmortem** — ~30% of Claude Code users hit at least one degraded response over a five-week period; most never noticed (the Dependence Debt example)
+- **OpenAI Symphony (April 2026)** — 2,169-line RFC-grade formal spec was distilled FROM software built first (Codex generated every line). *"The deep, RFC-grade spec is retrospective documentation of software that already ran."* The industry sells the output of that process as if it were the method
+- **Uber 2026** — burned through annual AI coding budget in ~4 months, $500-$2,000/engineer/month at 84% Claude Code adoption. CTO publicly said the team was "back to the drawing board." Cost meter pricing upward, value link *"not there yet"*
+- **Kapil Viren Ahuja's IDSD series (Activated Thinker, March–May 2026)** — the most thoroughly worked-out parallel: Intent + Context + Expectations (ICE), with the **Agentic Iron Triangle** reshape — Speed → table stakes, Quality → floor held by evals, Cost → split into **tokens + cognition**. Per-feature methodology. The encoding loop's contribution is the cross-feature compounding IDSD doesn't address
+
+### The decay warning (every method eventually decays toward what it replaced)
+
+Per Ahuja's own admission about IDSD: *"Maybe IDD decays into a thirty-field intent form, and we land right back here, a new name on the door."* Agile decayed into spec-process-with-shorter-cycles. SDD started as goal-direction and decayed into 1,300-line specs. TDD decayed into coverage-gaming.
+
+The encoding loop's defense against decay:
+
+1. **Lean-CLAUDE.md discipline + CI size budget** (soft 400, hard 500) — prevents the canon itself from bloating into the spec it was meant to replace
+2. **`/check-rules` audit** — paraphrases stay aligned with the canonical source
+3. **The explicit Continuous Rule Encoding compounding step** — keeps "lessons from this feature" distinct from "what this feature must do," so the rule-set never collapses into per-feature ceremony
+4. **The enforcement spectrum** — promotes rules from convention → automation → mechanical, so high-value rules become loud failures, not silent conventions
+
+### The encoding loop's contribution to the lineage
+
+Explicit **cross-feature compounding** via the 5 encoding surfaces + the enforcement spectrum + the disciplines that catch drift (file-move, doc-and-diagram, lean-CLAUDE.md, presence-in-loop, continue-is-the-verb, broken-link audit). Every feature makes the next one start smarter — which is the only thing that scales when generation cost falls to zero and cognition stays finite.
 
 ---
 
