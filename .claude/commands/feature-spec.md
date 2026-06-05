@@ -117,7 +117,7 @@ part of this feature's PR.
 Produce:
 
 1. **GitHub issue body** — formatted ready to paste into `gh issue create`.
-   Use the project's [work-item Issue Form fields](../.github/ISSUE_TEMPLATE/work-item.yml)
+   Use the project's [work-item Issue Form fields](../../.github/ISSUE_TEMPLATE/work-item.yml)
    if possible (What / Why / Acceptance / Notes). Suggest labels:
    `type/feature`, the relevant `area/*`, `priority/*` if known.
 
