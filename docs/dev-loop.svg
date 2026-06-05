@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1940" width="1800" height="1940" font-family="'Cascadia Code', 'Consolas', monospace">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1985" width="1800" height="1985" font-family="'Cascadia Code', 'Consolas', monospace">
   <!-- Explicit white background so the diagram is readable on GitHub's dark theme. -->
-  <rect width="1800" height="1940" fill="#ffffff"/>
+  <rect width="1800" height="1985" fill="#ffffff"/>
   <style>
     .title { font-size: 36px; fill: #1e40af; font-weight: 700; }
     .subtitle { font-size: 18px; fill: #64748b; }
@@ -243,7 +243,7 @@
   <!-- ============================================================== -->
   <!-- Continuous Rule Encoding — the compounding feedback loop.      -->
   <!-- ============================================================== -->
-  <rect x="40" y="1710" width="1720" height="180" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.5"/>
+  <rect x="40" y="1710" width="1720" height="220" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.5"/>
   <text x="60" y="1745" class="title" fill="#6d28d9" font-size="22">Continuous Rule Encoding — the feedback loop</text>
   <text x="60" y="1770" class="subtitle">When a review surface (CodeRabbit, arch-reviewer agent, test failure, incident) finds a pattern, encode it the same session. Per CLAUDE.md "a merged fix PR without the corresponding rule is a half-finished job."</text>
 
@@ -260,12 +260,17 @@
   <text x="1170" y="1810" font-size="14" fill="#64748b">+</text>
   <text x="1190" y="1810" class="tool">docs + paired diagrams</text>
 
-  <text x="60" y="1840" class="gap-title" fill="#6d28d9">Next cycle</text>
-  <text x="180" y="1840" font-size="20" fill="#6d28d9">→</text>
-  <text x="210" y="1840" class="tool">Edit-time auto-prevented from repeating the antipattern. CodeRabbit catches future violations at PR-time. Agent surfaces them at local review.</text>
+  <text x="60" y="1840" class="gap-title" fill="#6d28d9">Disciplines</text>
+  <text x="190" y="1840" font-size="20" fill="#6d28d9">→</text>
+  <text x="220" y="1840" class="tool">cross-reference  ·  file-move  ·  doc-and-diagram  ·  lean-CLAUDE.md  ·  presence-in-loop  ·  continue-is-the-verb</text>
+  <text x="220" y="1860" class="tool-muted">First 4 have mechanical floors (hooks / CI guards / size budget); last 2 are convention-tier (judgment about presence and stopping)</text>
 
-  <text x="60" y="1870" class="tool-muted">For when to use agent vs slash command vs skill (and how each is invoked), see .claude/README.md.</text>
+  <text x="60" y="1890" class="gap-title" fill="#6d28d9">Next cycle</text>
+  <text x="180" y="1890" font-size="20" fill="#6d28d9">→</text>
+  <text x="210" y="1890" class="tool">Edit-time auto-prevented from repeating the antipattern. CodeRabbit catches future violations at PR-time. Agent surfaces them at local review.</text>
+
+  <text x="60" y="1920" class="tool-muted">For when to use agent vs slash command vs skill (and how each is invoked), see .claude/README.md.</text>
 
   <!-- Bottom footer -->
-  <text x="60" y="1915" class="subtitle" font-style="italic">Full source in docs/dev-loop.md. Source .excalidraw at docs/dev-loop.excalidraw (open in Excalidraw to edit).</text>
+  <text x="60" y="1960" class="subtitle" font-style="italic">Full source in docs/dev-loop.md. Source .excalidraw at docs/dev-loop.excalidraw (open in Excalidraw to edit).</text>
 </svg>
