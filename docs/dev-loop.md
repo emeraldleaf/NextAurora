@@ -124,6 +124,25 @@ For invocation patterns — when to use an agent vs a slash command vs a skill,
 and how each is triggered — see [`.claude/README.md`](../.claude/README.md).
 The decision tree there is the single source of truth.
 
+### The disciplines (encoded in CLAUDE.md "Debugging Discipline")
+
+Disciplines are the **convention-tier** rules that operate alongside the
+five surfaces. They don't change the loop's structure — they say *how* to
+work within it. Full text and rationale lives in
+[CLAUDE.md "Debugging Discipline"](../CLAUDE.md#debugging-discipline);
+the catalog below is the pointer.
+
+| Discipline | One-line meaning | Layered enforcement |
+|---|---|---|
+| **Cross-reference convention** (`See CLAUDE.md.`) | Every paraphrase of a CLAUDE.md rule ends with the literal token so it's greppable | PostToolUse hook on Edit + `/check-rules` audit |
+| **File-move discipline** | When renaming/deleting a file, grep the repo for refs to the old path and update them in the same PR | PostToolUse hook on Bash (`check-file-moves.sh`) + CI broken-link audit + CodeRabbit `**` path_instruction |
+| **Doc-and-diagram discipline** | Docs + paired SVG diagrams are the review surface, not byproducts — when behavior changes, the depiction changes in the same PR | CI diagram-pair audit + CodeRabbit topology-file path_instructions |
+| **Lean-CLAUDE.md** | One-paragraph maximum per rule in CLAUDE.md; detail moves to docs/ or skills/; CLAUDE.md gets a pointer | CI size budget (soft 400 lines, hard 500) |
+| **Presence in the loop, not approval at the gate** | For non-pattern-conforming features, stay present during build, don't just review the diff at the end | Convention — relies on the `/feature-spec` Significance Check to flag when this applies |
+| **Continue is the verb that gets you in trouble. Build is not.** | Prototypes get a token budget + stop-time up front; experiments end at sunset, not when interest runs out | Convention — relies on the `/feature-spec` Value Gate to surface "this is an experiment, not a feature" early |
+
+The first four have **mechanical floors** (hooks, CI guards, size budgets); the last two are **convention-tier only** because they're judgment calls about presence and stopping — no machine catches them. That's why they're named explicitly in CLAUDE.md — naming them is what makes them survive in practice.
+
 ---
 
 ## The enforcement spectrum
