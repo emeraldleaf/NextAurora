@@ -1,6 +1,7 @@
 ---
 description: Audit an article (URL or pasted text) against CLAUDE.md and the rule-encoding surfaces — output a coverage map + verdict + (if gap) a draft GitHub issue body
 argument-hint: <URL or "pasted">
+disable-model-invocation: true
 ---
 
 # Article audit

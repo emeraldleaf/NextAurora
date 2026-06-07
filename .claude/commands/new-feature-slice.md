@@ -1,6 +1,7 @@
 ---
 description: Scaffold a new VSA feature slice (command + validator + handler) in a service
 argument-hint: <ServiceName> <FeatureName>
+disable-model-invocation: true
 ---
 
 # /new-feature-slice

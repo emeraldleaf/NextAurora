@@ -1,6 +1,7 @@
 ---
 description: Draft a structured feature spec — goal + acceptance + affected surfaces + auto-referenced CLAUDE.md constraints + handoff to scaffolding. Feeds the encoding loop.
 argument-hint: <short feature description, or "pasted">
+disable-model-invocation: true
 ---
 
 # Feature spec
