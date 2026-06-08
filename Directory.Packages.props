@@ -73,7 +73,7 @@
     <PackageVersion Include="Keycloak.AuthServices.Aspire.Hosting" Version="0.3.0" />
 
     <!-- Code Analysis -->
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.98" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.101" />
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.27.0.140913" />
     <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4" />
