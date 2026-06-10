@@ -168,8 +168,9 @@ VSA is the default and stays the default. From CLAUDE.md "Promotion signal":
 | Signal | Shape |
 |---|---|
 | ≤4 aggregates per service, ≤10 features, single team | VSA (current default) |
-| 5+ aggregates with cross-cutting domain rules that several features coordinate on, AND `Domain/` growing faster than `Features/` | Consider Clean Architecture promotion |
-| "I want to mock the DbContext in unit tests" | **NOT** a reason. Use integration tests with Testcontainers (see Stage 3). |
+| "I want the dependency rule enforced, not just held by convention" | **Architecture tests** (NetArchTest / analyzer) — NOT a project split. Same boundary, no ceremony |
+| 5+ aggregates with cross-cutting domain rules that several features coordinate on, AND `Domain/` growing faster than `Features/` | Consider the multi-project split — when you want the *compiler* to hold the boundary, or need separate deploy/versioning units |
+| "I want to mock the DbContext in unit tests" | NOT a reason. Use integration tests with Testcontainers; see "Testing" rule |
 
 None of the services are at that scale today. The previous Clean Architecture
 attempt in CatalogService was retired in the VSA collapse refactor precisely
