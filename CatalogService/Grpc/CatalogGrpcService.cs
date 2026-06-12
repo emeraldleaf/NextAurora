@@ -11,7 +11,8 @@ namespace CatalogService.Grpc;
 ///
 /// <para>
 /// <b>Why gRPC instead of HTTP/REST for this:</b> OrderService calls into here on the
-/// synchronous order-placement path, once per line item. Binary protobuf is ~5× smaller than
+/// synchronous order-placement path — one batch call per phase (validate, reserve)
+/// regardless of order size. Binary protobuf is ~5× smaller than
 /// JSON for the same payload, HTTP/2 multiplexes multiple calls over one connection, and the
 /// generated client has zero serialization ambiguity. None of these matter for end-user APIs
 /// (browser → REST is fine), but they all matter for service-to-service hot paths.
@@ -94,6 +95,67 @@ public class CatalogGrpcService(IMessageBus bus) : CatalogGrpc.CatalogGrpcBase
 
         var success = await bus.InvokeAsync<bool>(new ReserveStockCommand(productId, request.Quantity), context.CancellationToken);
         return new ReserveStockResponse { Success = success };
+    }
+
+    /// <summary>
+    /// Batch validation for the order-placement path — one round-trip returns availability +
+    /// server-controlled prices for every line in the order. Missing/malformed IDs are simply
+    /// absent from the response; the caller treats absence as "not found". Replaces the
+    /// per-line <c>GetProduct</c> fan-out from OrderService.
+    /// </summary>
+    public override async Task<ProductListResponse> ValidateLines(ValidateLinesRequest request, ServerCallContext context)
+    {
+        var ids = new List<Guid>();
+        foreach (var idString in request.ProductIds)
+        {
+            if (Guid.TryParse(idString, out var productId))
+            {
+                ids.Add(productId);
+            }
+        }
+
+        var response = new ProductListResponse();
+        if (ids.Count == 0)
+        {
+            return response;
+        }
+
+        var products = await bus.InvokeAsync<List<NextAurora.Contracts.DTOs.ProductDto>>(
+            new ValidateLinesQuery(ids), context.CancellationToken);
+
+        foreach (var product in products)
+        {
+            response.Products.Add(MapToResponse(product));
+        }
+
+        return response;
+    }
+
+    /// <summary>
+    /// Batch reservation with <b>atomic all-or-nothing</b> semantics: every line reserves in
+    /// one DB transaction or none do (see <see cref="Features.ReserveLinesHandler"/>). Success
+    /// means the whole order's stock is reserved; failure means nothing happened — there is no
+    /// partial outcome for the caller to compensate.
+    /// </summary>
+    public override async Task<ReserveLinesResponse> ReserveLines(ReserveLinesRequest request, ServerCallContext context)
+    {
+        var lines = new List<Features.ReserveLine>(request.Lines.Count);
+        foreach (var line in request.Lines)
+        {
+            if (!Guid.TryParse(line.ProductId, out var productId))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid product ID format"));
+            }
+            lines.Add(new Features.ReserveLine(productId, line.Quantity));
+        }
+
+        if (lines.Count == 0)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "At least one line is required"));
+        }
+
+        var success = await bus.InvokeAsync<bool>(new ReserveLinesCommand(lines), context.CancellationToken);
+        return new ReserveLinesResponse { Success = success };
     }
 
     // DTO → gRPC message mapping. Two notable choices:

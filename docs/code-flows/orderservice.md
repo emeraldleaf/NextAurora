@@ -77,9 +77,7 @@ opts.UseFluentValidation();
 opts.AddConcurrencyRetry();               // OnException<DbUpdateConcurrencyException>
 ```
 
-**Why two parallel `Task.WhenAll` blocks** (validate, then reserve) instead of one combined pass: a validation failure on line 3 must NOT leave reservations on lines 1 and 2. Splitting the phases makes partial-commit impossible at the validation layer. See [PlaceOrder.cs:73-79](../../OrderService/Features/PlaceOrder.cs#L73) for the rationale in code.
-
-**`DbContext` thread-safety**: the `Task.WhenAll` parallelism is over **gRPC client calls only** — no OrderService `DbContext` is touched in that block. The CLAUDE.md "DbContext is not thread-safe" rule is satisfied. Each gRPC call hits CatalogService where it gets its own per-request DbContext scope.
+**Why two batch calls** (validate, then reserve) instead of one combined pass: a validation failure on line 3 must NOT trigger any reservation. Splitting the phases makes partial-commit impossible at the validation layer, and the reservation phase itself is **atomic all-or-nothing on the Catalog side** (`ReserveLines` runs every line in one DB transaction — see the CatalogService code-flow). Each phase is ONE gRPC round-trip regardless of order size; the previous shape (`Task.WhenAll` over per-line `GetProduct`/`ReserveStock` calls) paid N parallel round-trips per phase and could leave partial reservations when one line lost Catalog's concurrency check (issue #71).
 
 ---
 

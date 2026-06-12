@@ -100,16 +100,20 @@ reviews:
         different services, N HTTP calls to different external APIs, N queries against
         DIFFERENT DbContexts), sequential `await`s pay the sum of latencies; the right
         shape is `Task.WhenAll`. Recommend `Task.WhenAll` when you see three or more
-        sequential awaits whose results don't feed each other. Reference shape:
-        OrderService/Features/PlaceOrder.cs:93 (Task.WhenAll over per-line
-        catalogClient.GetProductAsync — gRPC fan-out, no shared mutable state).
+        sequential awaits whose results don't feed each other.
 
         DO NOT recommend Task.WhenAll when: (a) the operations are dependent (output
         of one feeds input of another), (b) they share the same EF DbContext scope
         (DbContext is NOT thread-safe — parallel EF queries against the same context
         throw or corrupt state; use IDbContextFactory<T> for parallel EF queries),
-        or (c) failure observability matters per-operation (Task.WhenAll surfaces only
-        the first exception). See CLAUDE.md "Parallelize independent awaits with
+        (c) failure observability matters per-operation (Task.WhenAll surfaces only
+        the first exception), or (d) the N calls all target the SAME service — there
+        a batch endpoint beats client-side parallelism: one round-trip instead of N,
+        and the server can make the batch atomic. Precedent: PlaceOrder's WhenAll
+        fan-out over per-line GetProduct/ReserveStock was superseded by Catalog's
+        batch ValidateLines/ReserveLines gRPC methods (issue #71). Flag a WhenAll
+        over same-shaped calls to one service as a Should-consider batch-endpoint
+        candidate. See CLAUDE.md "Parallelize independent awaits with
         Task.WhenAll" + the existing "DbContext is not thread-safe" rule.
 
         FAN-OUT SHAPE (Must-fix on synchronous in-handler loops over recipients).

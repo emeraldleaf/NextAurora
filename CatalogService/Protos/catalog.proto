@@ -8,6 +8,10 @@ service CatalogGrpc {
   rpc GetProduct (GetProductRequest) returns (ProductResponse);
   rpc GetProducts (GetProductsRequest) returns (ProductListResponse);
   rpc ReserveStock (ReserveStockRequest) returns (ReserveStockResponse);
+  // Batch methods for the order-placement path: one round-trip per phase
+  // regardless of order size. ReserveLines is atomic all-or-nothing.
+  rpc ValidateLines (ValidateLinesRequest) returns (ProductListResponse);
+  rpc ReserveLines (ReserveLinesRequest) returns (ReserveLinesResponse);
 }
 
 message GetProductRequest {
@@ -40,5 +44,22 @@ message ReserveStockRequest {
 }
 
 message ReserveStockResponse {
+  bool success = 1;
+}
+
+message ValidateLinesRequest {
+  repeated string product_ids = 1;
+}
+
+message ReserveLinesRequest {
+  repeated ReserveLineItem lines = 1;
+}
+
+message ReserveLineItem {
+  string product_id = 1;
+  int32 quantity = 2;
+}
+
+message ReserveLinesResponse {
   bool success = 1;
 }

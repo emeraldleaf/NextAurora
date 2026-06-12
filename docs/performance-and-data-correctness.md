@@ -176,7 +176,7 @@ var notifications = await GetNotificationsAsync(ct); // doesn't depend on either
 
 **Right shape:** kick all three off, await once, project the results.
 
-**Reference shape:** [`OrderService/Features/PlaceOrder.cs:93`](../OrderService/Features/PlaceOrder.cs) — `Task.WhenAll(request.Lines.Select(line => catalogClient.GetProductAsync(line.ProductId, ct)))` is the canonical gRPC fan-out over independent line items, parallelism over the wire, no shared mutable state. The file documents the DbContext safety caveat at lines 89–92 explicitly.
+**Batching beats client-side parallelism when the calls target the SAME service.** `PlaceOrder.cs` used to be the canonical `Task.WhenAll` reference here — `Task.WhenAll(request.Lines.Select(line => catalogClient.GetProductAsync(...)))`, N parallel gRPC calls per phase. It was superseded (issue #71) by batch gRPC methods on CatalogService: `ValidateLines(productIds)` and `ReserveLines(lines)` — **one round-trip per phase regardless of order size**, and the server makes the reservation batch atomic (all-or-nothing in one DB transaction), which client-side parallelism can never do. The escalation ladder for N same-shaped calls: sequential awaits (worst) → `Task.WhenAll` (pays max latency instead of sum — the quick fix) → a batch endpoint (pays ONE latency and enables server-side atomicity — the durable fix). `Task.WhenAll` remains the right *final* shape when the N calls go to *different* services/APIs that can't be batched behind one endpoint.
 
 **Don't parallelize:**
 - (a) **Dependent operations** where the output of one feeds the input of another (`var user = await ...; var orders = await GetByUserId(user.Id, ct);`)
@@ -330,7 +330,7 @@ In CatalogService, `GetProductByIdHandler` wraps the inline projection in `IProd
 
 ### Problem
 
-CatalogService's `GetProductByIdQuery` is the highest-frequency read in the system. The storefront fetches product details on every PDP view; `PlaceOrderHandler` does gRPC fan-out per line item to validate stock; recommendation widgets, search-result enrichment, and admin tools all hit the same key. Without caching, each request becomes a Postgres round-trip — fine at 10 RPS, ruinous at 1000 RPS, especially under spiky load (flash sales, scraping bots, schema-warming after a deploy).
+CatalogService's `GetProductByIdQuery` is the highest-frequency read in the system. The storefront fetches product details on every PDP view; `PlaceOrderHandler` batch-validates every order over gRPC; recommendation widgets, search-result enrichment, and admin tools all hit the same key. Without caching, each request becomes a Postgres round-trip — fine at 10 RPS, ruinous at 1000 RPS, especially under spiky load (flash sales, scraping bots, schema-warming after a deploy).
 
 The classical answer is cache-aside backed by Redis. Three failure modes lurk in the naive implementation:
 

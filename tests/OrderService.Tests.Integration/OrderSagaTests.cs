@@ -79,15 +79,15 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
     [Fact]
     public async Task PlaceOrder_does_not_persist_when_catalog_validation_fails()
     {
-        // ARRANGE — Stub the catalog to return null → the handler throws
-        // InvalidOperationException BEFORE any DB write. This is the critical atomicity
-        // case: if the handler's ordering is wrong (e.g. the entity write happens before
-        // catalog validation, or the outbox stages without rollback), this test would
-        // find an orphan row. We use a unique buyer/product so other tests' orders don't
-        // pollute the assertion.
+        // ARRANGE — Stub the catalog batch-validate to return an empty list (the requested
+        // product is absent = "not found") → the handler throws InvalidOperationException
+        // BEFORE any DB write. This is the critical atomicity case: if the handler's
+        // ordering is wrong (e.g. the entity write happens before catalog validation, or
+        // the outbox stages without rollback), this test would find an orphan row. We use
+        // a unique buyer/product so other tests' orders don't pollute the assertion.
         var productId = Guid.NewGuid();
-        _factory.Catalog.GetProductAsync(productId, Arg.Any<CancellationToken>())
-            .Returns((ProductDto?)null);
+        _factory.Catalog.ValidateLinesAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns([]);
 
         // The endpoint's buyer-scope check would 403 a different buyer; we want to reach
         // the handler so we use the auth-stamped buyer (TestAuthHandler.BuyerId).
@@ -115,6 +115,42 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
             .Where(o => o.Lines.Any(l => l.ProductId == productId))
             .ToListAsync();
         matchingOrders.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task PlaceOrder_with_five_lines_makes_exactly_one_validate_and_one_reserve_call()
+    {
+        // ARRANGE — The batch-gRPC contract (issue #71): order placement must cost ONE
+        // ValidateLines call + ONE ReserveLines call regardless of order size. The previous
+        // shape made N GetProduct + N ReserveStock calls (10 round-trips for this order);
+        // this test pins the collapse to 2 and fails if a refactor reintroduces per-line
+        // fan-out. ClearReceivedCalls isolates the count from other tests sharing the
+        // class-level substitute.
+        _factory.Catalog.ClearReceivedCalls();
+        var products = Enumerable.Range(0, 5)
+            .Select(_ => (ProductId: Guid.NewGuid(), Price: 10m, Stock: 10))
+            .ToList();
+        StubCatalogValidProducts(products);
+
+        var command = new PlaceOrderCommand(
+            BuyerId: TestAuthHandler.BuyerId,
+            Currency: "USD",
+            Lines: products.Select(p => new PlaceOrderLineItem(p.ProductId, "Test Product", 1, p.Price)).ToList());
+
+        var client = _factory.CreateClient();
+
+        // ACT — POST the 5-line order through the real HTTP pipeline.
+        var response = await client.PostAsJsonAsync("/api/v1/orders", command);
+
+        // ASSERT — Three invariants:
+        //  1) The order succeeded (the batch responses satisfied validation + reservation).
+        //  2) Exactly ONE ValidateLinesAsync call — not one per line.
+        //  3) Exactly ONE ReserveLinesAsync call, carrying all 5 lines — not one per line.
+        response.IsSuccessStatusCode.Should().BeTrue();
+        await _factory.Catalog.Received(1)
+            .ValidateLinesAsync(Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 5), Arg.Any<CancellationToken>());
+        await _factory.Catalog.Received(1)
+            .ReserveLinesAsync(Arg.Is<IReadOnlyCollection<CatalogReserveLine>>(l => l.Count == 5), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -193,18 +229,23 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
     }
 
     private void StubCatalogValidProduct(Guid productId, decimal price, int stock)
+        => StubCatalogValidProducts([(productId, price, stock)]);
+
+    private void StubCatalogValidProducts(IReadOnlyList<(Guid ProductId, decimal Price, int Stock)> products)
     {
-        _factory.Catalog.GetProductAsync(productId, Arg.Any<CancellationToken>())
-            .Returns(new ProductDto
-            {
-                Id = productId,
-                Name = "Test Product",
-                Price = price,
-                Currency = "USD",
-                StockQuantity = stock,
-                IsAvailable = true,
-            });
-        _factory.Catalog.ReserveStockAsync(productId, Arg.Any<int>(), Arg.Any<CancellationToken>())
+        var dtos = products.Select(p => new ProductDto
+        {
+            Id = p.ProductId,
+            Name = "Test Product",
+            Price = p.Price,
+            Currency = "USD",
+            StockQuantity = p.Stock,
+            IsAvailable = true,
+        }).ToList();
+
+        _factory.Catalog.ValidateLinesAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(dtos);
+        _factory.Catalog.ReserveLinesAsync(Arg.Any<IReadOnlyCollection<CatalogReserveLine>>(), Arg.Any<CancellationToken>())
             .Returns(true);
     }
 
