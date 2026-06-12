@@ -76,8 +76,21 @@ Keycloak (auth-code + PKCE). React Compiler enabled. Rationale: [docs/frontend-p
 
 ## Security
 
-- **Tokens live in memory (oidc-client-ts session), never `localStorage`.** XSS that can read
-  storage steals tokens; in-memory + silent renew limits blast radius.
+- **Auth flow: authorization code + PKCE, full stop.** The OAuth Browser-Based Apps BCP makes
+  PKCE a MUST for SPA public clients and formally deprecates the implicit flow — no
+  `response_type=token` anywhere, ever.
+- **Tokens live in memory (oidc-client-ts session), never `localStorage`** — XSS that can read
+  storage steals tokens; in-memory + silent renew limits blast radius. **Known, documented
+  trade-off:** the BCP ranks browser-held tokens as the *least* secure of its three patterns
+  and strongly recommends a BFF (tokens server-side, browser gets only an HttpOnly cookie) for
+  sensitive/business apps. For this demo storefront (fake data, no real PII/payments) the
+  browser-client pattern is acceptable; if this ever fronts real user data, the BFF becomes the
+  required shape — same "documented trade-off at the call site" discipline as the backend's
+  leading-wildcard search.
+- **Refresh tokens: rely on Keycloak's rotation.** The BCP requires rotation (or
+  sender-constraining) + bounded lifetime for SPA refresh tokens — enable refresh-token
+  rotation on the SPA client in realm config and keep refresh lifetime tied to the SSO
+  session.
 - **The client never computes or trusts money/authorization fields** — display what the server
   returns. (Backend canon: server-controlled fields. The cart's displayed total is a preview;
   the authoritative total comes back from `POST /orders`.)
