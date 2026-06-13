@@ -66,10 +66,13 @@ public class ServiceDefaultsJwtTests
         // AddDefaultAuthentication branches on whether an authority is configured.
         // With one, it wires AddJwtBearer with the TokenValidationParameters we're
         // testing. Without one, it registers no-op auth and the JwtBearerOptions
-        // doesn't get configured.
+        // doesn't get configured. The authority is built from the keys the Aspire
+        // Keycloak.AuthServices integration actually injects (AuthServerUrl + Realm) —
+        // see AddDefaultAuthentication; resolves to https://example.keycloak.test/realms/nextaurora.
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            ["Keycloak:Url"] = "https://example.keycloak.test/realms/nextaurora",
+            ["Keycloak:AuthServerUrl"] = "https://example.keycloak.test",
+            ["Keycloak:Realm"] = "nextaurora",
         });
 
         builder.AddServiceDefaults();
