@@ -204,8 +204,25 @@ public static class Extensions
 
     private static void AddDefaultAuthentication<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
-        var authority = builder.Configuration["Authentication:Authority"]
-            ?? builder.Configuration["Keycloak:Url"];
+        // Authority resolution, in priority order:
+        //   1. Authentication:Authority — explicit override (prod / appsettings).
+        //   2. Keycloak:AuthServerUrl + Keycloak:Realm — what the Aspire Keycloak.AuthServices
+        //      hosting integration injects from `WithReference(realm, configurationPrefix: "Keycloak")`.
+        //      It does NOT inject a single `Keycloak:Url`; it injects the base server URL and the
+        //      realm name separately, and the OIDC authority is `{AuthServerUrl}/realms/{Realm}`.
+        // Reading the injected keys (not a hardcoded URL) keeps this correct across Aspire's
+        // dynamic endpoints. Both the SPA and the API resolve to the same base, so the token's
+        // issuer matches the validated authority (Keycloak's issuer is host-reflective). See CLAUDE.md.
+        var authority = builder.Configuration["Authentication:Authority"];
+        if (string.IsNullOrEmpty(authority))
+        {
+            var authServerUrl = builder.Configuration["Keycloak:AuthServerUrl"]?.TrimEnd('/');
+            var realm = builder.Configuration["Keycloak:Realm"];
+            if (!string.IsNullOrEmpty(authServerUrl) && !string.IsNullOrEmpty(realm))
+            {
+                authority = $"{authServerUrl}/realms/{realm}";
+            }
+        }
 
         if (string.IsNullOrEmpty(authority))
         {

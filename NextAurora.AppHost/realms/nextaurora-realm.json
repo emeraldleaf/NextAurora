@@ -17,10 +17,13 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "attributes": { "pkce.code.challenge.method": "S256" },
-      "redirectUris": ["http://localhost:*/*", "https://localhost:*/*"],
-      "webOrigins": ["http://localhost:*", "https://localhost:*"],
-      "defaultClientScopes": ["openid", "profile", "email"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:5173"
+      },
+      "redirectUris": ["http://localhost:5173/*", "http://localhost:5173"],
+      "webOrigins": ["http://localhost:5173"],
+      "defaultClientScopes": ["basic", "profile", "email", "roles"],
       "protocolMappers": [
         {
           "name": "realm-roles",
@@ -32,6 +35,16 @@
             "id.token.claim": "true",
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "nextaurora-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "nextaurora-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
           }
         }
       ]
