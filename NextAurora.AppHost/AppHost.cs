@@ -114,6 +114,17 @@ var catalogService = WithOptionalAppInsights(
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
     .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin);
 
+// Wolverine's AutoProvision() uses the Service Bus *management* API (ServiceBusAdministrationClient)
+// to create/verify topics + subscriptions at host startup. The Service Bus emulator does NOT
+// implement the management API — only the AMQP data plane — so AutoProvision retries, times out,
+// and the host dies with `BrokerInitializationException: Unable to initialize the Broker asb in
+// time`. Locally the topology is already declared above (AddServiceBusTopic/AddServiceBusSubscription
+// write the emulator's config), so provisioning is both impossible AND redundant. Disable it for
+// the four Wolverine services in dev; in Publish mode against real Azure, AutoProvision stays on
+// (Wolverine:AutoProvision defaults true) to create the entities. Mirrors the test harnesses'
+// `Wolverine:AutoProvision=false`. See CLAUDE.md.
+const string disableAutoProvision = "Wolverine__AutoProvision";
+
 // OrderService also references catalogService — that gives it the gRPC client config to call
 // into Catalog for product validation during order placement.
 var orderService = WithOptionalAppInsights(
@@ -122,25 +133,29 @@ var orderService = WithOptionalAppInsights(
         .WithReference(serviceBus).WaitFor(serviceBus)
         .WithReference(catalogService).WaitFor(catalogService), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
-    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin);
+    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin)
+    .WithEnvironment(disableAutoProvision, "false");
 
 WithOptionalAppInsights(
     builder.AddProject<Projects.PaymentService>("payment-service")
         .WithReference(paymentsDb).WaitFor(paymentsDb)
         .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
+    .WithEnvironment(disableAutoProvision, "false");
 
 WithOptionalAppInsights(
     builder.AddProject<Projects.ShippingService>("shipping-service")
         .WithReference(shippingDb).WaitFor(shippingDb)
         .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
-    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin);
+    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin)
+    .WithEnvironment(disableAutoProvision, "false");
 
 // NotificationService is stateless — no DB reference, just messaging + telemetry.
 WithOptionalAppInsights(
     builder.AddProject<Projects.NotificationService>("notification-service")
-        .WithReference(serviceBus).WaitFor(serviceBus), appInsights);
+        .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
+    .WithEnvironment(disableAutoProvision, "false");
 
 // --- Frontend ---
 // Storefront and SellerPortal reference the API services so service-discovery resolves

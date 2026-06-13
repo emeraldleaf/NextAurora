@@ -44,11 +44,11 @@ builder.Host.UseWolverine(opts =>
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
     var azureServiceBus = opts.UseAzureServiceBus(connectionString);
 
-    // AutoProvision creates topics/subscriptions at host startup. Test harnesses use a
-    // fake ASB connection string that would hang the connection attempt. Gate on a config
-    // flag so tests can disable provisioning while leaving the rest of the
-    // Development-gated code (EF migration, OpenAPI) intact. See OrderService/Program.cs
-    // for the full rationale.
+    // AutoProvision creates topics/subscriptions via the Service Bus management API at host
+    // startup. Disabled in two environments: integration tests (fake ASB string hangs) and
+    // local dev (the emulator has no management API → BrokerInitializationException). The
+    // AppHost injects Wolverine__AutoProvision=false for the emulator. Gate on a config flag
+    // (defaults true) so real Azure still provisions. See OrderService/Program.cs + CLAUDE.md.
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
         azureServiceBus.AutoProvision();
