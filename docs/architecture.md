@@ -153,6 +153,8 @@ Used for synchronous request/reply queries between services where the caller nee
 - HTTP/2 multiplexing
 - Built-in code generation
 
+**Transport wiring (local dev):** gRPC requires HTTP/2. CatalogService exposes an **HTTPS endpoint** (in addition to HTTP for REST/the SPA) so gRPC negotiates HTTP/2 via TLS+ALPN — its cleartext HTTP endpoint is HTTP/1.1 only and can't carry gRPC. The dev cert (trusted locally) makes this work without cert errors. OrderService's gRPC client resolves CatalogService's concrete endpoint from the Aspire-injected `services:catalog-service:https:0` config (preferring https) rather than the `https+http://catalog-service` discovery scheme — `Grpc.Net.Client`'s `GrpcChannel` has no Balancer resolver for that scheme (`.AddServiceDiscovery()` only wires the HttpClient handler, not the channel). See `OrderService/Infrastructure/DependencyInjection.cs`.
+
 ### 3. REST APIs (External)
 
 Used for frontend-to-service communication. ASP.NET Core Minimal APIs with OpenAPI documentation, URL-segment versioned (`/api/v{version}/...`) via `Asp.Versioning.Http`.
