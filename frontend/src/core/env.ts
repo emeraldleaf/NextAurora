@@ -5,4 +5,8 @@
 // the repo's .env.smoke).
 export const env = {
   catalogApiUrl: (import.meta.env.VITE_CATALOG_API_URL as string | undefined) ?? 'http://localhost:5301',
+  orderApiUrl: (import.meta.env.VITE_ORDER_API_URL as string | undefined) ?? 'http://localhost:5302',
+  keycloakUrl: (import.meta.env.VITE_KEYCLOAK_URL as string | undefined) ?? 'http://localhost:8080',
+  keycloakRealm: (import.meta.env.VITE_KEYCLOAK_REALM as string | undefined) ?? 'nextaurora',
+  keycloakClientId: (import.meta.env.VITE_KEYCLOAK_CLIENT_ID as string | undefined) ?? 'storefront',
 }

@@ -19,8 +19,8 @@ export interface ApiResponse<T> {
   correlationId: string | null
 }
 
-export async function getJson<T>(baseUrl: string, path: string, signal?: AbortSignal): Promise<ApiResponse<T>> {
-  const response = await fetch(`${baseUrl}${path}`, { signal })
+async function request<T>(baseUrl: string, path: string, init: RequestInit): Promise<ApiResponse<T>> {
+  const response = await fetch(`${baseUrl}${path}`, init)
   const correlationId = response.headers.get('X-Correlation-Id')
 
   if (!response.ok) {
@@ -29,5 +29,28 @@ export async function getJson<T>(baseUrl: string, path: string, signal?: AbortSi
     throw new ApiError(`Request failed with status ${String(response.status)}`, response.status, correlationId)
   }
 
-  return { data: (await response.json()) as T, correlationId }
+  // 202/204 carry no body; guard the parse so order placement (202 Accepted) doesn't throw.
+  const text = await response.text()
+  return { data: (text ? JSON.parse(text) : null) as T, correlationId }
+}
+
+function authHeader(accessToken?: string): Record<string, string> {
+  return accessToken == null ? {} : { Authorization: `Bearer ${accessToken}` }
+}
+
+export function getJson<T>(baseUrl: string, path: string, signal?: AbortSignal): Promise<ApiResponse<T>> {
+  return request<T>(baseUrl, path, { signal })
+}
+
+export function getJsonAuthed<T>(baseUrl: string, path: string, accessToken: string, signal?: AbortSignal): Promise<ApiResponse<T>> {
+  return request<T>(baseUrl, path, { signal, headers: authHeader(accessToken) })
+}
+
+export function postJsonAuthed<T>(baseUrl: string, path: string, body: unknown, accessToken: string, signal?: AbortSignal): Promise<ApiResponse<T>> {
+  return request<T>(baseUrl, path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeader(accessToken) },
+    body: JSON.stringify(body),
+    signal,
+  })
 }

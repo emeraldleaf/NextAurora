@@ -1,17 +1,17 @@
+import { formatPrice } from '@/shared/format'
+
 import type { Product } from '../types/product'
 
-const priceFormatters = new Map<string, Intl.NumberFormat>()
-
-function formatPrice(price: number, currency: string): string {
-  let fmt = priceFormatters.get(currency)
-  if (!fmt) {
-    fmt = new Intl.NumberFormat(undefined, { style: 'currency', currency })
-    priceFormatters.set(currency, fmt)
-  }
-  return fmt.format(price)
+// Catalog stays a pure display feature — it knows nothing about the cart. The page wires
+// `onAddToCart` to the ordering feature, so catalog has zero dependency on ordering
+// (frontend/CLAUDE.md "Architecture rules": features don't reach into each other).
+interface ProductGridProps {
+  products: Product[]
+  emptyMessage: string
+  onAddToCart?: (product: Product) => void
 }
 
-export function ProductGrid({ products, emptyMessage }: { products: Product[]; emptyMessage: string }) {
+export function ProductGrid({ products, emptyMessage, onAddToCart }: Readonly<ProductGridProps>) {
   if (products.length === 0) {
     return <p className="text-zinc-500">{emptyMessage}</p>
   }
@@ -29,6 +29,17 @@ export function ProductGrid({ products, emptyMessage }: { products: Product[]; e
             {product.category} ·{' '}
             {product.isAvailable ? `${String(product.stockQuantity)} in stock` : <span className="text-red-600">unavailable</span>}
           </p>
+          {onAddToCart && product.isAvailable ? (
+            <button
+              type="button"
+              onClick={() => {
+                onAddToCart(product)
+              }}
+              className="mt-3 w-full rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100"
+            >
+              Add to cart
+            </button>
+          ) : null}
         </li>
       ))}
     </ul>
