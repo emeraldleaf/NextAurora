@@ -7,6 +7,12 @@
     <!-- Aspire Hosting: must match the SDK in NextAurora.AppHost.csproj exactly (or SDK ≥ packages),
          including minor. Major mismatch surfaces at startup as TypeLoadException; minor mismatch
          surfaces as DCP rejecting startup. Bump SDK and packages together. See CLAUDE.md. -->
+    <!-- Direct pin of a transitive dep: StreamJsonRpc (via the Aspire AppHost SDK) pulls
+         MessagePack 2.5.192, which has a known high-severity advisory (GHSA-hv8m-jj95-wg3x)
+         that fails restore under NuGetAudit + TreatWarningsAsErrors (NU1903). Referenced
+         directly in NextAurora.AppHost.csproj to force the patched version. Remove when
+         StreamJsonRpc ships with MessagePack >= 2.5.301. -->
+    <PackageVersion Include="MessagePack" Version="2.5.301" />
     <PackageVersion Include="Aspire.Hosting.Azure.ApplicationInsights" Version="13.3.0" />
     <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="13.3.0" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.3.0" />
