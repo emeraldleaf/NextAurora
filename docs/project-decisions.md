@@ -1099,7 +1099,7 @@ A condensed walkthrough of the key decisions, each mapped to a section above. Us
 
 ### "Why not Dapr?"
 
-> Dapr's pitch — one runtime that covers service invocation, pub/sub, state, secrets, and distributed locks — is real for the right shop, but it's not us. Three of the five building blocks already have *better* equivalents here: Wolverine's pub/sub has a transactional outbox (Dapr's doesn't), gRPC gives us typed contracts (Dapr invocation is stringly-typed), and HybridCache has stampede protection. Secrets are covered by the standard `IConfiguration` chain (env locally, Key Vault in prod). The only building block we don't have is distributed locks — and we don't need them today: every aggregate has optimistic concurrency, every event handler is idempotent, no service runs a singleton background job. When we eventually do need a lock (likely for a scheduled sweep job on a multi-replica service), the natural answer is the `DistributedLock` library against our existing Postgres/SQL Server/Redis — no new runtime, no sidecar. Dapr makes sense for polyglot teams or hard multi-cloud portability requirements; we're neither. Section 22 has the full analysis.
+> Dapr's pitch — one runtime that covers service invocation, pub/sub, state, secrets, and distributed locks — is real for the right shop, but it's not us. Three of the five building blocks already have *better-integrated* equivalents here: Wolverine's pub/sub has a transactional outbox committed in the same `SaveChanges` as the entity write (Dapr added a state-store outbox in v1.12, but it's coupled to its state-management model — see §22 for the distinction), gRPC gives us typed contracts (Dapr invocation is stringly-typed), and HybridCache has stampede protection. Secrets are covered by the standard `IConfiguration` chain (env locally, Key Vault in prod). The only building block we don't have is distributed locks — and we don't need them today: every aggregate has optimistic concurrency, every event handler is idempotent, no service runs a singleton background job. When we eventually do need a lock (likely for a scheduled sweep job on a multi-replica service), the natural answer is the `DistributedLock` library against our existing Postgres/SQL Server/Redis — no new runtime, no sidecar. Dapr makes sense for polyglot teams or hard multi-cloud portability requirements; we're neither. Section 22 has the full analysis.
 
 ### "How would you scale this?"
 
@@ -1115,19 +1115,22 @@ A recurring question for any .NET microservices project: **should we use Dapr?**
 
 Sidecar-pattern building blocks. Every service deploys with a `daprd` process alongside it (localhost ↔ sidecar over HTTP/gRPC). The app calls into the sidecar; the sidecar talks to the chosen backend (broker, store, secrets vault, lock provider) via a YAML-configured *component*. The marketing pitch: one client API across all backends, swap backends by editing one YAML file.
 
-### The 5 problems Dapr claims to solve, mapped to NextAurora
+### The building blocks Dapr claims to solve, mapped to NextAurora
+
+The classic five, plus **Workflow** — the durable-orchestration block that newer Dapr write-ups (e.g. Milan Jovanović's "Building Dapr Workflows in .NET With Aspire") lead with. It's a distinct decision from the other five and gets its own subsection below.
 
 | Dapr building block | What NextAurora uses today | Verdict |
 |---|---|---|
 | **Service invocation** | gRPC client factory + `.proto`-defined contracts (Order → Catalog product validation) | Covered with typed contracts |
-| **Pub/sub** | Wolverine + Azure Service Bus + transactional outbox (§13) | Covered — and *more capable* (outbox atomicity) |
+| **Pub/sub** | Wolverine + Azure Service Bus + transactional outbox (§13) | Covered — and *better-integrated* (outbox in the EF `SaveChanges`) |
 | **State store** | EF Core (aggregates with concurrency tokens) + HybridCache (L1+L2 with stampede protection, §16) | Covered |
 | **Secrets** | Standard `IConfiguration` provider chain — env vars locally, Azure Key Vault in prod | Covered |
 | **Distributed locks** | None today | Not needed today — see below |
+| **Workflow** (durable orchestration) | Choreography saga — Wolverine handlers reacting to events, no central orchestrator (architecture.md) | Different *topology*, not a missing capability — see "Dapr Workflow" below |
 
 ### Why Dapr would *regress* what we have
 
-1. **The transactional outbox isn't replaceable.** Dapr pub/sub gives you at-least-once delivery from the broker, but no atomicity between the entity write and the message send. The hard CLAUDE.md "Outbox atomicity" rule is a floor we'd lose — we'd either rebuild the outbox on top of Dapr (ugly; Dapr's component model fights against it) or accept dual-write data loss. Wolverine's `PersistMessagesWithSqlServer` + `AutoApplyTransactions` solves this *by construction* in one place we already own.
+1. **The transactional outbox is better-integrated in Wolverine.** Dapr *does* have a transactional outbox (added v1.12) — earlier versions of this doc claimed it didn't; that's now wrong and the correction matters. But Dapr's outbox is coupled to its **state-store** model: the atomic unit is "Dapr state write + Dapr pub/sub publish," routed through a configured state component. Ours is coupled to **EF Core**: the entity write and the staged message commit in the *same* `SaveChangesAsync` against the service's own DbContext (`PersistMessagesWithSqlServer` + `AutoApplyTransactions`), with the message store living in the same database as the aggregates. For a stack where the source of truth is EF aggregates (not a Dapr state component), Wolverine's outbox is the natural fit and Dapr's would mean routing writes through Dapr's state abstraction to get the atomicity — adopting Dapr's data model, not just its messaging. So: not "Dapr can't," but "Dapr's version assumes a Dapr-shaped persistence layer we don't have."
 2. **The "swap brokers via YAML" claim oversells portability.** Broker semantics differ — Service Bus topic+subscription with sessions, FIFO, dead-lettering, and the globally-unique-subscription-name constraint doesn't map to a Kafka swap by editing one YAML line. The portability is real only for trivial fire-and-forget publishes. The real cross-cloud swap (ASB → SQS) is already in scope and handled by switching `WolverineFx.AzureServiceBus` to `WolverineFx.AmazonSqs` in `Program.cs` — same handler shape, same outbox guarantees.
 3. **Typed contracts become stringly-typed Dapr invocations.** gRPC's compile-time safety and `.proto`-based versioning would disappear behind generic `InvokeMethodAsync<T>(appId, method, payload)` calls.
 4. **Sidecar adds a hop on every call.** localhost → sidecar → network → sidecar → service. For gRPC product validation on the order hot path, measurable cost we don't pay today.
@@ -1141,6 +1144,18 @@ Sidecar-pattern building blocks. Every service deploys with a `daprd` process al
 - **Teams without deep .NET expertise** wanting runtime-level abstractions.
 
 NextAurora is none of these.
+
+### Dapr Workflow — the durable-orchestration building block (separate decision)
+
+Newer Dapr content leads with **Workflow**, not the classic five — durable execution where you write a multi-step process as ordinary C# that reads top to bottom, and the engine (built on the Durable Task Framework, same lineage as Azure Durable Functions) records each step to a state store and replays on crash. It's a genuinely good piece of technology; this is not a dismissal.
+
+**But adopting it is an orchestration-vs-choreography decision, not a "do we have durable multi-step processes" gap — and we already made the topology call the other way.** NextAurora's order saga is **choreography**: each service reacts to events independently (`OrderPlaced` → Payment, `PaymentSucceeded` → Shipping, …), there is no central orchestrator, and durability comes from the transactional outbox + durable Service Bus subscriptions + idempotent handlers (CLAUDE.md "Durability ≠ replay"). Dapr Workflow is the **orchestration** alternative: one workflow body drives the steps. Both solve "survive a restart without double-charging"; they differ on *where the flow lives*.
+
+Why choreography is right *today*: the saga is shallow (4 steps), event-shaped, and sub-second per step — the article's opening complaint ("business logic scattered across handlers, nobody can read the flow top to bottom") is the real cost of choreography, but at this depth it's cheap, and the trade buys loose coupling + no orchestrator to operate.
+
+**What would flip it** — and this is the honest trigger, not "never": if the failed-payment / failed-ship **compensation** work (issue #101) grows into genuinely complex stateful flow — timeouts, retries-with-backoff as first-class steps, human-approval gates, multi-day waits, or "where is order X stuck?" becoming unanswerable from event logs — then a durable orchestrator earns its keep, because *that* is exactly the readability/observability problem choreography is worst at. At that point the evaluation is a three-way bake-off, **not an automatic Dapr adoption**: **Temporal** (best-in-class durable execution, hours-to-days workflows) vs **Azure Durable Functions** (already named in [performance-and-data-correctness.md](performance-and-data-correctness.md) as the cloud-managed option) vs **Dapr Workflow** — and Dapr Workflow only wins that bake-off if we'd *also* adopted Dapr for the other building blocks (which the analysis above says we wouldn't). A workflow engine without the rest of Dapr is a Temporal/Durable-Functions decision wearing a Dapr label.
+
+So: **considered, and the topology was chosen deliberately** — choreography now, with a concrete (not hand-wavy) trigger to re-evaluate durable orchestration if #101's compensation logic gets gnarly. The greenfield answer is constraint-dependent: a polyglot or already-on-Dapr shop might reach for Dapr Workflow on day one; for our .NET-native single-team stack it's a "when the saga complexity demands it" call, evaluated against Temporal and Durable Functions on the merits.
 
 ### Distributed locks — what they are, when you need them
 
