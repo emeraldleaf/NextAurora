@@ -138,6 +138,14 @@ Reference these guidelines when:
 > the frontend is a Vite CSR SPA, so `server-*` rules (RSC/SSR) don't apply; `async-*`,
 > `bundle-*`, `client-*`, `rerender-*`, `rendering-*`, and `js-*` all do. The always-on subset
 > is encoded in [frontend/CLAUDE.md](../../../frontend/CLAUDE.md).
+>
+> **Precedence:** where this skill and frontend/CLAUDE.md disagree (notably: several
+> `rerender-*` rules push manual memoization harder than the canon's "don't fight the React
+> Compiler; manual memoization needs a profiler trace"), **the canon wins** — this skill is
+> reference material, same hierarchy as CLAUDE.md over the dotnet-performance skill.
+>
+> **Staleness:** this copy is frozen at vendoring time (2026-06-12). Re-sync from upstream
+> when starting a major frontend phase, and re-apply this note block after syncing.
 
 Each rule section in `AGENTS.md` contains:
 - Brief explanation of why it matters
