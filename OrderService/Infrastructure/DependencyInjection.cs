@@ -35,9 +35,19 @@ public static class DependencyInjection
 
         services.AddScoped<IEventPublisher, WolverineEventPublisher>();
 
+        // gRPC needs HTTP/2. The Aspire `https+http://` service-discovery scheme can't be
+        // consumed directly by Grpc.Net.Client's GrpcChannel (it has no Balancer resolver for
+        // that scheme — `.AddServiceDiscovery()` only wires the HttpClient handler, not the
+        // channel), so resolve the concrete endpoint Aspire injects and hand the channel a plain
+        // https:// (or http://) address it understands. Prefer https: catalog serves HTTP/2 via
+        // TLS+ALPN there (the dev cert is trusted locally); its cleartext endpoint is HTTP/1.1
+        // only, which gRPC can't use. See CLAUDE.md + docs/architecture.md.
         services.AddGrpcClient<CatalogGrpc.CatalogGrpcClient>(o =>
         {
-            o.Address = new Uri("https+http://catalog-service");
+            o.Address = new Uri(
+                configuration["services:catalog-service:https:0"]
+                ?? configuration["services:catalog-service:http:0"]
+                ?? "https+http://catalog-service");
         });
         services.AddScoped<ICatalogClient, GrpcCatalogClient>();
 
