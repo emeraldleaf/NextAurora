@@ -74,16 +74,18 @@ public class NotificationEventHandlersTests
     }
 
     [Fact]
-    public void Handle_ShipmentDispatched_IncludesCarrierAndTrackingNumber()
+    public void Handle_ShipmentDispatched_BuildsOrderShippedRequestForBuyer()
     {
         // ARRANGE — "Your order has shipped" email. The buyer needs the tracking number
         // and carrier to follow up on the package. Without these in the body, the email
         // is useless and they'll hit support.
+        var buyerId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
         var @event = new ShipmentDispatchedEvent
         {
             ShipmentId = Guid.NewGuid(),
             OrderId = orderId,
+            BuyerId = buyerId,
             Carrier = "FedEx",
             TrackingNumber = "NVC-ABC123",
             DispatchedAt = DateTime.UtcNow
@@ -92,15 +94,19 @@ public class NotificationEventHandlersTests
         // ACT — Call the static translator.
         var result = NotificationEventHandlers.Handle(@event);
 
-        // ASSERT — Three invariants:
-        //  1) RecipientId is the ORDER id (because the event doesn't carry BuyerId; the
-        //     recipient resolver chases that up downstream). This is a known weakness —
-        //     ShipmentDispatchedEvent should carry BuyerId; tracked in Open Issues.
-        //  2) Subject is canonical.
-        //  3) Body contains both carrier and tracking number — the two pieces of data
-        //     the buyer needs to track the package externally.
-        result.RecipientId.Should().Be(orderId);
+        // ASSERT — Four invariants:
+        //  1) RecipientId is the BUYER, not the OrderId. The event used to lack BuyerId
+        //     and this handler keyed the email to OrderId — an identifier that can never
+        //     resolve to a real inbox, so "Order Shipped" emails silently went nowhere.
+        //     This assertion is the regression guard for that bug (issue #99).
+        //  2) RecipientEmail is derived from the buyer's id (placeholder resolution today),
+        //     matching the OrderPlaced/PaymentFailed handler shape.
+        //  3) Subject is canonical.
+        //  4) Body contains the orderId (so the buyer can correlate the email), the
+        //     carrier, and the tracking number — what they need to track the package.
+        result.RecipientId.Should().Be(buyerId);
+        result.RecipientEmail.Should().Contain(buyerId.ToString("N"));
         result.Subject.Should().Be("Order Shipped");
-        result.Body.Should().Contain("FedEx").And.Contain("NVC-ABC123");
+        result.Body.Should().Contain(orderId.ToString()).And.Contain("FedEx").And.Contain("NVC-ABC123");
     }
 }

@@ -108,6 +108,46 @@ public sealed class ShippingTests(ShippingApiFactory factory) : IClassFixture<Sh
         count.Should().Be(1);
     }
 
+    [Fact]
+    public async Task ShipmentDispatchedEvent_carries_BuyerId_for_recipient_resolution()
+    {
+        // ARRANGE — Regression guard for issue #99: ShipmentDispatchedEvent used to lack
+        // BuyerId, so NotificationService keyed the "Order Shipped" email to OrderId — an
+        // identifier that can never resolve to a real inbox. The buyer's order shipped and
+        // they never heard about it. The fix denormalizes BuyerId from the Shipment aggregate
+        // (which has carried it since the PR #14 security review) onto the published event,
+        // mirroring PaymentCompletedEvent/PaymentFailedEvent.
+        var orderId = Guid.NewGuid();
+        var buyerId = TestAuthHandler.BuyerId;
+        var paymentEvent = new PaymentCompletedEvent
+        {
+            PaymentId = Guid.NewGuid(),
+            OrderId = orderId,
+            BuyerId = buyerId,
+            Amount = 50m,
+            Provider = "stripe-test",
+            CompletedAt = DateTime.UtcNow,
+        };
+
+        var host = _factory.Services.GetRequiredService<IHost>();
+
+        // ACT — Drive the consume-side saga step end-to-end: PaymentCompletedEvent →
+        // PaymentCompletedHandler → CreateShipmentHandler → ShipmentDispatchedEvent.
+        // TrackActivity captures everything the cascade publishes.
+        var session = await host.TrackActivity().Timeout(TimeSpan.FromSeconds(30))
+            .PublishMessageAndWaitAsync(paymentEvent);
+
+        // ASSERT — Two invariants on the published event:
+        //  1) BuyerId is the BUYER from the originating payment — the identifier downstream
+        //     NotificationService resolves to a recipient. Without it the notification path
+        //     is silently broken (the bug this test pins).
+        //  2) BuyerId is NOT the OrderId — the exact confusion the old placeholder encoded.
+        var dispatched = session.Sent.SingleMessage<ShipmentDispatchedEvent>();
+        dispatched.BuyerId.Should().Be(buyerId);
+        dispatched.BuyerId.Should().NotBe(dispatched.OrderId);
+        dispatched.OrderId.Should().Be(orderId);
+    }
+
     private async Task SeedShipmentAsync(Guid orderId, Guid buyerId)
     {
         await using var scope = _factory.CreateDbScope();

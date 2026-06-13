@@ -62,6 +62,7 @@ public class CreateShipmentHandler(
         {
             ShipmentId = shipment.Id,
             OrderId = shipment.OrderId,
+            BuyerId = shipment.BuyerId,
             Carrier = shipment.Carrier,
             TrackingNumber = shipment.TrackingNumber,
             DispatchedAt = shipment.DispatchedAt!.Value

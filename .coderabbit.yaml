@@ -294,6 +294,21 @@ reviews:
         See CLAUDE.md "Security Requirements → Rate Limiting" +
         docs/full-saga-deployment-plan.md Phase 3 audit deliverable.
 
+    - path: "NextAurora.Contracts/**/*.cs"
+      instructions: |
+        Cross-service event contracts. When an event triggers (or could trigger) a
+        buyer/seller-facing notification downstream, it MUST carry the recipient
+        identifier (BuyerId/SellerId) denormalized from the producing aggregate.
+        Flag any new or changed event consumed by NotificationService that lacks it,
+        and flag any consumer using a non-recipient identifier (OrderId, ShipmentId,
+        PaymentId) as a recipient key — that's a "notification keyed to an identifier
+        that can never resolve to an inbox" bug. Precedent: ShipmentDispatchedEvent
+        shipped without BuyerId while PaymentCompleted/PaymentFailed had it; "Order
+        Shipped" emails were silently broken until issue #99.
+
+        Contract changes are additive-only within a major version: add init-only
+        properties; never remove or rename fields consumers already bind to.
+
     - path: "**/*RecoveryJob*.cs"
       instructions: |
         BackgroundService sweepers + recovery jobs run OUTSIDE Wolverine's handler pipeline,

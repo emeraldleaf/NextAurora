@@ -53,7 +53,7 @@ sequenceDiagram
 |---|---|---|---|
 | `OrderPlacedEvent` | OrderService | "Order Received" | Buyer ID in event → placeholder email |
 | `PaymentFailedEvent` | PaymentService | "Payment Failed" | Reflects raw gateway `Reason` (TODO: translate to user-friendly copy) |
-| `ShipmentDispatchedEvent` | ShippingService | "Order Shipped" | Event has no `BuyerId` — uses `OrderId` as placeholder recipient (TODO: real recipient lookup) |
+| `ShipmentDispatchedEvent` | ShippingService | "Order Shipped" | Buyer ID in event → placeholder email (`BuyerId` denormalized from the Shipment aggregate) |
 
 **Why all three overloads in one class.** Each handler is pure event-to-command mapping with no state and no branching beyond string formatting. Splitting them into separate classes would be uniform with the saga services (OrderService) but doesn't earn its keep here. If one grows real logic (lookup against a user-prefs cache, channel selection, A/B copy), promote it back to its own file at that point. The pattern explicitly allows this in [SendNotification.cs](../../NotificationService/Features/SendNotification.cs) — VSA puts what-changes-together in one place.
 

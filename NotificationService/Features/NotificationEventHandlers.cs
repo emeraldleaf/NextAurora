@@ -56,18 +56,14 @@ public static class NotificationEventHandlers
             "Email");
     }
 
-    /// <summary>
-    /// <see cref="ShipmentDispatchedEvent"/> doesn't carry a buyer ID — when a real recipient
-    /// lookup lands, this would resolve order → buyer → email via the user service.
-    /// </summary>
     public static SendNotificationRequest Handle(ShipmentDispatchedEvent @event)
     {
-        var email = $"order-{@event.OrderId:N}@placeholder.local";
+        var email = $"buyer-{@event.BuyerId:N}@placeholder.local";
         return new SendNotificationRequest(
-            @event.OrderId,
+            @event.BuyerId,
             email,
             "Order Shipped",
-            $"Your order has been shipped via {@event.Carrier}. Tracking: {@event.TrackingNumber}",
+            $"Your order {@event.OrderId} has been shipped via {@event.Carrier}. Tracking: {@event.TrackingNumber}",
             "Email");
     }
 }
