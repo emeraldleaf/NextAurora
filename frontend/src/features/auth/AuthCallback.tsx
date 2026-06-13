@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { userManager } from '@/core/auth'
 
@@ -8,12 +8,20 @@ import { userManager } from '@/core/auth'
  * routes home. Completing the code exchange is synchronizing with an external system —
  * a legitimate effect. The redirect-away is done via the router after success, not in the
  * effect's render path.
+ *
+ * The `exchanged` ref guards against React StrictMode's intentional double-invocation of
+ * effects in dev: the authorization code is single-use, so a second `signinRedirectCallback`
+ * would fail with `invalid_code`. The ref persists across StrictMode's setup→cleanup→setup,
+ * so the exchange runs exactly once.
  */
 export function AuthCallback() {
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
+  const exchanged = useRef(false)
 
   useEffect(() => {
+    if (exchanged.current) return
+    exchanged.current = true
     userManager
       .signinRedirectCallback()
       .then(() => navigate({ to: '/' }))
