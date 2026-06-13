@@ -394,6 +394,10 @@ Storefront      -> catalog-service, order-service
 SellerPortal    -> catalog-service, order-service
 ```
 
+#### Service Bus emulator — Wolverine AutoProvision is disabled locally
+
+Locally the `messaging` resource runs as the Azure Service Bus **emulator** (`.RunAsEmulator()`), which implements only the AMQP data plane — **not** the management/administration HTTP API. Wolverine's `AutoProvision()` (on by default) provisions topics/subscriptions via that management API at host startup, so against the emulator it fails, retries, and the host dies with `BrokerInitializationException: Unable to initialize the Broker asb in time` — a deterministic startup crash for every Wolverine service (CatalogService has no Service Bus, so it's unaffected). The AppHost already declares the full topology (`AddServiceBusTopic` / `AddServiceBusSubscription`), so provisioning is both impossible and redundant locally. The AppHost therefore injects `Wolverine__AutoProvision=false` into the four Wolverine services (Order/Payment/Shipping/Notification); in Publish mode against real Azure the flag stays `true` so provisioning creates the entities. This mirrors the integration-test harnesses' `Wolverine:AutoProvision=false`. See CLAUDE.md "Package Management".
+
 ### Service Defaults (NextAurora.ServiceDefaults)
 
 All services inherit shared infrastructure configuration:

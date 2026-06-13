@@ -21,17 +21,16 @@ builder.Host.UseWolverine(opts =>
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
     var azureServiceBus = opts.UseAzureServiceBus(connectionString);
 
-    // AutoProvision creates topics/subscriptions on the Service Bus namespace at host
-    // startup. That's a real network operation against the configured endpoint, and it
-    // happens even when Wolverine's external transports are otherwise stubbed —
-    // provisioning fires before DisableAllExternalWolverineTransports() from a test
-    // factory's ConfigureTestServices takes effect. Integration tests use a fake ASB
-    // connection string ("sb://fake.servicebus.windows.net/...") so AutoProvision hangs
-    // trying to resolve/connect, eventually timing out at the CI runner's job limit.
-    //
-    // Gate on a config flag (not environment) so tests can disable provisioning while
-    // leaving the rest of the Development-gated code (EF migration, OpenAPI, Scalar)
-    // intact. Defaults to true so dev/prod behavior is unchanged.
+    // AutoProvision creates topics/subscriptions via the Service Bus *management* API
+    // (ServiceBusAdministrationClient) at host startup — a real network operation against the
+    // configured endpoint. Two environments must disable it:
+    //   1. Integration tests use a fake ASB connection string, so provisioning hangs/times out
+    //      (it fires before DisableAllExternalWolverineTransports() takes effect).
+    //   2. Local dev (Aspire) uses the Service Bus emulator, which implements only the AMQP data
+    //      plane — NOT the management API — so AutoProvision retries 4× and the host dies with
+    //      BrokerInitializationException. The AppHost declares the topology and injects
+    //      Wolverine__AutoProvision=false for each Wolverine service.
+    // Gate on a config flag (defaults true) so real Azure / Publish mode still provisions. See CLAUDE.md.
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
         azureServiceBus.AutoProvision();
