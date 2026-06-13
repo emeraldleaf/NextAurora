@@ -506,3 +506,9 @@ docs/*.png
 # + verdict bucket + outcome) which is fair-use commentary, not quoted content.
 .claude/audits/*
 !.claude/audits/INDEX.md
+
+# Post-idea drafts — pre-publish workspace for LinkedIn posts, follow-up
+# infographics, and exploratory feature-specs. Local-only sandbox so half-
+# baked ideas don't ship in the repo. Promote to actual `docs/`, GitHub
+# issues, or post-publish refs once the idea earns its keep.
+docs/post-ideas/

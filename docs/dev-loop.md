@@ -168,8 +168,9 @@ VSA is the default and stays the default. From CLAUDE.md "Promotion signal":
 | Signal | Shape |
 |---|---|
 | ≤4 aggregates per service, ≤10 features, single team | VSA (current default) |
-| 5+ aggregates with cross-cutting domain rules that several features coordinate on, AND `Domain/` growing faster than `Features/` | Consider Clean Architecture promotion |
-| "I want to mock the DbContext in unit tests" | **NOT** a reason. Use integration tests with Testcontainers (see Stage 3). |
+| "I want the dependency rule enforced, not just held by convention" | **Architecture tests** (NetArchTest / analyzer) — NOT a project split. Same boundary, no ceremony |
+| 5+ aggregates with cross-cutting domain rules that several features coordinate on, AND `Domain/` growing faster than `Features/` | Consider the multi-project split — when you want the *compiler* to hold the boundary, or need separate deploy/versioning units |
+| "I want to mock the DbContext in unit tests" | NOT a reason. Use integration tests with Testcontainers; see "Testing" rule |
 
 None of the services are at that scale today. The previous Clean Architecture
 attempt in CatalogService was retired in the VSA collapse refactor precisely
@@ -580,7 +581,7 @@ for the curation rationale.)
 | **DependenSee** (project dep graph SVG) | The architecture map serves the same purpose for AI consumption. May add later if a human-facing diagram becomes useful. |
 | **SonarQube** (self-hosted) | Self-hosting infrastructure overhead doesn't pay back at this project size. |
 | **Frontend testing tools** (Playwright, etc.) | Storefront + SellerPortal are static-file scaffolds — no frontend to test. |
-| **MCP servers** | Not building an MCP server. |
+| **MCP servers** | Canon in `CLAUDE.md` + paired `docs/*.md` + every-session auto-load + greppable surfaces already gives Claude Code persistent decision context. An MCP server adds an external tool layer on top of decisions that already live in the repo where the code does — convergence in the wrong direction. Tools live near the decisions, not vice versa. See `.claude/audits/2026-06-07-miro-mcp-shared-context.md` (`../.claude/audits/2026-06-07-miro-mcp-shared-context.md`) for the worked comparison (canon-in-repo vs Miro+MCP). |
 | **CI/CD pipeline generator skills** | Existing CI works; adding a generator is anti-pragmatic. |
 | **Differential-review skill** (trailofbits) | Direct overlap with architecture-reviewer agent + CodeRabbit. |
 | **Spec Kit `/specify` + `/plan` + `/tasks` flow** | Per-feature spec authoring would convert this project's compounding-rule speed advantage into ceremony. See "Loop comparison" — the rule-encoding loop is the dual, not a replacement. |

@@ -1,5 +1,6 @@
 ---
 description: Refresh docs/STATUS.md from recent git activity + open issues
+disable-model-invocation: true
 ---
 
 # /sync-status

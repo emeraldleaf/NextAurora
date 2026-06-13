@@ -1,5 +1,6 @@
 ---
 description: Audit "See CLAUDE.md" cross-references for drift against the canonical rules
+disable-model-invocation: true
 ---
 
 # /check-rules
