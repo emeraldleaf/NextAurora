@@ -13,9 +13,10 @@ namespace OrderService.Features;
 /// multi-step operation:
 ///
 /// <list type="number">
-///   <item>For each requested line, validate the product exists, is available, and has enough stock,
-///         then reserve that stock — all over <b>gRPC</b> to the CatalogService (sync because
-///         we need a definitive answer before continuing).</item>
+///   <item>Validate every requested line (product exists, is available, has enough stock) with
+///         ONE batch <b>gRPC</b> call to CatalogService, then reserve the whole order's stock
+///         with ONE atomic batch call (sync because we need a definitive answer before
+///         continuing).</item>
 ///   <item>Build the <see cref="Order"/> aggregate via its factory (validates currency, lines,
 ///         buyer ID).</item>
 ///   <item>Add the aggregate to the tracked DbContext.</item>
@@ -78,27 +79,19 @@ public class PlaceOrderHandler(
     {
         var lines = new List<OrderLine>();
 
-        // Two-phase: validate all lines in parallel first, then reserve in parallel. The phase
-        // split is intentional — if validation fails on any line, NO reservation happens. The
-        // previous sequential code could reserve N-1 items before line N failed validation,
-        // leaving stranded reservations on Catalog. This shape eliminates that partial-commit
-        // path. Parallel reservation can still leave partial state if some reservations succeed
-        // before another fails on Catalog's optimistic-concurrency check — that compensation
-        // path is a known gap, see STATUS.md "Open issues".
-        //
-        // Safety note: parallelism here is over gRPC client calls only. The OrderService DbContext
-        // is NOT touched in this block (no order is persisted yet), so the CLAUDE.md
-        // "DbContext is not thread-safe" rule is satisfied — each gRPC call hits Catalog where
-        // it gets its own per-request DbContext scope.
-        var products = await Task.WhenAll(request.Lines.Select(line =>
-            catalogClient.GetProductAsync(line.ProductId, cancellationToken)));
+        // Two-phase, ONE gRPC round-trip each: validate the whole order, then reserve the whole
+        // order. The phase split is intentional — if validation fails on any line, NO
+        // reservation happens. Reservation itself is atomic all-or-nothing on the Catalog side
+        // (single DB transaction over every line), so a failure on any line leaves zero
+        // reservations — the partial-state compensation problem of the old per-line fan-out
+        // shape is structurally gone, not just guarded against.
+        var productIds = request.Lines.Select(l => l.ProductId).Distinct().ToList();
+        var products = (await catalogClient.ValidateLinesAsync(productIds, cancellationToken))
+            .ToDictionary(p => p.Id);
 
-        for (int i = 0; i < request.Lines.Count; i++)
+        foreach (var lineItem in request.Lines)
         {
-            var lineItem = request.Lines[i];
-            var product = products[i];
-
-            if (product is null)
+            if (!products.TryGetValue(lineItem.ProductId, out var product))
             {
                 logger.LogWarning("Product {ProductId} not found during order placement", lineItem.ProductId);
                 throw new InvalidOperationException("One or more requested products could not be found.");
@@ -118,29 +111,26 @@ public class PlaceOrderHandler(
             }
         }
 
-        // Stock reservation phase — runs only if every line validated above. Optimistic
-        // concurrency on the Catalog side ensures exactly one of two simultaneous reservations
-        // wins per product.
-        var reservations = await Task.WhenAll(request.Lines.Select(line =>
-            catalogClient.ReserveStockAsync(line.ProductId, line.Quantity, cancellationToken)));
+        // Stock reservation phase — runs only if every line validated above. Atomic on the
+        // Catalog side: every line reserves in one transaction or none do (optimistic
+        // concurrency tokens guard each product row; one stale row rolls back all lines).
+        var reserved = await catalogClient.ReserveLinesAsync(
+            request.Lines.Select(l => new CatalogReserveLine(l.ProductId, l.Quantity)).ToList(),
+            cancellationToken);
 
-        for (int i = 0; i < reservations.Length; i++)
+        if (!reserved)
         {
-            if (!reservations[i])
-            {
-                logger.LogWarning("Failed to reserve stock for product {ProductId}", request.Lines[i].ProductId);
-                throw new InvalidOperationException("Failed to reserve stock for one or more requested products.");
-            }
+            logger.LogWarning("Failed to reserve stock for order with {LineCount} lines", request.Lines.Count);
+            throw new InvalidOperationException("Failed to reserve stock for one or more requested products.");
         }
 
         // Build OrderLine entities. Notice: we use `product.Price` from CatalogService, NOT a
         // price the client sent. Server-side pricing — never trust client-submitted prices for
         // money calculations. See CLAUDE.md "Security Requirements → Server-controlled fields
         // are computed server-side, never trusted from the client".
-        for (int i = 0; i < request.Lines.Count; i++)
+        foreach (var lineItem in request.Lines)
         {
-            var product = products[i]!; // null-forgiving: throw-on-null check above
-            var lineItem = request.Lines[i];
+            var product = products[lineItem.ProductId];
             lines.Add(OrderLine.Create(product.Id, product.Name, lineItem.Quantity, product.Price));
         }
 

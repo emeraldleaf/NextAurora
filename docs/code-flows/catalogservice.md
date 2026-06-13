@@ -131,7 +131,7 @@ sequenceDiagram
 
 ## Flow 3 — gRPC ReserveStock (called by OrderService)
 
-This is the synchronous server-side of the cross-service path you saw in OrderService's `PlaceOrderHandler`. OrderService calls `ReserveStockAsync` once per line; each call enters here.
+This is the synchronous server-side of the cross-service path you saw in OrderService's `PlaceOrderHandler`. OrderService calls the batch `ReserveLines` once per order (atomic all-or-nothing across every line); the per-product `ReserveStock` RPC shares the same concurrency story and remains on the contract.
 
 ```mermaid
 sequenceDiagram

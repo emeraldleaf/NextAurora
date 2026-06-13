@@ -16,46 +16,53 @@ namespace OrderService.Infrastructure;
 ///   <item><b>Deadline (5s):</b> gRPC supports per-call deadlines that propagate to the server.
 ///         If the catalog can't answer in 5 seconds we'd rather fail the order placement than
 ///         hang the user-facing request.</item>
-///   <item><b>Catch <c>NotFound</c>, return null:</b> on the read path, "product doesn't exist"
-///         is a normal application result, not an exception. Other status codes still throw.</item>
+///   <item><b>Batch semantics:</b> both methods are one round-trip for the whole order.
+///         <c>ValidateLines</c> omits unknown products from the response (absence = not found,
+///         a normal application result). <c>ReserveLines</c> is atomic on the server — any
+///         RpcException maps to <c>false</c> ("nothing was reserved").</item>
 /// </list>
 /// </summary>
 public class GrpcCatalogClient(CatalogGrpc.CatalogGrpcClient client) : ICatalogClient
 {
-    public async Task<ProductDto?> GetProductAsync(Guid productId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ProductDto>> ValidateLinesAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default)
     {
-        try
+        var request = new ValidateLinesRequest();
+        foreach (var id in productIds)
         {
-            var response = await client.GetProductAsync(
-                new GetProductRequest { ProductId = productId.ToString() },
-                deadline: DateTime.UtcNow.AddSeconds(5),
-                cancellationToken: ct);
+            request.ProductIds.Add(id.ToString());
+        }
 
-            return new ProductDto
-            {
-                Id = Guid.Parse(response.Id),
-                Name = response.Name,
-                Description = response.Description,
-                Price = decimal.Parse(response.Price, System.Globalization.CultureInfo.InvariantCulture),
-                Currency = response.Currency,
-                Category = response.Category,
-                SellerId = response.SellerId,
-                StockQuantity = response.StockQuantity,
-                IsAvailable = response.IsAvailable,
-            };
-        }
-        catch (Grpc.Core.RpcException ex) when (ex.StatusCode == Grpc.Core.StatusCode.NotFound)
+        var response = await client.ValidateLinesAsync(
+            request,
+            deadline: DateTime.UtcNow.AddSeconds(5),
+            cancellationToken: ct);
+
+        return response.Products.Select(p => new ProductDto
         {
-            return null;
-        }
+            Id = Guid.Parse(p.Id),
+            Name = p.Name,
+            Description = p.Description,
+            Price = decimal.Parse(p.Price, System.Globalization.CultureInfo.InvariantCulture),
+            Currency = p.Currency,
+            Category = p.Category,
+            SellerId = p.SellerId,
+            StockQuantity = p.StockQuantity,
+            IsAvailable = p.IsAvailable,
+        }).ToList();
     }
 
-    public async Task<bool> ReserveStockAsync(Guid productId, int quantity, CancellationToken ct = default)
+    public async Task<bool> ReserveLinesAsync(IReadOnlyCollection<CatalogReserveLine> lines, CancellationToken ct = default)
     {
+        var request = new ReserveLinesRequest();
+        foreach (var line in lines)
+        {
+            request.Lines.Add(new ReserveLineItem { ProductId = line.ProductId.ToString(), Quantity = line.Quantity });
+        }
+
         try
         {
-            var response = await client.ReserveStockAsync(
-                new ReserveStockRequest { ProductId = productId.ToString(), Quantity = quantity },
+            var response = await client.ReserveLinesAsync(
+                request,
                 deadline: DateTime.UtcNow.AddSeconds(5),
                 cancellationToken: ct);
             return response.Success;
