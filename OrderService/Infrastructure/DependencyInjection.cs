@@ -44,10 +44,17 @@ public static class DependencyInjection
         // only, which gRPC can't use. See CLAUDE.md + docs/architecture.md.
         services.AddGrpcClient<CatalogGrpc.CatalogGrpcClient>(o =>
         {
+            // Fail fast on missing config rather than falling back to "https+http://catalog-service":
+            // that scheme is exactly what GrpcChannel can't resolve, so a fallback would only
+            // reproduce the cryptic "No address resolver" error at first call. A clear message names
+            // the missing Aspire service-discovery key. (Integration tests stub ICatalogClient, so
+            // this lambda never runs there — it only fires under real Aspire wiring.)
             o.Address = new Uri(
                 configuration["services:catalog-service:https:0"]
                 ?? configuration["services:catalog-service:http:0"]
-                ?? "https+http://catalog-service");
+                ?? throw new InvalidOperationException(
+                    "CatalogService gRPC endpoint not configured. Expected Aspire service-discovery key "
+                    + "'services:catalog-service:https:0' (or ':http:0') — check the OrderService WithReference(catalogService) wiring in AppHost.cs."));
         });
         services.AddScoped<ICatalogClient, GrpcCatalogClient>();
 
