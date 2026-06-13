@@ -307,7 +307,7 @@ the surface taxonomy should be 5 or 6. The grid template accommodates either —
 6 surfaces fit cleanly into Section 04 as a single column of 6 items, or split
 2×3.
 
-See [docs/post-ideas/two-readers-one-canon.md](docs/post-ideas/two-readers-one-canon.md)
+See `docs/post-ideas/two-readers-one-canon.md`
 for the deeper take on trigger-loaded as a *load-timing* dimension.
 
 ## When NOT to use this skill

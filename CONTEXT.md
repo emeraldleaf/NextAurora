@@ -47,7 +47,7 @@ The five places encoded rules live in this project:
 5. **Deep context** — `docs/` + paired diagrams
 
 A potential **6th surface** (not in NextAurora yet, but tracked): trigger-loaded
-microagents in the OpenHands style — see [docs/post-ideas/two-readers-one-canon.md](docs/post-ideas/two-readers-one-canon.md).
+microagents in the OpenHands style — see `docs/post-ideas/two-readers-one-canon.md`.
 
 *Avoid:* "the canon" when you mean the broad body of all encoded rules across
 all surfaces — that's ambiguous (canon is also the name of surface #1). Use
@@ -170,7 +170,7 @@ designed to prevent.
 
 The claim that each rule encoded once stays encoded forever, so quality
 *accumulates* over time rather than resetting per-session. Currently
-intuition, not measurement — see [docs/post-ideas/measuring-the-encoding-loop.md](docs/post-ideas/measuring-the-encoding-loop.md).
+intuition, not measurement — see `docs/post-ideas/measuring-the-encoding-loop.md`.
 
 ### Feedback loop
 

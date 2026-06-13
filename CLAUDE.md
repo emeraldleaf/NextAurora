@@ -94,7 +94,7 @@ in `Features/` (e.g. `PlaceOrder.cs` + `PlaceOrderValidator.cs` + `PlaceOrderLin
 The cap is on *size*, not on *file count per slice* — splitting one slice across multiple
 sibling files is fine when the size warrants it. Largest feature today: `PlaceOrder.cs` at 182
 lines, well under the cap. Rule earned its keep via the Anton Martyniuk VSA infographic audit
-([`.claude/audits/2026-06-08-vsa-when-it-works.md`](.claude/audits/2026-06-08-vsa-when-it-works.md)).
+(`.claude/audits/2026-06-08-vsa-when-it-works.md` (`.claude/audits/2026-06-08-vsa-when-it-works.md`)).
 
 ### Promotion signal — when to consider Clean Architecture
 
@@ -245,7 +245,7 @@ This rule is for humans, AI assistants, and future-you. Don't wait to be asked.
 - Event handlers must be idempotent
 - Use the Outbox pattern for guaranteed event publishing (save entity + event in same transaction)
 - All API error responses use RFC 7807 ProblemDetails via `GlobalExceptionHandler` (in `NextAurora.ServiceDefaults`). Never expose internal state, entity IDs, or stack traces to clients — log details server-side and return generic detail with the trace ID
-- **Expected business errors throw exceptions at the handler boundary** (e.g. `throw new InvalidOperationException("Insufficient stock for...")` in `OrderService/Features/PlaceOrder.cs`). `GlobalExceptionHandler` translates to RFC 7807 ProblemDetails for the client. **No `Result<T>` / `OneOf<T>` / `ErrorOr<T>` discriminated-union error type** — exception-based control flow is the canon. The Result-pattern is defensible (compile-time exhaustiveness, allocation-cheap), but the trigger to flip would be *profiled exception throw-cost in a hot path* or *a saga step with high expected-failure rate where exception-as-control-flow is uncomfortable*. Neither has surfaced today. Rule encoded after the Anton Martyniuk VSA infographic audit ([`.claude/audits/2026-06-08-vsa-when-it-works.md`](.claude/audits/2026-06-08-vsa-when-it-works.md))
+- **Expected business errors throw exceptions at the handler boundary** (e.g. `throw new InvalidOperationException("Insufficient stock for...")` in `OrderService/Features/PlaceOrder.cs`). `GlobalExceptionHandler` translates to RFC 7807 ProblemDetails for the client. **No `Result<T>` / `OneOf<T>` / `ErrorOr<T>` discriminated-union error type** — exception-based control flow is the canon. The Result-pattern is defensible (compile-time exhaustiveness, allocation-cheap), but the trigger to flip would be *profiled exception throw-cost in a hot path* or *a saga step with high expected-failure rate where exception-as-control-flow is uncomfortable*. Neither has surfaced today. Rule encoded after the Anton Martyniuk VSA infographic audit (`.claude/audits/2026-06-08-vsa-when-it-works.md` (`.claude/audits/2026-06-08-vsa-when-it-works.md`))
 - Never commit .env files, connection strings, or secrets
 
 ## Performance Rules
