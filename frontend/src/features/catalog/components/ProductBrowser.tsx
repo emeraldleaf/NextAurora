@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState, useDeferredValue } from 'react'
 
+import type { Product } from '../types/product'
+
 import { productsQuery, searchProductsQuery } from '../api/products'
 
 import { ProductGrid } from './ProductGrid'
@@ -12,7 +14,7 @@ import { ProductGrid } from './ProductGrid'
  * server-side (the rate-limited /products/search endpoint), not a client filter: the
  * client never sees the full catalog.
  */
-export function ProductBrowser() {
+export function ProductBrowser({ onAddToCart }: Readonly<{ onAddToCart?: (product: Product) => void }>) {
   const [searchInput, setSearchInput] = useState('')
   const deferredSearch = useDeferredValue(searchInput.trim())
   const searching = deferredSearch.length > 0
@@ -47,7 +49,11 @@ export function ProductBrowser() {
           Couldn&apos;t load products. Please try again.
         </p>
       ) : (
-        <ProductGrid products={active.data ?? []} emptyMessage={searching ? `No products match “${deferredSearch}”.` : 'No products yet.'} />
+        <ProductGrid
+          products={active.data ?? []}
+          emptyMessage={searching ? `No products match “${deferredSearch}”.` : 'No products yet.'}
+          onAddToCart={onAddToCart}
+        />
       )}
     </section>
   )
