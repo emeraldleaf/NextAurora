@@ -3,8 +3,11 @@
 > Always-on rules for everything under `frontend/`. Same contract as the repo-root CLAUDE.md:
 > lean headlines + the one-line why; deep dives live in the vendored
 > [`.claude/skills/vercel-react-best-practices`](../.claude/skills/vercel-react-best-practices/SKILL.md)
-> skill and [docs/frontend-plan.md](../docs/frontend-plan.md). The Continuous Rule Encoding loop
-> applies here identically — frontend findings get encoded the session they're found.
+> skill and [docs/frontend-plan.md](../docs/frontend-plan.md). **This canon takes precedence
+> over the vendored skill where they disagree** — the skill is reference, the canon is law
+> (same hierarchy as root CLAUDE.md over the dotnet-performance skill). The Continuous Rule
+> Encoding loop applies here identically — frontend findings get encoded the session they're
+> found.
 
 ## Stack (decided — don't relitigate per-PR)
 
