@@ -102,11 +102,17 @@ static IResourceBuilder<ProjectResource> WithOptionalAppInsights(
     IResourceBuilder<AzureApplicationInsightsResource>? insights)
     => insights is null ? project : project.WithReference(insights);
 
+// Origin of the Vite-served React SPA in local dev. Injected only into the services the
+// browser calls directly (Catalog, Order, Shipping) — ServiceDefaults registers the CORS
+// policy only when this is present. Payment/Notification have no browser-facing surface.
+const string SpaDevOrigin = "http://localhost:5173";
+
 var catalogService = WithOptionalAppInsights(
     builder.AddProject<Projects.CatalogService>("catalog-service")
         .WithReference(catalogDb).WaitFor(catalogDb)
         .WithReference(redis).WaitFor(redis), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
+    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin);
 
 // OrderService also references catalogService — that gives it the gRPC client config to call
 // into Catalog for product validation during order placement.
@@ -115,7 +121,8 @@ var orderService = WithOptionalAppInsights(
         .WithReference(ordersDb).WaitFor(ordersDb)
         .WithReference(serviceBus).WaitFor(serviceBus)
         .WithReference(catalogService).WaitFor(catalogService), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
+    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin);
 
 WithOptionalAppInsights(
     builder.AddProject<Projects.PaymentService>("payment-service")
@@ -127,7 +134,8 @@ WithOptionalAppInsights(
     builder.AddProject<Projects.ShippingService>("shipping-service")
         .WithReference(shippingDb).WaitFor(shippingDb)
         .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm);
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
+    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin);
 
 // NotificationService is stateless — no DB reference, just messaging + telemetry.
 WithOptionalAppInsights(

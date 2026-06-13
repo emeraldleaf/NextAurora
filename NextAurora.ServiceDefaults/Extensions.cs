@@ -45,6 +45,8 @@ public static class Extensions
 
         builder.AddDefaultAuthentication();
 
+        builder.AddFrontendCors();
+
         builder.AddNextAuroraApiVersioning();
 
         builder.Services.ConfigureHttpClientDefaults(http =>
@@ -146,8 +148,16 @@ public static class Extensions
         //      shouldn't." Running after Authorization would drop that signal,
         //      losing visibility into unauthorized-attempt patterns.
         //
-        // UseExceptionHandler stays first so it wraps every error below.
+        // UseExceptionHandler stays first so it wraps every error below. UseCors runs
+        // before UseAuthentication so CORS preflights (OPTIONS, which never carry a
+        // bearer token) are answered without touching the auth pipeline. The policy is
+        // only registered when Frontend:AllowedOrigins is configured — services with no
+        // browser-facing surface skip the middleware entirely.
         app.UseExceptionHandler();
+        if (!string.IsNullOrWhiteSpace(app.Configuration["Frontend:AllowedOrigins"]))
+        {
+            app.UseCors(FrontendCorsPolicyName);
+        }
         app.UseAuthentication();
         app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseAuthorization();
@@ -162,6 +172,34 @@ public static class Extensions
         });
 
         return app;
+    }
+
+    private const string FrontendCorsPolicyName = "frontend";
+
+    /// <summary>
+    /// Explicit CORS for the browser SPA — registered ONLY when <c>Frontend:AllowedOrigins</c>
+    /// is configured (semicolon-separated origin list, injected per service by AppHost).
+    /// Per CLAUDE.md "Security Requirements → CORS": explicit policy, known origins only —
+    /// never <c>AllowAnyOrigin</c>. <c>X-Correlation-Id</c> is exposed so the SPA's
+    /// observability surface can read the correlation ID off every response; without
+    /// <c>WithExposedHeaders</c>, browsers hide non-safelisted response headers from JS even
+    /// when the request itself succeeds.
+    /// </summary>
+    private static void AddFrontendCors<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    {
+        var configured = builder.Configuration["Frontend:AllowedOrigins"];
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return;
+        }
+
+        var origins = configured.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        builder.Services.AddCors(options => options.AddPolicy(FrontendCorsPolicyName, policy => policy
+            .WithOrigins(origins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .WithExposedHeaders("X-Correlation-Id")));
     }
 
     private static void AddDefaultAuthentication<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
