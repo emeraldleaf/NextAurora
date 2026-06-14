@@ -2,7 +2,7 @@
 
 > **Read this first when picking up work.** Entry-point doc: where the project is, how to run it, what's source-of-truth where. Keep it short (~100 lines). **Open work lives in [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues)**, not here.
 
-**Last updated:** 2026-06-02 (migration: open work moved from this doc into GitHub Issues; STATUS.md is now thin entry-point only)
+**Last updated:** 2026-06-14 (Wolverine 5→6 upgrade in review on branch `chore/wolverine-6-upgrade`)
 
 ---
 
@@ -13,6 +13,8 @@ Full microservices architecture (.NET 10, Aspire, Wolverine, EF Core, choreograp
 **Test tier closed.** Integration coverage for all four services with non-trivial DB/outbox/IDOR behavior (Catalog, Order, Payment, Shipping) + a NetArchTest architecture-tests rung enforcing the dependency rule deterministically across all services' Domain layers. NotificationService stays unit-only (stateless, no DB).
 
 **Code-side loop encoded.** CLAUDE.md is the canonical rule set; `.coderabbit.yaml` mirrors it at PR-review time; `.claude/agents/architecture-reviewer.md` Pattern Checklist applies at local review time; `.claude/skills/` holds procedures; GitHub Issues holds deferred work. Continuous Rule Encoding (CLAUDE.md) is the reflexive step that makes the loop compound.
+
+**In-flight: Wolverine 5.39.3 → 6.8.0** (branch `chore/wolverine-6-upgrade`, all tests green). Three runtime breaking changes handled — RuntimeCompilation package split, `ServiceLocationPolicy` default flip, and the `IMessageContext` outbox-enlistment trap that broke PaymentService's Acceptor→Gateway split. Full detail in [docs/project-decisions.md "Wolverine 5→6 upgrade notes"](project-decisions.md). **Open follow-up:** verify outbox atomicity of OrderService/ShippingService external publishes (same constructor-`IMessageBus` non-enlistment) — tracked in Issues.
 
 ---
 

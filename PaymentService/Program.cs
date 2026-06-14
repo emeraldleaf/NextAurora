@@ -73,6 +73,7 @@ builder.Host.UseWolverine(opts =>
     // so no explicit IncludeAssembly call is needed.
     opts.UseFluentValidation();
     opts.Policies.LogMessageStarting(LogLevel.Information);
+    opts.AllowHandlerServiceLocation();
     opts.AddNextAuroraContextPropagation();
     opts.AddConcurrencyRetry();
 });

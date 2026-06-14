@@ -9,11 +9,15 @@ namespace OrderService.Infrastructure;
 /// lives in Infrastructure where it can reference Wolverine.
 ///
 /// <para>
-/// <b>Why a thin pass-through:</b> Wolverine's <c>IMessageBus.PublishAsync</c> already does
-/// what we need — when the surrounding handler is wrapped in Wolverine's transactional outbox
-/// middleware (<c>AutoApplyTransactions()</c> + <c>UseDurableOutboxOnAllSendingEndpoints()</c>),
-/// the call stages the message into the <c>wolverine.outgoing_envelopes</c> table in the same
-/// DB transaction as the entity write.
+/// <b>Enlistment caveat (Wolverine 6):</b> a publish through this *constructor*-injected
+/// <see cref="IMessageBus"/> is NOT enlisted in the handler's outbox transaction — it dispatches
+/// immediately rather than staging-then-committing-with-the-entity-write. For a message that MUST
+/// be outbox-staged in the same transaction (e.g. a local continuation a downstream handler reads
+/// back), publish via a <see cref="IMessageContext"/> injected as a <c>HandleAsync</c> method
+/// parameter (see PaymentService's <c>ProcessPaymentHandler</c>). This shim stays correct for
+/// fire-and-forget external events; whether OrderService's external publishes need the stricter
+/// same-transaction guarantee is a tracked follow-up. See docs/project-decisions.md
+/// "Wolverine 5→6 upgrade notes".
 /// </para>
 /// <para>
 /// <b>Why keep the abstraction at all if it's a one-line pass-through?</b> Test substitution:
@@ -26,10 +30,9 @@ public sealed class WolverineEventPublisher(IMessageBus bus) : IEventPublisher
 {
     public Task PublishAsync<T>(T @event, CancellationToken ct = default) where T : class
     {
-        // Wolverine 5.36 IMessageBus.PublishAsync has no CancellationToken overload — the call
-        // stages into the outbox transactionally and the actual dispatch is background work
-        // owned by Wolverine. We honor the request-scoped ct by refusing to enqueue once it
-        // has been cancelled. A cancelled request shouldn't be silently writing to the outbox.
+        // IMessageBus.PublishAsync has no CancellationToken overload. We honor the request-scoped ct
+        // by refusing to publish once it has been cancelled (see the enlistment caveat above for the
+        // transactional-staging semantics).
         ct.ThrowIfCancellationRequested();
         return bus.PublishAsync(@event).AsTask();
     }

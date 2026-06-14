@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using NextAurora.Contracts.Events;
 using PaymentService.Domain;
 using PaymentService.Infrastructure.Data;
+using Wolverine;
 
 namespace PaymentService.Features;
 
@@ -101,7 +102,15 @@ public class ProcessPaymentHandler(
     PaymentDbContext context,
     IEventPublisher eventPublisher)
 {
-    public async Task<Guid> HandleAsync(ProcessPaymentCommand request, CancellationToken cancellationToken)
+    // IMessageContext is injected as a METHOD parameter (not via the constructor IEventPublisher):
+    // Wolverine only enlists the message context it injects into the handler signature in the
+    // handler's transaction. A constructor-injected IMessageBus/IMessageContext (what IEventPublisher
+    // wraps) is NOT enlisted, so under Wolverine 6 a publish through it fires inline — the local
+    // PaymentProcessingRequested continuation would reach the Gateway handler BEFORE Payment(Pending)
+    // commits, and the Gateway would find no row (payment stuck Pending). Publishing the continuation
+    // through the enlisted messageContext stages it in the same transaction and dispatches it only
+    // after commit. See the Wolverine 5→6 upgrade notes (docs/project-decisions.md). See CLAUDE.md.
+    public async Task<Guid> HandleAsync(ProcessPaymentCommand request, IMessageContext messageContext, CancellationToken cancellationToken)
     {
         // Idempotency check — see class summary.
         var existing = await context.Payments
@@ -115,10 +124,11 @@ public class ProcessPaymentHandler(
         var payment = Payment.Create(request.OrderId, request.BuyerId, request.Amount, request.Currency, "Stripe");
         await context.Payments.AddAsync(payment, cancellationToken);
 
-        // Stage the continuation envelope BEFORE SaveChanges so Wolverine's outbox bridge
-        // commits Payment(Pending) + PaymentProcessingRequested in one DB transaction. See
-        // CLAUDE.md "Outbox atomicity".
-        await eventPublisher.PublishAsync(new PaymentProcessingRequested(payment.Id), cancellationToken);
+        // Stage the continuation envelope BEFORE SaveChanges so Wolverine's outbox bridge commits
+        // Payment(Pending) + PaymentProcessingRequested in one DB transaction. Uses the enlisted
+        // messageContext (see method-parameter note above), NOT eventPublisher. See CLAUDE.md "Outbox atomicity".
+        cancellationToken.ThrowIfCancellationRequested();
+        await messageContext.PublishAsync(new PaymentProcessingRequested(payment.Id));
 
         try
         {
