@@ -256,8 +256,29 @@ public async Task<Guid> HandleAsync(PlaceOrderCommand request, IMessageContext m
 Applied to every handler that writes-then-publishes: `PlaceOrder`, `CreateShipment`, and PaymentService's
 Gateway. The rollback test flipped from red to green. The `IEventPublisher` shim, now unused by
 OrderService and ShippingService handlers, was deleted (dead code — the codebase's rule is to remove
-ports that have no consumer). It's retained only in PaymentService, for two paths that *aren't*
-write-then-publish handlers (see below).
+ports that have no consumer). It's retained only in PaymentService, for the Acceptor's republish path
+(see §8).
+
+**The non-handler case — `PaymentRecoveryJob`.** A background sweeper that marks timed-out payments
+`Failed` and publishes `PaymentFailedEvent` has the same bug but no method-injected context to reach for.
+Wolverine's answer for non-handler code is the **`IDbContextOutbox`**: enroll the `DbContext`, publish
+through the outbox, then `SaveChangesAndFlushMessagesAsync()` — which stages the envelope, saves the
+entity, and commits both in one transaction.
+
+```csharp
+outbox.Enroll(context);
+payment.MarkAsFailed("…");
+await outbox.PublishAsync(new PaymentFailedEvent { … });
+await outbox.SaveChangesAndFlushMessagesAsync(ct);   // entity + envelope, one transaction, atomic
+```
+
+This replaced the old hand-rolled `BeginTransaction → Publish → SaveChanges → Commit`, which had
+*looked* atomic but silently wasn't on 6.x (same constructor-`IMessageBus` non-enlistment — the explicit
+transaction didn't help because the inline publish never joined it). We proved it the same way: an
+"outbox-in-non-handler" rollback test (`PaymentRecoveryAtomicityTests`) that forces the recovery commit
+to fail and asserts no `PaymentFailedEvent` was dispatched — red before, green after. (`IDbContextOutbox`
+resolved straight from the existing `AddDbContext` + `UseEntityFrameworkCoreTransactions()` registration;
+no wiring change needed.)
 
 > **Notice the asymmetry that took the longest to see:** the four heavy hypotheses (durable local
 > queues, constructor-context swap, both, plus harness suspicion) were all wrong, and the correct fix
@@ -273,12 +294,9 @@ write-then-publish handlers (see below).
   entity write to be atomic *with*, and the intent is to send *immediately*. Inline publish is correct
   here — forcing it through a staged context would be wrong (it would never flush without a `SaveChanges`).
   **The same API is right or wrong depending on whether there's a unit of work to join.**
-- **`PaymentRecoveryJob`** (a background sweeper that marks timed-out payments `Failed` and publishes
-  `PaymentFailedEvent`) is a *non-handler*: it has no method-injected context, and uses an explicit
-  `BeginTransactionAsync`. It has the same latent non-enlistment, but the correct fix is different —
-  Wolverine's non-handler outbox API (`IDbContextOutbox` / `IMessageContext.EnlistInOutboxAsync`) — and
-  it deserves its own "outbox-in-non-handler" rollback test (which didn't exist). We scoped it out to a
-  tracked follow-up rather than rush a money-path change. **Knowing where to stop is part of the fix.**
+
+That's the *only* thing we left on `IEventPublisher`. The one piece this section originally deferred —
+the **`PaymentRecoveryJob`** sweeper — we came back and fixed; see §7.
 
 ---
 
