@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -384,6 +385,37 @@ public static class Extensions
     {
         opts.OnException<DbUpdateConcurrencyException>()
             .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+        return opts;
+    }
+
+    /// <summary>
+    /// Permit Wolverine's generated handler code to resolve dependencies from the DI container
+    /// (service location) instead of failing the build.
+    ///
+    /// <para>
+    /// <b>Why this is needed (Wolverine 6 breaking change):</b> Wolverine generates code that
+    /// constructs each handler and resolves its dependencies. When a dependency can be *inlined*
+    /// (concrete type, or a simple registration the generator can reproduce), it emits
+    /// <c>new Dependency(...)</c>. When it can't — e.g. an interface registered with a factory
+    /// lambda such as <c>IProductCache</c> over <c>HybridCache</c>, or EF's <c>DbContext</c> via
+    /// a pooling factory — it falls back to <c>serviceProvider.GetRequiredService&lt;T&gt;()</c>.
+    /// Wolverine 6 flipped the default <see cref="ServiceLocationPolicy"/> to
+    /// <see cref="ServiceLocationPolicy.NotAllowed"/>, which turns that fallback into a startup
+    /// exception. Setting <see cref="ServiceLocationPolicy.AlwaysAllowed"/> restores the 5.x
+    /// behavior.
+    /// </para>
+    /// <para>
+    /// <b>This is NOT the service-locator anti-pattern.</b> Our handlers use constructor injection;
+    /// the container resolution happens once in generated bootstrap code, not via an ambient
+    /// <c>IServiceProvider</c> threaded through business logic. The alternative — pre-generated
+    /// static codegen with method-injected handlers — is the production-grade path and is tracked
+    /// as a follow-up; until then this keeps the dynamic-codegen developer loop working.
+    /// Call inside <c>UseWolverine()</c> in every service.
+    /// </para>
+    /// </summary>
+    public static WolverineOptions AllowHandlerServiceLocation(this WolverineOptions opts)
+    {
+        opts.ServiceLocationPolicy = ServiceLocationPolicy.AlwaysAllowed;
         return opts;
     }
 

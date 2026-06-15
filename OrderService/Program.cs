@@ -54,6 +54,7 @@ builder.Host.UseWolverine(opts =>
     // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly.
     opts.UseFluentValidation();
     opts.Policies.LogMessageStarting(LogLevel.Information);
+    opts.AllowHandlerServiceLocation();
     opts.AddNextAuroraContextPropagation();
     opts.AddConcurrencyRetry();
 });

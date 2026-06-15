@@ -9,8 +9,10 @@ using OrderService.Infrastructure.Data;
 namespace OrderService.Infrastructure;
 
 /// <summary>
-/// Composition root for OrderService. Wires up SQL Server (orders-db), the Wolverine-backed
-/// event publisher, and the gRPC client to CatalogService. There is no IOrderRepository —
+/// Composition root for OrderService. Wires up SQL Server (orders-db) and the gRPC client to
+/// CatalogService. Handlers publish events through the method-injected <c>IMessageContext</c>
+/// (enlisted in the outbox transaction — see PlaceOrderHandler), so there is no IEventPublisher
+/// shim here. There is no IOrderRepository —
 /// handlers take OrderDbContext directly (DbContext IS Unit-of-Work; DbSet&lt;T&gt; IS
 /// Repository). See CLAUDE.md "Data access: DbContext directly, no repository wrappers".
 ///
@@ -32,8 +34,6 @@ public static class DependencyInjection
 
         services.AddHealthChecks()
             .AddDbContextCheck<OrderDbContext>();
-
-        services.AddScoped<IEventPublisher, WolverineEventPublisher>();
 
         // gRPC needs HTTP/2. The Aspire `https+http://` service-discovery scheme can't be
         // consumed directly by Grpc.Net.Client's GrpcChannel (it has no Balancer resolver for

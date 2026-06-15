@@ -22,8 +22,10 @@
     <ProjectReference Include="../NextAurora.Contracts/NextAurora.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Expose internal SweepAsync to the unit test project so the BackgroundService loop's
-         core logic can be exercised directly, without the timing loop. -->
+    <!-- Expose internal SweepAsync to the test projects so the BackgroundService loop's core
+         logic can be exercised directly, without the timing loop. The integration project also
+         drives it to prove the recovery sweep's outbox atomicity (rollback test). -->
     <InternalsVisibleTo Include="PaymentService.Tests.Unit" />
+    <InternalsVisibleTo Include="PaymentService.Tests.Integration" />
   </ItemGroup>
 </Project>

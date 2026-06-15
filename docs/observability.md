@@ -224,7 +224,7 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 |------|--------|
 | `NextAurora.ServiceDefaults/Extensions.cs` | Register middleware; add Azure SB + NextAurora meter sources; enable health checks in all environments |
 | `Directory.Packages.props` | Added `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore 10.0.2` |
-| `{Order,Payment,Shipping}Service.Infrastructure/Messaging/WolverineEventPublisher.cs` | Context propagation via `OutgoingContextMiddleware`; Wolverine EF Core outbox for delivery guarantees |
+| `OutgoingContextMiddleware` (Wolverine) + handler publishing via the enlisted `IMessageContext` / `IDbContextOutbox` | Context propagation on outgoing messages; Wolverine EF Core outbox for delivery guarantees (publish enlisted in the entity transaction — see the Wolverine 5→6 upgrade notes) |
 | `{Order,Payment,Shipping,Notification}Service` (Wolverine handlers) | Context extraction + structured logging scope via `ContextPropagationMiddleware`; `AbandonMessageAsync` on failure handled by Wolverine dead-letter config |
 | `{Order,Payment,Catalog,Shipping}Service.Infrastructure/DependencyInjection.cs` | Added `AddDbContextCheck<T>()` |
 | `{Order,Payment,Catalog,Shipping}Service.Infrastructure/*.csproj` | Added EF Core health checks package reference |

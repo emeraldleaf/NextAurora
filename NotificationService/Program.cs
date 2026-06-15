@@ -37,6 +37,7 @@ builder.Host.UseWolverine(opts =>
     // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly,
     // so no explicit IncludeAssembly call is needed.
     opts.Policies.LogMessageStarting(LogLevel.Information);
+    opts.AllowHandlerServiceLocation();
     opts.AddNextAuroraContextPropagation();
 });
 builder.Services.AddNotificationInfrastructure(builder.Configuration);

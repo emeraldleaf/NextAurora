@@ -7,10 +7,11 @@ using ShippingService.Infrastructure.Data;
 namespace ShippingService.Infrastructure;
 
 /// <summary>
-/// Composition root for ShippingService. Wires up PostgreSQL (shipping-db) and the
-/// Wolverine-backed event publisher. There is no IShipmentRepository — handlers take
-/// ShippingDbContext directly (DbContext IS Unit-of-Work; DbSet&lt;T&gt; IS Repository).
-/// See CLAUDE.md "Data access: DbContext directly, no repository wrappers".
+/// Composition root for ShippingService. Wires up PostgreSQL (shipping-db). Handlers publish
+/// events through the method-injected <c>IMessageContext</c> (enlisted in the outbox transaction
+/// — see CreateShipmentHandler), so there is no IEventPublisher shim. There is no
+/// IShipmentRepository — handlers take ShippingDbContext directly (DbContext IS Unit-of-Work;
+/// DbSet&lt;T&gt; IS Repository). See CLAUDE.md "Data access: DbContext directly, no repository wrappers".
 /// </summary>
 public static class DependencyInjection
 {
@@ -21,8 +22,6 @@ public static class DependencyInjection
 
         services.AddHealthChecks()
             .AddDbContextCheck<ShippingDbContext>();
-
-        services.AddScoped<IEventPublisher, WolverineEventPublisher>();
 
         return services;
     }
