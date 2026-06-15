@@ -31,7 +31,11 @@ public sealed class ThrowingSaveChangesInterceptor : SaveChangesInterceptor
 
         if (committingNewOrder)
         {
-            throw new InvalidOperationException(FailureMarker);
+            // DbUpdateException (not InvalidOperationException) so it models a real infrastructure
+            // commit failure — GlobalExceptionHandler maps it to 500, distinct from the 409 it gives
+            // business conflicts. That lets the test assert the failure happened at this commit, not
+            // at an earlier business/validation step.
+            throw new DbUpdateException(FailureMarker);
         }
 
         return base.SavingChangesAsync(eventData, result, cancellationToken);

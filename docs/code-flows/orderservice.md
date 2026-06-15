@@ -24,7 +24,7 @@ sequenceDiagram
     participant Cat as CatalogService<br/>(separate service)
     participant Agg as Order aggregate<br/>Domain/Order.cs
     participant Ctx as OrderDbContext<br/>Infrastructure/Data/OrderDbContext.cs
-    participant Pub as IEventPublisher<br/>WolverineEventPublisher.cs
+    participant Pub as IMessageContext<br/>(Wolverine, method-injected)
     participant DB as SQL Server +<br/>wolverine.outgoing_envelopes
     participant ASB as Azure Service Bus<br/>(orders topic)
 
@@ -204,10 +204,9 @@ The handler's *code shape* is the contract — load-then-mutate-then-save is a w
 | [Domain/OrderLine.cs](../../OrderService/Domain/OrderLine.cs) | Line-item entity, owned by Order |
 | [Domain/OrderStatus.cs](../../OrderService/Domain/OrderStatus.cs) | Enum: Placed / Paid / PaymentFailed / Shipped |
 | [Domain/ICatalogClient.cs](../../OrderService/Domain/ICatalogClient.cs) | gRPC client port (substituted in tests) |
-| [Domain/IEventPublisher.cs](../../OrderService/Domain/IEventPublisher.cs) | Event publish port (Wolverine implementation) |
 | [Infrastructure/GrpcCatalogClient.cs](../../OrderService/Infrastructure/GrpcCatalogClient.cs) | gRPC adapter to CatalogService |
-| [Infrastructure/WolverineEventPublisher.cs](../../OrderService/Infrastructure/WolverineEventPublisher.cs) | Wolverine `IMessageBus.PublishAsync` adapter |
 | [Infrastructure/Data/OrderDbContext.cs](../../OrderService/Infrastructure/Data/OrderDbContext.cs) | EF Core context; SQL Server `RowVersion` concurrency token |
+| `IMessageContext` (method-injected) | Wolverine's enlisted publish context — `OrderPlacedEvent` is staged in the handler's outbox transaction (no project file; Wolverine framework type) |
 | [Program.cs](../../OrderService/Program.cs) | Composition root: Wolverine + EF + auth + transports |
 
 ---

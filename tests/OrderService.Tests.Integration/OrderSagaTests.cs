@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -120,17 +121,25 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
 
         // ACT — POST; the handler publishes OrderPlacedEvent, then SaveChanges throws → the request
         // fails. DoNotAssertOnExceptionsDetected: the forced failure is the point, not a test error.
+        // Assigned inside the tracked action (the assignment expression returns Task<...>, so the POST
+        // is awaited in-window); re-awaited afterward to read the status.
+        Task<HttpResponseMessage>? postTask = null;
         var session = await host.TrackActivity()
             .DoNotAssertOnExceptionsDetected()
             .Timeout(TimeSpan.FromSeconds(30))
-            .ExecuteAndWaitAsync(_ => client.PostAsJsonAsync("/api/v1/orders", command));
+            .ExecuteAndWaitAsync(_ => postTask = client.PostAsJsonAsync("/api/v1/orders", command));
+        var response = await postTask!;
 
-        // ASSERT — Two invariants:
+        // ASSERT — Three invariants:
+        //  0) The request failed at the forced SaveChanges (500), NOT earlier (e.g. validation 400).
+        //     This pins the test to the interceptor path so 1) and 2) can't pass for the wrong reason.
         //  1) The interceptor fired and the transaction rolled back — no Order row persisted. This
         //     also guards the test: if the interceptor silently didn't apply, an order WOULD exist
         //     and this fails loudly (no false pass).
         //  2) ATOMICITY: no OrderPlacedEvent was dispatched. The publish must have been staged in
         //     the rolled-back transaction, not sent inline. This is the load-bearing assertion.
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError,
+            "the request must fail at the forced SaveChanges (the interceptor), not before it");
         await using var scope = _factory.CreateDbScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
         var orphanExists = await db.Orders.AsNoTracking()

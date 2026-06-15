@@ -21,7 +21,7 @@ sequenceDiagram
     participant H as CreateShipmentHandler<br/>Features/CreateShipment.cs
     participant Ctx as ShippingDbContext<br/>Infrastructure/Data/ShippingDbContext.cs
     participant Agg as Shipment aggregate<br/>Domain/Shipment.cs
-    participant Pub as IEventPublisher<br/>Infrastructure/WolverineEventPublisher.cs
+    participant Pub as IMessageContext<br/>(Wolverine, method-injected)
     participant DB as Postgres +<br/>wolverine.outgoing_envelopes
     participant ASB2 as Azure Service Bus<br/>(shipping topic)
 
@@ -152,9 +152,8 @@ There's no `IShipmentRepository` wrapper. Both handlers take `ShippingDbContext`
 | [Domain/Shipment.cs](../../ShippingService/Domain/Shipment.cs) | Aggregate root + tracking-number generation + `Dispatch()` state guard |
 | [Domain/TrackingEvent.cs](../../ShippingService/Domain/TrackingEvent.cs) | Audit row owned by Shipment (1-to-many) |
 | [Domain/ShipmentStatus.cs](../../ShippingService/Domain/ShipmentStatus.cs) | Enum: Created / Dispatched / Delivered |
-| [Domain/IEventPublisher.cs](../../ShippingService/Domain/IEventPublisher.cs) | Event publish port (Wolverine impl) |
-| [Infrastructure/WolverineEventPublisher.cs](../../ShippingService/Infrastructure/WolverineEventPublisher.cs) | `IMessageBus.PublishAsync` adapter |
 | [Infrastructure/Data/ShippingDbContext.cs](../../ShippingService/Infrastructure/Data/ShippingDbContext.cs) | EF context — Postgres `xmin` concurrency token, unique index on `OrderId` |
+| `IMessageContext` (method-injected) | Wolverine's enlisted publish context — `ShipmentDispatchedEvent` is staged in the handler's outbox transaction (no project file; Wolverine framework type) |
 | [Program.cs](../../ShippingService/Program.cs) | Composition root — Wolverine + EF + auth + transports |
 
 ---
