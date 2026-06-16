@@ -395,8 +395,7 @@ Used for the order fulfillment pipeline where immediate response isn't required.
 **Consuming.** Wolverine subscribes to topics declared in `Program.cs`:
 
 ```csharp
-opts.ListenToAzureServiceBusSubscription("order-events/payment-orders-sub")
-    .FromTopic("order-events");
+opts.ListenToAzureServiceBusSubscription("payment-orders-sub", c => c.TopicName = "order-events");
 ```
 
 Wolverine then discovers handler classes for the message types and dispatches each incoming envelope to the right one. The pipeline around each consumer is the same as the HTTP-side one: FluentValidation (rare for events) → `ContextPropagationMiddleware` (restores the correlation/user/session scope from envelope headers) → `AutoApplyTransactions` → handler. Idempotency guards inside handlers (status checks, "already processed" lookups) handle Service Bus's at-least-once delivery.

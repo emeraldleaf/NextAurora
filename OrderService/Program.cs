@@ -26,10 +26,11 @@ builder.Host.UseWolverine(opts =>
     // configured endpoint. Two environments must disable it:
     //   1. Integration tests use a fake ASB connection string, so provisioning hangs/times out
     //      (it fires before DisableAllExternalWolverineTransports() takes effect).
-    //   2. Local dev (Aspire) uses the Service Bus emulator, which implements only the AMQP data
-    //      plane — NOT the management API — so AutoProvision retries 4× and the host dies with
-    //      BrokerInitializationException. The AppHost declares the topology and injects
-    //      Wolverine__AutoProvision=false for each Wolverine service.
+    //   2. Local dev (Aspire) uses the Service Bus emulator, whose SUBSCRIPTION admin endpoints
+    //      return HTTP 500 (topics + queues return 200) — so AutoProvision retries 4× and the host
+    //      dies with BrokerInitializationException. The AppHost declares the topology (the emulator
+    //      provisions it from Config.json at container start) and injects Wolverine__AutoProvision=
+    //      false; the listener then binds over AMQP with no management call. See #148.
     // Gate on a config flag (defaults true) so real Azure / Publish mode still provisions. See CLAUDE.md.
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
@@ -40,8 +41,8 @@ builder.Host.UseWolverine(opts =>
     opts.PublishMessage<OrderPlacedEvent>().ToAzureServiceBusTopic("order-events");
 
     // Listen to incoming events from other services
-    opts.ListenToAzureServiceBusSubscription("payment-events/order-payments-sub");
-    opts.ListenToAzureServiceBusSubscription("shipping-events/order-shipping-sub");
+    opts.ListenToAzureServiceBusSubscription("order-payments-sub", c => c.TopicName = "payment-events");
+    opts.ListenToAzureServiceBusSubscription("order-shipping-sub", c => c.TopicName = "shipping-events");
 
     // Transactional outbox: persist outgoing messages to SQL Server in the same
     // transaction as the entity write, then dispatch via background flush.

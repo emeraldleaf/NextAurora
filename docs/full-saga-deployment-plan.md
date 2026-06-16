@@ -187,8 +187,8 @@ all-Azure) is a lock-in — it's a localized config swap, not a rewrite:
 opts.UseAzureServiceBus(conn);                       // ← UseRabbitMq(conn)
 opts.PublishMessage<PaymentCompletedEvent>()
     .ToAzureServiceBusTopic("payment-events");       // ← .ToRabbitExchange("payment-events")
-opts.ListenToAzureServiceBusSubscription("order-events/payment-orders-sub");
-                                                     // ← .ListenToRabbitQueue("payment-orders")
+opts.ListenToAzureServiceBusSubscription("payment-orders-sub",
+    c => c.TopicName = "order-events");               // ← .ListenToRabbitQueue("payment-orders")
 
 // What does NOT change — transport-agnostic:
 opts.PersistMessagesWithSqlServer(db, "wolverine");  // outbox = DB concern

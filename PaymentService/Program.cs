@@ -46,7 +46,8 @@ builder.Host.UseWolverine(opts =>
 
     // AutoProvision creates topics/subscriptions via the Service Bus management API at host
     // startup. Disabled in two environments: integration tests (fake ASB string hangs) and
-    // local dev (the emulator has no management API → BrokerInitializationException). The
+    // local dev (the emulator's SUBSCRIPTION admin endpoints return HTTP 500 → AutoProvision
+    // dies with BrokerInitializationException; the listener binds over AMQP without it). The
     // AppHost injects Wolverine__AutoProvision=false for the emulator. Gate on a config flag
     // (defaults true) so real Azure still provisions. See OrderService/Program.cs + CLAUDE.md.
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
@@ -59,7 +60,7 @@ builder.Host.UseWolverine(opts =>
     opts.PublishMessage<PaymentFailedEvent>().ToAzureServiceBusTopic("payment-events");
 
     // Listen to incoming events from other services
-    opts.ListenToAzureServiceBusSubscription("order-events/payment-orders-sub");
+    opts.ListenToAzureServiceBusSubscription("payment-orders-sub", c => c.TopicName = "order-events");
 
     // Transactional outbox: persist outgoing messages to SQL Server in the same
     // transaction as the entity write, then dispatch via background flush.

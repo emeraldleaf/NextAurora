@@ -46,8 +46,10 @@ var serviceBus = builder.AddAzureServiceBus("messaging")
 //
 // Subscription naming: `{consumer}-{source-events}-sub`. Aspire 13 requires subscription names
 // to be globally unique within the bus namespace (not scoped per topic), hence the source
-// suffix. The strings here must match the `ListenToAzureServiceBusSubscription("{topic}/{sub}")`
-// calls in each service's Program.cs.
+// suffix. The names here must match the
+// `ListenToAzureServiceBusSubscription("{sub}", c => c.TopicName = "{topic}")` calls in each
+// service's Program.cs — the subscription name and topic are SEPARATE args, NOT a combined
+// "{topic}/{sub}" string (that form silently mis-registers the listener). See CLAUDE.md + #148.
 var orderEventsTopic = serviceBus.AddServiceBusTopic("order-events");
 orderEventsTopic.AddServiceBusSubscription("payment-orders-sub");      // PaymentService consumes
 orderEventsTopic.AddServiceBusSubscription("notify-orders-sub");       // NotificationService consumes
@@ -115,14 +117,19 @@ var catalogService = WithOptionalAppInsights(
     .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin);
 
 // Wolverine's AutoProvision() uses the Service Bus *management* API (ServiceBusAdministrationClient)
-// to create/verify topics + subscriptions at host startup. The Service Bus emulator does NOT
-// implement the management API — only the AMQP data plane — so AutoProvision retries, times out,
-// and the host dies with `BrokerInitializationException: Unable to initialize the Broker asb in
-// time`. Locally the topology is already declared above (AddServiceBusTopic/AddServiceBusSubscription
-// write the emulator's config), so provisioning is both impossible AND redundant. Disable it for
-// the four Wolverine services in dev; in Publish mode against real Azure, AutoProvision stays on
+// to create/verify topics + subscriptions at host startup. The 2.0.0 emulator DOES implement the
+// management API (on its 'emulatorhealth' HTTP endpoint, port 5300) — but its SUBSCRIPTION admin
+// endpoints return HTTP 500 (topics + queues return 200). So AutoProvision's per-subscription
+// SubscriptionExistsAsync/CreateSubscriptionAsync calls fail and the host dies with
+// `BrokerInitializationException: Unable to initialize the Broker asb in time`. Locally the topology
+// is already declared above (AddServiceBusTopic/AddServiceBusSubscription write the emulator's
+// Config.json, which the emulator provisions at container start), and Wolverine's listener attaches
+// over AMQP — which works — so provisioning is both impossible AND redundant. (Decompiled proof:
+// AzureServiceBusSubscription.InitializeAsync only calls the 500-ing SetupAsync when AutoProvision
+// is true; with it false, the listener binds over AMQP with no management call.) Disable it for the
+// four Wolverine services in dev; in Publish mode against real Azure, AutoProvision stays on
 // (Wolverine:AutoProvision defaults true) to create the entities. Mirrors the test harnesses'
-// `Wolverine:AutoProvision=false`. See CLAUDE.md.
+// `Wolverine:AutoProvision=false`. See CLAUDE.md + #148.
 const string disableAutoProvision = "Wolverine__AutoProvision";
 
 // OrderService also references catalogService — that gives it the gRPC client config to call
