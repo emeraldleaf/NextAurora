@@ -21,6 +21,7 @@
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="WolverineFx.AzureServiceBus" />
+    <PackageReference Include="WolverineFx.RabbitMQ" />
     <PackageReference Include="WolverineFx.EntityFrameworkCore" />
     <PackageReference Include="WolverineFx.FluentValidation" />
     <PackageReference Include="WolverineFx.SqlServer" />

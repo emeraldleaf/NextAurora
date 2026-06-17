@@ -73,6 +73,10 @@ public sealed class ShippingApiFactory : WebApplicationFactory<Program>, IAsyncL
         // handles routing; this handles broker-provisioning, which runs earlier.
         builder.UseSetting("Wolverine:AutoProvision", "false");
 
+        // Pin the transport to Azure Service Bus so the ASB registration branch (which parses the
+        // fake connection string) runs. App default is RabbitMQ; the transport is stubbed regardless.
+        builder.UseSetting("Messaging:Transport", "azureservicebus");
+
         // Real Postgres for the shipping DB + Wolverine outbox tables.
         builder.UseSetting("ConnectionStrings:shipping-db", _postgres.GetConnectionString());
 

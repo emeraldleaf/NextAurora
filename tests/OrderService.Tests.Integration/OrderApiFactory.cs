@@ -104,6 +104,12 @@ public sealed class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLife
         // runs *before* ConfigureTestServices fires.
         builder.UseSetting("Wolverine:AutoProvision", "false");
 
+        // Pin the transport to Azure Service Bus so the ASB registration branch (which parses the
+        // fake connection string below) runs. The app default is RabbitMQ; the transport is stubbed
+        // by DisableAllExternalWolverineTransports() regardless, so this only selects which branch
+        // of Program.cs executes. See Program.cs "Messaging:Transport".
+        builder.UseSetting("Messaging:Transport", "azureservicebus");
+
         // Real SQL Server for the order DB + Wolverine outbox tables.
         builder.UseSetting("ConnectionStrings:orders-db", _sqlServer.GetConnectionString());
 

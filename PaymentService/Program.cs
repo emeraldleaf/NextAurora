@@ -10,6 +10,7 @@ using PaymentService.Infrastructure.Data;
 using Scalar.AspNetCore;
 using Wolverine;
 using Wolverine.AzureServiceBus;
+using Wolverine.RabbitMQ;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
 using Wolverine.SqlServer;
@@ -42,25 +43,34 @@ builder.Services.AddRateLimiter(options =>
 builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
-    var azureServiceBus = opts.UseAzureServiceBus(connectionString);
 
-    // AutoProvision creates topics/subscriptions via the Service Bus management API at host
-    // startup. Disabled in two environments: integration tests (fake ASB string hangs) and
-    // local dev (the emulator's SUBSCRIPTION admin endpoints return HTTP 500 → AutoProvision
-    // dies with BrokerInitializationException; the listener binds over AMQP without it). The
-    // AppHost injects Wolverine__AutoProvision=false for the emulator. Gate on a config flag
-    // (defaults true) so real Azure still provisions. See OrderService/Program.cs + CLAUDE.md.
-    if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
+    // Channel names shared across both transport branches (ASB topic == RabbitMQ exchange).
+    const string paymentEvents = "payment-events";
+    const string orderEvents = "order-events";
+
+    // Config-selectable transport (Messaging:Transport): RabbitMQ default, Azure Service Bus opt-in.
+    // Only this block differs between transports. See OrderService/Program.cs + CLAUDE.md.
+    var transport = builder.Configuration["Messaging:Transport"] ?? "rabbitmq";
+    if (string.Equals(transport, "azureservicebus", StringComparison.OrdinalIgnoreCase))
     {
-        azureServiceBus.AutoProvision();
+        var azureServiceBus = opts.UseAzureServiceBus(connectionString);
+        if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
+        {
+            azureServiceBus.AutoProvision();
+        }
+        opts.PublishMessage<PaymentCompletedEvent>().ToAzureServiceBusTopic(paymentEvents);
+        opts.PublishMessage<PaymentFailedEvent>().ToAzureServiceBusTopic(paymentEvents);
+        opts.ListenToAzureServiceBusSubscription("payment-orders-sub", c => c.TopicName = orderEvents);
     }
-
-    // Publish outgoing events to their topics
-    opts.PublishMessage<PaymentCompletedEvent>().ToAzureServiceBusTopic("payment-events");
-    opts.PublishMessage<PaymentFailedEvent>().ToAzureServiceBusTopic("payment-events");
-
-    // Listen to incoming events from other services
-    opts.ListenToAzureServiceBusSubscription("payment-orders-sub", c => c.TopicName = "order-events");
+    else
+    {
+        var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString)).AutoProvision();
+        rabbit.DeclareExchange(paymentEvents, e => e.ExchangeType = ExchangeType.Fanout);
+        rabbit.BindExchange(orderEvents, ExchangeType.Fanout).ToQueue("payment-orders");
+        opts.PublishMessage<PaymentCompletedEvent>().ToRabbitExchange(paymentEvents);
+        opts.PublishMessage<PaymentFailedEvent>().ToRabbitExchange(paymentEvents);
+        opts.ListenToRabbitQueue("payment-orders");
+    }
 
     // Transactional outbox: persist outgoing messages to SQL Server in the same
     // transaction as the entity write, then dispatch via background flush.

@@ -4,6 +4,7 @@
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="WolverineFx.AzureServiceBus" />
+    <PackageReference Include="WolverineFx.RabbitMQ" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj" />

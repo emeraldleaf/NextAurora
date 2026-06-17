@@ -34,38 +34,49 @@ var shippingDb = builder.AddPostgres("shipping-pg")
 // once we wire it (architecture.md "Future Considerations").
 var redis = builder.AddRedis("cache");
 
-// Azure Service Bus — Aspire 13 requires explicit `.RunAsEmulator()` for local dev (in 9.x
-// the emulator was implicit). Without this, AppHost reports "Missing subscription configuration"
-// at startup because Aspire treats the resource as needing a real Azure subscription.
-// See CLAUDE.md.
-var serviceBus = builder.AddAzureServiceBus("messaging")
-    .RunAsEmulator();
+// --- Messaging broker (config-selectable: Messaging:Transport = rabbitmq | azureservicebus) ---
+// RabbitMQ is the DEFAULT: it's the deployed (Hetzner) broker, runs cleanly as a single container
+// with a management UI, and — unlike the ASB emulator — works end-to-end locally. Azure Service
+// Bus is opt-in; its real target is Azure (the local emulator has known limitations, see #148).
+// Wolverine abstracts the broker, so each service's Program.cs branches on the same Messaging:
+// Transport flag. The connection string is exposed under "messaging" for whichever broker wins.
+// See CLAUDE.md + docs/full-saga-deployment-plan.md (D3).
+var messagingTransport = builder.Configuration["Messaging:Transport"] ?? "rabbitmq";
+var useAzureServiceBus = string.Equals(messagingTransport, "azureservicebus", StringComparison.OrdinalIgnoreCase);
 
-// Topic / subscription topology. Each service that publishes events owns a topic; subscribers
-// get their own subscription per topic so they can be scaled and dead-lettered independently.
-//
-// Subscription naming: `{consumer}-{source-events}-sub`. Aspire 13 requires subscription names
-// to be globally unique within the bus namespace (not scoped per topic), hence the source
-// suffix. The names here must match the
-// `ListenToAzureServiceBusSubscription("{sub}", c => c.TopicName = "{topic}")` calls in each
-// service's Program.cs — the subscription name and topic are SEPARATE args, NOT a combined
-// "{topic}/{sub}" string (that form silently mis-registers the listener). See CLAUDE.md + #148.
-var orderEventsTopic = serviceBus.AddServiceBusTopic("order-events");
-orderEventsTopic.AddServiceBusSubscription("payment-orders-sub");      // PaymentService consumes
-orderEventsTopic.AddServiceBusSubscription("notify-orders-sub");       // NotificationService consumes
+IResourceBuilder<IResourceWithConnectionString> messaging;
+if (useAzureServiceBus)
+{
+    // Azure Service Bus emulator (Aspire 13 needs explicit .RunAsEmulator()). Topic/subscription
+    // topology declared here; subscription naming `{consumer}-{source-events}-sub` (globally unique
+    // within the namespace). Must match each service's ListenToAzureServiceBusSubscription("{sub}",
+    // c => c.TopicName = "{topic}") — separate args, NOT a combined "{topic}/{sub}" string. See #148.
+    var serviceBus = builder.AddAzureServiceBus("messaging").RunAsEmulator();
 
-var paymentEventsTopic = serviceBus.AddServiceBusTopic("payment-events");
-paymentEventsTopic.AddServiceBusSubscription("order-payments-sub");    // OrderService consumes
-paymentEventsTopic.AddServiceBusSubscription("shipping-payments-sub"); // ShippingService consumes
-paymentEventsTopic.AddServiceBusSubscription("notify-payments-sub");   // NotificationService consumes (failure notifications)
+    var orderEventsTopic = serviceBus.AddServiceBusTopic("order-events");
+    orderEventsTopic.AddServiceBusSubscription("payment-orders-sub");      // PaymentService consumes
+    orderEventsTopic.AddServiceBusSubscription("notify-orders-sub");       // NotificationService consumes
 
-var shippingEventsTopic = serviceBus.AddServiceBusTopic("shipping-events");
-shippingEventsTopic.AddServiceBusSubscription("order-shipping-sub");   // OrderService consumes
-shippingEventsTopic.AddServiceBusSubscription("notify-shipping-sub");  // NotificationService consumes
+    var paymentEventsTopic = serviceBus.AddServiceBusTopic("payment-events");
+    paymentEventsTopic.AddServiceBusSubscription("order-payments-sub");    // OrderService consumes
+    paymentEventsTopic.AddServiceBusSubscription("shipping-payments-sub"); // ShippingService consumes
+    paymentEventsTopic.AddServiceBusSubscription("notify-payments-sub");   // NotificationService consumes
 
-// Direct queue (not topic) for "send a notification right now" requests — single consumer,
-// fan-in only. NotificationService listens here in addition to the topic subscriptions.
-serviceBus.AddServiceBusQueue("send-notification");
+    var shippingEventsTopic = serviceBus.AddServiceBusTopic("shipping-events");
+    shippingEventsTopic.AddServiceBusSubscription("order-shipping-sub");   // OrderService consumes
+    shippingEventsTopic.AddServiceBusSubscription("notify-shipping-sub");  // NotificationService consumes
+
+    serviceBus.AddServiceBusQueue("send-notification");                    // direct command queue
+
+    messaging = serviceBus;
+}
+else
+{
+    // RabbitMQ: one container + the management UI (a demo artifact at :15672). Wolverine declares
+    // the exchanges/queues/bindings itself via AutoProvision against the live broker, so no
+    // hand-declared topology is needed here (contrast the ASB branch above).
+    messaging = builder.AddRabbitMQ("messaging").WithManagementPlugin();
+}
 
 // Application Insights only when running in Publish mode (i.e. real deploys to Azure).
 // Aspire 13 has no local emulator for App Insights — keeping this in for local dev causes
@@ -116,53 +127,46 @@ var catalogService = WithOptionalAppInsights(
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
     .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin);
 
-// Wolverine's AutoProvision() uses the Service Bus *management* API (ServiceBusAdministrationClient)
-// to create/verify topics + subscriptions at host startup. The 2.0.0 emulator DOES implement the
-// management API (on its 'emulatorhealth' HTTP endpoint, port 5300) — but its SUBSCRIPTION admin
-// endpoints return HTTP 500 (topics + queues return 200). So AutoProvision's per-subscription
-// SubscriptionExistsAsync/CreateSubscriptionAsync calls fail and the host dies with
-// `BrokerInitializationException: Unable to initialize the Broker asb in time`. Locally the topology
-// is already declared above (AddServiceBusTopic/AddServiceBusSubscription write the emulator's
-// Config.json, which the emulator provisions at container start), and Wolverine's listener attaches
-// over AMQP — which works — so provisioning is both impossible AND redundant. (Decompiled proof:
-// AzureServiceBusSubscription.InitializeAsync only calls the 500-ing SetupAsync when AutoProvision
-// is true; with it false, the listener binds over AMQP with no management call.) Disable it for the
-// four Wolverine services in dev; in Publish mode against real Azure, AutoProvision stays on
-// (Wolverine:AutoProvision defaults true) to create the entities. Mirrors the test harnesses'
-// `Wolverine:AutoProvision=false`. See CLAUDE.md + #148.
-const string disableAutoProvision = "Wolverine__AutoProvision";
+// Wires a Wolverine service to the selected broker: connection-string reference + WaitFor (Aspire 13
+// needs an explicit WaitFor for health) + the Messaging:Transport flag so the service picks the
+// matching transport branch in its Program.cs. For the ASB *emulator* only, also disable Wolverine
+// AutoProvision — its subscription admin endpoints return HTTP 500 (see #148). RabbitMQ keeps
+// AutoProvision on and provisions its exchanges/queues against the live broker. See CLAUDE.md.
+IResourceBuilder<ProjectResource> WithMessaging(IResourceBuilder<ProjectResource> project)
+{
+    project = project.WithReference(messaging).WaitFor(messaging)
+        .WithEnvironment("Messaging__Transport", messagingTransport);
+    if (useAzureServiceBus)
+    {
+        project = project.WithEnvironment("Wolverine__AutoProvision", "false");
+    }
+
+    return project;
+}
 
 // OrderService also references catalogService — that gives it the gRPC client config to call
 // into Catalog for product validation during order placement.
-var orderService = WithOptionalAppInsights(
+var orderService = WithMessaging(WithOptionalAppInsights(
     builder.AddProject<Projects.OrderService>("order-service")
         .WithReference(ordersDb).WaitFor(ordersDb)
-        .WithReference(serviceBus).WaitFor(serviceBus)
         .WithReference(catalogService).WaitFor(catalogService), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
-    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin)
-    .WithEnvironment(disableAutoProvision, "false");
+    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin));
 
-WithOptionalAppInsights(
+WithMessaging(WithOptionalAppInsights(
     builder.AddProject<Projects.PaymentService>("payment-service")
-        .WithReference(paymentsDb).WaitFor(paymentsDb)
-        .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
-    .WithEnvironment(disableAutoProvision, "false");
+        .WithReference(paymentsDb).WaitFor(paymentsDb), appInsights)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm));
 
-WithOptionalAppInsights(
+WithMessaging(WithOptionalAppInsights(
     builder.AddProject<Projects.ShippingService>("shipping-service")
-        .WithReference(shippingDb).WaitFor(shippingDb)
-        .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
+        .WithReference(shippingDb).WaitFor(shippingDb), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
-    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin)
-    .WithEnvironment(disableAutoProvision, "false");
+    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin));
 
 // NotificationService is stateless — no DB reference, just messaging + telemetry.
-WithOptionalAppInsights(
-    builder.AddProject<Projects.NotificationService>("notification-service")
-        .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
-    .WithEnvironment(disableAutoProvision, "false");
+WithMessaging(WithOptionalAppInsights(
+    builder.AddProject<Projects.NotificationService>("notification-service"), appInsights));
 
 // --- Frontend ---
 // Storefront and SellerPortal reference the API services so service-discovery resolves

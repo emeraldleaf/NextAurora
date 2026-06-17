@@ -86,6 +86,10 @@ public sealed class PaymentApiFactory : WebApplicationFactory<Program>, IAsyncLi
         // handles routing; this handles the broker-provisioning that runs earlier.
         builder.UseSetting("Wolverine:AutoProvision", "false");
 
+        // Pin the transport to Azure Service Bus so the ASB registration branch (which parses the
+        // fake connection string) runs. App default is RabbitMQ; the transport is stubbed regardless.
+        builder.UseSetting("Messaging:Transport", "azureservicebus");
+
         // Real SQL Server for the payments DB + Wolverine outbox tables.
         builder.UseSetting("ConnectionStrings:payments-db", _sqlServer.GetConnectionString());
 

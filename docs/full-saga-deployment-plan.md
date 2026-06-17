@@ -148,7 +148,7 @@ internal Docker network as the services.
   its Traefik-routed hostname for the browser-facing auth-code flow). Zero
   service code change.
 
-### D3 — Messaging transport → **RabbitMQ container in deployed; dev keeps the ASB emulator (config-driven, swappable)**
+### D3 — Messaging transport → **RabbitMQ everywhere by default; Azure Service Bus opt-in (config-selectable via `Messaging:Transport`)**
 
 **Changed from the Fly plan, sub-point resolved 2026-05-27.** On Fly, D3 was
 AWS SQS+SNS (free tier, but cross-cloud). On one box, run **RabbitMQ** as a
@@ -157,15 +157,19 @@ egress. RabbitMQ over NATS because it maps cleanly onto the existing Azure
 Service Bus topic/subscription topology (exchanges + queues), Wolverine has a
 first-class RabbitMQ transport, and the management UI is a nice demo artifact.
 
-**Resolved: RabbitMQ in the deployed environment only; dev keeps the Azure
-Service Bus emulator already wired in the Aspire AppHost.** The transport is
-selected by environment config so the two don't fight. Chose deployed-only over
-RabbitMQ-everywhere because it leaves the working dev setup untouched, and the
-dev/prod transport difference costs almost nothing here (see the
-Wolverine-abstraction note below — handlers, outbox, saga are identical
-regardless of transport). Can flip to RabbitMQ-everywhere later for ~free if
-the ASB emulator's flakiness (see STATUS.md's smoke-test debugging arc) becomes
-annoying in dev.
+**Resolved (updated 2026-06-16): RabbitMQ is the default in *every* environment —
+dev, CI, and deployed — selected via `Messaging:Transport` (default `rabbitmq`);
+Azure Service Bus is opt-in (`=azureservicebus`).** The original plan kept the ASB
+emulator in dev "to leave the working dev setup untouched" — but that premise proved
+false: the ASB **emulator never actually ran the saga** (its subscription admin
+endpoints return HTTP 500, and Wolverine's system queues can't auto-provision against
+it; full arc in #148). RabbitMQ, by contrast, runs as one clean container,
+AutoProvisions against the live broker, and the **full saga flows locally** (verified
+end-to-end: order → `Shipped` in seconds). Flipping to RabbitMQ-everywhere — which
+this plan always said was available "for ~free" — buys a working local saga **and**
+dev/prod parity, and retires the emulator pain. ASB stays a config-selectable transport
+(its real target is Azure, where the management API is healthy); the swap is the same
+~5-line Wolverine block either way.
 
 **RabbitMQ licensing (verified 2026-05-27):** the core broker is **MPL 2.0,
 free and open-source, self-host at no cost, no vendor lock-in.** Broadcom's
