@@ -9,7 +9,6 @@ using PaymentService.Infrastructure;
 using PaymentService.Infrastructure.Data;
 using Scalar.AspNetCore;
 using Wolverine;
-using Wolverine.AzureServiceBus;
 using Wolverine.RabbitMQ;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
@@ -44,33 +43,22 @@ builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
 
-    // Channel names shared across both transport branches (ASB topic == RabbitMQ exchange).
+    // Channel names (RabbitMQ fanout exchanges).
     const string paymentEvents = "payment-events";
     const string orderEvents = "order-events";
 
-    // Config-selectable transport (Messaging:Transport): RabbitMQ default, Azure Service Bus opt-in.
-    // Only this block differs between transports. See OrderService/Program.cs + CLAUDE.md.
-    var transport = builder.Configuration["Messaging:Transport"] ?? "rabbitmq";
-    if (string.Equals(transport, "azureservicebus", StringComparison.OrdinalIgnoreCase))
+    // RabbitMQ transport. Wolverine declares the exchange/queue/binding via AutoProvision (gated so
+    // it's off for transport-stubbed integration tests). See OrderService/Program.cs + CLAUDE.md.
+    var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString));
+    if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
-        var azureServiceBus = opts.UseAzureServiceBus(connectionString);
-        if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
-        {
-            azureServiceBus.AutoProvision();
-        }
-        opts.PublishMessage<PaymentCompletedEvent>().ToAzureServiceBusTopic(paymentEvents);
-        opts.PublishMessage<PaymentFailedEvent>().ToAzureServiceBusTopic(paymentEvents);
-        opts.ListenToAzureServiceBusSubscription("payment-orders-sub", c => c.TopicName = orderEvents);
+        rabbit.AutoProvision();
     }
-    else
-    {
-        var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString)).AutoProvision();
-        rabbit.DeclareExchange(paymentEvents, e => e.ExchangeType = ExchangeType.Fanout);
-        rabbit.BindExchange(orderEvents, ExchangeType.Fanout).ToQueue("payment-orders");
-        opts.PublishMessage<PaymentCompletedEvent>().ToRabbitExchange(paymentEvents);
-        opts.PublishMessage<PaymentFailedEvent>().ToRabbitExchange(paymentEvents);
-        opts.ListenToRabbitQueue("payment-orders");
-    }
+    rabbit.DeclareExchange(paymentEvents, e => e.ExchangeType = ExchangeType.Fanout);
+    rabbit.BindExchange(orderEvents, ExchangeType.Fanout).ToQueue("payment-orders");
+    opts.PublishMessage<PaymentCompletedEvent>().ToRabbitExchange(paymentEvents);
+    opts.PublishMessage<PaymentFailedEvent>().ToRabbitExchange(paymentEvents);
+    opts.ListenToRabbitQueue("payment-orders");
 
     // Transactional outbox: persist outgoing messages to SQL Server in the same
     // transaction as the entity write, then dispatch via background flush.

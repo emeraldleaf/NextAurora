@@ -6,7 +6,6 @@ using ShippingService.Infrastructure;
 using ShippingService.Infrastructure.Data;
 using Scalar.AspNetCore;
 using Wolverine;
-using Wolverine.AzureServiceBus;
 using Wolverine.RabbitMQ;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
@@ -19,31 +18,21 @@ builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
 
-    // Channel names shared across both transport branches (ASB topic == RabbitMQ exchange).
+    // Channel names (RabbitMQ fanout exchanges).
     const string shippingEvents = "shipping-events";
     const string paymentEvents = "payment-events";
 
-    // Config-selectable transport (Messaging:Transport): RabbitMQ default, Azure Service Bus opt-in.
-    // Only this block differs between transports. See OrderService/Program.cs + CLAUDE.md.
-    var transport = builder.Configuration["Messaging:Transport"] ?? "rabbitmq";
-    if (string.Equals(transport, "azureservicebus", StringComparison.OrdinalIgnoreCase))
+    // RabbitMQ transport. Wolverine declares the exchange/queue/binding via AutoProvision (gated so
+    // it's off for transport-stubbed integration tests). See OrderService/Program.cs + CLAUDE.md.
+    var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString));
+    if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
-        var azureServiceBus = opts.UseAzureServiceBus(connectionString);
-        if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
-        {
-            azureServiceBus.AutoProvision();
-        }
-        opts.PublishMessage<ShipmentDispatchedEvent>().ToAzureServiceBusTopic(shippingEvents);
-        opts.ListenToAzureServiceBusSubscription("shipping-payments-sub", c => c.TopicName = paymentEvents);
+        rabbit.AutoProvision();
     }
-    else
-    {
-        var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString)).AutoProvision();
-        rabbit.DeclareExchange(shippingEvents, e => e.ExchangeType = ExchangeType.Fanout);
-        rabbit.BindExchange(paymentEvents, ExchangeType.Fanout).ToQueue("shipping-payments");
-        opts.PublishMessage<ShipmentDispatchedEvent>().ToRabbitExchange(shippingEvents);
-        opts.ListenToRabbitQueue("shipping-payments");
-    }
+    rabbit.DeclareExchange(shippingEvents, e => e.ExchangeType = ExchangeType.Fanout);
+    rabbit.BindExchange(paymentEvents, ExchangeType.Fanout).ToQueue("shipping-payments");
+    opts.PublishMessage<ShipmentDispatchedEvent>().ToRabbitExchange(shippingEvents);
+    opts.ListenToRabbitQueue("shipping-payments");
 
     // Transactional outbox: persist outgoing messages to Postgres in the same
     // transaction as the entity write, then dispatch via background flush.

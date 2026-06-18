@@ -54,7 +54,7 @@ NextAurora is a distributed e-commerce platform built as a microservices archite
                   SQL Server  SQL Svr  PostgreSQL  Stateless
 ```
 
-> **Transport choice is environmental, not architectural.** The async-messaging broker is config-selectable (`Messaging:Transport`): **RabbitMQ by default** (local dev, CI, and the Hetzner deployment) or **Azure Service Bus** (opt-in, for Azure deployments). Wolverine abstracts the broker — handlers and domain code don't change, only a small per-service transport block. See the [Messaging transport](#messaging-transport--rabbitmq-default-or-azure-service-bus-config-selectable) and [Deployment](#deployment) sections.
+> **Transport choice is environmental, not architectural.** The async-messaging broker is **RabbitMQ** in every environment — local dev, CI, and the Hetzner deployment, so dev matches prod. Wolverine abstracts the broker (handlers and domain code don't change, only a small per-service transport block), so the transport stays swappable — Azure Service Bus was evaluated and removed. See the [Messaging transport](#messaging-transport--rabbitmq) and [Deployment](#deployment) sections.
 
 ## Service Architecture
 
@@ -137,7 +137,7 @@ See [CLAUDE.md](../CLAUDE.md#project-structure) for the canonical rule.
 
 ### 1. Event-Driven Messaging (Async)
 
-Used for all workflow/saga communication between services. Azure Service Bus provides at-least-once delivery with topic/subscription pub-sub model.
+Used for all workflow/saga communication between services. RabbitMQ provides at-least-once delivery with a fanout-exchange / per-consumer-queue pub-sub model.
 
 **When to use:** State changes that trigger downstream workflows (order placed, payment completed, shipment dispatched).
 
@@ -233,25 +233,25 @@ Each service owns its database. No service accesses another service's database d
 ### Message Topology
 
 ```
-Azure Service Bus
+RabbitMQ (fanout exchanges -> bound queues)
   |
-  +-- Topic: order-events
-  |     +-- Subscription: payment-orders-sub      -> PaymentService
-  |     +-- Subscription: notify-orders-sub       -> NotificationService
+  +-- Exchange: order-events
+  |     +-- Queue: payment-orders      -> PaymentService
+  |     +-- Queue: notify-orders       -> NotificationService
   |
-  +-- Topic: payment-events
-  |     +-- Subscription: order-payments-sub      -> OrderService
-  |     +-- Subscription: shipping-payments-sub   -> ShippingService
-  |     +-- Subscription: notify-payments-sub     -> NotificationService
+  +-- Exchange: payment-events
+  |     +-- Queue: order-payments      -> OrderService
+  |     +-- Queue: shipping-payments   -> ShippingService
+  |     +-- Queue: notify-payments     -> NotificationService
   |
-  +-- Topic: shipping-events
-  |     +-- Subscription: order-shipping-sub      -> OrderService
-  |     +-- Subscription: notify-shipping-sub     -> NotificationService
+  +-- Exchange: shipping-events
+  |     +-- Queue: order-shipping      -> OrderService
+  |     +-- Queue: notify-shipping     -> NotificationService
   |
-  +-- Queue: send-notification                    -> NotificationService
+  +-- Queue: send-notification         -> NotificationService (direct)
 ```
 
-**Subscription naming convention: `{consumer}-{source-events}-sub`.** Aspire 13 enforces globally unique subscription names within a bus namespace (the per-topic scoping behavior of Aspire 9 was dropped). Including the source-events suffix in the name keeps it readable and unique. The names here must match the `ListenToAzureServiceBusSubscription("{sub}", c => c.TopicName = "{topic}")` calls in each service's `Program.cs` — subscription name and topic are separate arguments, **not** a combined `"{topic}/{sub}"` string (that form silently mis-registers the listener so it never attaches, and fails against real Azure too).
+**Queue naming convention: `{consumer}-{source-events}`** (e.g. `payment-orders` = PaymentService consuming `order-events`). Each consumer gets its own queue bound to the source fanout exchange, so consumers scale and dead-letter independently. Wolverine declares the exchange, queue, and binding in each service's `Program.cs` via `DeclareExchange` / `BindExchange(...).ToQueue(...)` and provisions them with `AutoProvision()`.
 
 ### Event Contracts (NextAurora.Contracts)
 
@@ -396,15 +396,11 @@ Storefront      -> catalog-service, order-service
 SellerPortal    -> catalog-service, order-service
 ```
 
-#### Messaging transport — RabbitMQ (default) or Azure Service Bus, config-selectable
+#### Messaging transport — RabbitMQ
 
-The `messaging` broker is chosen by `Messaging:Transport` (default `rabbitmq`). Wolverine abstracts the transport, so only a small block in each service's `Program.cs` differs between brokers — handlers, the outbox, idempotency, and the saga are identical. RabbitMQ maps the ASB topic/subscription model onto **fanout exchanges** (one per event family: `order-events`, `payment-events`, `shipping-events`) with a **queue per consumer** bound to each exchange.
+The `messaging` broker is **RabbitMQ**. Wolverine maps the saga's pub/sub onto **fanout exchanges** (one per event family: `order-events`, `payment-events`, `shipping-events`) with a **queue per consumer** bound to each. It runs as a single Aspire container (`AddRabbitMQ("messaging").WithManagementPlugin()`, management UI at `:15672`); `AutoProvision()` declares the exchanges/queues/bindings against the live broker (gated by `Wolverine:AutoProvision`, default on — off in integration tests, which stub the transport). RabbitMQ is the broker in **every** environment (local dev, CI, Hetzner deploy — [full-saga-deployment-plan.md](full-saga-deployment-plan.md) D3), so dev matches prod and the **full saga flows locally** — verified end-to-end (place an order → it reaches `Shipped` within seconds as Payment and Shipping consume and re-publish).
 
-**RabbitMQ is the default** — local dev, CI, and the Hetzner deployment ([full-saga-deployment-plan.md](full-saga-deployment-plan.md) D3). It runs as a single Aspire container (`AddRabbitMQ("messaging").WithManagementPlugin()`, management UI at `:15672`), `AutoProvision()` declares the exchanges/queues/bindings against the live broker, and the **full saga flows locally** — verified end-to-end (place an order → it reaches `Shipped` within seconds as Payment and Shipping consume and re-publish).
-
-**Azure Service Bus is opt-in** (`Messaging:Transport=azureservicebus`); its real target is **Azure**, not local. The 2.0.0 **emulator is limited**: it *does* expose the management API (on `emulatorhealth`, port 5300), but its **subscription** admin endpoints return **HTTP 500** (topics/queues return 200; verified by `curl`), so Wolverine's `AutoProvision` crashes the host with `BrokerInitializationException`. Disabling AutoProvision avoids that crash (decompiled: `AzureServiceBusSubscription.InitializeAsync` only hits the 500-ing path when AutoProvision is true), but a *second* limitation remains — Wolverine's system queues (`wolverine.retries.*`/`response.*`) aren't in the emulator's `Config.json` and can't auto-provision, and `BrokerResource.Setup` calls the management API for every endpoint regardless — so **the saga does not flow on the ASB emulator**. The AppHost injects `Wolverine__AutoProvision=false` for the ASB-emulator path; against real Azure (healthy management API) AutoProvision stays on. Net: **use RabbitMQ locally; ASB is for Azure deployments.** Full investigation: [#148](https://github.com/emeraldleaf/NextAurora/issues/148).
-
-> **ASB listener-API gotcha (also breaks real Azure).** Register subscription listeners as `ListenToAzureServiceBusSubscription("{sub}", c => c.TopicName = "{topic}")` — separate args, never a combined `"{topic}/{sub}"` string, which silently mis-registers the listener so it never attaches.
+**Why not Azure Service Bus?** It was evaluated and removed. Wolverine abstracts the transport, so swapping back is a ~5-line block per service — but carrying a second wiring earned nothing today: there's no Azure deployment, and the local ASB **emulator can't run the saga**. The 2.0.0 emulator *does* expose the management API (port 5300), but its **subscription** admin endpoints return **HTTP 500** (topics/queues return 200; verified by `curl`), so Wolverine's `AutoProvision` crashes the host; and even with AutoProvision off, Wolverine's system queues (`wolverine.retries.*`/`response.*`) can't auto-provision against the emulator while `BrokerResource.Setup` calls the management API for every endpoint regardless — so the saga never flows on it. Full investigation: [#148](https://github.com/emeraldleaf/NextAurora/issues/148). Re-add ASB (or another Wolverine-supported broker) if a cloud-managed target becomes real.
 
 ### Service Defaults (NextAurora.ServiceDefaults)
 
@@ -523,7 +519,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 | **Repository (built-in)** | `DbContext` IS Unit-of-Work; `DbSet<T>` IS Repository. No `I*Repository` wrappers. |
 | **Domain-Driven Design** | Aggregates with factory methods, guard clauses, encapsulated collections (`IReadOnlyList`), no public setters |
 | **Validation Pipeline** | FluentValidation + Wolverine `opts.UseFluentValidation()` for pre-handler validation |
-| **Event-Driven Architecture** | Azure Service Bus pub/sub with topic/subscription model |
+| **Event-Driven Architecture** | RabbitMQ pub/sub with fanout-exchange / per-consumer-queue model |
 | **Choreography Saga** | Order lifecycle managed through event chain across services |
 | **Anti-Corruption Layer** | StripePaymentGateway isolates domain from external payment API |
 | **Service Discovery** | Aspire-based automatic service resolution |
@@ -555,7 +551,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 - **API Gateway** - Centralized routing, rate limiting, auth
 - **Saga Compensation** - Rollback logic for failed payments/shipments
 - **Frontend Implementation** - Storefront and SellerPortal business logic
-- **Cross-service integration tests over the real wire** - Single-service slices exist for all four DB-touching services (`tests/{CatalogService,OrderService,PaymentService,ShippingService}.Tests.Integration` — Testcontainers Postgres+Redis for Catalog, SQL Server for Order + Payment, Postgres for Shipping, Wolverine transports stubbed in each). The remaining gap is an end-to-end `OrderPlacedEvent → PaymentService → PaymentCompletedEvent` test over the real Azure Service Bus emulator container — wire-level cross-service coverage is still pending. See [docs/STATUS.md](STATUS.md) "After the smoke run."
+- **Cross-service integration tests over the real wire** - Single-service slices exist for all four DB-touching services (`tests/{CatalogService,OrderService,PaymentService,ShippingService}.Tests.Integration` — Testcontainers Postgres+Redis for Catalog, SQL Server for Order + Payment, Postgres for Shipping, Wolverine transports stubbed in each). The remaining gap is an end-to-end `OrderPlacedEvent → PaymentService → PaymentCompletedEvent` test over a real RabbitMQ Testcontainer — wire-level cross-service coverage is still pending (the saga is verified manually end-to-end on the live RabbitMQ stack). See [docs/STATUS.md](STATUS.md).
 - **Order Cancellation Flow** - Cancel event and compensation logic
 - **Production migration deployment step** - In dev, `MigrateDatabaseAsync<T>()` runs at startup; production should run migrations as a separate deploy step (not in-process) to avoid races between replicas. Tooling exists; deploy automation does not.
 
@@ -563,9 +559,9 @@ Read paths never load tracked entities (would over-read columns + materialize en
 
 ## Deployment
 
-> **Status: planning, not implemented.** The codebase currently runs on **Azure Service Bus** in every environment (locally via the Aspire emulator). All five services use `WolverineFx.AzureServiceBus`. AppHost wires the messaging through `AddAzureServiceBus("messaging").RunAsEmulator()`. **No AWS code is in the repo yet.** This section describes the AWS migration target so the work has a plan when it's prioritized — it is not a record of work done.
+> **Status: planning, not implemented.** The codebase currently runs on **RabbitMQ** in every environment (local dev, CI, and the active Hetzner deployment plan — see [full-saga-deployment-plan.md](full-saga-deployment-plan.md)). All five services use `WolverineFx.RabbitMQ`; AppHost wires `AddRabbitMQ("messaging")`. **No AWS code is in the repo yet.** This section sketches an *alternative* AWS (SNS + SQS) target; the active plan is Hetzner + RabbitMQ. ASB-era swap examples below are illustrative of Wolverine's transport-agnosticism (the "from" is RabbitMQ today).
 
-NextAurora is built transport-agnostic via Wolverine — handlers depend on `IMessageBus` and `Envelope`, not on transport-specific types. That means the local-dev choice of Azure Service Bus (run as an Aspire emulator) does not lock the app into Azure. The intended production deployment target is **Amazon Web Services**, with **SNS + SQS** as the messaging backbone.
+NextAurora is built transport-agnostic via Wolverine — handlers depend on `IMessageBus` and `Envelope`, not on transport-specific types. So the broker choice (RabbitMQ today) does not lock the app in. One possible production target is **Amazon Web Services**, with **SNS + SQS** as the messaging backbone (the active plan, however, is Hetzner + RabbitMQ).
 
 ### Why SNS + SQS over RabbitMQ
 

@@ -3,7 +3,6 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="WolverineFx" />
-    <PackageReference Include="WolverineFx.AzureServiceBus" />
     <PackageReference Include="WolverineFx.RabbitMQ" />
   </ItemGroup>
   <ItemGroup>

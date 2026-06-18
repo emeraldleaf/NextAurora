@@ -45,7 +45,7 @@ This doc is the **map of the technical decisions** with the *rationale* for each
 
 ## 2. Architectural style — microservices over modular monolith
 
-NextAurora is **microservices, not modular monolith**. Five backend services, each independently deployable, each owning its own database, each communicating with peers via gRPC (sync) or Azure Service Bus (async).
+NextAurora is **microservices, not modular monolith**. Five backend services, each independently deployable, each owning its own database, each communicating with peers via gRPC (sync) or RabbitMQ (async, via Wolverine).
 
 ```
 NextAurora/
@@ -1013,7 +1013,7 @@ The full inventory of significant non-Microsoft libraries, what they do, why we 
 | Package | Version | Role | Why this, not [X] |
 |---|---|---|---|
 | **WolverineFx** | 5.36.2 | In-process CQRS dispatch + distributed async messaging + transactional outbox | Covers what **MediatR** (in-process CQRS — commercial since 2024) and **MassTransit** (distributed messaging — commercial in v9, GA Q1 2026) together do, in one MIT-licensed framework. The combined library + license story is the load-bearing reason |
-| **WolverineFx.AzureServiceBus** | 5.36.2 | Wolverine transport for Azure Service Bus | Production target; swappable for `WolverineFx.AmazonSqs` in AWS deploy |
+| **WolverineFx.RabbitMQ** | 6.8.0 | Wolverine transport for RabbitMQ | Broker in every environment (local/CI/Hetzner); swappable for another Wolverine transport if a cloud-managed target lands |
 | **WolverineFx.SqlServer / .Postgresql** | 5.36.2 | Wolverine outbox persistence | Same DB as the service, same transaction as the entity write |
 | **Microsoft.EntityFrameworkCore** | 10.0.2 | ORM | Standard .NET ORM. See [ef-core.md](ef-core.md) for the full decision |
 | **Npgsql.EntityFrameworkCore.PostgreSQL** | 10.0.0 | Postgres EF provider | Only viable Postgres provider for EF Core |

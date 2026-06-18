@@ -389,7 +389,7 @@ different cadence, different lens.**
 |---|---|
 | **.NET Aspire** | Local dev orchestration. `dotnet run --project NextAurora.AppHost` brings up all services + Postgres + SQL Server + Service Bus emulator + Redis + Keycloak in one command. Aspire dashboard at http://localhost:18888. |
 | **OpenTelemetry** | Traces + metrics + logs throughout. Aspire ingests in dev; Application Insights ingests in prod. |
-| **Wolverine** | In-process message bus + transactional outbox. Adapter for Azure Service Bus. |
+| **Wolverine** | In-process message bus + transactional outbox. RabbitMQ transport for cross-service events. |
 | **Scalar UI** | Interactive API docs at `/scalar/v1` per service (dev-only). |
 | **Fly.io** | CatalogService demo at https://catalog-api-demo.fly.dev. Single Machine, auto-stops when idle. |
 | **CorrelationId middleware** (in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/)) | Correlation/User/Session ID propagation across HTTP + Service Bus boundaries. |

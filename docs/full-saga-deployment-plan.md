@@ -148,7 +148,7 @@ internal Docker network as the services.
   its Traefik-routed hostname for the browser-facing auth-code flow). Zero
   service code change.
 
-### D3 — Messaging transport → **RabbitMQ everywhere by default; Azure Service Bus opt-in (config-selectable via `Messaging:Transport`)**
+### D3 — Messaging transport → **RabbitMQ in every environment (Azure Service Bus evaluated and removed)**
 
 **Changed from the Fly plan, sub-point resolved 2026-05-27.** On Fly, D3 was
 AWS SQS+SNS (free tier, but cross-cloud). On one box, run **RabbitMQ** as a
@@ -167,9 +167,14 @@ it; full arc in #148). RabbitMQ, by contrast, runs as one clean container,
 AutoProvisions against the live broker, and the **full saga flows locally** (verified
 end-to-end: order → `Shipped` in seconds). Flipping to RabbitMQ-everywhere — which
 this plan always said was available "for ~free" — buys a working local saga **and**
-dev/prod parity, and retires the emulator pain. ASB stays a config-selectable transport
-(its real target is Azure, where the management API is healthy); the swap is the same
-~5-line Wolverine block either way.
+dev/prod parity, and retires the emulator pain.
+
+**Update (2026-06-17): the ASB transport code was *removed*, not kept as a dormant option.**
+Per the codebase's anti-carry-debt rule, a second transport wiring that runs nowhere (the local
+emulator can't run the saga, and there's no Azure deployment) is speculative coupling, not
+optionality. Wolverine still abstracts the broker, so the transport-agnostic claim holds — the
+proof is that re-adding ASB is the same ~5-line block per service (shown below), in git history,
+and in this decision. Re-add it the day Azure becomes a real target.
 
 **RabbitMQ licensing (verified 2026-05-27):** the core broker is **MPL 2.0,
 free and open-source, self-host at no cost, no vendor lock-in.** Broadcom's
@@ -187,12 +192,11 @@ choice nor a future move to Azure Service Bus (e.g. if NextAurora ever goes
 all-Azure) is a lock-in — it's a localized config swap, not a rewrite:
 
 ```csharp
-// What changes per service (Order, Payment, Shipping, Notification):
-opts.UseAzureServiceBus(conn);                       // ← UseRabbitMq(conn)
+// What changes per service (Order, Payment, Shipping, Notification) — current = RabbitMQ:
+opts.UseRabbitMq(f => f.Uri = new Uri(conn));        // ← was UseAzureServiceBus(conn)
 opts.PublishMessage<PaymentCompletedEvent>()
-    .ToAzureServiceBusTopic("payment-events");       // ← .ToRabbitExchange("payment-events")
-opts.ListenToAzureServiceBusSubscription("payment-orders-sub",
-    c => c.TopicName = "order-events");               // ← .ListenToRabbitQueue("payment-orders")
+    .ToRabbitExchange("payment-events");             // ← was .ToAzureServiceBusTopic("payment-events")
+opts.ListenToRabbitQueue("payment-orders");          // ← was ListenToAzureServiceBusSubscription("payment-orders-sub", c => c.TopicName = "order-events")
 
 // What does NOT change — transport-agnostic:
 opts.PersistMessagesWithSqlServer(db, "wolverine");  // outbox = DB concern
@@ -203,10 +207,11 @@ opts.AddNextAuroraContextPropagation();              // correlation/user/session
 ```
 
 **Implications:**
-- `Wolverine.RabbitMQ` added to `Directory.Packages.props`.
-- Each event-publishing service's `Program.cs` transport block branches on
-  environment: ASB emulator in `Development`, RabbitMQ in deployed. Topic→
-  exchange, subscription→queue mapping.
+- `WolverineFx.RabbitMQ` + `Aspire.Hosting.RabbitMQ` added; `WolverineFx.AzureServiceBus`
+  + `Aspire.Hosting.Azure.ServiceBus` removed.
+- Each service's `Program.cs` uses RabbitMQ unconditionally (topic→exchange,
+  subscription→queue mapping); the AppHost provisions a single RabbitMQ container with the
+  management UI. Same `messaging` connection-string name.
 - The transactional outbox is **unaffected** — it's a DB concern
   (`PersistMessagesWith{SqlServer|Postgresql}`, which per D1 is SqlServer for
   Order+Payment, Postgresql for Catalog+Shipping), independent of the wire
@@ -452,8 +457,8 @@ Existing CatalogService Fly demo (separate ledger): ~$0–$5/mo (scale-to-zero, 
 
 ## Prerequisites before any phase starts
 
-- [x] D3 sub-point confirmed (2026-05-27): RabbitMQ-deployed-only — dev keeps
-      the ASB emulator, transport branches on environment config
+- [x] D3 resolved (2026-06-17): RabbitMQ in every environment (dev/CI/Hetzner);
+      Azure Service Bus evaluated and removed
 - [ ] Hetzner account + billing alert set
 - [ ] GHCR access token for Dokploy's image pulls
 - [ ] Domain/subdomain for the demo (for Traefik routing + Let's Encrypt)

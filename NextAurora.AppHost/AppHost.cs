@@ -34,49 +34,14 @@ var shippingDb = builder.AddPostgres("shipping-pg")
 // once we wire it (architecture.md "Future Considerations").
 var redis = builder.AddRedis("cache");
 
-// --- Messaging broker (config-selectable: Messaging:Transport = rabbitmq | azureservicebus) ---
-// RabbitMQ is the DEFAULT: it's the deployed (Hetzner) broker, runs cleanly as a single container
-// with a management UI, and — unlike the ASB emulator — works end-to-end locally. Azure Service
-// Bus is opt-in; its real target is Azure (the local emulator has known limitations, see #148).
-// Wolverine abstracts the broker, so each service's Program.cs branches on the same Messaging:
-// Transport flag. The connection string is exposed under "messaging" for whichever broker wins.
-// See CLAUDE.md + docs/full-saga-deployment-plan.md (D3).
-var messagingTransport = builder.Configuration["Messaging:Transport"] ?? "rabbitmq";
-var useAzureServiceBus = string.Equals(messagingTransport, "azureservicebus", StringComparison.OrdinalIgnoreCase);
-
-IResourceBuilder<IResourceWithConnectionString> messaging;
-if (useAzureServiceBus)
-{
-    // Azure Service Bus emulator (Aspire 13 needs explicit .RunAsEmulator()). Topic/subscription
-    // topology declared here; subscription naming `{consumer}-{source-events}-sub` (globally unique
-    // within the namespace). Must match each service's ListenToAzureServiceBusSubscription("{sub}",
-    // c => c.TopicName = "{topic}") — separate args, NOT a combined "{topic}/{sub}" string. See #148.
-    var serviceBus = builder.AddAzureServiceBus("messaging").RunAsEmulator();
-
-    var orderEventsTopic = serviceBus.AddServiceBusTopic("order-events");
-    orderEventsTopic.AddServiceBusSubscription("payment-orders-sub");      // PaymentService consumes
-    orderEventsTopic.AddServiceBusSubscription("notify-orders-sub");       // NotificationService consumes
-
-    var paymentEventsTopic = serviceBus.AddServiceBusTopic("payment-events");
-    paymentEventsTopic.AddServiceBusSubscription("order-payments-sub");    // OrderService consumes
-    paymentEventsTopic.AddServiceBusSubscription("shipping-payments-sub"); // ShippingService consumes
-    paymentEventsTopic.AddServiceBusSubscription("notify-payments-sub");   // NotificationService consumes
-
-    var shippingEventsTopic = serviceBus.AddServiceBusTopic("shipping-events");
-    shippingEventsTopic.AddServiceBusSubscription("order-shipping-sub");   // OrderService consumes
-    shippingEventsTopic.AddServiceBusSubscription("notify-shipping-sub");  // NotificationService consumes
-
-    serviceBus.AddServiceBusQueue("send-notification");                    // direct command queue
-
-    messaging = serviceBus;
-}
-else
-{
-    // RabbitMQ: one container + the management UI (a demo artifact at :15672). Wolverine declares
-    // the exchanges/queues/bindings itself via AutoProvision against the live broker, so no
-    // hand-declared topology is needed here (contrast the ASB branch above).
-    messaging = builder.AddRabbitMQ("messaging").WithManagementPlugin();
-}
+// --- Messaging broker: RabbitMQ ---
+// One container + the management UI (a demo artifact at :15672). Wolverine declares the
+// exchanges/queues/bindings itself via AutoProvision against the live broker, so no topology is
+// hand-declared here. RabbitMQ is also the deployed broker (Hetzner) — dev/prod parity. The
+// connection string is exposed under "messaging". The transport could be swapped to Azure Service
+// Bus later (~5-line Wolverine block per service); it was removed because the ASB emulator can't run
+// the saga locally and there's no Azure deployment today. See CLAUDE.md + docs/full-saga-deployment-plan.md (D3) + #148.
+var messaging = builder.AddRabbitMQ("messaging").WithManagementPlugin();
 
 // Application Insights only when running in Publish mode (i.e. real deploys to Azure).
 // Aspire 13 has no local emulator for App Insights — keeping this in for local dev causes
@@ -127,21 +92,12 @@ var catalogService = WithOptionalAppInsights(
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
     .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin);
 
-// Wires a Wolverine service to the selected broker: connection-string reference + WaitFor (Aspire 13
-// needs an explicit WaitFor for health) + the Messaging:Transport flag so the service picks the
-// matching transport branch in its Program.cs. For the ASB *emulator* only, also disable Wolverine
-// AutoProvision — its subscription admin endpoints return HTTP 500 (see #148). RabbitMQ keeps
-// AutoProvision on and provisions its exchanges/queues against the live broker. See CLAUDE.md.
+// Wires a Wolverine service to RabbitMQ: connection-string reference + WaitFor (Aspire 13 needs an
+// explicit WaitFor for health). Wolverine AutoProvisions its exchanges/queues against the live
+// broker at startup. See CLAUDE.md.
 IResourceBuilder<ProjectResource> WithMessaging(IResourceBuilder<ProjectResource> project)
 {
-    project = project.WithReference(messaging).WaitFor(messaging)
-        .WithEnvironment("Messaging__Transport", messagingTransport);
-    if (useAzureServiceBus)
-    {
-        project = project.WithEnvironment("Wolverine__AutoProvision", "false");
-    }
-
-    return project;
+    return project.WithReference(messaging).WaitFor(messaging);
 }
 
 // OrderService also references catalogService — that gives it the gRPC client config to call

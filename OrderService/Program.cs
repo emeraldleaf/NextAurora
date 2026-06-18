@@ -7,7 +7,6 @@ using OrderService.Infrastructure;
 using OrderService.Infrastructure.Data;
 using Scalar.AspNetCore;
 using Wolverine;
-using Wolverine.AzureServiceBus;
 using Wolverine.RabbitMQ;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
@@ -21,42 +20,27 @@ builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
 
-    // Channel names shared across both transport branches (ASB topic == RabbitMQ exchange).
+    // Channel names (RabbitMQ fanout exchanges).
     const string orderEvents = "order-events";
     const string paymentEvents = "payment-events";
     const string shippingEvents = "shipping-events";
 
-    // Messaging transport is config-selectable via Messaging:Transport: RabbitMQ (default — local
-    // dev, CI, and the Hetzner deployment) or Azure Service Bus (Azure deployments). Wolverine
-    // abstracts the broker, so ONLY this block differs between transports — handlers, the outbox,
-    // idempotency, and the saga are identical. RabbitMQ maps ASB topics → fanout exchanges and ASB
-    // subscriptions → queues bound to them. See CLAUDE.md + docs/full-saga-deployment-plan.md (D3).
-    var transport = builder.Configuration["Messaging:Transport"] ?? "rabbitmq";
-    if (string.Equals(transport, "azureservicebus", StringComparison.OrdinalIgnoreCase))
+    // RabbitMQ transport (local dev, CI, and the Hetzner deployment). Wolverine declares the
+    // exchanges/queues/bindings via AutoProvision against the live broker: this service's published
+    // events go to a fanout exchange, and each consumed subscription is a queue bound to its source
+    // exchange. AutoProvision is gated (default on) so it's OFF for integration tests, which stub the
+    // transport and would otherwise block on the fake connection string. See CLAUDE.md.
+    var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString));
+    if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
-        var azureServiceBus = opts.UseAzureServiceBus(connectionString);
-        // AutoProvision uses the ASB management API. Gate it (default true) so it's OFF for
-        // integration tests (fake connection string would hang) but ON for real Azure. See CLAUDE.md.
-        if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
-        {
-            azureServiceBus.AutoProvision();
-        }
-        opts.PublishMessage<OrderPlacedEvent>().ToAzureServiceBusTopic(orderEvents);
-        opts.ListenToAzureServiceBusSubscription("order-payments-sub", c => c.TopicName = paymentEvents);
-        opts.ListenToAzureServiceBusSubscription("order-shipping-sub", c => c.TopicName = shippingEvents);
+        rabbit.AutoProvision();
     }
-    else
-    {
-        // RabbitMQ auto-provisions against a real broker (no emulator limitations). Declare the
-        // exchange we publish to as fanout, and bind each queue we consume to its source exchange.
-        var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString)).AutoProvision();
-        rabbit.DeclareExchange(orderEvents, e => e.ExchangeType = ExchangeType.Fanout);
-        rabbit.BindExchange(paymentEvents, ExchangeType.Fanout).ToQueue("order-payments");
-        rabbit.BindExchange(shippingEvents, ExchangeType.Fanout).ToQueue("order-shipping");
-        opts.PublishMessage<OrderPlacedEvent>().ToRabbitExchange(orderEvents);
-        opts.ListenToRabbitQueue("order-payments");
-        opts.ListenToRabbitQueue("order-shipping");
-    }
+    rabbit.DeclareExchange(orderEvents, e => e.ExchangeType = ExchangeType.Fanout);
+    rabbit.BindExchange(paymentEvents, ExchangeType.Fanout).ToQueue("order-payments");
+    rabbit.BindExchange(shippingEvents, ExchangeType.Fanout).ToQueue("order-shipping");
+    opts.PublishMessage<OrderPlacedEvent>().ToRabbitExchange(orderEvents);
+    opts.ListenToRabbitQueue("order-payments");
+    opts.ListenToRabbitQueue("order-shipping");
 
     // Transactional outbox: persist outgoing messages to SQL Server in the same
     // transaction as the entity write, then dispatch via background flush.

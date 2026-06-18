@@ -14,7 +14,6 @@
          StreamJsonRpc ships with MessagePack >= 2.5.301. -->
     <PackageVersion Include="MessagePack" Version="2.5.301" />
     <PackageVersion Include="Aspire.Hosting.Azure.ApplicationInsights" Version="13.3.0" />
-    <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="13.3.0" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.3.0" />
     <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.3.0" />
     <PackageVersion Include="Aspire.Hosting.Redis" Version="13.3.0" />
@@ -37,7 +36,6 @@
          ServiceDefaults so it flows to every Wolverine service. Production alternative: pre-generated
          static codegen (TypeLoadMode.Static) — deferred. See https://wolverinefx.net/guide/codegen.html. -->
     <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.8.0" />
-    <PackageVersion Include="WolverineFx.AzureServiceBus" Version="6.8.0" />
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.8.0" />
     <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="6.8.0" />
     <PackageVersion Include="WolverineFx.FluentValidation" Version="6.8.0" />
