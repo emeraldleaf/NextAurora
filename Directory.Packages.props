@@ -28,7 +28,6 @@
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.0.0" />
 
     <!-- Messaging -->
-    <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
     <PackageVersion Include="WolverineFx" Version="6.8.0" />
     <!-- Wolverine 6 split the runtime Roslyn code generator out of core (GH-2876). Without it,
          the host throws at startup in the default TypeLoadMode.Dynamic. This package auto-registers

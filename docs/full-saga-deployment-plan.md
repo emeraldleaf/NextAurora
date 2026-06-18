@@ -157,24 +157,19 @@ egress. RabbitMQ over NATS because it maps cleanly onto the existing Azure
 Service Bus topic/subscription topology (exchanges + queues), Wolverine has a
 first-class RabbitMQ transport, and the management UI is a nice demo artifact.
 
-**Resolved (updated 2026-06-16): RabbitMQ is the default in *every* environment —
-dev, CI, and deployed — selected via `Messaging:Transport` (default `rabbitmq`);
-Azure Service Bus is opt-in (`=azureservicebus`).** The original plan kept the ASB
-emulator in dev "to leave the working dev setup untouched" — but that premise proved
-false: the ASB **emulator never actually ran the saga** (its subscription admin
-endpoints return HTTP 500, and Wolverine's system queues can't auto-provision against
-it; full arc in #148). RabbitMQ, by contrast, runs as one clean container,
-AutoProvisions against the live broker, and the **full saga flows locally** (verified
-end-to-end: order → `Shipped` in seconds). Flipping to RabbitMQ-everywhere — which
-this plan always said was available "for ~free" — buys a working local saga **and**
-dev/prod parity, and retires the emulator pain.
-
-**Update (2026-06-17): the ASB transport code was *removed*, not kept as a dormant option.**
-Per the codebase's anti-carry-debt rule, a second transport wiring that runs nowhere (the local
-emulator can't run the saga, and there's no Azure deployment) is speculative coupling, not
-optionality. Wolverine still abstracts the broker, so the transport-agnostic claim holds — the
-proof is that re-adding ASB is the same ~5-line block per service (shown below), in git history,
-and in this decision. Re-add it the day Azure becomes a real target.
+**Resolved (2026-06-17): RabbitMQ in *every* environment — dev, CI, and deployed (no config
+switch; services call `UseRabbitMq(...)` unconditionally).** The original plan kept the ASB
+emulator in dev "to leave the working dev setup untouched" — but that premise proved false: the
+ASB **emulator never actually ran the saga** (its subscription admin endpoints return HTTP 500,
+and Wolverine's system queues can't auto-provision against it; full arc in #148). RabbitMQ, by
+contrast, runs as one clean container, AutoProvisions against the live broker, and the **full saga
+flows locally** — verified end-to-end (order → `Shipped` in seconds), giving a working local saga
+**and** dev/prod parity. An interim step made the transport config-selectable to prove RabbitMQ
+out; the ASB wiring was then **removed entirely**, not kept as a dormant option — per the
+codebase's anti-carry-debt rule, a second transport that runs nowhere is speculative coupling, not
+optionality. Wolverine still abstracts the broker, so the transport-agnostic claim holds: re-adding
+ASB is the same ~5-line block per service (shown below + in git history). Re-add it the day Azure
+becomes a real target.
 
 **RabbitMQ licensing (verified 2026-05-27):** the core broker is **MPL 2.0,
 free and open-source, self-host at no cost, no vendor lock-in.** Broadcom's
