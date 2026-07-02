@@ -319,8 +319,9 @@ with stubbed Stripe.
 - [ ] Banner in Storefront: *"Payments are stubbed for demo safety"*
 
 **Risk callouts.**
-- RabbitMQ topology — confirm exchanges/queues match the saga's event routing
-  (the old ASB topic/subscription names map to RabbitMQ exchanges/queues).
+- RabbitMQ topology — verified locally (live saga: order → Shipped in seconds);
+  confirm the deployed broker gets the same exchanges/queues via Wolverine
+  AutoProvision (the old ASB topic/subscription names map to exchanges/queues).
 - Box load with all 5 services + infra running — watch RAM/CPU headroom.
 
 **Definition of done.** Place an order, watch it flow Payment (stubbed) →

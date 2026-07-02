@@ -563,34 +563,34 @@ Read paths never load tracked entities (would over-read columns + materialize en
 
 NextAurora is built transport-agnostic via Wolverine — handlers depend on `IMessageBus` and `Envelope`, not on transport-specific types. So the broker choice (RabbitMQ today) does not lock the app in. One possible production target is **Amazon Web Services**, with **SNS + SQS** as the messaging backbone (the active plan, however, is Hetzner + RabbitMQ).
 
-### Why SNS + SQS over RabbitMQ
+### Why SNS + SQS (not self-managed RabbitMQ) on AWS
 
-A common confusion: "AWS deployment" doesn't imply RabbitMQ. The AWS-native equivalent of Azure Service Bus is the SNS + SQS pair — SNS provides the publish-subscribe topic surface; SQS provides per-subscriber queues.
+If the target is AWS, the cloud-native equivalent of the fanout-exchange / per-consumer-queue model is the SNS + SQS pair — SNS provides the publish-subscribe topic surface; SQS provides per-subscriber queues.
 
 | Concern | Recommended | Alternative | Notes |
 |---|---|---|---|
 | Topic + per-subscriber queues | SNS topic → SQS queues | RabbitMQ on Amazon MQ | SNS+SQS is fully managed, IAM/VPC/CloudWatch native, pay-per-message. |
-| Cross-cloud portability | — | RabbitMQ on Amazon MQ | Pick this only if running the same broker on AWS, Azure, GCP, on-prem matters more than first-class AWS integration. |
+| Cross-cloud portability / dev-prod parity | — | RabbitMQ on Amazon MQ | Pick this to keep the exact broker the app runs today (managed RabbitMQ — the smallest possible migration). |
 | Event-streaming workloads | Amazon MSK (Kafka) | — | Out of scope for our saga model — different mental model (log-based). |
-| Higher-level event routing | Amazon EventBridge | — | Wolverine support is limited; not a fit for the per-subscription idempotency model we use. |
+| Higher-level event routing | Amazon EventBridge | — | Wolverine support is limited; not a fit for the per-consumer idempotency model we use. |
 
 ### 1:1 topology mapping
 
-| NextAurora today (Azure) | AWS equivalent |
+| NextAurora today (RabbitMQ) | AWS equivalent |
 |---|---|
-| Topic `order-events` | SNS topic `order-events` |
-| Subscription `payment-orders-sub` | SQS queue `payment-orders-sub` (subscribed to the topic) |
-| Subscription `notify-orders-sub` | SQS queue `notify-orders-sub` (subscribed to the topic) |
-| Topic `payment-events` + 3 subs | SNS topic + 3 SQS queues |
-| Topic `shipping-events` + 2 subs | SNS topic + 2 SQS queues |
+| Fanout exchange `order-events` | SNS topic `order-events` |
+| Queue `payment-orders` (bound to it) | SQS queue `payment-orders` (subscribed to the topic) |
+| Queue `notify-orders` (bound to it) | SQS queue `notify-orders` (subscribed to the topic) |
+| Exchange `payment-events` + 3 queues | SNS topic + 3 SQS queues |
+| Exchange `shipping-events` + 2 queues | SNS topic + 2 SQS queues |
 | Queue `send-notification` | SQS queue `send-notification` (no SNS needed; direct send) |
 
 Idempotency, dead-letter handling, and the transactional outbox all behave the same — Wolverine implements them at the framework level.
 
 ### What changes during the swap
 
-- **`AppHost.cs`** — In production, infrastructure usually lives outside Aspire (Terraform/CDK/CloudFormation). The Aspire-driven `AddAzureServiceBus(...).RunAsEmulator()` exists only for local dev.
-- **Each service's `Program.cs`** — `opts.UseAzureServiceBus(...)` becomes `opts.UseAmazonSqs(...)` (and SNS publishing config). The package reference swap is `WolverineFx.AzureServiceBus` → `WolverineFx.AmazonSqs`.
+- **`AppHost.cs`** — In production, infrastructure usually lives outside Aspire (Terraform/CDK/CloudFormation). The Aspire-driven `AddRabbitMQ("messaging")` exists only for local dev.
+- **Each service's `Program.cs`** — `opts.UseRabbitMq(...)` becomes `opts.UseAmazonSqs(...)` (and SNS publishing config). The package reference swap is `WolverineFx.RabbitMQ` → `WolverineFx.AmazonSqs`.
 - **Handlers and domain code** — zero changes. They read/write the same `Envelope.Headers`, the same `IMessageBus.PublishAsync(...)`. The `WolverineEventPublisher` adapter we already have is the seam.
 - **Database hosting** — Postgres → Amazon RDS for PostgreSQL or Aurora; SQL Server → RDS for SQL Server. EF Core providers stay the same.
 - **Identity** — Keycloak can run on ECS/EKS/EC2, or swap for **Amazon Cognito**. JWT validation in `ServiceDefaults` doesn't care which IdP issued the token, only that audience/issuer/signing match.
@@ -605,14 +605,14 @@ The entire Domain layer, the entire Application layer (handlers + commands + que
 Phased plan, smallest blast radius first. Each phase is independently shippable.
 
 **Phase 0 — Code swap (~half day, app-level changes only).** No infra yet; just prove the codebase compiles and tests pass against the Wolverine SQS transport.
-- Bump packages: `WolverineFx.AzureServiceBus` → `WolverineFx.AmazonSqs` in [Directory.Packages.props](../Directory.Packages.props) and the four service Api csprojs.
-- In each service's `Program.cs`: `opts.UseAzureServiceBus(connectionString)` → `opts.UseAmazonSqs(...)`. Topic publish: `PublishMessage<X>().ToAzureServiceBusTopic("foo")` → `.ToSnsTopic("foo")`. Subscription listen: `ListenToAzureServiceBusSubscription("bar", c => c.TopicName = "foo")` → `ListenToSqsQueue("bar")`.
-- Handlers, domain entities, DTOs, middleware, the `WolverineEventPublisher` adapter — all unchanged.
+- Bump packages: `WolverineFx.RabbitMQ` → `WolverineFx.AmazonSqs` in [Directory.Packages.props](../Directory.Packages.props) and the four service csprojs.
+- In each service's `Program.cs`: `opts.UseRabbitMq(...)` → `opts.UseAmazonSqs(...)`. Publish: `PublishMessage<X>().ToRabbitExchange("foo")` → `.ToSnsTopic("foo")`. Listen: `ListenToRabbitQueue("bar")` → `ListenToSqsQueue("bar")` (drop the `BindExchange(...).ToQueue(...)` declarations — SNS subscriptions replace the bindings).
+- Handlers, domain entities, DTOs, middleware — all unchanged.
 - Tests stay unit-level (no transport in unit tests). Add at least one integration test using LocalStack to exercise the new transport before going further.
 
 **Phase 1 — AWS infrastructure as code (~2-3 days).** Pure Terraform/CDK work, no app changes.
 - 3 SNS topics: `order-events`, `payment-events`, `shipping-events`.
-- 7 SQS queues mapping to today's subscriptions (`payment-orders-sub`, `notify-orders-sub`, `order-payments-sub`, `shipping-payments-sub`, `notify-payments-sub`, `order-shipping-sub`, `notify-shipping-sub`), each subscribed to its source SNS topic.
+- 7 SQS queues mapping to today's consumer queues (`payment-orders`, `notify-orders`, `order-payments`, `shipping-payments`, `notify-payments`, `order-shipping`, `notify-shipping`), each subscribed to its source SNS topic.
 - 1 standalone SQS queue: `send-notification` (NotificationService's direct queue, no SNS).
 - DLQ per queue with `maxReceiveCount` (~5).
 - IAM policies — each service gets a role with minimum-privilege publish/subscribe for the topics/queues it touches.

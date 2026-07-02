@@ -69,7 +69,7 @@ public sealed class ShippingApiFactory : WebApplicationFactory<Program>, IAsyncL
         ArgumentNullException.ThrowIfNull(builder);
 
         // Disable Wolverine AutoProvision — against the fake AMQP string it would hang trying to
-        // provision topics/subscriptions at startup. DisableAllExternalWolverineTransports
+        // provision exchanges/queues at startup. DisableAllExternalWolverineTransports
         // handles routing; this handles broker-provisioning, which runs earlier.
         builder.UseSetting("Wolverine:AutoProvision", "false");
 
