@@ -59,12 +59,6 @@ public static class Extensions
             http.AddServiceDiscovery();
         });
 
-        // Uncomment the following to restrict the allowed schemes for service discovery.
-        // builder.Services.Configure<ServiceDiscoveryOptions>(options =>
-        // {
-        //     options.AllowedSchemes = ["https"];
-        // });
-
         return builder;
     }
 
@@ -115,13 +109,6 @@ public static class Extensions
         {
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
-
-        // Uncomment the following lines to enable the Azure Monitor exporter (requires the Azure.Monitor.OpenTelemetry.AspNetCore package)
-        //if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
-        //{
-        //    builder.Services.AddOpenTelemetry()
-        //       .UseAzureMonitor();
-        //}
     }
 
     public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
@@ -234,12 +221,18 @@ public static class Extensions
             return;
         }
 
+        var requireHttpsMetadata = builder.Configuration.GetValue("Authentication:RequireHttpsMetadata", (bool?)null);
+        if (!requireHttpsMetadata.HasValue)
+        {
+            requireHttpsMetadata = authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+        }
+
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
                 options.Authority = authority;
                 options.Audience = builder.Configuration["Authentication:Audience"] ?? "nextaurora-api";
-                options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+                options.RequireHttpsMetadata = requireHttpsMetadata.Value;
                 options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
                 {
                     ValidateAudience = true,

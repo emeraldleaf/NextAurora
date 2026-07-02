@@ -59,9 +59,32 @@ public class ServiceDefaultsJwtTests
         options.TokenValidationParameters.ValidateLifetime.Should().BeTrue();
     }
 
-    private static IHost BuildHostWithAuthority()
+    [Fact]
+    public void AddServiceDefaults_WhenAuthorityUsesHttp_AllowsHttpMetadataForLocalKeycloak()
+    {
+        using var host = BuildHostWithAuthority("http://localhost:63935", environmentName: "Production");
+        var options = host.Services
+            .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+            .Get(JwtBearerDefaults.AuthenticationScheme);
+
+        options.RequireHttpsMetadata.Should().BeFalse();
+    }
+
+    [Fact]
+    public void AddServiceDefaults_WhenAuthorityUsesHttps_RequiresHttpsMetadata()
+    {
+        using var host = BuildHostWithAuthority("https://login.example.test", environmentName: "Production");
+        var options = host.Services
+            .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+            .Get(JwtBearerDefaults.AuthenticationScheme);
+
+        options.RequireHttpsMetadata.Should().BeTrue();
+    }
+
+    private static IHost BuildHostWithAuthority(string? authServerUrl = "https://example.keycloak.test", string environmentName = "Development")
     {
         var builder = Host.CreateApplicationBuilder();
+        builder.Environment.EnvironmentName = environmentName;
 
         // AddDefaultAuthentication branches on whether an authority is configured.
         // With one, it wires AddJwtBearer with the TokenValidationParameters we're
@@ -71,7 +94,7 @@ public class ServiceDefaultsJwtTests
         // see AddDefaultAuthentication; resolves to https://example.keycloak.test/realms/nextaurora.
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            ["Keycloak:AuthServerUrl"] = "https://example.keycloak.test",
+            ["Keycloak:AuthServerUrl"] = authServerUrl,
             ["Keycloak:Realm"] = "nextaurora",
         });
 
