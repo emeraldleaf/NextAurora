@@ -491,6 +491,21 @@ reviews:
         in PR #N" or "docs/diagram updated in tracking issue #N, this PR ships
         the code only because [reason]."
 
+    - path: "NextAurora.AppHost/realms/*.json"
+      instructions: |
+        AUTH CONFIG LIVES ON THREE SURFACES — a change on one alone breaks OIDC
+        silently. When client `redirectUris`, `webOrigins`, `post.logout.redirect.uris`,
+        or client/host ports change here, verify the mirrors move in the same PR:
+          - AppHost.cs: `SpaDevOrigin` (CORS origins injected into services) and the
+            pinned Keycloak/Storefront/SellerPortal ports (redirect URIs are exact-match).
+          - `frontend/.env*` / `frontend/src/core/env.ts`: VITE_KEYCLOAK_URL + client id.
+        Also: token-policy fields (accessTokenLifespan, revokeRefreshToken,
+        refreshTokenMaxReuse, ssoSession*) are pinned EXPLICITLY per CLAUDE.md
+        "Keycloak token policy" — flag a PR that removes them (falling back to
+        version-dependent Keycloak defaults) or changes accessTokenLifespan without
+        updating the ClockSkew rationale in Extensions.cs + CLAUDE.md. Realm changes
+        need a local Keycloak re-import; the PR description should say so.
+
     - path: "NextAurora.ServiceDefaults/Extensions.cs"
       instructions: |
         SERVICE-REQUEST-FLOW DOC PAIRING (CLAUDE.md "Doc-and-diagram discipline").

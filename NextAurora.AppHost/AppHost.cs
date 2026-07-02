@@ -12,6 +12,8 @@ using Aspire.Hosting.Azure;
 // There's no service-discovery magic guessing what to wire — if Order needs gRPC to Catalog,
 // it's stated here. That makes it easy to reason about what runs in any environment.
 
+const string keycloakHostname = "http://localhost:8080/";
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // --- Infrastructure: databases, cache, messaging, identity, telemetry ---
@@ -56,7 +58,8 @@ if (builder.ExecutionContext.IsPublishMode)
 
 // Keycloak runs as a container. The realm definition is imported from a JSON file so the
 // dev environment always boots with the same users/clients/roles configured.
-var keycloak = builder.AddKeycloakContainer("keycloak")
+var keycloak = builder.AddKeycloakContainer("keycloak", port: 8080)
+    .WithHostname(keycloakHostname)
     .WithImport("./realms/nextaurora-realm.json");
 
 var realm = keycloak.AddRealm("nextaurora-realm", "nextaurora");
@@ -83,7 +86,7 @@ static IResourceBuilder<ProjectResource> WithOptionalAppInsights(
 // Origin of the Vite-served React SPA in local dev. Injected only into the services the
 // browser calls directly (Catalog, Order, Shipping) — ServiceDefaults registers the CORS
 // policy only when this is present. Payment/Notification have no browser-facing surface.
-const string SpaDevOrigin = "http://localhost:5173";
+const string SpaDevOrigin = "http://localhost:5173;http://127.0.0.1:5173";
 
 var catalogService = WithOptionalAppInsights(
     builder.AddProject<Projects.CatalogService>("catalog-service")
@@ -130,14 +133,17 @@ WithMessaging(WithOptionalAppInsights(
 // outside the Aspire-internal network.
 builder.AddProject<Projects.Storefront>("storefront")
     .WithExternalHttpEndpoints()
+    .WithHttpEndpoint(port: 5079, targetPort: 5079, isProxied: false)
+    .WithHttpsEndpoint(port: 7088, targetPort: 7088, isProxied: false)
     .WithReference(catalogService)
     .WithReference(orderService)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
 builder.AddProject<Projects.SellerPortal>("seller-portal")
     .WithExternalHttpEndpoints()
+    .WithHttpEndpoint(port: 5177, targetPort: 5177, isProxied: false)
     .WithReference(catalogService)
     .WithReference(orderService)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
-builder.Build().Run();
+await builder.Build().RunAsync();
