@@ -300,25 +300,49 @@ OpenAPI specs reveal the full API shape — endpoints, schemas, auth requirement
 
 ## 7. Authentication — Keycloak + JWT Bearer
 
-Identity provider is **Keycloak**, an Aspire-managed container in local dev. JWT Bearer authentication is wired in [NextAurora.ServiceDefaults/Extensions.cs:153](../NextAurora.ServiceDefaults/Extensions.cs#L153) via `AddJwtBearerAuthentication()`:
+Identity provider is **Keycloak**, an Aspire-managed container in local dev. JWT Bearer authentication is wired in [NextAurora.ServiceDefaults/Extensions.cs](../NextAurora.ServiceDefaults/Extensions.cs) (`AddDefaultAuthentication`):
 
 ```csharp
+// RequireHttpsMetadata is FAIL-CLOSED outside Development: an http authority in Production
+// fails loudly at options resolution (framework guard) instead of silently fetching OIDC
+// metadata + JWKS over plaintext. Explicit opt-out: Authentication:RequireHttpsMetadata=false
+// (logged as a warning) for legitimate internal-http deployments.
+var requireHttpsMetadata = builder.Configuration.GetValue("Authentication:RequireHttpsMetadata", (bool?)null)
+    ?? (authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+        || !builder.Environment.IsDevelopment());
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.Authority = authority;  // Keycloak URL
         options.Audience = builder.Configuration["Authentication:Audience"] ?? "nextaurora-api";
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.RequireHttpsMetadata = requireHttpsMetadata;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateAudience = true,
             ValidateIssuer = true,
             ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,          // explicit — auditable posture
+            ClockSkew = TimeSpan.FromSeconds(30),     // default 5 min would double a 5-min token's life
             NameClaimType = "preferred_username",
             RoleClaimType = "realm_access.roles",
         };
     });
 ```
+
+### Token policy (pinned explicitly in the realm)
+
+`nextaurora-realm.json` pins the Keycloak token policy instead of riding version-dependent
+defaults — same explicit-over-implicit posture as `ValidateIssuerSigningKey`/`ClockSkew` above:
+
+| Setting | Value | Why |
+|---|---|---|
+| `accessTokenLifespan` | 300 (5 min) | Short-lived access tokens; a leaked token dies fast. Pairs with the 30s ClockSkew (the default 5-min skew would double the effective lifetime). |
+| `revokeRefreshToken` + `refreshTokenMaxReuse: 0` | rotation, single-use | Every refresh mints a new refresh token and kills the old one — a stolen refresh token dies on the next legitimate renewal. The SPA's `automaticSilentRenew` (oidc-client-ts) handles rotation transparently. |
+| `ssoSessionIdleTimeout` | 1800 (30 min) | Refresh window tied to the SSO session — idle sessions can't renew forever. |
+| `ssoSessionMaxLifespan` | 36000 (10 h) | Hard ceiling per login regardless of activity. |
+
+Realm changes require a Keycloak re-import locally (fresh container/volume) to take effect.
 
 ### Why Keycloak
 

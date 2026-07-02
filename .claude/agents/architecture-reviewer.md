@@ -82,7 +82,8 @@ Specific bug-classes that have bitten this repo before. When the target file mat
 ### When reviewing `NextAurora.ServiceDefaults/**/*.cs`
 
 - **HTTP middleware order** in `MapDefaultEndpoints` must be: `UseExceptionHandler` → `UseAuthentication` → `CorrelationIdMiddleware` → `UseAuthorization`. Any other order is a regression — see CLAUDE.md "Observability".
-- **JWT `TokenValidationParameters`** explicit `ValidateIssuerSigningKey = true` AND `ClockSkew = TimeSpan.FromSeconds(30)` (NOT the 5-minute default). Default ClockSkew is a security regression on short-lived tokens.
+- **JWT `TokenValidationParameters`** explicit `ValidateIssuerSigningKey = true` AND `ClockSkew = TimeSpan.FromSeconds(30)` (NOT the 5-minute default). Default ClockSkew is a security regression on short-lived tokens — the realm pins 5-minute access tokens, so the default skew would double their effective lifetime.
+- **`RequireHttpsMetadata` fail-closed (Must-fix on a permissive default).** It may resolve to `false` only in Development or via the explicit `Authentication:RequireHttpsMetadata=false` config key (which must log a warning). Flag any change that derives it silently from the authority's URL scheme (or anything else) outside Development — an http authority in Production must fail loudly at startup, not silently fetch OIDC metadata/JWKS over plaintext (an active MITM could inject signing keys and forge tokens every service accepts). Fail-open-on-misconfiguration is the regression class; the explicit opt-out key already covers every legitimate internal-http deployment.
 - **`GlobalExceptionHandler` traceId** uses `Activity.Current?.TraceId.ToString()`, NOT `Activity.Current?.Id` (which leaks the span ID in the W3C traceparent).
 - **No exception message leak.** Response body never contains `ex.Message`, `ex.StackTrace`, `ex.ToString()`.
 
