@@ -59,12 +59,6 @@ public static class Extensions
             http.AddServiceDiscovery();
         });
 
-        // Uncomment the following to restrict the allowed schemes for service discovery.
-        // builder.Services.Configure<ServiceDiscoveryOptions>(options =>
-        // {
-        //     options.AllowedSchemes = ["https"];
-        // });
-
         return builder;
     }
 
@@ -115,13 +109,6 @@ public static class Extensions
         {
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
-
-        // Uncomment the following lines to enable the Azure Monitor exporter (requires the Azure.Monitor.OpenTelemetry.AspNetCore package)
-        //if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
-        //{
-        //    builder.Services.AddOpenTelemetry()
-        //       .UseAzureMonitor();
-        //}
     }
 
     public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
@@ -234,12 +221,36 @@ public static class Extensions
             return;
         }
 
+        // RequireHttpsMetadata is fail-closed outside Development. An http authority in
+        // Production must fail LOUDLY at startup, not silently fetch OIDC discovery + JWKS
+        // over plaintext (an active MITM could inject signing keys and forge tokens every
+        // service would accept). The explicit Authentication:RequireHttpsMetadata=false key
+        // is the auditable opt-out for legitimate internal-http deployments (e.g. Keycloak
+        // behind a service mesh); the default derives it only for local dev. See CLAUDE.md.
+        var requireHttpsMetadata = builder.Configuration.GetValue("Authentication:RequireHttpsMetadata", (bool?)null);
+        if (!requireHttpsMetadata.HasValue)
+        {
+            requireHttpsMetadata = authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                || !builder.Environment.IsDevelopment();
+        }
+
+        if (!requireHttpsMetadata.Value)
+        {
+            // An opt-out (derived or explicit) should be visible in the app's logs, never
+            // silent. PostConfigure runs when the options are first resolved, after the DI
+            // logging pipeline exists — so this lands in the real log stream, not a side channel.
+            builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+                .PostConfigure<ILoggerFactory>((_, loggerFactory) =>
+                    loggerFactory.CreateLogger("NextAurora.ServiceDefaults.Authentication")
+                        .LogWarning("JWT bearer RequireHttpsMetadata is DISABLED (authority: {Authority}) — OIDC metadata/JWKS are fetched without TLS. Acceptable for local dev only.", authority));
+        }
+
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
                 options.Authority = authority;
                 options.Audience = builder.Configuration["Authentication:Audience"] ?? "nextaurora-api";
-                options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+                options.RequireHttpsMetadata = requireHttpsMetadata.Value;
                 options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
                 {
                     ValidateAudience = true,
@@ -251,9 +262,10 @@ public static class Extensions
                     // change from accidentally disabling signature validation.
                     ValidateIssuerSigningKey = true,
                     // Default ClockSkew is 5 minutes — revoked/expired tokens remain
-                    // accepted for 5 extra minutes, which is material on a 15-minute
-                    // access-token lifetime. 30 seconds covers reasonable inter-server
-                    // clock drift without giving attackers a long replay window.
+                    // accepted for 5 extra minutes. The realm pins 5-MINUTE access tokens
+                    // (nextaurora-realm.json accessTokenLifespan: 300), so the default skew
+                    // would double every token's effective lifetime. 30 seconds covers
+                    // reasonable inter-server clock drift without a long replay window.
                     ClockSkew = TimeSpan.FromSeconds(30),
                     NameClaimType = "preferred_username",
                     RoleClaimType = "realm_access.roles",
