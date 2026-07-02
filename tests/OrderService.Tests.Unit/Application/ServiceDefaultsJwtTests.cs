@@ -38,9 +38,10 @@ public class ServiceDefaultsJwtTests
             .Get(JwtBearerDefaults.AuthenticationScheme);
 
         // Default ClockSkew is 5 minutes — revoked/expired tokens stay accepted for
-        // 5 extra minutes, material on typical 15-minute access-token lifetimes. We
-        // pin 30 seconds: covers inter-server clock drift without giving attackers a
-        // long replay window.
+        // 5 extra minutes. The realm pins 5-MINUTE access tokens (nextaurora-realm.json
+        // accessTokenLifespan: 300), so the default skew would double every token's
+        // effective lifetime. We pin 30 seconds: covers inter-server clock drift
+        // without giving attackers a long replay window.
         options.TokenValidationParameters.ClockSkew.Should().Be(TimeSpan.FromSeconds(30));
     }
 
@@ -60,28 +61,88 @@ public class ServiceDefaultsJwtTests
     }
 
     [Fact]
-    public void AddServiceDefaults_WhenAuthorityUsesHttp_AllowsHttpMetadataForLocalKeycloak()
+    public void AddServiceDefaults_WhenAuthorityUsesHttpInDevelopment_AllowsHttpMetadata()
     {
-        using var host = BuildHostWithAuthority("http://localhost:63935", environmentName: "Production");
+        // ARRANGE — an http authority in Development: the local Aspire Keycloak container
+        // serves plain http, and this is the ONLY environment where deriving "http is fine"
+        // is safe. Without this carve-out, every local run fails OIDC discovery at startup.
+        using var host = BuildHostWithAuthority("http://localhost:63935", environmentName: "Development");
+
+        // ACT — resolve the JwtBearer options AddDefaultAuthentication configured.
         var options = host.Services
             .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme);
 
+        // ASSERT — http metadata is permitted, so local dev works with no config override.
         options.RequireHttpsMetadata.Should().BeFalse();
+    }
+
+    [Fact]
+    public void AddServiceDefaults_WhenAuthorityUsesHttpOutsideDevelopment_RequiresHttpsMetadata()
+    {
+        // ARRANGE — an http authority in Production. This is almost always a misconfiguration
+        // (env-var typo, proxy scheme rewrite), and the SECURITY-CRITICAL behavior is failing
+        // CLOSED: our default requires https metadata, and ASP.NET's own JwtBearer guard then
+        // REFUSES the http authority outright — a loud InvalidOperationException instead of
+        // silently fetching OIDC discovery + JWKS over plaintext, where an active MITM could
+        // inject signing keys and forge tokens every service accepts.
+        using var host = BuildHostWithAuthority("http://keycloak.internal", environmentName: "Production");
+
+        // ACT — resolving the JwtBearer options triggers the framework's post-configure guard.
+        var resolve = () => host.Services
+            .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+            .Get(JwtBearerDefaults.AuthenticationScheme);
+
+        // ASSERT — the broken config fails LOUDLY at options resolution (the framework guard:
+        // "The MetadataAddress or Authority must use HTTPS"). Legitimate internal-http
+        // deployments must opt out explicitly (see the override test below).
+        resolve.Should().Throw<InvalidOperationException>()
+            .WithMessage("*must use HTTPS*");
     }
 
     [Fact]
     public void AddServiceDefaults_WhenAuthorityUsesHttps_RequiresHttpsMetadata()
     {
+        // ARRANGE — the normal production shape: an https authority.
         using var host = BuildHostWithAuthority("https://login.example.test", environmentName: "Production");
+
+        // ACT — resolve the configured JwtBearer options.
         var options = host.Services
             .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme);
 
+        // ASSERT — https metadata required (trivially satisfied by an https authority; the
+        // assertion pins that nothing downgrades it).
         options.RequireHttpsMetadata.Should().BeTrue();
     }
 
-    private static IHost BuildHostWithAuthority(string? authServerUrl = "https://example.keycloak.test", string environmentName = "Development")
+    [Fact]
+    public void AddServiceDefaults_WhenExplicitOverrideFalse_AllowsHttpMetadataOutsideDevelopment()
+    {
+        // ARRANGE — the auditable escape hatch: Authentication:RequireHttpsMetadata=false set
+        // EXPLICITLY, with an http authority in Production. This is the one sanctioned path for
+        // legitimate internal-http deployments (e.g. Keycloak behind a service mesh where TLS
+        // terminates at the mesh boundary) — the operator states the intent in config, where a
+        // reviewer can see it, instead of the code deriving it silently.
+        using var host = BuildHostWithAuthority(
+            "http://keycloak.internal",
+            environmentName: "Production",
+            requireHttpsMetadataOverride: "false");
+
+        // ACT — resolve the configured JwtBearer options.
+        var options = host.Services
+            .GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+            .Get(JwtBearerDefaults.AuthenticationScheme);
+
+        // ASSERT — the explicit override wins over the fail-closed default. (A warning is
+        // logged at options resolution so the opt-out is visible in the log stream.)
+        options.RequireHttpsMetadata.Should().BeFalse();
+    }
+
+    private static IHost BuildHostWithAuthority(
+        string? authServerUrl = "https://example.keycloak.test",
+        string environmentName = "Development",
+        string? requireHttpsMetadataOverride = null)
     {
         var builder = Host.CreateApplicationBuilder();
         builder.Environment.EnvironmentName = environmentName;
@@ -92,11 +153,17 @@ public class ServiceDefaultsJwtTests
         // doesn't get configured. The authority is built from the keys the Aspire
         // Keycloak.AuthServices integration actually injects (AuthServerUrl + Realm) —
         // see AddDefaultAuthentication; resolves to https://example.keycloak.test/realms/nextaurora.
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
+        var settings = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Keycloak:AuthServerUrl"] = authServerUrl,
             ["Keycloak:Realm"] = "nextaurora",
-        });
+        };
+        if (requireHttpsMetadataOverride is not null)
+        {
+            settings["Authentication:RequireHttpsMetadata"] = requireHttpsMetadataOverride;
+        }
+
+        builder.Configuration.AddInMemoryCollection(settings);
 
         builder.AddServiceDefaults();
         return builder.Build();

@@ -34,11 +34,23 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     const onUnloaded = () => {
       setUser(null)
     }
+    // Keycloak rotates refresh tokens (revokeRefreshToken + refreshTokenMaxReuse: 0 in the
+    // realm), so any refresh-token reuse — a network retry mid-renew, a tab restored from
+    // bfcache — returns invalid_grant and kills the grant. Without this handler a failed
+    // silent renew leaves the app holding an expired session that every API call 401s
+    // against. Clearing the stored user flips isAuthenticated → false so the UI shows the
+    // login path instead of wedging.
+    const onSilentRenewError = () => {
+      void userManager.removeUser()
+      setUser(null)
+    }
     userManager.events.addUserLoaded(onLoaded)
     userManager.events.addUserUnloaded(onUnloaded)
+    userManager.events.addSilentRenewError(onSilentRenewError)
     return () => {
       userManager.events.removeUserLoaded(onLoaded)
       userManager.events.removeUserUnloaded(onUnloaded)
+      userManager.events.removeSilentRenewError(onSilentRenewError)
     }
   }, [])
 
