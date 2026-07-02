@@ -4,7 +4,7 @@
 		{
 			"label": "frontend-dev",
 			"type": "shell",
-			"command": "cd /Users/joshuadell/NovaCraft/frontend && npm run dev -- --host 127.0.0.1 --port 5173",
+			"command": "cd ${workspaceFolder}/frontend && npm run dev -- --host 127.0.0.1 --port 5173",
 			"isBackground": true,
 			"problemMatcher": []
 		}

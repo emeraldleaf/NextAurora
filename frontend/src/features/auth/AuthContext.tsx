@@ -40,7 +40,10 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     // silent renew leaves the app holding an expired session that every API call 401s
     // against. Clearing the stored user flips isAuthenticated → false so the UI shows the
     // login path instead of wedging.
-    const onSilentRenewError = () => {
+    const onSilentRenewError = (error: Error) => {
+      // Surface the cause (invalid_grant vs network vs IdP down) — a silent sign-out with
+      // no trace is undiagnosable in the field.
+      console.warn('Silent token renewal failed — clearing session', error)
       void userManager.removeUser()
       setUser(null)
     }
