@@ -777,7 +777,7 @@ builder.Services.AddOpenTelemetry()
         .AddMeter("NextAurora"))
     .WithTracing(t => t
         .AddSource(builder.Environment.ApplicationName)
-        .AddSource("Azure.Messaging.ServiceBus")
+        .AddSource("Wolverine")
         .AddSource("NextAurora.Messaging")
         .AddAspNetCoreInstrumentation(opts =>
             opts.Filter = ctx =>
@@ -975,7 +975,7 @@ Every project references packages **without versions**. Versions live in [Direct
 ```xml
 <!-- Directory.Packages.props -->
 <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
-<PackageVersion Include="WolverineFx" Version="5.36.2" />
+<PackageVersion Include="WolverineFx" Version="6.8.0" />
 ```
 
 ```xml
@@ -1036,9 +1036,9 @@ The full inventory of significant non-Microsoft libraries, what they do, why we 
 
 | Package | Version | Role | Why this, not [X] |
 |---|---|---|---|
-| **WolverineFx** | 5.36.2 | In-process CQRS dispatch + distributed async messaging + transactional outbox | Covers what **MediatR** (in-process CQRS — commercial since 2024) and **MassTransit** (distributed messaging — commercial in v9, GA Q1 2026) together do, in one MIT-licensed framework. The combined library + license story is the load-bearing reason |
+| **WolverineFx** | 6.8.0 | In-process CQRS dispatch + distributed async messaging + transactional outbox | Covers what **MediatR** (in-process CQRS — commercial since 2024) and **MassTransit** (distributed messaging — commercial in v9, GA Q1 2026) together do, in one MIT-licensed framework. The combined library + license story is the load-bearing reason |
 | **WolverineFx.RabbitMQ** | 6.8.0 | Wolverine transport for RabbitMQ | Broker in every environment (local/CI/Hetzner); swappable for another Wolverine transport if a cloud-managed target lands |
-| **WolverineFx.SqlServer / .Postgresql** | 5.36.2 | Wolverine outbox persistence | Same DB as the service, same transaction as the entity write |
+| **WolverineFx.SqlServer / .Postgresql** | 6.8.0 | Wolverine outbox persistence | Same DB as the service, same transaction as the entity write |
 | **Microsoft.EntityFrameworkCore** | 10.0.2 | ORM | Standard .NET ORM. See [ef-core.md](ef-core.md) for the full decision |
 | **Npgsql.EntityFrameworkCore.PostgreSQL** | 10.0.0 | Postgres EF provider | Only viable Postgres provider for EF Core |
 | **Microsoft.EntityFrameworkCore.SqlServer** | 10.0.2 | SQL Server EF provider | Microsoft's first-party SQL Server provider |
@@ -1047,7 +1047,7 @@ The full inventory of significant non-Microsoft libraries, what they do, why we 
 | **Microsoft.Extensions.Caching.StackExchangeRedis** | 10.0.2 | Redis L2 backend for HybridCache | Standard ASP.NET Core Redis integration |
 | **Microsoft.Extensions.Http.Resilience** | 10.1.0 | Wraps Polly v8 with curated defaults | vs custom Polly pipelines — one line gives the full pattern |
 | **FluentValidation.DependencyInjectionExtensions** | (latest) | DI integration for FluentValidation validators | Standard FluentValidation auto-discovery |
-| **WolverineFx.FluentValidation** | 5.36.2 | Wolverine pipeline integration | Runs validators before handlers |
+| **WolverineFx.FluentValidation** | 6.8.0 | Wolverine pipeline integration | Runs validators before handlers |
 | **Asp.Versioning.Http** | 10.0.0 | URL-segment API versioning | vs header versioning — see §5 |
 | **Asp.Versioning.Mvc.ApiExplorer** | 10.0.0 | OpenAPI integration for versioned routes | Required for `MapV1ApiGroup` helper |
 | **Microsoft.AspNetCore.OpenApi** | 10.0.2 | OpenAPI emission | First-party, replaces Swashbuckle for new projects |
@@ -1080,7 +1080,7 @@ A condensed walkthrough of the key decisions, each mapped to a section above. Us
 
 ### "Walk me through the architecture."
 
-> NextAurora is a .NET 10 microservices platform with 5 backend services — Catalog, Order, Payment, Shipping, Notification. Each is independently deployable with its own database. Catalog and Shipping run on Postgres; Order and Payment on SQL Server; Notification is stateless. Cross-service communication is gRPC for synchronous queries (Order calls Catalog to validate products) and Azure Service Bus for asynchronous workflow events. **The per-service shape varies by complexity**: CatalogService — the largest — uses Clean Architecture (Domain/Application/Infrastructure/Api as four csprojs). The other four are smaller (≤2 aggregates each) and use Vertical Slice Architecture: a single project with feature folders, Domain/, Infrastructure/, Endpoints/. The cross-service diff is intentional and documented in CLAUDE.md.
+> NextAurora is a .NET 10 microservices platform with 5 backend services — Catalog, Order, Payment, Shipping, Notification. Each is independently deployable with its own database. Catalog and Shipping run on Postgres; Order and Payment on SQL Server; Notification is stateless. Cross-service communication is gRPC for synchronous queries (Order calls Catalog to validate products) and RabbitMQ for asynchronous workflow events. **The per-service shape varies by complexity**: CatalogService — the largest — uses Clean Architecture (Domain/Application/Infrastructure/Api as four csprojs). The other four are smaller (≤2 aggregates each) and use Vertical Slice Architecture: a single project with feature folders, Domain/, Infrastructure/, Endpoints/. The cross-service diff is intentional and documented in CLAUDE.md.
 
 ### "Why microservices instead of modular monolith?"
 
@@ -1144,7 +1144,7 @@ A condensed walkthrough of the key decisions, each mapped to a section above. Us
 
 ### "How would you scale this?"
 
-> Three layers. **Vertically:** each service can scale to a larger VM. **Horizontally:** add replicas — but Catalog needs FusionCache before we deploy multi-replica because HybridCache 10.x lacks a backplane. **Database:** move from Aspire-managed local containers to RDS / managed Postgres / Azure SQL. The whole deployment story (AWS via SNS+SQS replacing Azure Service Bus) is laid out in [architecture.md "Deployment"](architecture.md). Wolverine's transport-agnostic design means swapping `WolverineFx.AzureServiceBus` for `WolverineFx.AmazonSqs` is a Program.cs change — handlers, contracts, the outbox all stay the same.
+> Three layers. **Vertically:** each service can scale to a larger VM. **Horizontally:** add replicas — but Catalog needs FusionCache before we deploy multi-replica because HybridCache 10.x lacks a backplane. **Database:** move from Aspire-managed local containers to RDS / managed Postgres / Azure SQL. The whole deployment story (AWS via SNS+SQS replacing RabbitMQ) is laid out in [architecture.md "Deployment"](architecture.md). Wolverine's transport-agnostic design means swapping `WolverineFx.AzureServiceBus` for `WolverineFx.AmazonSqs` is a Program.cs change — handlers, contracts, the outbox all stay the same.
 
 ---
 
@@ -1163,7 +1163,7 @@ The classic five, plus **Workflow** — the durable-orchestration block that new
 | Dapr building block | What NextAurora uses today | Verdict |
 |---|---|---|
 | **Service invocation** | gRPC client factory + `.proto`-defined contracts (Order → Catalog product validation) | Covered with typed contracts |
-| **Pub/sub** | Wolverine + Azure Service Bus + transactional outbox (§13) | Covered — and *better-integrated* (outbox in the EF `SaveChanges`) |
+| **Pub/sub** | Wolverine + RabbitMQ + transactional outbox (§13) | Covered — and *better-integrated* (outbox in the EF `SaveChanges`) |
 | **State store** | EF Core (aggregates with concurrency tokens) + HybridCache (L1+L2 with stampede protection, §16) | Covered |
 | **Secrets** | Standard `IConfiguration` provider chain — env vars locally, Azure Key Vault in prod | Covered |
 | **Distributed locks** | None today | Not needed today — see below |

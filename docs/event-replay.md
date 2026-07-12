@@ -8,7 +8,7 @@
 
 | Table | What it holds |
 |---|---|
-| `wolverine.outgoing_envelopes` | Messages staged in a DB transaction but not yet flushed to Service Bus. The "in-flight" queue. |
+| `wolverine.outgoing_envelopes` | Messages staged in a DB transaction but not yet flushed to the broker. The "in-flight" queue. |
 | `wolverine.incoming_envelopes` | Inbox: deduplication record for received messages. |
 | `wolverine.dead_letters` | Messages that exhausted retries and are no longer being processed. |
 

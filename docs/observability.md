@@ -6,7 +6,7 @@ This document describes the observability features added to NextAurora, how they
 
 ## Overview
 
-Every request or event in NextAurora now carries a **Correlation ID** that flows from the initial HTTP call through every Service Bus message and log line across all services. Combined with OpenTelemetry distributed tracing, structured logging, Wolverine pipeline telemetry, business metrics, and Dead Letter Queue (DLQ) handling, this gives you a complete picture of any transaction — even when it spans five microservices.
+Every request or event in NextAurora now carries a **Correlation ID** that flows from the initial HTTP call through every RabbitMQ message and log line across all services. Combined with OpenTelemetry distributed tracing, structured logging, Wolverine pipeline telemetry, business metrics, and Dead Letter Queue (DLQ) handling, this gives you a complete picture of any transaction — even when it spans five microservices.
 
 ---
 
@@ -21,28 +21,28 @@ Every request or event in NextAurora now carries a **Correlation ID** that flows
 3. Opens an `ILogger` scope enriched with `CorrelationId`, so every log line written during that request automatically includes the value.
 4. Echoes the ID in the `X-Correlation-Id` response header so clients can record it.
 
-### Propagation Through Service Bus
+### Propagation Through RabbitMQ
 
-When a service publishes an event, the publisher injects the correlation ID into the message:
+When a service publishes an event, `OutgoingContextMiddleware` (Wolverine outgoing-envelope middleware) reads the IDs from `Activity` baggage and stamps them onto the Wolverine envelope, which the RabbitMQ transport carries as message headers:
 
 ```csharp
-message.ApplicationProperties["X-Correlation-Id"] = correlationId;
-message.CorrelationId = correlationId;  // also visible in Azure portal
+envelope.Headers["X-Correlation-Id"] = correlationId;
+envelope.Headers["X-User-Id"]        = userId;      // only when present
+envelope.Headers["X-Session-Id"]     = sessionId;   // only when present
 ```
 
-When a processor receives the message, it extracts the correlation ID and opens a logging scope before dispatching:
+When a message arrives, `ContextPropagationMiddleware` (Wolverine incoming middleware) reads the envelope headers back into `Activity` baggage and opens a logging scope before the handler runs:
 
 ```csharp
 using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
 {
     ["CorrelationId"] = correlationId,
-    ["MessageId"]     = args.Message.MessageId,
-    ["Subject"]       = args.Message.Subject,
-    ["DeliveryCount"] = args.Message.DeliveryCount
+    ["UserId"]        = userId,      // added only when present
+    ["SessionId"]     = sessionId    // added only when present
 });
 ```
 
-Every log line written by any handler invoked from that processor will carry all four fields.
+Every log line written by the handler (and anything it calls transitively) will carry those fields.
 
 ### Finding a Transaction
 
@@ -52,7 +52,7 @@ Given a correlation ID (from a client error report or response header), you can 
 CorrelationId = "a3f1b2c4..."
 ```
 
-This returns every log line — HTTP request, Wolverine handler, Service Bus publish, Service Bus receive, and notification send — for that single transaction.
+This returns every log line — HTTP request, Wolverine handler, RabbitMQ publish, RabbitMQ receive, and notification send — for that single transaction.
 
 For the full three-identifier guide (UserId, SessionId, new-service checklist, common pitfalls), see **[docs/context-propagation.md](context-propagation.md)**.
 
@@ -67,7 +67,8 @@ For the full three-identifier guide (UserId, SessionId, new-service checklist, c
 | Source | What It Covers |
 |--------|----------------|
 | `{ServiceName}` (application name) | Custom spans per service |
-| `Azure.Messaging.ServiceBus` | Service Bus send/receive/complete/abandon operations |
+| `Wolverine` | Message send/receive/handle spans for the saga — transport-agnostic (RabbitMQ today) |
+| `NextAurora.Messaging` | Registered but currently dormant — no code emits spans under this name today; saga message spans come from the `Wolverine` source |
 | ASP.NET Core instrumentation | Inbound HTTP requests |
 | gRPC client instrumentation | OrderService → CatalogService gRPC calls |
 | HTTP client instrumentation | All outbound HTTP calls |
@@ -84,12 +85,12 @@ A single trace for an order placement will show spans across:
 [OrderService] POST /orders
   └─ [OrderService] PlaceOrderCommand handler
        └─ [CatalogService gRPC] GetProduct / ReserveStock
-       └─ [Azure.Messaging.ServiceBus] Send → order-events
-            └─ [PaymentService] OrderPlaced processor
+       └─ [Wolverine] Send → order-events
+            └─ [PaymentService] OrderPlaced handler
                  └─ [PaymentService] ProcessPayment handler
-                      └─ [Azure.Messaging.ServiceBus] Send → payment-events
-                           └─ [ShippingService] PaymentCompleted processor
-                           └─ [NotificationService] OrderPlaced processor
+                      └─ [Wolverine] Send → payment-events
+                           └─ [ShippingService] PaymentCompleted handler
+                           └─ [NotificationService] OrderPlaced handler
 ```
 
 ---
@@ -126,49 +127,25 @@ The exception itself is handled and logged by `GlobalExceptionHandler` in `Servi
 
 ## Dead Letter Queue (DLQ) Handling
 
-Previously, all Service Bus processors silently discarded failures after logging. Now, on any unhandled exception during message processing, the processor calls:
+When a message handler throws, Wolverine applies the configured error policy (e.g. the `AddConcurrencyRetry` cooldown retries for `DbUpdateConcurrencyException`). A message that exhausts its retries is dead-lettered by Wolverine's RabbitMQ transport to a Wolverine-managed dead-letter queue on the broker.
 
-```csharp
-await args.AbandonMessageAsync(args.Message, cancellationToken: stoppingToken);
-```
+### The RabbitMQ Topology
 
-Azure Service Bus then increments the message's **DeliveryCount**. Once `DeliveryCount` reaches the queue/subscription's configured `MaxDeliveryCount`, the message is automatically moved to the **Dead Letter Queue** for that entity.
+Each event family has a fanout exchange with one queue per consumer bound to it:
 
-The `DeliveryCount` is always logged in the structured scope, so you can see retry progress:
+| Fanout Exchange | Consumer Queues |
+|-----------------|-----------------|
+| `order-events` | `payment-orders`, `notify-orders` |
+| `payment-events` | `order-payments`, `shipping-payments`, `notify-payments` |
+| `shipping-events` | `order-shipping`, `notify-shipping` |
+| — (direct send) | `send-notification` |
 
-```
-[ERR] Failed to process OrderPlaced event. Abandoning for retry/DLQ
-      CorrelationId=a3f1b2c4, MessageId=abc-123, Subject=OrderPlacedEvent, DeliveryCount=2
-```
+### Investigating a Dead-Lettered Message
 
-### DLQ Entities
-
-| Service Bus Entity | DLQ Path |
-|--------------------|----------|
-| `order-events / payment-sub` | `order-events/Subscriptions/payment-sub/$deadletterqueue` |
-| `order-events / notify-sub` | `order-events/Subscriptions/notify-sub/$deadletterqueue` |
-| `payment-events / order-sub` | `payment-events/Subscriptions/order-sub/$deadletterqueue` |
-| `payment-events / shipping-sub` | `payment-events/Subscriptions/shipping-sub/$deadletterqueue` |
-| `shipping-events / order-sub` | `shipping-events/Subscriptions/order-sub/$deadletterqueue` |
-| `shipping-events / notify-sub` | `shipping-events/Subscriptions/notify-sub/$deadletterqueue` |
-| `send-notification` (queue) | `send-notification/$deadletterqueue` |
-
-### Investigating a DLQ Message
-
-1. In the Azure portal, navigate to the Service Bus namespace → topic/queue → subscription → Dead-letter.
-2. Peek or receive the message.
-3. Check `ApplicationProperties["X-Correlation-Id"]` to retrieve the original correlation ID.
-4. Search your log sink with that ID to see the full history of attempts.
-5. Fix the root cause, then replay the message by receiving it from the DLQ and re-publishing it to the original topic/queue.
-
-### Transport Errors
-
-`ProcessErrorAsync` on each processor now logs structured fields for infrastructure-level errors (disconnects, auth failures):
-
-```
-[ERR] Service Bus transport error on order-events/Subscriptions/payment-sub
-      ErrorSource=Receive, FullyQualifiedNamespace=nextaurora.servicebus.windows.net
-```
+1. Open the RabbitMQ management UI (`http://localhost:15672` in local dev) and inspect the dead-letter queue, or query Wolverine's message store (the `wolverine` schema in each service's database).
+2. Check the `X-Correlation-Id` message header to retrieve the original correlation ID.
+3. Search your log sink with that ID to see the full history of attempts.
+4. Fix the root cause, then replay via Wolverine's `IMessageStore` / DLQ tooling (see [Event Replay](#event-replay) below).
 
 ---
 
@@ -182,7 +159,7 @@ A `Meter("NextAurora")` is registered in `ServiceDefaults` and collected by the 
 | `payments.processed` | `ProcessPaymentHandler` | `outcome=success\|failed` |
 | `shipments.dispatched` | `CreateShipmentHandler` | — |
 | `notifications.sent` | `SendNotificationHandler` | `channel=Email\|…` |
-| `messages.abandoned` | All service processors | `subject=<EventType>`, `service=<ServiceName>` |
+| `messages.abandoned` | Nothing currently — declared in `NextAuroraMetrics`, but the processors that incremented it were deleted in the RabbitMQ/Wolverine migration; re-wiring it is a tracked follow-up. Monitor DLQ depth via the RabbitMQ management UI (`:15672`) or the `wolverine` schema instead | `subject=<EventType>`, `service=<ServiceName>` |
 
 These are available in the Aspire dashboard under **Metrics** in development. In production, they are exported via OTLP to your metrics backend (Prometheus, Azure Monitor, etc.).
 
@@ -222,10 +199,10 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 
 | File | Change |
 |------|--------|
-| `NextAurora.ServiceDefaults/Extensions.cs` | Register middleware; add Azure SB + NextAurora meter sources; enable health checks in all environments |
+| `NextAurora.ServiceDefaults/Extensions.cs` | Register middleware; add `Wolverine` trace source + NextAurora meter; enable health checks in all environments |
 | `Directory.Packages.props` | Added `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore 10.0.2` |
 | `OutgoingContextMiddleware` (Wolverine) + handler publishing via the enlisted `IMessageContext` / `IDbContextOutbox` | Context propagation on outgoing messages; Wolverine EF Core outbox for delivery guarantees (publish enlisted in the entity transaction — see the Wolverine 5→6 upgrade notes) |
-| `{Order,Payment,Shipping,Notification}Service` (Wolverine handlers) | Context extraction + structured logging scope via `ContextPropagationMiddleware`; `AbandonMessageAsync` on failure handled by Wolverine dead-letter config |
+| `{Order,Payment,Shipping,Notification}Service` (Wolverine handlers) | Context extraction + structured logging scope via `ContextPropagationMiddleware`; failed messages dead-lettered by Wolverine's retry/error policy |
 | `{Order,Payment,Catalog,Shipping}Service.Infrastructure/DependencyInjection.cs` | Added `AddDbContextCheck<T>()` |
 | `{Order,Payment,Catalog,Shipping}Service.Infrastructure/*.csproj` | Added EF Core health checks package reference |
 | `{Payment,Catalog,Shipping}Service.Application/*.csproj` | Added `Microsoft.Extensions.Logging.Abstractions` |

@@ -8,7 +8,7 @@ namespace NextAurora.ServiceDefaults.Messaging;
 /// Wolverine incoming-message middleware: restores the three observability identifiers
 /// (<c>CorrelationId</c>, <c>UserId</c>, <c>SessionId</c>) from envelope headers into the
 /// current <c>Activity</c> baggage and opens a structured logger scope. Mirrors what
-/// <c>CorrelationIdMiddleware</c> does for incoming HTTP requests, but for incoming Service Bus
+/// <c>CorrelationIdMiddleware</c> does for incoming HTTP requests, but for incoming RabbitMQ
 /// messages — so the same scope keys appear on every log line whether the work was triggered
 /// over HTTP or async messaging.
 ///

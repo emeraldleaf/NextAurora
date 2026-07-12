@@ -1,0 +1,21 @@
+# Files exempt from the tombstone audit — each entry earns its place by containing
+# LEGITIMATE historical or comparative mentions of removed identifiers. Keep this list
+# short; an allowlisted file can re-drift invisibly, so prefer fixing over allowlisting.
+#
+# Historical decision records (past-tense by nature):
+docs/project-decisions.md
+docs/full-saga-deployment-plan.md
+docs/war-story-wolverine6-outbox-atomicity.md
+# Comparative/portable guides where the removed transport is a subject of comparison:
+docs/messaging-transport-selection.md
+docs/performance-and-data-correctness.md
+# Canon: carries the "evaluated and removed" rationale + durable-pub/sub pattern comparison:
+CLAUDE.md
+# Past-tense removal note (line ~57) + AWS-alternative comparison section:
+docs/architecture.md
+# The control's own definition files:
+.claude/tombstones.txt
+.claude/tombstones-allowlist.txt
+.claude/scripts/check-tombstones.sh
+# Audit log of external-article reviews (historical verdicts, intentionally tracked):
+.claude/audits/INDEX.md

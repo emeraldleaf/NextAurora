@@ -29,7 +29,7 @@ namespace PaymentService.Tests.Integration;
 /// the handler logic are what unit tests can't reach. The internal <c>PaymentProcessingRequested</c>
 /// message has no external routing, so it stays on the in-process local queue and is fully
 /// exercised here; only the outbound <c>PaymentCompletedEvent</c>/<c>PaymentFailedEvent</c> wire
-/// hop is stubbed. See <c>docs/STATUS.md</c>.
+/// hop is stubbed. See <c>docs/dev-loop.md</c> Gap 1 + issue #68.
 /// </para>
 /// <para>
 /// <b>Why a fake "messaging" connection string:</b> <c>Program.cs</c> calls

@@ -392,7 +392,7 @@ different cadence, different lens.**
 | **Wolverine** | In-process message bus + transactional outbox. RabbitMQ transport for cross-service events. |
 | **Scalar UI** | Interactive API docs at `/scalar/v1` per service (dev-only). |
 | **Fly.io** | CatalogService demo at https://catalog-api-demo.fly.dev. Single Machine, auto-stops when idle. |
-| **CorrelationId middleware** (in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/)) | Correlation/User/Session ID propagation across HTTP + Service Bus boundaries. |
+| **CorrelationId middleware** (in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/)) | Correlation/User/Session ID propagation across HTTP + RabbitMQ boundaries. |
 
 ---
 
@@ -450,9 +450,10 @@ the load-bearing correctness (handler logic, outbox staging, EF + concurrency
 tokens, idempotency); the wire itself mostly exercises RabbitMQ + Wolverine's
 adapter — the fragile last mile, not the architecture. When this slice does
 land, a **RabbitMQ Testcontainer** makes it far cheaper than the old
-ASB-emulator plan (single container, no MSSQL sidecar, AutoProvision works) —
-still gate it as a nightly/manual job rather than per-PR until its runtime
-cost is measured.
+ASB-emulator plan: the broker is a single self-contained container, so it drops
+the emulator's required MSSQL sidecar (the service DBs the saga harness needs
+are unchanged), and AutoProvision works against it. Still gate it as a
+nightly/manual job rather than per-PR until its runtime cost is measured.
 
 ### Gap 2 — No production performance baselines
 

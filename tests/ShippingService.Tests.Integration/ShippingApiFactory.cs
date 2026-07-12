@@ -25,7 +25,7 @@ namespace ShippingService.Tests.Integration;
 /// <b>Why stub the transport instead of a real RabbitMQ broker:</b> outbox-staging atomicity and
 /// handler logic are what unit tests can't reach. The broker wire path mostly exercises RabbitMQ +
 /// Wolverine's transport adapter — the fragile last mile, not the load-bearing correctness piece.
-/// See <c>docs/STATUS.md</c>.
+/// See <c>docs/dev-loop.md</c> Gap 1 + issue #68.
 /// </para>
 /// <para>
 /// <b>Why a fake "messaging" connection string:</b> <c>Program.cs</c> parses

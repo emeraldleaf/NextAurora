@@ -49,7 +49,7 @@ sequenceDiagram
     Order->>Order: persist Order + stage<br/>OrderPlacedEvent in outbox<br/>(same DB tx)
     Order-->>Buyer: 202 Accepted
 
-    Note over Order,Notif: From here on, async over Azure Service Bus
+    Note over Order,Notif: From here on, async over RabbitMQ (fanout exchange)
     Order--)Pay: OrderPlacedEvent
     Order--)Notif: OrderPlacedEvent (parallel)
 
@@ -74,7 +74,7 @@ sequenceDiagram
     end
 ```
 
-The dashed (`--)`) arrows are over Service Bus; the solid arrows inside Phase 1 are synchronous HTTP/gRPC.
+The dashed (`--)`) arrows are over RabbitMQ; the solid arrows inside Phase 1 are synchronous HTTP/gRPC.
 
 ---
 

@@ -30,7 +30,7 @@ namespace OrderService.Tests.Integration;
 /// handler/saga logic are what the unit tests can't reach. The broker wire path itself mostly
 /// exercises RabbitMQ + Wolverine's transport adapter — it's the fragile last mile, not the
 /// load-bearing correctness piece. (A RabbitMQ Testcontainer for real-wire saga coverage is the
-/// deferred follow-up — see <c>docs/STATUS.md</c>.)
+/// deferred follow-up — see <c>docs/dev-loop.md</c> Gap 1 + issue #68.)
 /// </para>
 /// <para>
 /// <b>Why a fake "messaging" connection string:</b> <c>Program.cs</c> does
@@ -42,7 +42,7 @@ namespace OrderService.Tests.Integration;
 /// <b>Why stub <c>ICatalogClient</c>:</b> <c>PlaceOrderHandler</c> validates products + reserves
 /// stock over gRPC to CatalogService. We're testing OrderService in isolation, so the stub
 /// returns valid products with enough stock. Cross-service choreography is the heavier slice
-/// tracked in STATUS.md.
+/// tracked in docs/dev-loop.md Gap 1 + issue #68.
 /// </para>
 /// </summary>
 public sealed class OrderApiFactory : WebApplicationFactory<Program>, IAsyncLifetime

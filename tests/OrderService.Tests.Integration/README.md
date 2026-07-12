@@ -46,8 +46,12 @@ CI (`ubuntu-latest`) ships Docker at the standard path, so the `integration-test
 - **`OrderApiFactory`** — `WebApplicationFactory<Program>` + `IAsyncLifetime`. Starts the
   SQL Server container, injects its connection string as both `orders-db` and the persistence
   endpoint for Wolverine's outbox tables (`wolverine` schema, auto-created at startup via
-  `AddResourceSetupOnStartup`). A syntactically-valid Azure Service Bus connection string is
-  also injected — never used over the wire, but `UseAzureServiceBus(...)` parses it eagerly.
+  `AddResourceSetupOnStartup`). A syntactically-valid low-entropy AMQP connection string
+  (`amqp://guest:guest@localhost:5672`) is also injected — never used over the wire, but
+  `UseRabbitMq(...)` in `Program.cs` parses it eagerly at registration time, before
+  `DisableAllExternalWolverineTransports()` stubs the transport. `Wolverine:AutoProvision`
+  is set to `false` via `UseSetting` — AutoProvision connects at host startup to declare
+  exchanges/queues, and against the fake connection string it would hang.
   Calls `services.DisableAllExternalWolverineTransports()` so outgoing messages route to
   in-process stubs while the durable outbox still wraps them.
 - **`TestAuthHandler`** — always-succeeds auth. The handler stamps a fixed buyer Guid into the
@@ -57,17 +61,17 @@ CI (`ubuntu-latest`) ships Docker at the standard path, so the `integration-test
   `PublishMessageAndWaitAsync` to drive the saga consume-side. Test 5 hits the EF concurrency
   path directly via two DbContext scopes.
 
-## Why stubbed transport instead of the Azure Service Bus emulator
+## Why stubbed transport instead of a real RabbitMQ broker
 
 The outbox-staging guarantee (entity-write + envelope-write same transaction) and the saga
-consume-side handlers are what this slice proves — the ASB wire path itself mostly exercises
-Microsoft's emulator + Wolverine's transport adapter, which is the fragile last mile and
-lower-value per unit of effort. The ASB-emulator-based wire test is filed as a separate
-follow-up in [docs/STATUS.md](../../docs/STATUS.md).
+consume-side handlers are what this slice proves — the broker wire path itself mostly
+exercises RabbitMQ + Wolverine's transport adapter, which is the fragile last mile and
+lower-value per unit of effort. A RabbitMQ Testcontainer for real-wire saga coverage is
+filed as a separate follow-up in [docs/STATUS.md](../../docs/STATUS.md).
 
 ## Adding more
 
 This is the second integration slice (after CatalogService) and the proven pattern for any
 service that has a DB + Wolverine handlers. Payment and Shipping would follow the same shape;
 the saga *across* services (real cross-service choreography) needs all services booted plus
-either the ASB emulator or coordinated in-process Wolverine — a separate, heavier project.
+either a RabbitMQ Testcontainer or coordinated in-process Wolverine — a separate, heavier project.

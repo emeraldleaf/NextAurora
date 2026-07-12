@@ -2,7 +2,7 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Azure;
 
 // .NET Aspire orchestration root for NextAurora. Defines the entire local-development topology:
-// every container (Postgres, SQL Server, Redis, Service Bus emulator, Keycloak, App Insights),
+// every container (Postgres, SQL Server, Redis, RabbitMQ, Keycloak, App Insights),
 // every service project, and every dependency edge between them. When you run this project,
 // Aspire spins up the containers, sets per-service connection strings/auth via environment
 // variables (the magic behind `WithReference`), boots the services in dependency order, and
@@ -40,9 +40,9 @@ var redis = builder.AddRedis("cache");
 // One container + the management UI (a demo artifact at :15672). Wolverine declares the
 // exchanges/queues/bindings itself via AutoProvision against the live broker, so no topology is
 // hand-declared here. RabbitMQ is also the deployed broker (Hetzner) — dev/prod parity. The
-// connection string is exposed under "messaging". The transport could be swapped to Azure Service
-// Bus later (~5-line Wolverine block per service); it was removed because the ASB emulator can't run
-// the saga locally and there's no Azure deployment today. See CLAUDE.md + docs/full-saga-deployment-plan.md (D3) + #148.
+// connection string is exposed under "messaging". The transport stays swappable (~5-line Wolverine
+// block per service); the previous cloud-broker wiring was evaluated and removed — its emulator
+// couldn't run the saga locally and there's no Azure deployment today. See CLAUDE.md + docs/full-saga-deployment-plan.md (D3) + #148.
 var messaging = builder.AddRabbitMQ("messaging").WithManagementPlugin();
 
 // Application Insights only when running in Publish mode (i.e. real deploys to Azure).

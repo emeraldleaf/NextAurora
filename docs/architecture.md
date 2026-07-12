@@ -1,6 +1,6 @@
 # NextAurora Architecture
 
-[![NextAurora architecture — full system, services, Service Bus topology, databases, and the 10-step order-placement saga](nextaurora-architecture.svg)](nextaurora-architecture.svg)
+[![NextAurora architecture — full system, services, RabbitMQ messaging topology, databases, and the 10-step order-placement saga](nextaurora-architecture.svg)](nextaurora-architecture.svg)
 
 *Full system in one view. Click for full-size. Source: [`nextaurora-architecture.excalidraw`](nextaurora-architecture.excalidraw) — edit with the [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or [excalidraw.com](https://excalidraw.com).*
 
@@ -43,7 +43,8 @@ NextAurora is a distributed e-commerce platform built as a microservices archite
                                   |
                     +-------------v--------------+
                     |     Async Messaging         |
-                    |  (Topics & Subscriptions)   |
+                    |  (RabbitMQ: fanout exchanges|
+                    |     + queue per consumer)   |
                     +---+------+------+------+---+
                         |      |      |      |
                   +-----v-+ +--v---+ +v------v+ +--------+
@@ -104,7 +105,7 @@ See [CLAUDE.md](../CLAUDE.md#project-structure) for the canonical rule.
 - **Purpose:** Order lifecycle management
 - **Database:** SQL Server
 - **Exposes:** REST API (external)
-- **Consumes:** CatalogService via gRPC, PaymentService and ShippingService events via Service Bus
+- **Consumes:** CatalogService via gRPC, PaymentService and ShippingService events via RabbitMQ
 - **Entities:** Order, OrderLine
 - **Key Feature:** Orchestrates order state through event-driven saga
 
@@ -112,7 +113,7 @@ See [CLAUDE.md](../CLAUDE.md#project-structure) for the canonical rule.
 - **Purpose:** Payment processing
 - **Database:** SQL Server
 - **Exposes:** REST API (external)
-- **Consumes:** OrderService events via Service Bus
+- **Consumes:** OrderService events via RabbitMQ
 - **Entities:** Payment, Refund
 - **Key Feature:** Stripe gateway integration (anti-corruption layer)
 
@@ -120,14 +121,14 @@ See [CLAUDE.md](../CLAUDE.md#project-structure) for the canonical rule.
 - **Purpose:** Shipment creation and tracking
 - **Database:** PostgreSQL
 - **Exposes:** REST API (external)
-- **Consumes:** PaymentService events via Service Bus
+- **Consumes:** PaymentService events via RabbitMQ
 - **Entities:** Shipment, TrackingEvent
 - **Key Feature:** Auto-generates tracking numbers and assigns carriers
 
 #### NotificationService
 - **Purpose:** Customer notifications
 - **Database:** None (stateless)
-- **Consumes:** OrderService and ShippingService events via Service Bus
+- **Consumes:** OrderService and ShippingService events via RabbitMQ
 - **Entities:** NotificationRequest (in-memory)
 - **Key Feature:** Pluggable notification sender (console in dev, email/SMS in production)
 
@@ -430,7 +431,7 @@ All services inherit shared infrastructure configuration:
 ## Cross-Cutting Concerns
 
 ### Observability
-- **Tracing:** OpenTelemetry distributed traces across all services (ASP.NET Core, HTTP client, gRPC client, `Azure.Messaging.ServiceBus`). Service Bus processors create consumer spans via `ActivitySource("NextAurora.Messaging")` so the full event chain is visible in the Aspire dashboard and any OTLP backend.
+- **Tracing:** OpenTelemetry distributed traces across all services (ASP.NET Core, HTTP client, gRPC client, `Wolverine`). Wolverine's own ActivitySource emits the message send/receive/handle spans for the saga — transport-agnostic — so the full event chain is visible in the Aspire dashboard and any OTLP backend.
 - **Context Propagation:** Every HTTP request and Service Bus message carries three identifiers — `CorrelationId`, `UserId`, `SessionId` — stamped by `CorrelationIdMiddleware` (HTTP) or each processor (Service Bus) into `Activity` baggage and `logger.BeginScope()`. All log lines produced by any handler automatically include these fields. See [docs/context-propagation.md](context-propagation.md).
 - **Wolverine Pipeline Logging:** Wolverine's built-in `Policies.LogMessageStarting()` logs handler name and elapsed time. `ContextPropagationMiddleware` (in ServiceDefaults) opens a `logger.BeginScope()` so all handler log lines carry `CorrelationId`/`UserId`/`SessionId`.
 - **Metrics:** Business counters via `Meter("NextAurora")` in `NextAuroraMetrics`: `orders.placed`, `payments.processed` (tag: `outcome`), `shipments.dispatched`, `notifications.sent` (tag: `channel`), `messages.abandoned` (tags: `subject`, `service`). Exported via OTLP; visible in Aspire Metrics dashboard.
@@ -551,7 +552,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 - **API Gateway** - Centralized routing, rate limiting, auth
 - **Saga Compensation** - Rollback logic for failed payments/shipments
 - **Frontend Implementation** - Storefront and SellerPortal business logic
-- **Cross-service integration tests over the real wire** - Single-service slices exist for all four DB-touching services (`tests/{CatalogService,OrderService,PaymentService,ShippingService}.Tests.Integration` — Testcontainers Postgres+Redis for Catalog, SQL Server for Order + Payment, Postgres for Shipping, Wolverine transports stubbed in each). The remaining gap is an end-to-end `OrderPlacedEvent → PaymentService → PaymentCompletedEvent` test over a real RabbitMQ Testcontainer — wire-level cross-service coverage is still pending (the saga is verified manually end-to-end on the live RabbitMQ stack). See [docs/STATUS.md](STATUS.md).
+- **Cross-service integration tests over the real wire** - Single-service slices exist for all four DB-touching services (`tests/{CatalogService,OrderService,PaymentService,ShippingService}.Tests.Integration` — Testcontainers Postgres+Redis for Catalog, SQL Server for Order + Payment, Postgres for Shipping, Wolverine transports stubbed in each). The remaining gap is an end-to-end `OrderPlacedEvent → PaymentService → PaymentCompletedEvent` test over a real RabbitMQ Testcontainer — wire-level cross-service coverage is still pending (the saga is verified manually end-to-end on the live RabbitMQ stack). See [docs/dev-loop.md Gap 1](dev-loop.md) + issue #68.
 - **Order Cancellation Flow** - Cancel event and compensation logic
 - **Production migration deployment step** - In dev, `MigrateDatabaseAsync<T>()` runs at startup; production should run migrations as a separate deploy step (not in-process) to avoid races between replicas. Tooling exists; deploy automation does not.
 
@@ -649,4 +650,4 @@ Phased plan, smallest blast radius first. Each phase is independently shippable.
 
 ### Aspire's role after the migration
 
-The Aspire AppHost stays — for local development. It continues to spin up Postgres, SQL Server, Service Bus emulator, Redis, Keycloak as containers. Production never sees it. Local dev keeps the fast inner loop; AWS deploy is a separate set of artifacts.
+The Aspire AppHost stays — for local development. It continues to spin up Postgres, SQL Server, RabbitMQ, Redis, Keycloak as containers. Production never sees it. Local dev keeps the fast inner loop; AWS deploy is a separate set of artifacts.

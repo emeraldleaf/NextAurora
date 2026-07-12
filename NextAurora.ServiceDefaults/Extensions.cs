@@ -365,7 +365,7 @@ public static class Extensions
     ///         picks them up.</item>
     /// </list>
     /// Call inside <c>UseWolverine()</c> in every service. Without this, observability falls
-    /// apart at the Service Bus boundary — you can't trace one transaction across services.
+    /// apart at the message-broker boundary — you can't trace one transaction across services.
     /// </summary>
     public static WolverineOptions AddNextAuroraContextPropagation(this WolverineOptions opts)
     {
