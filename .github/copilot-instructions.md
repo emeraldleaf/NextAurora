@@ -294,12 +294,12 @@ When generating code for NextAurora, follow CLAUDE.md for:
 
 The platform migrated to Wolverine for command/query dispatch and event publishing, with RabbitMQ as the messaging transport in every environment. Anything you may have read about MediatR `IPipelineBehavior`, `LoggingBehavior`, `ValidationBehavior`, hand-rolled `ServiceBusEventPublisher`/`LoggingEventPublisher`, or `EventLogs`/`/admin/events` replay endpoints is **historical** — those are gone. See CLAUDE.md. The current pipeline is:
 
-```
+```text
 FluentValidation policy (opts.UseFluentValidation)
   → ContextPropagationMiddleware (logger scope, baggage restore)
     → handler
 ```
 
-Outgoing events go through `WolverineEventPublisher` → `IMessageBus.PublishAsync` → Wolverine transactional outbox (`wolverine` schema in each service's database) → background dispatcher to RabbitMQ (fanout exchanges). See CLAUDE.md.
+Outgoing events publish via the Wolverine-enlisted APIs — the `IMessageContext` parameter injected into `HandleAsync` (handlers) or `IDbContextOutbox` (non-handler code); a constructor-injected `IMessageBus`/`IEventPublisher` publishes inline, OUTSIDE the transaction, and is only for fire-and-forget — → Wolverine transactional outbox (`wolverine` schema in each service's database) → background dispatcher to RabbitMQ (fanout exchanges). See CLAUDE.md.
 
 If your suggestion would reintroduce any of the removed concepts above, stop and check CLAUDE.md and the perf guide first.

@@ -432,7 +432,7 @@ All services inherit shared infrastructure configuration:
 
 ### Observability
 - **Tracing:** OpenTelemetry distributed traces across all services (ASP.NET Core, HTTP client, gRPC client, `Wolverine`). Wolverine's own ActivitySource emits the message send/receive/handle spans for the saga — transport-agnostic — so the full event chain is visible in the Aspire dashboard and any OTLP backend.
-- **Context Propagation:** Every HTTP request and Service Bus message carries three identifiers — `CorrelationId`, `UserId`, `SessionId` — stamped by `CorrelationIdMiddleware` (HTTP) or each processor (Service Bus) into `Activity` baggage and `logger.BeginScope()`. All log lines produced by any handler automatically include these fields. See [docs/context-propagation.md](context-propagation.md).
+- **Context Propagation:** Every HTTP request and RabbitMQ message carries three identifiers — `CorrelationId`, `UserId`, `SessionId` — stamped by `CorrelationIdMiddleware` (HTTP) or each processor (Service Bus) into `Activity` baggage and `logger.BeginScope()`. All log lines produced by any handler automatically include these fields. See [docs/context-propagation.md](context-propagation.md).
 - **Wolverine Pipeline Logging:** Wolverine's built-in `Policies.LogMessageStarting()` logs handler name and elapsed time. `ContextPropagationMiddleware` (in ServiceDefaults) opens a `logger.BeginScope()` so all handler log lines carry `CorrelationId`/`UserId`/`SessionId`.
 - **Metrics:** Business counters via `Meter("NextAurora")` in `NextAuroraMetrics`: `orders.placed`, `payments.processed` (tag: `outcome`), `shipments.dispatched`, `notifications.sent` (tag: `channel`), `messages.abandoned` (tags: `subject`, `service`). Exported via OTLP; visible in Aspire Metrics dashboard.
 - **Logging:** Structured logging with OpenTelemetry export
@@ -533,7 +533,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 ### Implemented
 - **Input Validation** - FluentValidation on all commands via `opts.UseFluentValidation()` in Wolverine pipeline
 - **Wolverine Pipeline Logging** - Wolverine built-in `LogMessageStarting` + `ContextPropagationMiddleware` scope covers timing, correlation ID, elapsed time, and outcome
-- **Context Propagation** - `CorrelationId`, `UserId`, `SessionId` flow through HTTP and Service Bus; see [docs/context-propagation.md](context-propagation.md)
+- **Context Propagation** - `CorrelationId`, `UserId`, `SessionId` flow through HTTP and RabbitMQ; see [docs/context-propagation.md](context-propagation.md)
 - **Domain Invariants** - Guard clauses in all entity factory methods
 - **Global Exception Handling** - ProblemDetails responses, no internal state leakage
 - **Encapsulated Aggregates** - `IReadOnlyList` collections, private backing fields

@@ -74,7 +74,7 @@ sequenceDiagram
     end
 ```
 
-The dashed (`--)`) arrows are over RabbitMQ; the solid arrows inside Phase 1 are synchronous HTTP/gRPC.
+The dashed (`--)`) arrows are over RabbitMQ; the solid arrows are synchronous steps — HTTP/gRPC calls, in-process handler calls, and database operations.
 
 ---
 

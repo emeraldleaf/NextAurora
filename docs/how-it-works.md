@@ -402,7 +402,7 @@ opts.ListenToRabbitQueue("payment-orders");
 
 Wolverine's `AutoProvision()` declares the exchanges, queues, and bindings against the live broker at each service's startup (gated by `Wolverine:AutoProvision` — default on; off in integration tests, which stub the transport). Wolverine then discovers handler classes for the message types and dispatches each incoming envelope to the right one. The pipeline around each consumer is the same as the HTTP-side one: FluentValidation (rare for events) → `ContextPropagationMiddleware` (restores the correlation/user/session scope from envelope headers) → `AutoApplyTransactions` → handler. Idempotency guards inside handlers (status checks, "already processed" lookups) handle RabbitMQ's at-least-once delivery.
 
-**Retries and DLQ.** `opts.AddConcurrencyRetry()` retries `DbUpdateConcurrencyException` 3 times with 50/100/250ms cooldowns; transient transport failures use Wolverine's defaults. After retries are exhausted, the message goes to the dead-letter queue and surfaces as the `messages.abandoned` metric.
+**Retries and DLQ.** `opts.AddConcurrencyRetry()` retries `DbUpdateConcurrencyException` 3 times with 50/100/250ms cooldowns; transient transport failures use Wolverine's defaults. After retries are exhausted, the message goes to the dead-letter queue — inspect it via the RabbitMQ management UI (`:15672`) or the `wolverine.dead_letters` table (metric wiring for DLQ alerting is tracked in #171).
 
 ---
 
@@ -659,7 +659,7 @@ All tests in the solution run. Each test project targets the unit tests for one 
 | Change a domain business rule | `{Service}.Domain/Entities/` |
 | Add a new event type | `NextAurora.Contracts/Events/` |
 | Change which events a service publishes | Return them as cascading messages from the handler, or `bus.PublishAsync` |
-| Change which events a service consumes | Add a handler class for the event in `{Service}.Application/Handlers/`, plus an `opts.ListenToRabbitQueue(...)` + `rabbit.BindExchange(...).ToQueue(...)` line in `{Service}.Api/Program.cs` |
+| Change which events a service consumes | Add a handler class for the event in the service's `Features/` folder, plus an `opts.ListenToRabbitQueue(...)` + `rabbit.BindExchange(...).ToQueue(...)` line in `{Service}.Api/Program.cs` |
 | Inspect outgoing events / outbox state | Each event-publishing service's DB has a `wolverine` schema; `outgoing_envelopes` is the staged-but-not-yet-flushed queue, `dead_letters` the DLQ. See [event-replay.md](./event-replay.md) |
 | Add a new gRPC method to CatalogService | `CatalogService.Api/Protos/catalog.proto` + `CatalogService.Api/Services/CatalogGrpcService.cs` (regenerate clients in OrderService) |
 | Add a cached read query in Catalog | `IProductCache.GetOrLoadAsync(id, factory)` — see [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs) |

@@ -33,9 +33,21 @@ while IFS= read -r pattern; do
     [ -z "$pattern" ] && continue
     case "$pattern" in \#*) continue ;; esac
     # git grep over tracked files only; -i case-insensitive, -E extended regex.
-    if hits=$(git grep -inE "$pattern" -- '.' "${excludes[@]}" 2>/dev/null) && [ -n "$hits" ]; then
+    # Exit codes: 0 = matches (violation), 1 = clean, >=2 = error (e.g. invalid
+    # regex) — an invalid tombstone must FAIL the audit, not silently disable it.
+    set +e
+    hits=$(git grep -inE "$pattern" -- '.' "${excludes[@]}" 2>&1)
+    status=$?
+    set -e
+    if [ "$status" -ge 2 ]; then
+        echo "TOMBSTONE AUDIT ERROR — pattern '$pattern' failed to evaluate (git grep exit $status):"
+        echo "$hits" | sed -n '1,5p'
+        fail=1
+    elif [ "$status" -eq 0 ] && [ -n "$hits" ]; then
         echo "TOMBSTONE VIOLATION — pattern '$pattern':"
-        echo "$hits" | sed 's/^/  /' | head -30
+        # sed -n '1,30p' rather than piping through head: under pipefail, head
+        # closing the pipe early would SIGPIPE the producer and abort the script.
+        echo "$hits" | sed -n '1,30p' | sed 's/^/  /'
         echo ""
         fail=1
     fi

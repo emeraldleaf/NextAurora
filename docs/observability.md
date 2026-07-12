@@ -86,11 +86,12 @@ A single trace for an order placement will show spans across:
   └─ [OrderService] PlaceOrderCommand handler
        └─ [CatalogService gRPC] GetProduct / ReserveStock
        └─ [Wolverine] Send → order-events
+            ├─ [NotificationService] OrderPlaced handler
             └─ [PaymentService] OrderPlaced handler
                  └─ [PaymentService] ProcessPayment handler
                       └─ [Wolverine] Send → payment-events
-                           └─ [ShippingService] PaymentCompleted handler
-                           └─ [NotificationService] OrderPlaced handler
+                           ├─ [ShippingService] PaymentCompleted handler
+                           └─ [NotificationService] PaymentCompleted handler
 ```
 
 ---
