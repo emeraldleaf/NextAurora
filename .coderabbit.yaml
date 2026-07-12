@@ -537,11 +537,13 @@ reviews:
         Communication Patterns traps). (1) Fanout exchanges DISCARD unroutable
         messages and AutoProvision declares topology lazily per-service: flag a new
         publisher whose consumers' queues aren't guaranteed to exist before first
-        publish (first-boot loss window — CLAUDE.md trap, tracked #168). (2)
+        publish — publishers must declare their consumers' queues+bindings
+        publisher-side, names from MessagingExchanges/MessagingQueues (CLAUDE.md
+        trap; fixed shape from #168). (2)
         Durability is per-direction: UseDurableOutboxOnAllSendingEndpoints covers
         only sends; new ListenToRabbitQueue endpoints without
-        UseDurableInboxOnAllListeningEndpoints (or ProcessInline for stateless
-        services) are buffered and lose in-flight messages on crash (tracked #169).
+        UseDurableInboxOnAllListeners (or ProcessInline for stateless
+        services) are buffered and lose in-flight messages on crash (see #169).
         (3) Exchange/queue name literals duplicated between BindExchange().ToQueue()
         and ListenToRabbitQueue() must be a single const — a typo'd name is silently
         auto-provisioned and the consumer starves with no error.
