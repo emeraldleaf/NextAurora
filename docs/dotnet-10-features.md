@@ -185,7 +185,7 @@ Lets log aggregators index by `UserId` and `OrderId` — searchable, not text-gr
 
 ## 11. Wolverine — covers MediatR + MassTransit (both gone commercial)
 
-**What it is**: Single library that handles in-process CQRS (the MediatR slot), Service Bus message dispatch (the MassTransit slot), AND the transactional outbox pattern across both.
+**What it is**: Single library that handles in-process CQRS (the MediatR slot), message-broker dispatch (the MassTransit slot), AND the transactional outbox pattern across both.
 
 **Where**: Every service's `Program.cs` has `builder.Host.UseWolverine(opts => ...)`. Example: [CatalogService.Api/Program.cs:29-35](../CatalogService/Program.cs#L29-L35).
 

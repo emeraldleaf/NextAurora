@@ -30,11 +30,21 @@ matches=$(grep -rln "See CLAUDE.md" \
     | grep -v "^${CANONICAL}\$" \
     || true)
 
-# No matches: silent no-op (nothing to remind about).
-if [ -z "$matches" ]; then
+# AI-instruction surfaces are ALWAYS on the review list, marker or not — so this list is
+# built BEFORE any no-match early-exit. They paraphrase canon for other AI tools (Copilot,
+# CodeRabbit), and drift there silently regenerates retired patterns —
+# .github/copilot-instructions.md still taught the removed transport months after the swap
+# because it carried no marker. See CLAUDE.md.
+ai_surfaces=""
+for f in "$REPO_ROOT/.github/copilot-instructions.md" "$REPO_ROOT/.coderabbit.yaml"; do
+    [ -f "$f" ] && ai_surfaces="${ai_surfaces}${f}"$'\n'
+done
+
+# Nothing at all to remind about: silent no-op.
+if [ -z "$matches" ] && [ -z "$ai_surfaces" ]; then
     exit 0
 fi
 
 # Emit additionalContext via hookSpecificOutput so the model sees the reminder.
-msg=$(printf 'CLAUDE.md was edited. Files containing the "See CLAUDE.md" marker (review each for staleness against the new rule):\n%s' "$matches")
+msg=$(printf 'CLAUDE.md was edited. Files containing the "See CLAUDE.md" marker (review each for staleness against the new rule):\n%s\n\nAI-instruction surfaces (ALWAYS check these — they paraphrase canon for other AI tools and drift silently):\n%s' "${matches:-(none)}" "$ai_surfaces")
 jq -n --arg m "$msg" '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $m}}'

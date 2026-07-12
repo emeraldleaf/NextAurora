@@ -15,7 +15,7 @@ public sealed class NextAuroraMetrics : IDisposable
     public Counter<long> ShipmentsDispatched { get; }
     public Counter<long> NotificationsSent { get; }
     /// <summary>
-    /// Incremented whenever a Service Bus message is abandoned (returned for retry or DLQ).
+    /// Incremented whenever a message is abandoned (returned for retry or dead-lettered).
     /// Tagged with Subject and service name. Alert on this counter rising to detect DLQ
     /// pile-ups before they cause user-visible outages.
     /// </summary>

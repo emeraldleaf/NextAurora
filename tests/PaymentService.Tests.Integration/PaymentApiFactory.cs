@@ -25,16 +25,16 @@ namespace PaymentService.Tests.Integration;
 /// <c>RowVersion</c> concurrency token, and the OrderId-uniqueness idempotency guard.
 /// </para>
 /// <para>
-/// <b>Why stub the transport instead of the ASB emulator:</b> the outbox-staging guarantee and
+/// <b>Why stub the transport instead of a real RabbitMQ broker:</b> the outbox-staging guarantee and
 /// the handler logic are what unit tests can't reach. The internal <c>PaymentProcessingRequested</c>
 /// message has no external routing, so it stays on the in-process local queue and is fully
 /// exercised here; only the outbound <c>PaymentCompletedEvent</c>/<c>PaymentFailedEvent</c> wire
-/// hop is stubbed. See <c>docs/STATUS.md</c>.
+/// hop is stubbed. See <c>docs/dev-loop.md</c> Gap 1 + issue #68.
 /// </para>
 /// <para>
 /// <b>Why a fake "messaging" connection string:</b> <c>Program.cs</c> calls
-/// <c>UseAzureServiceBus(GetConnectionString("messaging")!)</c>, parsed eagerly at registration
-/// even with external transports disabled — so it must be syntactically valid ASB.
+/// <c>UseRabbitMq(GetConnectionString("messaging")!)</c>, parsed eagerly at registration even with
+/// external transports disabled — so it must be a syntactically valid AMQP URI.
 /// </para>
 /// <para>
 /// <b>Why stub <c>IPaymentGateway</c>:</b> the Gateway handler calls the Stripe gateway. Tests
@@ -81,22 +81,17 @@ public sealed class PaymentApiFactory : WebApplicationFactory<Program>, IAsyncLi
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        // Disable Wolverine AutoProvision — against the fake ASB string it would hang trying to
-        // provision topics/subscriptions at startup. DisableAllExternalWolverineTransports below
+        // Disable Wolverine AutoProvision — against the fake AMQP string it would hang trying to
+        // provision exchanges/queues at startup. DisableAllExternalWolverineTransports below
         // handles routing; this handles the broker-provisioning that runs earlier.
         builder.UseSetting("Wolverine:AutoProvision", "false");
 
         // Real SQL Server for the payments DB + Wolverine outbox tables.
         builder.UseSetting("ConnectionStrings:payments-db", _sqlServer.GetConnectionString());
 
-        // Syntactically-valid ASB connection string — parsed eagerly, never used over the wire.
-        // SharedAccessKey base64-decodes to "fake-shared-key-for-testing-only". The inline
-        // `gitleaks:allow` marker on the literal line is the suppressor. There is no project-level
-        // gitleaks config (global [[allowlists]] needs gitleaks 8.25+, runner ships 8.24.x); the
-        // inline marker is the load-bearing mechanism. See CLAUDE.md.
-        builder.UseSetting(
-            "ConnectionStrings:messaging",
-            "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZS1zaGFyZWQta2V5LWZvci10ZXN0aW5nLW9ubHk="); // gitleaks:allow
+        // Syntactically-valid RabbitMQ (AMQP) connection string — parsed eagerly by UseRabbitMq(...),
+        // never used over the wire (DisableAllExternalWolverineTransports() stubs the transport).
+        builder.UseSetting("ConnectionStrings:messaging", "amqp://guest:guest@localhost:5672");
 
         builder.ConfigureTestServices(services =>
         {
@@ -107,7 +102,7 @@ public sealed class PaymentApiFactory : WebApplicationFactory<Program>, IAsyncLi
             // Stub the Stripe gateway — tests drive Completed/Failed via the configured result.
             services.AddSingleton<IPaymentGateway>(Gateway);
 
-            // Disable external ASB listeners/senders. Outgoing events route to in-process stubs
+            // Disable external RabbitMQ listeners/senders. Outgoing events route to in-process stubs
             // (still through the outbox + middleware chain); the internal PaymentProcessingRequested
             // message stays on the local queue and runs end-to-end.
             services.DisableAllExternalWolverineTransports();

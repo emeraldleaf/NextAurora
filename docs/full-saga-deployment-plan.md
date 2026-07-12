@@ -148,7 +148,7 @@ internal Docker network as the services.
   its Traefik-routed hostname for the browser-facing auth-code flow). Zero
   service code change.
 
-### D3 — Messaging transport → **RabbitMQ container in deployed; dev keeps the ASB emulator (config-driven, swappable)**
+### D3 — Messaging transport → **RabbitMQ in every environment (Azure Service Bus evaluated and removed)**
 
 **Changed from the Fly plan, sub-point resolved 2026-05-27.** On Fly, D3 was
 AWS SQS+SNS (free tier, but cross-cloud). On one box, run **RabbitMQ** as a
@@ -157,15 +157,19 @@ egress. RabbitMQ over NATS because it maps cleanly onto the existing Azure
 Service Bus topic/subscription topology (exchanges + queues), Wolverine has a
 first-class RabbitMQ transport, and the management UI is a nice demo artifact.
 
-**Resolved: RabbitMQ in the deployed environment only; dev keeps the Azure
-Service Bus emulator already wired in the Aspire AppHost.** The transport is
-selected by environment config so the two don't fight. Chose deployed-only over
-RabbitMQ-everywhere because it leaves the working dev setup untouched, and the
-dev/prod transport difference costs almost nothing here (see the
-Wolverine-abstraction note below — handlers, outbox, saga are identical
-regardless of transport). Can flip to RabbitMQ-everywhere later for ~free if
-the ASB emulator's flakiness (see STATUS.md's smoke-test debugging arc) becomes
-annoying in dev.
+**Resolved (2026-06-17): RabbitMQ in *every* environment — dev, CI, and deployed (no config
+switch; services call `UseRabbitMq(...)` unconditionally).** The original plan kept the ASB
+emulator in dev "to leave the working dev setup untouched" — but that premise proved false: the
+ASB **emulator never actually ran the saga** (its subscription admin endpoints return HTTP 500,
+and Wolverine's system queues can't auto-provision against it; full arc in #148). RabbitMQ, by
+contrast, runs as one clean container, AutoProvisions against the live broker, and the **full saga
+flows locally** — verified end-to-end (order → `Shipped` in seconds), giving a working local saga
+**and** dev/prod parity. An interim step made the transport config-selectable to prove RabbitMQ
+out; the ASB wiring was then **removed entirely**, not kept as a dormant option — per the
+codebase's anti-carry-debt rule, a second transport that runs nowhere is speculative coupling, not
+optionality. Wolverine still abstracts the broker, so the transport-agnostic claim holds: re-adding
+ASB is the same ~5-line block per service (shown below + in git history). Re-add it the day Azure
+becomes a real target.
 
 **RabbitMQ licensing (verified 2026-05-27):** the core broker is **MPL 2.0,
 free and open-source, self-host at no cost, no vendor lock-in.** Broadcom's
@@ -183,12 +187,11 @@ choice nor a future move to Azure Service Bus (e.g. if NextAurora ever goes
 all-Azure) is a lock-in — it's a localized config swap, not a rewrite:
 
 ```csharp
-// What changes per service (Order, Payment, Shipping, Notification):
-opts.UseAzureServiceBus(conn);                       // ← UseRabbitMq(conn)
+// What changes per service (Order, Payment, Shipping, Notification) — current = RabbitMQ:
+opts.UseRabbitMq(f => f.Uri = new Uri(conn));        // ← was UseAzureServiceBus(conn)
 opts.PublishMessage<PaymentCompletedEvent>()
-    .ToAzureServiceBusTopic("payment-events");       // ← .ToRabbitExchange("payment-events")
-opts.ListenToAzureServiceBusSubscription("order-events/payment-orders-sub");
-                                                     // ← .ListenToRabbitQueue("payment-orders")
+    .ToRabbitExchange("payment-events");             // ← was .ToAzureServiceBusTopic("payment-events")
+opts.ListenToRabbitQueue("payment-orders");          // ← was ListenToAzureServiceBusSubscription("payment-orders-sub", c => c.TopicName = "order-events")
 
 // What does NOT change — transport-agnostic:
 opts.PersistMessagesWithSqlServer(db, "wolverine");  // outbox = DB concern
@@ -199,10 +202,11 @@ opts.AddNextAuroraContextPropagation();              // correlation/user/session
 ```
 
 **Implications:**
-- `Wolverine.RabbitMQ` added to `Directory.Packages.props`.
-- Each event-publishing service's `Program.cs` transport block branches on
-  environment: ASB emulator in `Development`, RabbitMQ in deployed. Topic→
-  exchange, subscription→queue mapping.
+- `WolverineFx.RabbitMQ` + `Aspire.Hosting.RabbitMQ` added; `WolverineFx.AzureServiceBus`
+  + `Aspire.Hosting.Azure.ServiceBus` removed.
+- Each service's `Program.cs` uses RabbitMQ unconditionally (topic→exchange,
+  subscription→queue mapping); the AppHost provisions a single RabbitMQ container with the
+  management UI. Same `messaging` connection-string name.
 - The transactional outbox is **unaffected** — it's a DB concern
   (`PersistMessagesWith{SqlServer|Postgresql}`, which per D1 is SqlServer for
   Order+Payment, Postgresql for Catalog+Shipping), independent of the wire
@@ -315,8 +319,9 @@ with stubbed Stripe.
 - [ ] Banner in Storefront: *"Payments are stubbed for demo safety"*
 
 **Risk callouts.**
-- RabbitMQ topology — confirm exchanges/queues match the saga's event routing
-  (the old ASB topic/subscription names map to RabbitMQ exchanges/queues).
+- RabbitMQ topology — verified locally (live saga: order → Shipped in seconds);
+  confirm the deployed broker gets the same exchanges/queues via Wolverine
+  AutoProvision (the old ASB topic/subscription names map to exchanges/queues).
 - Box load with all 5 services + infra running — watch RAM/CPU headroom.
 
 **Definition of done.** Place an order, watch it flow Payment (stubbed) →
@@ -448,8 +453,8 @@ Existing CatalogService Fly demo (separate ledger): ~$0–$5/mo (scale-to-zero, 
 
 ## Prerequisites before any phase starts
 
-- [x] D3 sub-point confirmed (2026-05-27): RabbitMQ-deployed-only — dev keeps
-      the ASB emulator, transport branches on environment config
+- [x] D3 resolved (2026-06-17): RabbitMQ in every environment (dev/CI/Hetzner);
+      Azure Service Bus evaluated and removed
 - [ ] Hetzner account + billing alert set
 - [ ] GHCR access token for Dokploy's image pulls
 - [ ] Domain/subdomain for the demo (for Traefik routing + Let's Encrypt)

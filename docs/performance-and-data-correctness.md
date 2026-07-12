@@ -774,9 +774,9 @@ DbUpdateConcurrencyException => new ProblemDetails
 
 The caller refetches and decides what to do. This is the right response for HTTP commands (admin-initiated updates, etc.) where the user can react.
 
-### Service Bus path → Wolverine retry
+### Message path → Wolverine retry
 
-For event handlers (driven by Azure Service Bus), retry is correct: the event is still valid, the handler just needs to read the latest state and reapply. We added a Wolverine error policy in `NextAurora.ServiceDefaults`:
+For event handlers (driven by RabbitMQ via Wolverine), retry is correct: the event is still valid, the handler just needs to read the latest state and reapply. We added a Wolverine error policy in `NextAurora.ServiceDefaults`:
 
 ```csharp
 public static WolverineOptions AddConcurrencyRetry(this WolverineOptions opts)
