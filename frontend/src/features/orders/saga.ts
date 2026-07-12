@@ -69,8 +69,6 @@ export function isSagaSettled(status: OrderStatus): boolean {
   return status === 'Shipped' || status === 'Delivered' || status === 'Cancelled' || status === 'PaymentFailed'
 }
 
-const FAILURE_TERMINALS: ReadonlySet<OrderStatus> = new Set(['PaymentFailed', 'Cancelled'])
-
 /**
  * Derive each happy-path step's visual state from the order's current status.
  * A step is complete once reached, active if it's the furthest reached and the saga is
@@ -81,7 +79,13 @@ export function deriveStepStates(status: OrderStatus): StepState[] {
   return SAGA_STEPS.map((_, index) => {
     if (index < progress) return 'complete'
     if (index === progress) {
-      if (FAILURE_TERMINALS.has(status)) return 'failed'
+      if (status === 'PaymentFailed') return 'failed'
+      // Cancelled is terminal but NOT a step failure: the DTO carries only the current
+      // status, and the backend allows Cancel() from both Placed and Paid — so whether
+      // payment ever happened is unknowable here. Marking Paid as failed would misstate
+      // a cancel-before-payment; leave the remaining steps pending and let the terminal
+      // panel (TERMINAL_NARRATION) tell the story.
+      if (status === 'Cancelled') return 'pending'
       // The furthest-reached step: completed if the saga already moved past or settled
       // here (Shipped/Delivered), otherwise it's the live step we're polling on.
       return isSagaSettled(status) ? 'complete' : 'active'

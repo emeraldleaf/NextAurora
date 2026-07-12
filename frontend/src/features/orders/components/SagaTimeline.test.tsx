@@ -59,4 +59,20 @@ describe('SagaTimeline', () => {
     expect(screen.getByText(/Saga stopped: PaymentFailed/)).toBeInTheDocument()
     expect(screen.getByLabelText('What the backend just did')).toHaveTextContent(/PaymentFailedEvent/)
   })
+
+  it('surfaces the cancel branch without blaming the payment step', () => {
+    // ARRANGE/ACT — the other terminal: the buyer (or a compensation) cancelled the order.
+    render(<SagaTimeline status="Cancelled" />)
+
+    // ASSERT —
+    // 1. The terminal panel is loud and names the state, same contract as PaymentFailed.
+    expect(screen.getByText(/Saga stopped: Cancelled/)).toBeInTheDocument()
+    expect(screen.getByLabelText('What the backend just did')).toHaveTextContent(/cancelled/i)
+    // 2. No step renders the ✕ failure glyph: Cancel() is legal from Placed AND Paid, and
+    //    the status alone can't say whether payment happened — a red Paid step would
+    //    misstate a cancel-before-payment. (The failure glyph is PaymentFailed's contract.)
+    expect(screen.queryByText('✕')).not.toBeInTheDocument()
+    // 3. Settled: no polling hint — nothing more will happen to this order.
+    expect(screen.queryByText(/polls the order every 2/)).not.toBeInTheDocument()
+  })
 })

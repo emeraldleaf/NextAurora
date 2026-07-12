@@ -28,7 +28,11 @@ describe('deriveStepStates', () => {
     ['Delivered', ['complete', 'complete', 'complete']],
     // Failure branch: Placed succeeded, the payment step is where the saga died.
     ['PaymentFailed', ['complete', 'failed', 'pending']],
-    ['Cancelled', ['complete', 'failed', 'pending']],
+    // Cancelled: terminal but NOT a step failure. The DTO carries only the current status
+    // and the backend allows Cancel() from both Placed and Paid, so whether payment ever
+    // happened is unknowable client-side — marking Paid as failed would misstate a
+    // cancel-before-payment. Remaining steps stay pending; the terminal panel tells the story.
+    ['Cancelled', ['complete', 'pending', 'pending']],
   ]
 
   it.each(cases)('%s renders as %j', (status, expected) => {
