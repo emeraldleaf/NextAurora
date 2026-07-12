@@ -14,7 +14,7 @@ namespace OrderService.Features;
 /// <b>Saga ordering:</b> we trust the natural ordering: payment must succeed before shipping
 /// can be created (by <c>CreateShipmentHandler</c> in ShippingService, which itself reacts to
 /// <c>PaymentCompletedEvent</c>). If the events somehow arrive out of order at this handler —
-/// extremely unlikely with single-subscription Service Bus, but possible after a DLQ replay —
+/// extremely unlikely with a single consumer queue per event, but possible after a DLQ replay —
 /// the status guard catches it: an order still in <c>Placed</c> can't go to <c>Shipped</c>, so
 /// we silently skip.
 /// </para>

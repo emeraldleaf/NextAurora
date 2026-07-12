@@ -9,7 +9,7 @@ public class OrderPlacedHandlerTests
     [Fact]
     public void Handle_TranslatesEventIntoProcessPaymentCommand()
     {
-        // ARRANGE — Build an OrderPlacedEvent as it would arrive over Service Bus.
+        // ARRANGE — Build an OrderPlacedEvent as it would arrive over RabbitMQ.
         // OrderPlacedHandler is a static "Wolverine cascading message" — it returns the
         // next command, and Wolverine handles dispatch. The whole class exists for one
         // reason: ProcessPaymentCommand is also reachable from the HTTP endpoint, so we

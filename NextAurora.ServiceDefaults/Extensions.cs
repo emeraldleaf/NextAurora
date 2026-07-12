@@ -81,10 +81,13 @@ public static class Extensions
             .WithTracing(tracing =>
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
-                    .AddSource("Azure.Messaging.ServiceBus")
-                    // "NextAurora.Messaging" is the ActivitySource used by all Service Bus
-                    // processors. Registering it here causes consumer spans to appear in the
-                    // Aspire dashboard and any connected distributed tracing backend.
+                    // Wolverine's own ActivitySource — emits the message send/receive/handle spans
+                    // for the saga regardless of transport (RabbitMQ today). This is the span source
+                    // you follow in the Aspire dashboard to watch an order walk Order→Payment→Shipping.
+                    .AddSource("Wolverine")
+                    // "NextAurora.Messaging" is the project's own ActivitySource (context-propagation
+                    // middleware). Registering it makes those spans appear in the Aspire dashboard
+                    // and any connected distributed tracing backend.
                     .AddSource("NextAurora.Messaging")
                     .AddAspNetCoreInstrumentation(tracing =>
                         // Exclude health check requests from tracing
@@ -362,7 +365,7 @@ public static class Extensions
     ///         picks them up.</item>
     /// </list>
     /// Call inside <c>UseWolverine()</c> in every service. Without this, observability falls
-    /// apart at the Service Bus boundary — you can't trace one transaction across services.
+    /// apart at the message-broker boundary — you can't trace one transaction across services.
     /// </summary>
     public static WolverineOptions AddNextAuroraContextPropagation(this WolverineOptions opts)
     {

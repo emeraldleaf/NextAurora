@@ -234,7 +234,7 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
         // ARRANGE — Seed a Placed order directly via the DbContext (faster than going
         // through the full PlaceOrder flow). The PaymentCompletedEvent simulates what
         // PaymentService publishes after a successful charge. We use the same event
-        // twice to verify idempotency under Service Bus at-least-once delivery.
+        // twice to verify idempotency under the broker's at-least-once delivery.
         var orderId = await SeedOrderAsync(status: OrderStatus.Placed);
         var paymentEvent = new PaymentCompletedEvent
         {
@@ -249,7 +249,7 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
 
         // ACT — First dispatch: the handler should run and the Order transitions
         // Placed → Paid. PublishMessageAndWaitAsync invokes the consumer-side pipeline
-        // exactly as Wolverine would on a real Service Bus message.
+        // exactly as Wolverine would on a real RabbitMQ message.
         await host.TrackActivity()
             .Timeout(TimeSpan.FromSeconds(30))
             .PublishMessageAndWaitAsync(paymentEvent);
@@ -257,7 +257,7 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
         // ASSERT (intermediate) — After the first dispatch, status is Paid.
         (await GetOrderStatusAsync(orderId)).Should().Be(OrderStatus.Paid);
 
-        // ACT — Second dispatch (Service Bus redelivery simulation). The handler's
+        // ACT — Second dispatch (broker redelivery simulation). The handler's
         // status-guard MUST short-circuit cleanly — no exception, no extra mutation.
         await host.TrackActivity()
             .Timeout(TimeSpan.FromSeconds(30))

@@ -1,6 +1,6 @@
 # ShippingService — code flow walkthrough
 
-> **What this is.** A walk through the code paths a new contributor will hit first in [ShippingService](../../ShippingService/). ShippingService is the **saga last step** — it receives `PaymentCompletedEvent` from PaymentService over Service Bus, creates a Shipment + immediately dispatches it (simulation), and publishes `ShipmentDispatchedEvent` for OrderService and NotificationService. Buyers can then query their shipment via a buyer-scoped HTTP endpoint with anti-enumeration IDOR protection.
+> **What this is.** A walk through the code paths a new contributor will hit first in [ShippingService](../../ShippingService/). ShippingService is the **saga last step** — it receives `PaymentCompletedEvent` from PaymentService over RabbitMQ, creates a Shipment + immediately dispatches it (simulation), and publishes `ShipmentDispatchedEvent` for OrderService and NotificationService. Buyers can then query their shipment via a buyer-scoped HTTP endpoint with anti-enumeration IDOR protection.
 >
 > **Architecture style:** Vertical Slice Architecture (single csproj). Folders: [`Endpoints/`](../../ShippingService/Endpoints), [`Features/`](../../ShippingService/Features), [`Domain/`](../../ShippingService/Domain), [`Infrastructure/`](../../ShippingService/Infrastructure). Composition root: [`Program.cs`](../../ShippingService/Program.cs).
 >
@@ -15,7 +15,7 @@
 ```mermaid
 sequenceDiagram
     autonumber
-    participant ASB1 as Azure Service Bus<br/>(payments topic)
+    participant MQ1 as RabbitMQ<br/>(shipping-payments queue, bound to the<br/>payment-events fanout exchange)
     participant W as Wolverine consumer +<br/>ContextPropagation middleware
     participant PCH as PaymentCompletedHandler<br/>Features/PaymentCompletedHandler.cs<br/>(static, returns command)
     participant H as CreateShipmentHandler<br/>Features/CreateShipment.cs
@@ -23,9 +23,9 @@ sequenceDiagram
     participant Agg as Shipment aggregate<br/>Domain/Shipment.cs
     participant Pub as IMessageContext<br/>(Wolverine, method-injected)
     participant DB as Postgres +<br/>wolverine.outgoing_envelopes
-    participant ASB2 as Azure Service Bus<br/>(shipping topic)
+    participant MQ2 as RabbitMQ<br/>(shipping-events fanout exchange)
 
-    ASB1->>W: PaymentCompletedEvent
+    MQ1->>W: PaymentCompletedEvent
     Note over W: restores logger scope from<br/>envelope headers (CorrelationId,<br/>UserId, SessionId)
     W->>PCH: Handle(@event)
     PCH-->>W: returns CreateShipmentCommand<br/>(Wolverine cascading message —<br/>no IMessageBus call needed)
@@ -50,7 +50,7 @@ sequenceDiagram
         H->>Ctx: context.SaveChangesAsync(ct)
         Note over Ctx,DB: AutoApplyTransactions wraps —<br/>INSERT shipments + INSERT tracking_events<br/>+ outbox envelope all in ONE tx
         DB-->>H: tx commit
-        DB->>ASB2: ShipmentDispatchedEvent dispatched
+        DB->>MQ2: ShipmentDispatchedEvent dispatched
         H-->>W: shipment.Id
     end
 ```

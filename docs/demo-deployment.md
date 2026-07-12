@@ -30,14 +30,14 @@ The demo scaffolding is fully additive. Local Aspire development, the test suite
 
 **Watch-out**: if you ever export `ConnectionStrings__catalog-db=<remote-endpoint>` in your local shell, a bare `dotnet run --project CatalogService` would try to talk to the remote DB. This is self-inflicted-only — `dotnet run --project NextAurora.AppHost` overrides connection strings before child processes inherit them, so Aspire-driven local runs are immune.
 
-The [Dockerfile.catalog](../Dockerfile.catalog) and [.dockerignore](../.dockerignore) at the repo root are pure opt-in — Aspire runs the .NET services as `dotnet` processes (only infra deps like Postgres/SQL/Redis/Keycloak/ASB-emulator run in containers), so nothing in the local workflow invokes `docker build`.
+The [Dockerfile.catalog](../Dockerfile.catalog) and [.dockerignore](../.dockerignore) at the repo root are pure opt-in — Aspire runs the .NET services as `dotnet` processes (only infra deps like Postgres/SQL/Redis/Keycloak/RabbitMQ run in containers), so nothing in the local workflow invokes `docker build`.
 
 ## What gets deployed (either path)
 
 - **CatalogService** as a single replica, scale-to-zero when idle
 - **Managed Postgres** for product/stock data (Fly Postgres or AWS RDS depending on path)
 - **No Redis** — HybridCache degrades to L1-only (in-process MemoryCache). Real prod would add a managed Redis for L2.
-- **No Service Bus / no other services** — single-service demo. Cross-service choreography (Order → Payment → Shipping saga) doesn't fit a free-tier budget; flag this as a "would need ASB + ≥2 services" caveat when walking through the deployment.
+- **No RabbitMQ / no other services** — single-service demo. Cross-service choreography (Order → Payment → Shipping saga) doesn't fit a free-tier budget; flag this as a "would need RabbitMQ + ≥2 services" caveat when walking through the deployment.
 
 ---
 
@@ -337,7 +337,7 @@ The IAM role and OIDC provider are free to leave in place for next time.
 
 Useful when walking someone through the deployment, or as a refresher when you come back to this later.
 
-- **"Cheap single-service demo — the production plan in [architecture.md](architecture.md) targets AWS SNS+SQS for the messaging fabric replacing Azure Service Bus, but that's a 2-3 service deployment that doesn't fit a free-tier budget."**
+- **"Cheap single-service demo — the full multi-service plan in [full-saga-deployment-plan.md](full-saga-deployment-plan.md) runs the saga over RabbitMQ (same broker as local dev and CI), but that's a multi-service deployment that doesn't fit a free-tier budget."**
 - **"Scalar exposed via a `DemoMode` flag — normally dev-only in `Program.cs` because OpenAPI specs are reconnaissance gold. The flag default is off, so production posture is unchanged."**
 - **"HybridCache degrades to L1-only (in-process MemoryCache) when no `cache` connection string is set — registration is conditional. Real prod would add a managed Redis for L2 and pick up the same code path."**
 - **"Same `Dockerfile.catalog` deploys to either Fly.io or AWS App Runner — the only thing that varies is the orchestration layer, which is exactly the abstraction containers buy you."**

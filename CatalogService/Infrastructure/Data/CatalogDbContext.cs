@@ -15,7 +15,7 @@ namespace CatalogService.Infrastructure.Data;
 /// EF then includes <c>WHERE xmin = @originalXmin</c> on every UPDATE; if another transaction
 /// touched the row first, the WHERE matches zero rows and EF throws
 /// <see cref="DbUpdateConcurrencyException"/>. The handler layer catches that and either retries
-/// (Service Bus events) or returns 409 Conflict (HTTP) — see <c>GlobalExceptionHandler</c> and
+/// (RabbitMQ events) or returns 409 Conflict (HTTP) — see <c>GlobalExceptionHandler</c> and
 /// <c>AddConcurrencyRetry</c>. Net result: last-write-wins is impossible.
 /// </para>
 /// <para>

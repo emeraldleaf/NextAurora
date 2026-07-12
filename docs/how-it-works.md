@@ -341,7 +341,7 @@ return new HandlerResult<Guid>(order.Id, new OrderPlacedEvent
 });
 ```
 
-**Why no `bus.PublishAsync(...)` call** — `opts.Policies.AutoApplyTransactions()` wraps the handler chain in an EF transaction, and `opts.Policies.UseDurableOutboxOnAllSendingEndpoints()` makes Wolverine stage outgoing messages to the `wolverine.outgoing_envelopes` table. The entity write and the outbox row commit *together*. A background dispatcher then forwards the staged messages to Azure Service Bus with retry. This eliminates the dual-write problem (entity saved but event publish crashed, or vice versa). Full rationale: [docs/performance-and-data-correctness.md "Resolved: transactional outbox via Wolverine"](performance-and-data-correctness.md#resolved-transactional-outbox-via-wolverine).
+**Why no `bus.PublishAsync(...)` call** — `opts.Policies.AutoApplyTransactions()` wraps the handler chain in an EF transaction, and `opts.Policies.UseDurableOutboxOnAllSendingEndpoints()` makes Wolverine stage outgoing messages to the `wolverine.outgoing_envelopes` table. The entity write and the outbox row commit *together*. A background dispatcher then forwards the staged messages to RabbitMQ with retry. This eliminates the dual-write problem (entity saved but event publish crashed, or vice versa). Full rationale: [docs/performance-and-data-correctness.md "Resolved: transactional outbox via Wolverine"](performance-and-data-correctness.md#resolved-transactional-outbox-via-wolverine).
 
 ### Step 6 — HTTP Response
 
@@ -386,22 +386,23 @@ builder.Services.AddScoped<ICatalogClient, GrpcCatalogClient>();
 
 Aspire resolves `catalog-service` to the running instance automatically — no hardcoded URLs.
 
-### Asynchronous: Azure Service Bus via Wolverine (all workflow events)
+### Asynchronous: RabbitMQ via Wolverine (all workflow events)
 
-Used for the order fulfillment pipeline where immediate response isn't required. **Wolverine handles everything** — there is no hand-rolled `ServiceBusMessage` construction, no `ProcessMessageAsync` event handler, no manual `CompleteMessage` / `AbandonMessage` ack logic. Every concern below is configured once in `Program.cs` and the handler code is just a class with `HandleAsync`.
+Used for the order fulfillment pipeline where immediate response isn't required. **Wolverine handles everything** — there is no hand-rolled `BasicPublish` call, no `EventingBasicConsumer` callback, no manual `BasicAck` / `BasicNack` logic. Every concern below is configured once in `Program.cs` and the handler code is just a class with `HandleAsync`.
 
-**Publishing.** A handler returns the event (cascading message) or calls `bus.PublishAsync(@event)`. The outbox-aware sending endpoint stages it into `wolverine.outgoing_envelopes` in the same DB transaction as the entity write; a background dispatcher forwards it to Azure Service Bus with retry. Headers (`X-Correlation-Id`, `X-User-Id`, `X-Session-Id`) are stamped onto outgoing envelopes by `OutgoingContextMiddleware` reading from `Activity` baggage — handler code stays clean.
+**Publishing.** A handler returns the event (cascading message) or calls `bus.PublishAsync(@event)`. The outbox-aware sending endpoint stages it into `wolverine.outgoing_envelopes` in the same DB transaction as the entity write; a background dispatcher forwards it to RabbitMQ with retry. Each event family publishes to a **fanout exchange** (`order-events`, `payment-events`, `shipping-events`) via `opts.PublishMessage<X>().ToRabbitExchange("order-events")`. Headers (`X-Correlation-Id`, `X-User-Id`, `X-Session-Id`) are stamped onto outgoing envelopes by `OutgoingContextMiddleware` reading from `Activity` baggage — handler code stays clean.
 
-**Consuming.** Wolverine subscribes to topics declared in `Program.cs`:
+**Consuming.** Each consumer binds its own queue to the fanout exchange and listens to it, declared in `Program.cs`:
 
 ```csharp
-opts.ListenToAzureServiceBusSubscription("order-events/payment-orders-sub")
-    .FromTopic("order-events");
+var rabbit = opts.UseRabbitMq(f => f.Uri = new Uri(conn));
+rabbit.BindExchange("order-events", ExchangeType.Fanout).ToQueue("payment-orders");
+opts.ListenToRabbitQueue("payment-orders");
 ```
 
-Wolverine then discovers handler classes for the message types and dispatches each incoming envelope to the right one. The pipeline around each consumer is the same as the HTTP-side one: FluentValidation (rare for events) → `ContextPropagationMiddleware` (restores the correlation/user/session scope from envelope headers) → `AutoApplyTransactions` → handler. Idempotency guards inside handlers (status checks, "already processed" lookups) handle Service Bus's at-least-once delivery.
+Wolverine's `AutoProvision()` declares the exchanges, queues, and bindings against the live broker at each service's startup (gated by `Wolverine:AutoProvision` — default on; off in integration tests, which stub the transport). Wolverine then discovers handler classes for the message types and dispatches each incoming envelope to the right one. The pipeline around each consumer is the same as the HTTP-side one: FluentValidation (rare for events) → `ContextPropagationMiddleware` (restores the correlation/user/session scope from envelope headers) → `AutoApplyTransactions` → handler. Idempotency guards inside handlers (status checks, "already processed" lookups) handle RabbitMQ's at-least-once delivery.
 
-**Retries and DLQ.** `opts.AddConcurrencyRetry()` retries `DbUpdateConcurrencyException` 3 times with 50/100/250ms cooldowns; transient transport failures use Wolverine's defaults. After retries are exhausted, the message goes to the Service Bus dead-letter queue and surfaces as the `messages.abandoned` metric.
+**Retries and DLQ.** `opts.AddConcurrencyRetry()` retries `DbUpdateConcurrencyException` 3 times with 50/100/250ms cooldowns; transient transport failures use Wolverine's defaults. After retries are exhausted, the message goes to the dead-letter queue — inspect it via the RabbitMQ management UI (`:15672`) or the `wolverine.dead_letters` table (metric wiring for DLQ alerting is tracked in #171).
 
 ---
 
@@ -414,21 +415,21 @@ The full order lifecycle is driven by a choreography-based saga — no central o
                ↓
          OrderService creates Order (status: Placed)
                ↓
-         publishes OrderPlacedEvent → "order-events" topic
+         publishes OrderPlacedEvent → "order-events" exchange
                ↓
    ┌───────────┴──────────┐
    ↓                      ↓
 PaymentService         NotificationService
 processes payment      sends "Order Received" email
    ↓
-publishes PaymentCompletedEvent → "payment-events" topic
+publishes PaymentCompletedEvent → "payment-events" exchange
    ↓
    ┌───────────┴──────────┐
    ↓                      ↓
 OrderService           ShippingService
 marks Order as Paid    creates Shipment, assigns carrier + tracking
                            ↓
-                       publishes ShipmentDispatchedEvent → "shipping-events" topic
+                       publishes ShipmentDispatchedEvent → "shipping-events" exchange
                            ↓
                ┌───────────┴──────────┐
                ↓                      ↓
@@ -455,7 +456,7 @@ Using a shared contracts project ensures all services agree on the same message 
 
 ### Idempotent Event Handlers
 
-Because Service Bus delivers messages at-least-once, handlers guard against processing the same event twice:
+Because RabbitMQ delivers messages at-least-once, handlers guard against processing the same event twice:
 
 ```csharp
 // PaymentCompletedHandler — idempotency guard
@@ -506,7 +507,7 @@ Every error response includes a `traceId` that links to the full server-side log
 
 Three context identifiers flow through every request — HTTP and async — automatically. There are no per-handler reads or writes; the middleware does it all.
 
-| Concept | Source | HTTP / Service Bus header | Logger scope key |
+| Concept | Source | HTTP / message header | Logger scope key |
 |---------|--------|---------------------------|------------------|
 | Correlation | `X-Correlation-Id` header, or generated from trace ID | `X-Correlation-Id` | `CorrelationId` |
 | User | JWT `sub` claim (`ClaimTypes.NameIdentifier`) | `X-User-Id` | `UserId` |
@@ -539,9 +540,9 @@ var ordersDb   = builder.AddSqlServer("orders-sql").AddDatabase("orders-db");
 var paymentsDb = builder.AddSqlServer("payments-sql").AddDatabase("payments-db");
 var shippingDb = builder.AddPostgres("shipping-pg").AddDatabase("shipping-db");
 
-// L2 cache + messaging — Aspire 13+ requires explicit local-dev fallbacks
-var redis      = builder.AddRedis("cache");
-var serviceBus = builder.AddAzureServiceBus("messaging").RunAsEmulator();   // mandatory in Aspire 13+
+// L2 cache + messaging — a real RabbitMQ container, same broker in every environment
+var redis     = builder.AddRedis("cache");
+var messaging = builder.AddRabbitMQ("messaging").WithManagementPlugin();   // management UI on :15672
 
 // App Insights only when publishing — no local emulator exists
 IResourceBuilder<AzureApplicationInsightsResource>? insights = null;
@@ -550,22 +551,20 @@ if (builder.ExecutionContext.IsPublishMode)
     insights = builder.AddAzureApplicationInsights("insights");
 }
 
-// Service Bus topology — subscription names are GLOBALLY UNIQUE in the namespace
-var orderTopic = serviceBus.AddServiceBusTopic("order-events");
-orderTopic.AddServiceBusSubscription("payment-orders-sub");
-orderTopic.AddServiceBusSubscription("notify-orders-sub");
-// ... payment-events and shipping-events topics, each with consumer-prefixed subs
+// No broker topology declared here — each service's Wolverine setup AutoProvisions
+// its own fanout exchanges (order-events, payment-events, shipping-events) and
+// consumer queues at startup (gated by Wolverine:AutoProvision; off in integration tests)
 
 // Services with their dependencies — every WithReference gets a matching WaitFor
 // because Aspire 13's WithReference no longer waits for healthy
 builder.AddProject<Projects.OrderService_Api>("order-service")
     .WithReference(ordersDb).WaitFor(ordersDb)
-    .WithReference(serviceBus).WaitFor(serviceBus)
+    .WithReference(messaging).WaitFor(messaging)
     .WithReference(catalogService).WaitFor(catalogService);  // gRPC service discovery
 ```
 
 Aspire handles:
-- Spinning up Docker containers for each database, Redis, Keycloak, and the Service Bus emulator
+- Spinning up Docker containers for each database, Redis, Keycloak, and RabbitMQ
 - Injecting connection strings into each service automatically
 - Resolving service names (`catalog-service`) to the correct URL
 - Health-check aggregation in the dashboard
@@ -574,8 +573,7 @@ Every service calls `builder.AddServiceDefaults()` in `Program.cs` to register s
 
 **Aspire 13 gotchas the AppHost has to handle** (each captured in CLAUDE.md after surfacing):
 - Aspire SDK and runtime package versions must match exactly (or SDK ≥ packages).
-- Service Bus subscription names are globally unique in the namespace — convention is `{consumer}-{source}-sub` (e.g., `payment-orders-sub`).
-- `AddAzureServiceBus(...)` requires a chained `.RunAsEmulator()` for local runs.
+- RabbitMQ queue names follow the `{consumer}-{source}` convention (e.g., `payment-orders` = PaymentService's queue bound to the `order-events` exchange); Wolverine AutoProvisions them at startup.
 - `AddAzureApplicationInsights(...)` has no local emulator — gate it on `IsPublishMode`.
 - Every `.WithReference(x)` on a non-trivial dependency needs a matching `.WaitFor(x)` since `WithReference` no longer waits for healthy in Aspire 13.
 
@@ -661,7 +659,7 @@ All tests in the solution run. Each test project targets the unit tests for one 
 | Change a domain business rule | `{Service}.Domain/Entities/` |
 | Add a new event type | `NextAurora.Contracts/Events/` |
 | Change which events a service publishes | Return them as cascading messages from the handler, or `bus.PublishAsync` |
-| Change which events a service consumes | Add a handler class for the event in `{Service}.Application/Handlers/`, plus an `opts.ListenToAzureServiceBusSubscription(...)` line in `{Service}.Api/Program.cs` |
+| Change which events a service consumes | Add a handler class for the event in the service's `Features/` folder, plus an `opts.ListenToRabbitQueue(...)` + `rabbit.BindExchange(...).ToQueue(...)` line in `{Service}.Api/Program.cs` |
 | Inspect outgoing events / outbox state | Each event-publishing service's DB has a `wolverine` schema; `outgoing_envelopes` is the staged-but-not-yet-flushed queue, `dead_letters` the DLQ. See [event-replay.md](./event-replay.md) |
 | Add a new gRPC method to CatalogService | `CatalogService.Api/Protos/catalog.proto` + `CatalogService.Api/Services/CatalogGrpcService.cs` (regenerate clients in OrderService) |
 | Add a cached read query in Catalog | `IProductCache.GetOrLoadAsync(id, factory)` — see [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs) |
