@@ -248,6 +248,14 @@ jobs:
       - name: Tombstone audit — removed identifiers must not resurface
         run: .claude/scripts/check-tombstones.sh
 
+      # Messaging-topology completeness: every queue const reaches a publisher-side
+      # .ToQueue() declaration, every listener is durable-inbox or inline, no inline
+      # topology literals. The transport-stubbed integration tests structurally can't
+      # catch these (AutoProvision off, routing stubbed); real-wire tests are deferred
+      # (#68). See CLAUDE.md messaging trap bullets.
+      - name: Messaging-topology audit — publisher declarations + listener durability
+        run: .claude/scripts/check-messaging-topology.sh
+
   # Testcontainers-based integration tests, in their own job: they need Docker (the
   # ubuntu-latest runner ships it at the standard /var/run/docker.sock, so Testcontainers
   # auto-detects — no DOCKER_HOST override, unlike macOS Docker Desktop locally). Kept

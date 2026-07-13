@@ -548,6 +548,15 @@ reviews:
         and ListenToRabbitQueue() must be a single const — a typo'd name is silently
         auto-provisioned and the consumer starves with no error.
 
+    - path: "NextAurora.Contracts/Messaging/*.cs"
+      instructions: |
+        MessagingExchanges/MessagingQueues is the code-side source of truth for the
+        RabbitMQ topology. Any change here must update docs/event-catalog.md's
+        exchange/queue matrix in the same PR (and vice versa), plus every publisher's
+        Program.cs that declares the affected consumer queues. Flag a new queue const
+        with no .ToQueue( declaration in any publisher, or a renamed const whose old
+        string should be tombstoned (.claude/tombstones.txt).
+
     - path: "docs/**/*.md"
       instructions: |
         TOMBSTONED IDENTIFIERS (see CLAUDE.md "Identifier-move discipline"). Flag
