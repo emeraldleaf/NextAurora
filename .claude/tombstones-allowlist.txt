@@ -6,6 +6,8 @@
 docs/project-decisions.md
 docs/full-saga-deployment-plan.md
 docs/war-story-wolverine6-outbox-atomicity.md
+# Retrospective ABOUT the ASB-emulator debugging saga (historical narrative by nature):
+docs/the-integration-gap.md
 # Comparative/portable guides where the removed transport is a subject of comparison:
 docs/messaging-transport-selection.md
 docs/performance-and-data-correctness.md
