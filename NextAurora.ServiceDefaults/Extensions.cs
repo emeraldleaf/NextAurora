@@ -13,7 +13,6 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ServiceDiscovery;
 using NextAurora.ServiceDefaults.Messaging;
-using NextAurora.ServiceDefaults.Metrics;
 using NextAurora.ServiceDefaults.Middleware;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -40,7 +39,6 @@ public static class Extensions
         builder.Services.AddExceptionHandler<NextAurora.ServiceDefaults.GlobalExceptionHandler>();
         builder.Services.AddProblemDetails();
 
-        builder.Services.AddSingleton<NextAuroraMetrics>();
 
         builder.Services.AddServiceDiscovery();
 
@@ -82,7 +80,9 @@ public static class Extensions
                     // inbox counters. Previously unregistered, so none of it was collected —
                     // which is why the hand-rolled abandoned-message counter (declared, never
                     // incremented, deleted with this change) looked like the only DLQ signal.
-                    // Wildcard because the exact meter name is Wolverine's to choose.
+                    // The wildcard is LOAD-BEARING, not a convenience: Wolverine names its meter
+                    // "Wolverine:{ServiceName}" (e.g. "Wolverine:NextAurora.OrderService"), so a
+                    // literal AddMeter("Wolverine") would silently collect nothing. Don't "tidy" it.
                     .AddMeter("Wolverine*");
             })
             .WithTracing(tracing =>

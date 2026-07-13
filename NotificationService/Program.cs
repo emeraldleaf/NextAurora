@@ -14,9 +14,9 @@ builder.AddServiceDefaults();
 builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
-    // RabbitMQ transport. NotificationService is listen-only (the saga sink): bind a per-source
-    // queue to each event exchange. AutoProvision is gated
-    // (default on) for consistency with the other services. See OrderService/Program.cs + CLAUDE.md.
+    // RabbitMQ transport. NotificationService is listen-only (the saga sink): it binds a
+    // per-source queue to each event exchange. AutoProvision is gated (default on) for
+    // consistency with the other services. See OrderService/Program.cs + CLAUDE.md.
     var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString));
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {

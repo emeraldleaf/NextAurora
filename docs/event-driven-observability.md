@@ -43,7 +43,7 @@ When a message handler throws, Wolverine applies its retry/error policy; a messa
 
 ### The DLQ alarm signal
 
-Wolverine's own meter is registered in `ServiceDefaults` (`AddMeter("Wolverine*")`), so **`wolverine-dead-letter-queue`** is the metric to alert on — it rises as messages are dead-lettered. (A hand-rolled `NextAuroraMetrics` counter used to be documented here, but nothing incremented it once the ASB processors were deleted; it was removed in favour of Wolverine's native instruments.)
+Wolverine's own meter is registered in `ServiceDefaults` (`AddMeter("Wolverine*")`), so **`wolverine-dead-letter-queue`** is the metric to alert on — it rises as messages are dead-lettered. (A hand-rolled abandoned-message counter used to be documented here, but nothing incremented it once the old processors were deleted; it was removed in favour of Wolverine's native instruments.)
 
 ---
 

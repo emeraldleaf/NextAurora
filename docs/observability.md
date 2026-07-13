@@ -171,7 +171,7 @@ A `Meter("NextAurora")` is registered in `ServiceDefaults` and collected by the 
 | `wolverine-dead-letter-queue` | **Messages dead-lettered — the DLQ alarm signal** |
 | `wolverine-inbox-count` | Durable-inbox depth |
 
-(A hand-rolled `abandoned` counter previously sat in `NextAuroraMetrics` but was incremented by nothing — the ASB processors that fed it were deleted in the Wolverine migration. It was removed in favour of Wolverine's native instruments, which report the same thing for real.)
+(A hand-rolled abandoned-message counter previously sat in a ServiceDefaults metrics class, but was incremented by nothing — the processors that fed it were deleted in the Wolverine migration. Both the counter and its holder class were removed in favour of Wolverine's native instruments, which report the same thing for real.)
 
 These are available in the Aspire dashboard under **Metrics** in development. In production, they are exported via OTLP to your metrics backend (Prometheus, Azure Monitor, etc.).
 
@@ -204,7 +204,6 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 | File | Purpose |
 |------|---------|
 | `NextAurora.ServiceDefaults/Middleware/CorrelationIdMiddleware.cs` | HTTP correlation ID propagation |
-| `NextAurora.ServiceDefaults/Metrics/NextAuroraMetrics.cs` | Business metrics counters |
 | `NextAurora.ServiceDefaults/Messaging/ContextPropagationMiddleware.cs` | Wolverine middleware — opens `BeginScope` with CorrelationId/UserId/SessionId for every handler |
 
 ### Modified Files
