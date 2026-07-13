@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using NextAurora.Contracts.Events;
 using PaymentService.Domain;
 using PaymentService.Infrastructure.Data;
+using Wolverine.EntityFrameworkCore;
 
 namespace PaymentService.Infrastructure;
 
@@ -154,8 +155,8 @@ public sealed partial class PaymentRecoveryJob(
             {
                 using var rowScope = scopeFactory.CreateScope();
                 var rowContext = rowScope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-                var rowEventPublisher = rowScope.ServiceProvider.GetRequiredService<IEventPublisher>();
-                await RecoverOneAsync(id, rowContext, rowEventPublisher, ct);
+                var rowOutbox = rowScope.ServiceProvider.GetRequiredService<IDbContextOutbox>();
+                await RecoverOneAsync(id, rowContext, rowOutbox, ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -176,7 +177,7 @@ public sealed partial class PaymentRecoveryJob(
         }
     }
 
-    private async Task RecoverOneAsync(Guid paymentId, PaymentDbContext context, IEventPublisher eventPublisher, CancellationToken ct)
+    private async Task RecoverOneAsync(Guid paymentId, PaymentDbContext context, IDbContextOutbox outbox, CancellationToken ct)
     {
         var payment = await context.Payments.FirstOrDefaultAsync(p => p.Id == paymentId, ct);
 
@@ -188,22 +189,24 @@ public sealed partial class PaymentRecoveryJob(
             return;
         }
 
-        // OUTBOX-ATOMIC NON-HANDLER CODE PATH. The sweeper runs OUTSIDE Wolverine's handler
-        // pipeline, so AutoApplyTransactions does NOT wrap it — we have to wrap explicitly.
-        // MarkAsFailed (DB write) and PaymentFailedEvent (outbox envelope write) must commit
-        // or roll back together. Without this transaction, a crash between SaveChanges and
-        // PublishAsync would leave the Payment Failed in-DB but the event never enqueued — the
-        // saga would stall. The wrapper used to live behind the (now-removed) repository
-        // method IPaymentRepository.ExecuteInTransactionAsync — post-refactor (repository
-        // deleted, handlers take DbContext directly) it's inline here.
-        // The canonical shape — BeginTransactionAsync → entity work + PublishAsync →
-        // SaveChangesAsync (flushes Wolverine's staged envelope) → CommitAsync — is the same.
-        // Wolverine's UseEntityFrameworkCoreTransactions() bridge intercepts SaveChanges to
-        // persist outgoing_envelopes rows into the ambient EF transaction.
+        // OUTBOX-ATOMIC NON-HANDLER CODE PATH. The sweeper runs OUTSIDE Wolverine's handler pipeline,
+        // so AutoApplyTransactions does NOT wrap it. MarkAsFailed (DB write) and PaymentFailedEvent
+        // (outbox envelope write) must commit or roll back together — otherwise a crash between them
+        // leaves the Payment Failed in-DB with no event enqueued (saga stalls) or, worse under
+        // Wolverine 6, the event dispatched before the row commits (a "payment failed" event for a
+        // payment that didn't actually persist as failed).
+        //
+        // We use Wolverine's NON-HANDLER outbox: enroll this DbContext in an IDbContextOutbox, publish
+        // through it, then SaveChangesAndFlushMessagesAsync — which stages the envelope, saves the
+        // entity, and commits both in one transaction. This is the supported replacement for the old
+        // manual BeginTransaction → PublishAsync → SaveChanges → Commit shape, which silently stopped
+        // being atomic on 6.x because a constructor-injected IMessageBus (the old IEventPublisher
+        // shim) is not enlisted in the transaction and published INLINE. Proven by
+        // PaymentRecoveryAtomicityTests. See docs/war-story-wolverine6-outbox-atomicity.md + CLAUDE.md.
         var legacyRow = false;
         try
         {
-            await using var tx = await context.Database.BeginTransactionAsync(ct);
+            outbox.Enroll(context);
 
             payment.MarkAsFailed("Payment timed out — recovery sweep marked as failed past stale threshold.");
 
@@ -217,28 +220,25 @@ public sealed partial class PaymentRecoveryJob(
             }
             else
             {
-                await eventPublisher.PublishAsync(new PaymentFailedEvent
+                await outbox.PublishAsync(new PaymentFailedEvent
                 {
                     PaymentId = payment.Id,
                     OrderId = payment.OrderId,
                     BuyerId = payment.BuyerId,
                     Reason = "Payment timed out. Please retry checkout.",
                     FailedAt = timeProvider.GetUtcNow().UtcDateTime
-                }, ct);
+                });
             }
 
-            // SaveChangesAsync flushes BOTH the MarkAsFailed mutation AND any Wolverine outbox
-            // envelopes staged by PublishAsync into the ambient transaction. This call is what
-            // makes the outbox atomic — without it, the envelope stays in the in-memory tracker
-            // and never reaches wolverine.outgoing_envelopes.
-            await context.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
+            // Atomic: stages the PaymentFailedEvent envelope, saves the MarkAsFailed mutation, and
+            // commits both in one transaction. If this throws, nothing is dispatched.
+            await outbox.SaveChangesAndFlushMessagesAsync(ct);
         }
         catch (DbUpdateConcurrencyException ex)
         {
             // Another process won the RowVersion race. That's fine — the row is either Failed
-            // or Completed by whoever raced past us; no further action needed here. Transaction
-            // rolls back on dispose so our partial work doesn't persist.
+            // or Completed by whoever raced past us; no further action needed here. The outbox
+            // transaction rolls back, so our partial work (and the staged event) doesn't persist.
             LogConcurrencyConflict(logger, ex, paymentId);
             return;
         }

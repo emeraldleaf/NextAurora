@@ -21,37 +21,29 @@ The features below give every team member a clear view of what happened, when, a
 
 Every request, message, and log line carries three identifiers that link the entire transaction chain:
 
-| Identifier | HTTP Header | Service Bus Property | Logger Scope Key |
+| Identifier | HTTP Header | Wolverine Envelope Header | Logger Scope Key |
 |---|---|---|---|
 | Correlation ID | `X-Correlation-Id` | `X-Correlation-Id` | `CorrelationId` |
 | User ID | `X-User-Id` | `X-User-Id` | `UserId` |
 | Session ID | `X-Session-Id` | `X-Session-Id` | `SessionId` |
 
-`CorrelationIdMiddleware` → `ContextPropagationMiddleware` → `WolverineEventPublisher` → each handler restores all three from `ApplicationProperties` into `Activity` baggage and a `logger.BeginScope()`. See **[docs/context-propagation.md](context-propagation.md)** for the full developer guide (per-component breakdown, new-service checklist, pitfalls) and **[docs/observability.md](observability.md)** for the technical reference and code patterns.
+`CorrelationIdMiddleware` (HTTP entry) stamps all three into `Activity` baggage; `OutgoingContextMiddleware` writes them onto outgoing Wolverine envelope headers (RabbitMQ message headers on the wire); `ContextPropagationMiddleware` restores them from the envelope headers into `Activity` baggage and a `logger.BeginScope()` on the consuming side. See **[docs/context-propagation.md](context-propagation.md)** for the full developer guide (per-component breakdown, new-service checklist, pitfalls) and **[docs/observability.md](observability.md)** for the technical reference and code patterns.
 
 ---
 
 ## Distributed Tracing
 
-All Service Bus processors create consumer spans via `ActivitySource("NextAurora.Messaging")`, registered in `Extensions.cs` alongside `"Azure.Messaging.ServiceBus"`. Combined with the `logger.BeginScope()` that every processor opens (carrying `CorrelationId`, `UserId`, `SessionId`, `MessageId`, `Subject`, and `DeliveryCount`), every handler log line carries full context automatically. `DeliveryCount > 1` signals a retry. See **[docs/observability.md](observability.md)** for the full OTel configuration, registered sources, and trace span diagram.
+Saga message spans (send/receive/handle) come from Wolverine's own `ActivitySource("Wolverine")`, registered in `Extensions.cs` — transport-agnostic, so the full event chain is visible in the Aspire dashboard and any OTLP backend regardless of broker (RabbitMQ today). Combined with the `logger.BeginScope()` that `ContextPropagationMiddleware` opens (carrying `CorrelationId`, `UserId`, `SessionId`), every handler log line carries full context automatically. See **[docs/observability.md](observability.md)** for the full OTel configuration, registered sources, and trace span diagram.
 
 ---
 
 ## Dead Letter Queue (DLQ) Alerting
 
-When a message handler throws, the processor calls `AbandonMessageAsync`, incrementing the message's `DeliveryCount`. Once that exceeds `MaxDeliveryCount`, Service Bus moves the message to the Dead Letter Queue. See **[docs/observability.md#dead-letter-queue-dlq-handling](observability.md)** for the full DLQ path table, investigation steps, and transport error logging.
+When a message handler throws, Wolverine applies its retry/error policy; a message that exhausts its retries is dead-lettered by Wolverine's RabbitMQ transport to a Wolverine-managed dead-letter queue on the broker. Dead-lettered messages are visible in the RabbitMQ management UI (`:15672`) and in Wolverine's message store (the `wolverine` schema in each service's database). See **[docs/observability.md#dead-letter-queue-dlq-handling](observability.md)** for the topology table and investigation steps.
 
 ### The `messages.abandoned` Metric
 
-Every processor increments the `messages.abandoned` counter when abandoning:
-
-```csharp
-_messagesAbandoned.Add(1,
-    new KeyValuePair<string, object?>("subject", args.Message.Subject),
-    new KeyValuePair<string, object?>("service", "OrderService"));
-```
-
-The counter is defined in `NextAuroraMetrics` (`"NextAurora"` meter) and appears in the Aspire metrics dashboard. Configure an alert when this counter rises above your threshold to catch DLQ pile-ups before they cause user-visible outages.
+The `messages.abandoned` counter is defined in `NextAuroraMetrics` (`"NextAurora"` meter) but is **not currently incremented by anything** — the processors that incremented it were deleted in the RabbitMQ/Wolverine migration. Re-wiring it into the Wolverine pipeline is a tracked follow-up; until then, monitor DLQ depth via the RabbitMQ management UI or the `wolverine` schema.
 
 ---
 
@@ -67,22 +59,16 @@ Previously, when payment failed:
 
 ### What's Implemented Now
 
-**OrderService** dispatches `payment-events` messages by `Subject`:
+**OrderService** handles both event types via Wolverine's type-based dispatch — each event has its own handler class in `Features/`:
 
-```csharp
-if (string.Equals(subject, nameof(PaymentCompletedEvent), StringComparison.Ordinal))
-    // → PaymentCompletedHandler → order.MarkAsPaid()
-else if (string.Equals(subject, nameof(PaymentFailedEvent), StringComparison.Ordinal))
-    // → PaymentFailedHandler → order.MarkAsPaymentFailed()
-else
-    logger.LogWarning("Unrecognised subject '{Subject}' — completing without processing", subject);
-```
+- `PaymentCompletedEvent` → `PaymentCompletedHandler` → `order.MarkAsPaid()`
+- `PaymentFailedEvent` → `PaymentFailedHandler` → `order.MarkAsPaymentFailed()`
 
 **OrderService domain** gained a new status and method:
 - `OrderStatus.PaymentFailed` — terminal status for orders where payment was rejected
 - `Order.MarkAsPaymentFailed()` — enforces the invariant that only `Placed` orders can transition
 
-**NotificationService** subscribes to `payment-events / notify-sub` and sends a "Payment Failed" email to the buyer when `PaymentFailedEvent` arrives.
+**NotificationService** consumes `payment-events` via its `notify-payments` queue and sends a "Payment Failed" email to the buyer when `PaymentFailedEvent` arrives.
 
 **`PaymentFailedEvent`** now carries `BuyerId` so NotificationService can resolve the buyer's contact details without a cross-service call to OrderService.
 

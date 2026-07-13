@@ -512,3 +512,6 @@ docs/*.png
 # baked ideas don't ship in the repo. Promote to actual `docs/`, GitHub
 # issues, or post-publish refs once the idea earns its keep.
 docs/post-ideas/
+
+# Codacy CLI tooling (downloaded artifacts; not part of the repo)
+.codacy/

@@ -73,15 +73,17 @@ Browser / App Client
       │  → Every log line in the handler now carries all three IDs
       │
       ▼
-   WolverineEventPublisher (outgoing async message)
+   OutgoingContextMiddleware (outgoing Wolverine envelope)
       │
-      │  Reads baggage, writes to message ApplicationProperties:
+      │  Reads baggage, writes onto envelope headers
+      │  (RabbitMQ message headers on the wire):
       │    X-Correlation-Id, X-User-Id, X-Session-Id
       │
       ▼
-   Next Service's Processor (incoming async message)
+   Next Service's Wolverine Handler (incoming async message)
          │
-         │  Reads ApplicationProperties back into Activity baggage
+         │  ContextPropagationMiddleware reads envelope headers
+         │  back into Activity baggage
          │  Opens logger scope — same three IDs continue
          │
          ▼
@@ -149,8 +151,8 @@ When a service publishes an event, context would normally be lost — the messag
 
 ```csharp
 // Conceptual view — the middleware writes onto Envelope.Headers, which
-// Wolverine maps to the underlying transport (Azure Service Bus
-// ApplicationProperties for Service Bus, headers for other transports).
+// Wolverine maps to the underlying transport (RabbitMQ message headers
+// today; each transport maps the envelope headers to its native equivalent).
 envelope.Headers["X-Correlation-Id"] = correlationId;
 if (userId    is not null) envelope.Headers["X-User-Id"]    = userId;
 if (sessionId is not null) envelope.Headers["X-Session-Id"] = sessionId;
@@ -164,7 +166,7 @@ The headers ride along with the message and are available to the receiving servi
 
 ### 4. Wolverine Message Handlers — The Entry Point for Async Messages
 
-Wolverine discovers and invokes handler methods (`Handle(TEvent e)`) automatically for every incoming Service Bus message. `ContextPropagationMiddleware` runs before each handler, mirroring what `CorrelationIdMiddleware` does for HTTP — it reads the three IDs from `Envelope.Headers`, restores them into Activity baggage, and opens a logger scope.
+Wolverine discovers and invokes handler methods (`Handle(TEvent e)`) automatically for every incoming RabbitMQ message. `ContextPropagationMiddleware` runs before each handler, mirroring what `CorrelationIdMiddleware` does for HTTP — it reads the three IDs from `Envelope.Headers`, restores them into Activity baggage, and opens a logger scope.
 
 ```csharp
 // Conceptual view of what ContextPropagationMiddleware.Before() does.
@@ -215,7 +217,7 @@ If you add a fifth or sixth service, here is the checklist:
 **Outgoing events:**
 - Register `WolverineEventPublisher` as `IEventPublisher` in Infrastructure DI. `OutgoingContextMiddleware` stamps the three IDs onto every outgoing envelope automatically.
 
-**Incoming Service Bus messages:**
+**Incoming RabbitMQ messages:**
 - Wolverine + `ContextPropagationMiddleware` handles context extraction for all async message handlers automatically. No per-handler boilerplate needed.
 
 ---
@@ -244,7 +246,7 @@ SessionId = "sess-abc123"
 CorrelationId = "a1b2c3d4e5f6" | sort by timestamp asc
 ```
 
-This last query gives you every log line — from the initial HTTP request through every Service Bus hop — in chronological order, across all five services.
+This last query gives you every log line — from the initial HTTP request through every RabbitMQ hop — in chronological order, across all five services.
 
 ---
 

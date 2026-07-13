@@ -6,7 +6,7 @@ using ShippingService.Infrastructure;
 using ShippingService.Infrastructure.Data;
 using Scalar.AspNetCore;
 using Wolverine;
-using Wolverine.AzureServiceBus;
+using Wolverine.RabbitMQ;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
 
@@ -17,23 +17,22 @@ builder.AddServiceDefaults();
 builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
-    var azureServiceBus = opts.UseAzureServiceBus(connectionString);
 
-    // AutoProvision creates topics/subscriptions at host startup. Test harnesses use a
-    // fake ASB connection string that would hang the connection attempt. Gate on a config
-    // flag so tests can disable provisioning while leaving the rest of the
-    // Development-gated code (EF migration, OpenAPI) intact. See OrderService/Program.cs
-    // for the full rationale.
+    // Channel names (RabbitMQ fanout exchanges).
+    const string shippingEvents = "shipping-events";
+    const string paymentEvents = "payment-events";
+
+    // RabbitMQ transport. Wolverine declares the exchange/queue/binding via AutoProvision (gated so
+    // it's off for transport-stubbed integration tests). See OrderService/Program.cs + CLAUDE.md.
+    var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString));
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
-        azureServiceBus.AutoProvision();
+        rabbit.AutoProvision();
     }
-
-    // Publish outgoing events to their topics
-    opts.PublishMessage<ShipmentDispatchedEvent>().ToAzureServiceBusTopic("shipping-events");
-
-    // Listen to incoming events from other services
-    opts.ListenToAzureServiceBusSubscription("payment-events/shipping-payments-sub");
+    rabbit.DeclareExchange(shippingEvents, e => e.ExchangeType = ExchangeType.Fanout);
+    rabbit.BindExchange(paymentEvents, ExchangeType.Fanout).ToQueue("shipping-payments");
+    opts.PublishMessage<ShipmentDispatchedEvent>().ToRabbitExchange(shippingEvents);
+    opts.ListenToRabbitQueue("shipping-payments");
 
     // Transactional outbox: persist outgoing messages to Postgres in the same
     // transaction as the entity write, then dispatch via background flush.
@@ -46,6 +45,7 @@ builder.Host.UseWolverine(opts =>
     // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly,
     // so no explicit IncludeAssembly call is needed.
     opts.Policies.LogMessageStarting(LogLevel.Information);
+    opts.AllowHandlerServiceLocation();
     opts.AddNextAuroraContextPropagation();
     opts.AddConcurrencyRetry();
 });

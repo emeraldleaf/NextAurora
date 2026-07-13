@@ -1,12 +1,12 @@
 # OrderService — code flow walkthrough
 
-> **What this is.** A walk through the code paths a new contributor will hit first in [OrderService](../../OrderService/). OrderService is the **saga orchestrator** — every order placed here triggers a multi-step workflow that fans out to PaymentService, ShippingService, and NotificationService over Azure Service Bus, then comes back through three event handlers that mutate the Order aggregate. The diagrams below show *which files, classes, and interfaces* get touched at each step, in the order they actually execute.
+> **What this is.** A walk through the code paths a new contributor will hit first in [OrderService](../../OrderService/). OrderService is the **saga orchestrator** — every order placed here triggers a multi-step workflow that fans out to PaymentService, ShippingService, and NotificationService over RabbitMQ, then comes back through three event handlers that mutate the Order aggregate. The diagrams below show *which files, classes, and interfaces* get touched at each step, in the order they actually execute.
 >
 > **Architecture style:** Vertical Slice Architecture (single csproj). Folders: [`Endpoints/`](../../OrderService/Endpoints), [`Features/`](../../OrderService/Features), [`Domain/`](../../OrderService/Domain), [`Infrastructure/`](../../OrderService/Infrastructure). Composition root: [`Program.cs`](../../OrderService/Program.cs).
 >
 > **Two flows to understand:**
 > 1. **Phase 1 — Request-driven (PlaceOrder):** buyer POSTs an order, OrderService validates against Catalog over gRPC, persists, and publishes `OrderPlacedEvent` via the transactional outbox.
-> 2. **Phase 2 — Event-driven (saga consume):** three events come back over Service Bus — `PaymentCompletedEvent`, `PaymentFailedEvent`, `ShipmentDispatchedEvent` — each one transitions the Order through its state machine.
+> 2. **Phase 2 — Event-driven (saga consume):** three events come back over RabbitMQ — `PaymentCompletedEvent`, `PaymentFailedEvent`, `ShipmentDispatchedEvent` — each one transitions the Order through its state machine.
 
 ---
 
@@ -24,9 +24,9 @@ sequenceDiagram
     participant Cat as CatalogService<br/>(separate service)
     participant Agg as Order aggregate<br/>Domain/Order.cs
     participant Ctx as OrderDbContext<br/>Infrastructure/Data/OrderDbContext.cs
-    participant Pub as IEventPublisher<br/>WolverineEventPublisher.cs
+    participant Pub as IMessageContext<br/>(Wolverine, method-injected)
     participant DB as SQL Server +<br/>wolverine.outgoing_envelopes
-    participant ASB as Azure Service Bus<br/>(orders topic)
+    participant MQ as RabbitMQ<br/>(order-events fanout exchange)
 
     Buyer->>EP: POST /api/v1/orders<br/>{ BuyerId, Currency, Lines[] }
     Note over EP: JWT sub == command.BuyerId?<br/>else 403 Forbid
@@ -61,8 +61,8 @@ sequenceDiagram
     Bus-->>EP: order.Id
     EP-->>Buyer: 202 Accepted<br/>Location: /api/v1/orders/{id}
 
-    Note over DB,ASB: Wolverine background flush<br/>dispatches envelope to ASB
-    DB->>ASB: OrderPlacedEvent
+    Note over DB,MQ: Wolverine background flush<br/>dispatches envelope to RabbitMQ
+    DB->>MQ: OrderPlacedEvent
 ```
 
 **Key wiring (in [`Program.cs`](../../OrderService/Program.cs)):**
@@ -83,19 +83,19 @@ opts.AddConcurrencyRetry();               // OnException<DbUpdateConcurrencyExce
 
 ## Phase 2 — Saga consume (event-driven)
 
-Three events come back over Service Bus. They all follow the same shape: ASB → Wolverine consumer → middleware restores logger scope from envelope headers → handler loads the tracked `Order` aggregate → **handler pre-checks status** (idempotency: returns early on duplicate) → calls a named state-transition method on the aggregate (invariant: throws on invalid transition) → `SaveChanges`. **Two layers, two responsibilities** — the handler does idempotency (no-op on duplicate); the aggregate does invariant enforcement (throw on invalid state). See [`PaymentCompletedHandler.cs`](../../OrderService/Features/PaymentCompletedHandler.cs) for the status pre-check, and [`Order.cs:MarkAsPaid`](../../OrderService/Domain/Order.cs) for the invariant throw.
+Three events come back over RabbitMQ. They all follow the same shape: RabbitMQ → Wolverine consumer → middleware restores logger scope from envelope headers → handler loads the tracked `Order` aggregate → **handler pre-checks status** (idempotency: returns early on duplicate) → calls a named state-transition method on the aggregate (invariant: throws on invalid transition) → `SaveChanges`. **Two layers, two responsibilities** — the handler does idempotency (no-op on duplicate); the aggregate does invariant enforcement (throw on invalid state). See [`PaymentCompletedHandler.cs`](../../OrderService/Features/PaymentCompletedHandler.cs) for the status pre-check, and [`Order.cs:MarkAsPaid`](../../OrderService/Domain/Order.cs) for the invariant throw.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant ASB as Azure Service Bus<br/>(payments topic, shipping topic)
+    participant MQ as RabbitMQ<br/>(order-payments + order-shipping queues,<br/>bound to the payment-events +<br/>shipping-events fanout exchanges)
     participant W as Wolverine consumer +<br/>ContextPropagation middleware
     participant H as Saga handler<br/>(one of 3 below)
     participant Ctx as OrderDbContext
     participant Agg as Order aggregate<br/>Domain/Order.cs
     participant DB as SQL Server<br/>(orders + wolverine schema)
 
-    ASB->>W: PaymentCompletedEvent<br/>(or PaymentFailedEvent /<br/> ShipmentDispatchedEvent)
+    MQ->>W: PaymentCompletedEvent<br/>(or PaymentFailedEvent /<br/> ShipmentDispatchedEvent)
     Note over W: reads X-Correlation-Id,<br/>X-User-Id, X-Session-Id<br/>from envelope headers,<br/>opens logger scope
     W->>H: HandleAsync(@event, ct)<br/>(AutoApplyTransactions wraps)
 
@@ -204,19 +204,18 @@ The handler's *code shape* is the contract — load-then-mutate-then-save is a w
 | [Domain/OrderLine.cs](../../OrderService/Domain/OrderLine.cs) | Line-item entity, owned by Order |
 | [Domain/OrderStatus.cs](../../OrderService/Domain/OrderStatus.cs) | Enum: Placed / Paid / PaymentFailed / Shipped |
 | [Domain/ICatalogClient.cs](../../OrderService/Domain/ICatalogClient.cs) | gRPC client port (substituted in tests) |
-| [Domain/IEventPublisher.cs](../../OrderService/Domain/IEventPublisher.cs) | Event publish port (Wolverine implementation) |
 | [Infrastructure/GrpcCatalogClient.cs](../../OrderService/Infrastructure/GrpcCatalogClient.cs) | gRPC adapter to CatalogService |
-| [Infrastructure/WolverineEventPublisher.cs](../../OrderService/Infrastructure/WolverineEventPublisher.cs) | Wolverine `IMessageBus.PublishAsync` adapter |
 | [Infrastructure/Data/OrderDbContext.cs](../../OrderService/Infrastructure/Data/OrderDbContext.cs) | EF Core context; SQL Server `RowVersion` concurrency token |
+| `IMessageContext` (method-injected) | Wolverine's enlisted publish context — `OrderPlacedEvent` is staged in the handler's outbox transaction (no project file; Wolverine framework type) |
 | [Program.cs](../../OrderService/Program.cs) | Composition root: Wolverine + EF + auth + transports |
 
 ---
 
 ## Open questions
 
-**Per-aggregate ordering is handled via handler-level status checks + aggregate-level invariant throws + RowVersion retry, not via bus-level sessions.** Wolverine consumers on the same subscription compete, so two events for the same `OrderId` *can* be processed simultaneously by different replicas. Our defense is layered: each handler pre-checks `Status` and returns early on duplicate (idempotency); the aggregate's `MarkAsX` methods throw on invalid transitions (invariant); the `RowVersion` token rejects the stale writer (`DbUpdateConcurrencyException`); Wolverine's `AddConcurrencyRetry` policy retries 3× with backoff against the now-fresh state; the message lands in the DLQ only if all retries fail. That works in principle, and matches the "model the workflow, don't fight the queue" pattern from [Milan Jovanović's *Solving message ordering from first principles*](https://www.milanjovanovic.tech/blog/solving-message-ordering-from-first-principles). The alternative — Azure Service Bus sessions keyed on `OrderId`, with Wolverine's session-aware consumers — would give us a hard ordering guarantee but doesn't replace any of the above (sessions fix ordering, not duplicate delivery), so it's additive insurance rather than a replacement.
+**Per-aggregate ordering is handled via handler-level status checks + aggregate-level invariant throws + RowVersion retry, not via broker-level ordering.** Wolverine consumers on the same queue compete, so two events for the same `OrderId` *can* be processed simultaneously by different replicas. Our defense is layered: each handler pre-checks `Status` and returns early on duplicate (idempotency); the aggregate's `MarkAsX` methods throw on invalid transitions (invariant); the `RowVersion` token rejects the stale writer (`DbUpdateConcurrencyException`); Wolverine's `AddConcurrencyRetry` policy retries 3× with backoff against the now-fresh state; the message lands in the DLQ only if all retries fail. That works in principle, and matches the "model the workflow, don't fight the queue" pattern from [Milan Jovanović's *Solving message ordering from first principles*](https://www.milanjovanovic.tech/blog/solving-message-ordering-from-first-principles). The alternative — partitioning by `OrderId` at the broker (e.g. RabbitMQ's consistent-hash exchange feeding single-active-consumer queues) — would give us a hard ordering guarantee but doesn't replace any of the above (partitioning fixes ordering, not duplicate delivery), so it's additive insurance rather than a replacement.
 
-**The validation is undertested.** Our integration tests each create their own order, so the *concurrent same-aggregate* path the post warns about ("a subtle bug that only appears under load") is exactly the path with zero coverage. Two cheap things would change that without committing to bus sessions: (1) an integration test that fires `PaymentCompletedEvent` and `ShipmentDispatchedEvent` against the same `Order` simultaneously and asserts the final state lands at `Shipped` (not `PaymentFailed` or stuck at `Placed`); (2) a `payments_concurrency_retries_exhausted` / `orders_concurrency_retries_exhausted` counter so DLQ-bound retry exhaustion is observable in production, not invisible. If those metrics stay near zero, the state-guard pattern is validated and bus sessions are unnecessary. If they spike, that's the trigger to add sessions — evidence-driven, not architecture-astronaut-driven. There's no Inbox pattern (processed-message-ID table) today either; state guards catch most duplicates because aggregates have few valid transitions, but a proper Inbox would catch any duplicate before it reaches the handler. Add it if duplicates start appearing outside the state-guard-protected windows.
+**The validation is undertested.** Our integration tests each create their own order, so the *concurrent same-aggregate* path the post warns about ("a subtle bug that only appears under load") is exactly the path with zero coverage. Two cheap things would change that without committing to broker-level partitioning: (1) an integration test that fires `PaymentCompletedEvent` and `ShipmentDispatchedEvent` against the same `Order` simultaneously and asserts the final state lands at `Shipped` (not `PaymentFailed` or stuck at `Placed`); (2) a `payments_concurrency_retries_exhausted` / `orders_concurrency_retries_exhausted` counter so DLQ-bound retry exhaustion is observable in production, not invisible. If those metrics stay near zero, the state-guard pattern is validated and broker-level partitioning is unnecessary. If they spike, that's the trigger to add it — evidence-driven, not architecture-astronaut-driven. There's no Inbox pattern (processed-message-ID table) today either; state guards catch most duplicates because aggregates have few valid transitions, but a proper Inbox would catch any duplicate before it reaches the handler. Add it if duplicates start appearing outside the state-guard-protected windows.
 
 ---
 

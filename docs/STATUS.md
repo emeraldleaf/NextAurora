@@ -2,7 +2,7 @@
 
 > **Read this first when picking up work.** Entry-point doc: where the project is, how to run it, what's source-of-truth where. Keep it short (~100 lines). **Open work lives in [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues)**, not here.
 
-**Last updated:** 2026-06-02 (migration: open work moved from this doc into GitHub Issues; STATUS.md is now thin entry-point only)
+**Last updated:** 2026-07-02 (RabbitMQ transport swap #159 + frontend saga narrator #167 in the merge train; auth hardening #166 merged)
 
 ---
 
@@ -13,6 +13,10 @@ Full microservices architecture (.NET 10, Aspire, Wolverine, EF Core, choreograp
 **Test tier closed.** Integration coverage for all four services with non-trivial DB/outbox/IDOR behavior (Catalog, Order, Payment, Shipping) + a NetArchTest architecture-tests rung enforcing the dependency rule deterministically across all services' Domain layers. NotificationService stays unit-only (stateless, no DB).
 
 **Code-side loop encoded.** CLAUDE.md is the canonical rule set; `.coderabbit.yaml` mirrors it at PR-review time; `.claude/agents/architecture-reviewer.md` Pattern Checklist applies at local review time; `.claude/skills/` holds procedures; GitHub Issues holds deferred work. Continuous Rule Encoding (CLAUDE.md) is the reflexive step that makes the loop compound.
+
+**In-flight: the merge train.** #166 (Keycloak token policy + fail-closed HTTPS metadata + NU1903 pin) **merged**; next #159 (RabbitMQ transport, ASB removed — full saga verified live: order → `Shipped` in seconds), then #167 (frontend saga timeline + narrator, verified in-browser against the merged stack). Wolverine is on 6.8.0 (upgrade landed).
+
+**Durability caveats (known, tracked, encoded in CLAUDE.md traps):** fresh-broker first-boot topology race can drop fanout publishes (#168); listeners are buffered, not durable-inbox (#169) — until both land, the no-loss guarantee is publish-side-only. Also open from the #159 ultracode review: dead-end `send-notification` queue (#170), dead observability artifacts `messages.abandoned` / `NextAurora.Messaging` (#171), real-wire failure-injection tests (#68). Drift RCA + new controls (tombstone CI audit, upgraded paraphrase hook): `.claude/audits/2026-07-02-ultracode-review-pr159.md`.
 
 ---
 

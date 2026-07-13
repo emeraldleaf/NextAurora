@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using NextAurora.Contracts.Events;
 using PaymentService.Domain;
 using PaymentService.Infrastructure.Data;
+using Wolverine;
 
 namespace PaymentService.Features;
 
@@ -14,7 +15,7 @@ namespace PaymentService.Features;
 ///
 /// <para><b>Why split.</b> The Stripe call is sub-second in the happy path but seconds-to-30s
 /// on degraded gateway states. Doing it inline in <c>ProcessPaymentHandler</c> held the HTTP
-/// request open (and a Wolverine handler slot + DbContext + Service Bus message lease on the
+/// request open (and a Wolverine handler slot + DbContext + broker message lease on the
 /// saga path) for the entire duration. The 202 Accepted rule says: validate + persist
 /// intent + publish a Wolverine message + return; let a follow-up handler do the slow work.
 /// See CLAUDE.md "Performance Rules → Long-running work belongs on the message bus".</para>
@@ -101,7 +102,15 @@ public class ProcessPaymentHandler(
     PaymentDbContext context,
     IEventPublisher eventPublisher)
 {
-    public async Task<Guid> HandleAsync(ProcessPaymentCommand request, CancellationToken cancellationToken)
+    // IMessageContext is injected as a METHOD parameter (not via the constructor IEventPublisher):
+    // Wolverine only enlists the message context it injects into the handler signature in the
+    // handler's transaction. A constructor-injected IMessageBus/IMessageContext (what IEventPublisher
+    // wraps) is NOT enlisted, so under Wolverine 6 a publish through it fires inline — the local
+    // PaymentProcessingRequested continuation would reach the Gateway handler BEFORE Payment(Pending)
+    // commits, and the Gateway would find no row (payment stuck Pending). Publishing the continuation
+    // through the enlisted messageContext stages it in the same transaction and dispatches it only
+    // after commit. See the Wolverine 5→6 upgrade notes (docs/project-decisions.md). See CLAUDE.md.
+    public async Task<Guid> HandleAsync(ProcessPaymentCommand request, IMessageContext messageContext, CancellationToken cancellationToken)
     {
         // Idempotency check — see class summary.
         var existing = await context.Payments
@@ -115,10 +124,11 @@ public class ProcessPaymentHandler(
         var payment = Payment.Create(request.OrderId, request.BuyerId, request.Amount, request.Currency, "Stripe");
         await context.Payments.AddAsync(payment, cancellationToken);
 
-        // Stage the continuation envelope BEFORE SaveChanges so Wolverine's outbox bridge
-        // commits Payment(Pending) + PaymentProcessingRequested in one DB transaction. See
-        // CLAUDE.md "Outbox atomicity".
-        await eventPublisher.PublishAsync(new PaymentProcessingRequested(payment.Id), cancellationToken);
+        // Stage the continuation envelope BEFORE SaveChanges so Wolverine's outbox bridge commits
+        // Payment(Pending) + PaymentProcessingRequested in one DB transaction. Uses the enlisted
+        // messageContext (see method-parameter note above), NOT eventPublisher. See CLAUDE.md "Outbox atomicity".
+        cancellationToken.ThrowIfCancellationRequested();
+        await messageContext.PublishAsync(new PaymentProcessingRequested(payment.Id));
 
         try
         {
@@ -190,13 +200,17 @@ public class ProcessPaymentHandler(
 /// </summary>
 public class PaymentProcessingRequestedHandler(
     PaymentDbContext context,
-    IPaymentGateway gateway,
-    IEventPublisher eventPublisher)
+    IPaymentGateway gateway)
 {
     private static readonly Counter<long> PaymentsProcessed =
         new Meter("NextAurora").CreateCounter<long>("payments.processed");
 
-    public async Task HandleAsync(PaymentProcessingRequested message, CancellationToken cancellationToken)
+    // IMessageContext is a METHOD parameter so Wolverine enlists it in the handler's outbox
+    // transaction; a constructor IMessageBus publishes inline under Wolverine 6 and would dispatch
+    // PaymentCompletedEvent/PaymentFailedEvent before the MarkAsCompleted/MarkAsFailed mutation
+    // commits — a money event leaked ahead of (or despite a rolled-back) state change. See the
+    // Wolverine 5→6 upgrade notes (docs/project-decisions.md). See CLAUDE.md.
+    public async Task HandleAsync(PaymentProcessingRequested message, IMessageContext messageContext, CancellationToken cancellationToken)
     {
         var payment = await context.Payments
             .FirstOrDefaultAsync(p => p.Id == message.PaymentId, cancellationToken);
@@ -225,11 +239,11 @@ public class PaymentProcessingRequestedHandler(
         {
             payment.MarkAsCompleted(result.TransactionId);
 
-            // Publish-before-save: Wolverine's UseEntityFrameworkCoreTransactions stages the
-            // envelope when PublishAsync runs and flushes it to wolverine.outgoing_envelopes
-            // on the next SaveChanges — atomically with the MarkAsCompleted mutation. See
-            // CLAUDE.md "Outbox atomicity".
-            await eventPublisher.PublishAsync(new PaymentCompletedEvent
+            // Publish-before-save through the enlisted messageContext: the envelope is staged and
+            // flushed to wolverine.outgoing_envelopes on the SaveChanges below — atomically with the
+            // MarkAsCompleted mutation. See CLAUDE.md "Outbox atomicity".
+            cancellationToken.ThrowIfCancellationRequested();
+            await messageContext.PublishAsync(new PaymentCompletedEvent
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
@@ -237,7 +251,7 @@ public class PaymentProcessingRequestedHandler(
                 Amount = payment.Amount,
                 Provider = payment.Provider,
                 CompletedAt = payment.CompletedAt!.Value
-            }, cancellationToken);
+            });
 
             await context.SaveChangesAsync(cancellationToken);
 
@@ -247,14 +261,15 @@ public class PaymentProcessingRequestedHandler(
         {
             payment.MarkAsFailed(result.ErrorMessage ?? "Unknown error");
 
-            await eventPublisher.PublishAsync(new PaymentFailedEvent
+            cancellationToken.ThrowIfCancellationRequested();
+            await messageContext.PublishAsync(new PaymentFailedEvent
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
                 BuyerId = payment.BuyerId,
                 Reason = result.ErrorMessage ?? "Unknown error",
                 FailedAt = DateTime.UtcNow
-            }, cancellationToken);
+            });
 
             await context.SaveChangesAsync(cancellationToken);
 

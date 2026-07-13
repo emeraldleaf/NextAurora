@@ -1,7 +1,13 @@
+using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using NextAurora.Contracts.DTOs;
 using NextAurora.Contracts.Events;
@@ -74,6 +80,75 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
         var orderInDb = await db.Orders.AsNoTracking().SingleAsync(o => o.Id == placedEvent.OrderId);
         orderInDb.Status.Should().Be(OrderStatus.Placed);
         orderInDb.TotalAmount.Should().Be(2 * 19.99m);
+    }
+
+    [Fact]
+    public async Task PlaceOrder_does_not_dispatch_OrderPlacedEvent_when_the_commit_rolls_back()
+    {
+        // ARRANGE — The transactional-outbox atomicity guarantee, proven the only conclusive way:
+        // force the handler's SaveChanges to fail AFTER it publishes OrderPlacedEvent, and assert
+        // the event was NOT dispatched. ThrowingSaveChangesInterceptor throws when the Order row is
+        // committed (simulating a crash/constraint at commit). If the publish was correctly
+        // outbox-staged in the handler's transaction, the rollback discards the staged envelope and
+        // nothing is sent; if it fired inline (the Wolverine 6 constructor-IMessageBus trap that
+        // broke PaymentService's local continuation), the event survives the rollback — a broken
+        // outbox. This is the verification gap called out in the Wolverine 5→6 upgrade follow-up.
+        //
+        // A per-test host variant (WithWebHostBuilder) adds the interceptor; it reuses the shared
+        // SQL container via the inherited connection-string setting.
+        var productId = Guid.NewGuid();
+        StubCatalogValidProduct(productId, price: 19.99m, stock: 10);
+
+        // EF Core does not auto-apply a DI-registered interceptor — it must be attached to the
+        // DbContext options. Re-register OrderDbContext with the same connection string plus the
+        // interceptor; Wolverine's EF-transaction bridge still resolves the same context type.
+        await using var rollbackFactory = _factory.WithWebHostBuilder(b =>
+            b.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<DbContextOptions<OrderDbContext>>();
+                services.AddDbContext<OrderDbContext>((sp, options) => options
+                    .UseSqlServer(sp.GetRequiredService<IConfiguration>().GetConnectionString("orders-db"))
+                    .AddInterceptors(new ThrowingSaveChangesInterceptor()));
+            }));
+
+        var host = rollbackFactory.Services.GetRequiredService<IHost>();
+        var client = rollbackFactory.CreateClient();
+
+        var command = new PlaceOrderCommand(
+            BuyerId: TestAuthHandler.BuyerId,
+            Currency: "USD",
+            Lines: [new PlaceOrderLineItem(productId, "Rollback Test Product", 1, 19.99m)]);
+
+        // ACT — POST; the handler publishes OrderPlacedEvent, then SaveChanges throws → the request
+        // fails. DoNotAssertOnExceptionsDetected: the forced failure is the point, not a test error.
+        // Assigned inside the tracked action (the assignment expression returns Task<...>, so the POST
+        // is awaited in-window); re-awaited afterward to read the status.
+        Task<HttpResponseMessage>? postTask = null;
+        var session = await host.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .Timeout(TimeSpan.FromSeconds(30))
+            .ExecuteAndWaitAsync(_ => postTask = client.PostAsJsonAsync("/api/v1/orders", command));
+        var response = await postTask!;
+
+        // ASSERT — Three invariants:
+        //  0) The request failed at the forced SaveChanges (500), NOT earlier (e.g. validation 400).
+        //     This pins the test to the interceptor path so 1) and 2) can't pass for the wrong reason.
+        //  1) The interceptor fired and the transaction rolled back — no Order row persisted. This
+        //     also guards the test: if the interceptor silently didn't apply, an order WOULD exist
+        //     and this fails loudly (no false pass).
+        //  2) ATOMICITY: no OrderPlacedEvent was dispatched. The publish must have been staged in
+        //     the rolled-back transaction, not sent inline. This is the load-bearing assertion.
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError,
+            "the request must fail at the forced SaveChanges (the interceptor), not before it");
+        await using var scope = _factory.CreateDbScope();
+        var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var orphanExists = await db.Orders.AsNoTracking()
+            .AnyAsync(o => o.Lines.Any(l => l.ProductId == productId));
+        orphanExists.Should().BeFalse(
+            "the commit rolled back, so no Order row may persist (also confirms the interceptor fired)");
+
+        session.Sent.MessagesOf<OrderPlacedEvent>().Should().BeEmpty(
+            "a rolled-back commit must not leave an OrderPlacedEvent dispatched — the publish must be outbox-staged in the handler transaction, not sent inline");
     }
 
     [Fact]
@@ -159,7 +234,7 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
         // ARRANGE — Seed a Placed order directly via the DbContext (faster than going
         // through the full PlaceOrder flow). The PaymentCompletedEvent simulates what
         // PaymentService publishes after a successful charge. We use the same event
-        // twice to verify idempotency under Service Bus at-least-once delivery.
+        // twice to verify idempotency under the broker's at-least-once delivery.
         var orderId = await SeedOrderAsync(status: OrderStatus.Placed);
         var paymentEvent = new PaymentCompletedEvent
         {
@@ -174,7 +249,7 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
 
         // ACT — First dispatch: the handler should run and the Order transitions
         // Placed → Paid. PublishMessageAndWaitAsync invokes the consumer-side pipeline
-        // exactly as Wolverine would on a real Service Bus message.
+        // exactly as Wolverine would on a real RabbitMQ message.
         await host.TrackActivity()
             .Timeout(TimeSpan.FromSeconds(30))
             .PublishMessageAndWaitAsync(paymentEvent);
@@ -182,7 +257,7 @@ public sealed class OrderSagaTests(OrderApiFactory factory) : IClassFixture<Orde
         // ASSERT (intermediate) — After the first dispatch, status is Paid.
         (await GetOrderStatusAsync(orderId)).Should().Be(OrderStatus.Paid);
 
-        // ACT — Second dispatch (Service Bus redelivery simulation). The handler's
+        // ACT — Second dispatch (broker redelivery simulation). The handler's
         // status-guard MUST short-circuit cleanly — no exception, no extra mutation.
         await host.TrackActivity()
             .Timeout(TimeSpan.FromSeconds(30))

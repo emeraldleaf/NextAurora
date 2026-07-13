@@ -22,6 +22,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="WolverineFx" />
+    <!-- Wolverine 6 moved the runtime code generator out of core; this restores it. See Directory.Packages.props. -->
+    <PackageReference Include="WolverineFx.RuntimeCompilation" />
   </ItemGroup>
 
 </Project>
