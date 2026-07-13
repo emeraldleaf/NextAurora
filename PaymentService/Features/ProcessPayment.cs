@@ -15,7 +15,7 @@ namespace PaymentService.Features;
 ///
 /// <para><b>Why split.</b> The Stripe call is sub-second in the happy path but seconds-to-30s
 /// on degraded gateway states. Doing it inline in <c>ProcessPaymentHandler</c> held the HTTP
-/// request open (and a Wolverine handler slot + DbContext + Service Bus message lease on the
+/// request open (and a Wolverine handler slot + DbContext + broker message lease on the
 /// saga path) for the entire duration. The 202 Accepted rule says: validate + persist
 /// intent + publish a Wolverine message + return; let a follow-up handler do the slow work.
 /// See CLAUDE.md "Performance Rules → Long-running work belongs on the message bus".</para>

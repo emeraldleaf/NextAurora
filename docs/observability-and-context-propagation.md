@@ -2,11 +2,11 @@
 
 Deep-dive companion to [CLAUDE.md "Observability & Context Propagation"](../CLAUDE.md#observability--context-propagation), which keeps the always-on traps and points here for mechanism + wiring detail.
 
-NextAurora propagates three context identifiers across HTTP and Service Bus
-boundaries so every log line, span, and event in a request's lifecycle can
-be correlated:
+NextAurora propagates three context identifiers across HTTP and RabbitMQ
+(Wolverine) boundaries so every log line, span, and event in a request's
+lifecycle can be correlated:
 
-| Concept | Activity Baggage Key | HTTP / SB Property | Logger Scope Key |
+| Concept | Activity Baggage Key | HTTP Header / Envelope Header | Logger Scope Key |
 |---|---|---|---|
 | Correlation | `correlation.id` | `X-Correlation-Id` | `CorrelationId` |
 | User | `user.id` | `X-User-Id` | `UserId` |
@@ -52,7 +52,7 @@ Order in the Wolverine pipeline:
 
 ## Wolverine envelope context extraction
 
-Handlers don't extract context manually — `ContextPropagationMiddleware` does it for them. The middleware reads `Envelope.Headers["X-Correlation-Id" | "X-User-Id" | "X-Session-Id"]` (Wolverine's transport-agnostic header bag, mapped to Service Bus `ApplicationProperties` over the wire), restores them into Activity baggage, and opens a `logger.BeginScope()`. After the handler runs, `Finally()` disposes the scope.
+Handlers don't extract context manually — `ContextPropagationMiddleware` does it for them. The middleware reads `Envelope.Headers["X-Correlation-Id" | "X-User-Id" | "X-Session-Id"]` (Wolverine's transport-agnostic header bag, mapped to RabbitMQ message headers over the wire), restores them into Activity baggage, and opens a `logger.BeginScope()`. After the handler runs, `Finally()` disposes the scope.
 
 Outgoing context is stamped by `OutgoingContextMiddleware`, which reads Activity baggage and writes the same headers onto outgoing envelopes. The full mechanism is registered via `opts.AddNextAuroraContextPropagation()` in each service's `Program.cs`.
 
@@ -60,7 +60,7 @@ Outgoing context is stamped by `OutgoingContextMiddleware`, which reads Activity
 
 ## Transactional Outbox (Wolverine)
 
-Each event-publishing service (Order, Payment, Shipping) runs Wolverine's transactional outbox. Outgoing events are persisted to a `wolverine.*` schema in the same DB transaction as the entity write, then dispatched to Azure Service Bus by Wolverine's background flush. Configuration lives in each service's `Program.cs`:
+Each event-publishing service (Order, Payment, Shipping) runs Wolverine's transactional outbox. Outgoing events are persisted to a `wolverine.*` schema in the same DB transaction as the entity write, then dispatched to RabbitMQ by Wolverine's background flush. Configuration lives in each service's `Program.cs`:
 
 ```csharp
 opts.PersistMessagesWithSqlServer(connectionString, "wolverine");   // or PersistMessagesWithPostgresql

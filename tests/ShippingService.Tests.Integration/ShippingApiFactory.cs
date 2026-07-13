@@ -22,15 +22,15 @@ namespace ShippingService.Tests.Integration;
 /// <c>xmin</c> concurrency token; and EF migrations applying against a fresh Postgres.
 /// </para>
 /// <para>
-/// <b>Why stub the transport instead of the ASB emulator:</b> outbox-staging atomicity and
-/// handler logic are what unit tests can't reach. The ASB wire path mostly exercises Microsoft's
-/// emulator + Wolverine's transport adapter — the fragile last mile, not the load-bearing
-/// correctness piece. See <c>docs/STATUS.md</c>.
+/// <b>Why stub the transport instead of a real RabbitMQ broker:</b> outbox-staging atomicity and
+/// handler logic are what unit tests can't reach. The broker wire path mostly exercises RabbitMQ +
+/// Wolverine's transport adapter — the fragile last mile, not the load-bearing correctness piece.
+/// See <c>docs/dev-loop.md</c> Gap 1 + issue #68.
 /// </para>
 /// <para>
 /// <b>Why a fake "messaging" connection string:</b> <c>Program.cs</c> parses
-/// <c>UseAzureServiceBus(GetConnectionString("messaging")!)</c> eagerly at registration, even
-/// with external transports later disabled. The string has to be syntactically valid ASB.
+/// <c>UseRabbitMq(GetConnectionString("messaging")!)</c> eagerly at registration, even with
+/// external transports later disabled. The string has to be a syntactically valid AMQP URI.
 /// </para>
 /// </summary>
 public sealed class ShippingApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
@@ -68,22 +68,17 @@ public sealed class ShippingApiFactory : WebApplicationFactory<Program>, IAsyncL
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        // Disable Wolverine AutoProvision — against the fake ASB string it would hang trying to
-        // provision topics/subscriptions at startup. DisableAllExternalWolverineTransports
+        // Disable Wolverine AutoProvision — against the fake AMQP string it would hang trying to
+        // provision exchanges/queues at startup. DisableAllExternalWolverineTransports
         // handles routing; this handles broker-provisioning, which runs earlier.
         builder.UseSetting("Wolverine:AutoProvision", "false");
 
         // Real Postgres for the shipping DB + Wolverine outbox tables.
         builder.UseSetting("ConnectionStrings:shipping-db", _postgres.GetConnectionString());
 
-        // Syntactically-valid ASB connection string — parsed eagerly, never used over the wire.
-        // SharedAccessKey base64-decodes to "fake-shared-key-for-testing-only". The inline
-        // `gitleaks:allow` marker on the literal line is the suppressor. There is no project-level
-        // gitleaks config (global [[allowlists]] needs gitleaks 8.25+, runner ships 8.24.x); the
-        // inline marker is the load-bearing mechanism. See CLAUDE.md.
-        builder.UseSetting(
-            "ConnectionStrings:messaging",
-            "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fake;SharedAccessKey=ZmFrZS1zaGFyZWQta2V5LWZvci10ZXN0aW5nLW9ubHk="); // gitleaks:allow
+        // Syntactically-valid RabbitMQ (AMQP) connection string — parsed eagerly by UseRabbitMq(...),
+        // never used over the wire (DisableAllExternalWolverineTransports() stubs the transport).
+        builder.UseSetting("ConnectionStrings:messaging", "amqp://guest:guest@localhost:5672");
 
         builder.ConfigureTestServices(services =>
         {
@@ -93,7 +88,7 @@ public sealed class ShippingApiFactory : WebApplicationFactory<Program>, IAsyncL
             services.AddAuthentication(TestAuthHandler.SchemeName)
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
 
-            // Disable external ASB listeners/senders. Saga events the handler publishes route to
+            // Disable external RabbitMQ listeners/senders. Saga events the handler publishes route to
             // in-process stubs (still through the outbox + middleware chain).
             services.DisableAllExternalWolverineTransports();
         });

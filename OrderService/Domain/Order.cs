@@ -74,7 +74,7 @@ public class Order
     /// <summary>
     /// Transition: <c>Placed → Paid</c>. Triggered by the saga when <c>PaymentCompletedEvent</c>
     /// is received. The status guard is the idempotency mechanism: if this event arrives twice
-    /// (Service Bus is at-least-once, redelivery happens), the second call throws and the
+    /// (the broker delivers at-least-once, redelivery happens), the second call throws and the
     /// handler treats it as a no-op rather than corrupting state.
     /// </summary>
     public void MarkAsPaid()

@@ -10,7 +10,7 @@ namespace PaymentService.Domain;
 /// <b>Idempotency under saga retries:</b> the <c>OrderPlacedHandler</c> in this service first
 /// checks if a Payment already exists for the order before creating one, and the status guards
 /// in <see cref="MarkAsCompleted"/> / <see cref="MarkAsFailed"/> prevent double-processing if
-/// the Service Bus redelivers a message. Combined with the <c>OrderId</c> unique index, we get
+/// the broker redelivers a message. Combined with the <c>OrderId</c> unique index, we get
 /// "exactly-once outcome" even with at-least-once delivery.
 /// </para>
 /// </summary>

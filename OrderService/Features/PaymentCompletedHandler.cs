@@ -11,7 +11,7 @@ namespace OrderService.Features;
 /// <see cref="PaymentFailedHandler"/>).
 ///
 /// <para>
-/// <b>Idempotency layered three ways</b> — important because Service Bus delivers at-least-once
+/// <b>Idempotency layered three ways</b> — important because RabbitMQ delivers at-least-once
 /// and a redelivery here is normal, not exceptional:
 /// </para>
 /// <list type="number">
