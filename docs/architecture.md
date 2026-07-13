@@ -252,7 +252,7 @@ RabbitMQ (fanout exchanges -> bound queues)
   +-- Queue: send-notification         -> NotificationService (direct)
 ```
 
-**Queue naming convention: `{consumer}-{source-events}`** (e.g. `payment-orders` = PaymentService consuming `order-events`). Each consumer gets its own queue bound to the source fanout exchange, so consumers scale and dead-letter independently. Wolverine declares the exchange, queue, and binding in each service's `Program.cs` via `DeclareExchange` / `BindExchange(...).ToQueue(...)` and provisions them with `AutoProvision()`.
+**Queue naming convention: `{consumer}-{source-events}`** (e.g. `payment-orders` = PaymentService consuming `order-events`). Each consumer gets its own queue bound to the source fanout exchange, so consumers scale and dead-letter independently. Topology names live in `NextAurora.Contracts/Messaging/MessagingTopology.cs` (`MessagingExchanges`/`MessagingQueues` — never inline literals), and **each publisher declares its own exchange plus all of its consumers' queues+bindings** via `BindExchange(...).ToQueue(...)`, provisioned by `AutoProvision()` — so the full event-family topology exists before first publish (a fanout exchange with zero bindings silently discards; see CLAUDE.md). Consumers also keep their own bindings: declarations are idempotent, and both-sides declaration means no boot order leaves a gap.
 
 ### Event Contracts (NextAurora.Contracts)
 

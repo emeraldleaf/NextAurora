@@ -144,7 +144,7 @@ The system is built as a set of independently deployable microservices to suppor
 | ID | Requirement | Target |
 |----|-------------|--------|
 | REL-01 | Service availability | 99.9% per service |
-| REL-02 | No data loss on service failure | Transactional outbox (publish side) + durable RabbitMQ queues with at-least-once redelivery (consume side; hardening tracked in #168/#169) |
+| REL-02 | No data loss on service failure | Transactional outbox (publish side) + durable RabbitMQ queues + durable inbox/inline listeners with at-least-once redelivery (consume side) |
 | REL-03 | Independent service failure isolation | RabbitMQ decouples services |
 | REL-04 | Health check endpoints on all services | Implemented (/health, /alive) |
 

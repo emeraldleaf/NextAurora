@@ -2,6 +2,7 @@ using FluentValidation;
 using JasperFx.Resources;
 using Microsoft.Extensions.Logging;
 using NextAurora.Contracts.Events;
+using NextAurora.Contracts.Messaging;
 using OrderService.Endpoints;
 using OrderService.Infrastructure;
 using OrderService.Infrastructure.Data;
@@ -20,27 +21,39 @@ builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
 
-    // Channel names (RabbitMQ fanout exchanges).
-    const string orderEvents = "order-events";
-    const string paymentEvents = "payment-events";
-    const string shippingEvents = "shipping-events";
-
     // RabbitMQ transport (local dev, CI, and the Hetzner deployment). Wolverine declares the
-    // exchanges/queues/bindings via AutoProvision against the live broker: this service's published
-    // events go to a fanout exchange, and each consumed subscription is a queue bound to its source
-    // exchange. AutoProvision is gated (default on) so it's OFF for integration tests, which stub the
-    // transport and would otherwise block on the fake connection string. See CLAUDE.md.
+    // exchanges/queues/bindings via AutoProvision against the live broker. AutoProvision is gated
+    // (default on) so it's OFF for integration tests, which stub the transport and would otherwise
+    // block on the fake connection string. See CLAUDE.md.
     var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString));
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
         rabbit.AutoProvision();
     }
-    rabbit.DeclareExchange(orderEvents, e => e.ExchangeType = ExchangeType.Fanout);
-    rabbit.BindExchange(paymentEvents, ExchangeType.Fanout).ToQueue("order-payments");
-    rabbit.BindExchange(shippingEvents, ExchangeType.Fanout).ToQueue("order-shipping");
-    opts.PublishMessage<OrderPlacedEvent>().ToRabbitExchange(orderEvents);
-    opts.ListenToRabbitQueue("order-payments");
-    opts.ListenToRabbitQueue("order-shipping");
+
+    // Publisher-side topology: this service owns order-events, so it declares the exchange AND
+    // every consumer queue bound to it. A fanout exchange with zero bindings silently DISCARDS
+    // publishes, and consumers only declare their own bindings at their own startup — so without
+    // this, a fresh broker has a first-boot window where OrderPlacedEvent is dropped while the
+    // outbox marks it delivered (order wedged in Placed forever). Declaring consumers' queues here
+    // guarantees the full order-events topology exists before this service's first publish.
+    // Names come from MessagingExchanges/MessagingQueues — a typo'd inline literal would be silently
+    // auto-provisioned as a new empty exchange/queue. See CLAUDE.md (#168).
+    rabbit.BindExchange(MessagingExchanges.OrderEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.PaymentOrders);
+    rabbit.BindExchange(MessagingExchanges.OrderEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.NotifyOrders);
+
+    // Consumer-side bindings for the exchanges this service listens to (also declared by their
+    // publishers — declarations are idempotent, and keeping both sides means neither boot order
+    // leaves a gap).
+    rabbit.BindExchange(MessagingExchanges.PaymentEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.OrderPayments);
+    rabbit.BindExchange(MessagingExchanges.ShippingEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.OrderShipping);
+    opts.PublishMessage<OrderPlacedEvent>().ToRabbitExchange(MessagingExchanges.OrderEvents);
+    opts.ListenToRabbitQueue(MessagingQueues.OrderPayments);
+    opts.ListenToRabbitQueue(MessagingQueues.OrderShipping);
 
     // Transactional outbox: persist outgoing messages to SQL Server in the same
     // transaction as the entity write, then dispatch via background flush.
@@ -49,6 +62,12 @@ builder.Host.UseWolverine(opts =>
     opts.UseEntityFrameworkCoreTransactions();
     opts.Policies.AutoApplyTransactions();
     opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+    // Durable INBOX too — durability is per-direction. Without this, listeners run in Wolverine's
+    // default buffered mode: the broker is acked as messages enter the in-memory buffer, BEFORE
+    // handlers run, so a crash loses everything buffered (no redelivery — the ack already
+    // happened). Durable inbox persists incoming envelopes to the message store first, making
+    // consume-side at-least-once real. See CLAUDE.md (#169).
+    opts.Policies.UseDurableInboxOnAllListeners();
 
     // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly.
     opts.UseFluentValidation();
