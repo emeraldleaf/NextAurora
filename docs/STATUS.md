@@ -2,7 +2,7 @@
 
 > **Read this first when picking up work.** Entry-point doc: where the project is, how to run it, what's source-of-truth where. Keep it short (~100 lines). **Open work lives in [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues)**, not here.
 
-**Last updated:** 2026-07-02 (RabbitMQ transport swap #159 + frontend saga narrator #167 in the merge train; auth hardening #166 merged)
+**Last updated:** 2026-07-12 (merge train landed: #166 auth, #159 RabbitMQ, #167 saga narrator; durability hardening #168/#169 in review on #173)
 
 ---
 
@@ -16,7 +16,7 @@ Full microservices architecture (.NET 10, Aspire, Wolverine, EF Core, choreograp
 
 **In-flight: the merge train.** #166 (Keycloak token policy + fail-closed HTTPS metadata + NU1903 pin) **merged**; next #159 (RabbitMQ transport, ASB removed — full saga verified live: order → `Shipped` in seconds), then #167 (frontend saga timeline + narrator, verified in-browser against the merged stack). Wolverine is on 6.8.0 (upgrade landed).
 
-**Durability caveats (known, tracked, encoded in CLAUDE.md traps):** fresh-broker first-boot topology race can drop fanout publishes (#168); listeners are buffered, not durable-inbox (#169) — until both land, the no-loss guarantee is publish-side-only. Also open from the #159 ultracode review: dead-end `send-notification` queue (#170), dead observability artifacts `messages.abandoned` / `NextAurora.Messaging` (#171), real-wire failure-injection tests (#68). Drift RCA + new controls (tombstone CI audit, upgraded paraphrase hook): `.claude/audits/2026-07-02-ultracode-review-pr159.md`.
+**Durability hardening landed:** publisher-side topology declaration + `MessagingExchanges`/`MessagingQueues` constants (#168) and durable-inbox/inline listeners (#169) — the no-loss guarantee now holds from first boot on both sides. Still open from the #159 ultracode review: dead-end `send-notification` queue (#170), dead observability artifacts `messages.abandoned` / `NextAurora.Messaging` (#171), real-wire failure-injection tests (#68). Drift RCA + new controls (tombstone CI audit, upgraded paraphrase hook): `.claude/audits/2026-07-02-ultracode-review-pr159.md`.
 
 ---
 

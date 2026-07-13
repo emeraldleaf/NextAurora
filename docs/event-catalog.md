@@ -6,7 +6,7 @@ This catalog documents every domain event in NextAurora: who publishes it, who c
 
 ## Exchange / Queue Matrix (RabbitMQ)
 
-One **fanout exchange** per event family; each consumer binds its own queue (naming: `{consumer}-{source-events}`). Wolverine declares and AutoProvisions all of it from each service's `Program.cs`.
+One **fanout exchange** per event family; one queue per consumer bound to it (naming: `{consumer}-{source-events}`). **Each publisher declares its own exchange AND its consumers' queues+bindings** (consumers keep their own bindings too — idempotent declares, no boot-order gap), AutoProvisioned by Wolverine at startup. The code-side source of truth for these names is [`NextAurora.Contracts/Messaging/MessagingTopology.cs`](../NextAurora.Contracts/Messaging/MessagingTopology.cs) — **this matrix and that file update together**.
 
 | Exchange | Publisher | Bound queue | Consumer |
 |---|---|---|---|
