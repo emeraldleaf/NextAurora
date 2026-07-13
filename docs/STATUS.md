@@ -2,7 +2,7 @@
 
 > **Read this first when picking up work.** Entry-point doc: where the project is, how to run it, what's source-of-truth where. Keep it short (~100 lines). **Open work lives in [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues)**, not here.
 
-**Last updated:** 2026-07-02 (RabbitMQ transport swap #159 + frontend saga narrator #167 in the merge train; auth hardening #166 merged)
+**Last updated:** 2026-07-12 (merge train landed: #166 auth, #159 RabbitMQ, #167 saga narrator; durability hardening #168/#169 in review on #173)
 
 ---
 

@@ -553,9 +553,11 @@ reviews:
         MessagingExchanges/MessagingQueues is the code-side source of truth for the
         RabbitMQ topology. Any change here must update docs/event-catalog.md's
         exchange/queue matrix in the same PR (and vice versa), plus every publisher's
-        Program.cs that declares the affected consumer queues. Flag a new queue const
-        with no .ToQueue( declaration in any publisher, or a renamed const whose old
-        string should be tombstoned (.claude/tombstones.txt).
+        Program.cs that declares the affected consumer queues. Flag a new exchange-bound queue const
+        with no .ToQueue( declaration in any publisher (direct queues — marked
+        "direct queue" in the constants file — are declared by their
+        ListenToRabbitQueue call instead), or a renamed const whose old string
+        should be tombstoned (.claude/tombstones.txt).
 
     - path: "docs/**/*.md"
       instructions: |

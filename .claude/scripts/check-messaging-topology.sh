@@ -31,10 +31,14 @@ fail=0
 # --- 1. Every queue const reaches a .ToQueue( declaration somewhere -------------------
 while IFS= read -r name; do
     if ! grep -q "\.ToQueue(MessagingQueues\.$name)" "${PROGRAMS[@]}"; then
-        # send-notification is a direct queue (no exchange binding) — its declaration is
-        # the ListenToRabbitQueue call itself; exempt direct queues by convention marker.
-        if grep -q "public const string $name = " "$TOPOLOGY" \
-           && grep -B2 "public const string $name = " "$TOPOLOGY" | grep -qi "direct queue"; then
+        # Direct queues (no exchange binding) are exempt from .ToQueue() — but their
+        # declaration IS the ListenToRabbitQueue call, so that must exist instead;
+        # otherwise removing the sole listener leaves an undeclared queue and a clean audit.
+        if grep -B2 "public const string $name = " "$TOPOLOGY" | grep -qi "direct queue"; then
+            if ! grep -q "ListenToRabbitQueue(MessagingQueues\.$name)" "${PROGRAMS[@]}"; then
+                echo "TOPOLOGY GAP — direct queue MessagingQueues.$name has no ListenToRabbitQueue() declaring it"
+                fail=1
+            fi
             continue
         fi
         echo "TOPOLOGY GAP — MessagingQueues.$name has no .ToQueue() declaration in any Program.cs"
@@ -57,7 +61,7 @@ for f in "${PROGRAMS[@]}"; do
 done
 
 # --- 3. No inline topology string literals ---------------------------------------------
-if hits=$(grep -nE '(\.ToQueue|ListenToRabbitQueue|BindExchange|ToRabbitExchange)\("' "${PROGRAMS[@]}" 2>/dev/null) && [ -n "$hits" ]; then
+if hits=$(grep -nE '(\.ToQueue|ListenToRabbitQueue|BindExchange|ToRabbitExchange)\(\s*"' "${PROGRAMS[@]}" 2>/dev/null) && [ -n "$hits" ]; then
     echo "INLINE TOPOLOGY LITERAL — names must come from MessagingExchanges/MessagingQueues:"
     echo "$hits" | sed 's/^/  /'
     fail=1
