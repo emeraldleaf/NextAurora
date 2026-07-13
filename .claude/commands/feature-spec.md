@@ -188,6 +188,10 @@ Produce:
    Use the project's [work-item Issue Form fields](../../.github/ISSUE_TEMPLATE/work-item.yml)
    if possible (What / Why / Acceptance / Notes). Suggest labels:
    `type/feature`, the relevant `area/*`, `priority/*` if known.
+   **Before creating: search for an existing issue** —
+   `gh issue list --state open --search "<keywords>"` — and extend a live one
+   rather than opening a near-duplicate, especially for epics (see CLAUDE.md
+   "Search before you open an issue").
 
 2. **Optional ADR draft** — if the significance check returned yes.
 
