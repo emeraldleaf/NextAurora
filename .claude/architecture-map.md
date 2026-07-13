@@ -41,7 +41,7 @@ PlaceOrder (HTTP POST → OrderService)
     │
     │ 2. Order aggregate saved + OrderPlacedEvent staged in outbox (same tx)
     │
-    └─→ OrderPlacedEvent (Service Bus topic)
+    └─→ OrderPlacedEvent (RabbitMQ exchange)
             ├─→ PaymentService consumes (OrderPlacedHandler → ProcessPayment)
             │       │
             │       │ Payment aggregate saved + PaymentCompletedEvent staged in outbox
@@ -79,9 +79,9 @@ All events live in `NextAurora.Contracts/Events/`:
 - `PaymentFailedEvent` — published by PaymentService
 - `ShipmentDispatchedEvent` — published by ShippingService
 
-Service Bus topology: one topic per event type, one subscription per consumer-source pair.
-Subscription names are globally unique within the namespace (Aspire 13+ rule).
-Convention: `{consumer}-{source-events}-sub` (e.g. `notify-orders-sub`).
+RabbitMQ topology: one fanout exchange per event type, one queue per consumer bound to it.
+Convention: `{consumer}-{source-events}` (e.g. `notify-orders` = NotificationService consuming
+`order-events`). Wolverine declares + AutoProvisions the exchanges/queues/bindings.
 
 ---
 
@@ -150,7 +150,7 @@ the failure mode.
 
 - **REST (HTTP)** — frontend ↔ services only. URL-segment versioned `/api/v1/...`.
 - **gRPC (sync)** — OrderService → CatalogService for real-time product validation + stock reservation. Versioned via `.proto` `package` declarations.
-- **Service Bus (async)** — all workflow events. Wolverine transports + transactional outbox.
+- **RabbitMQ (async)** — all workflow events. Wolverine transport + transactional outbox.
 
 ---
 

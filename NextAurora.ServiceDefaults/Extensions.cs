@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -58,12 +59,6 @@ public static class Extensions
             http.AddServiceDiscovery();
         });
 
-        // Uncomment the following to restrict the allowed schemes for service discovery.
-        // builder.Services.Configure<ServiceDiscoveryOptions>(options =>
-        // {
-        //     options.AllowedSchemes = ["https"];
-        // });
-
         return builder;
     }
 
@@ -86,10 +81,13 @@ public static class Extensions
             .WithTracing(tracing =>
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
-                    .AddSource("Azure.Messaging.ServiceBus")
-                    // "NextAurora.Messaging" is the ActivitySource used by all Service Bus
-                    // processors. Registering it here causes consumer spans to appear in the
-                    // Aspire dashboard and any connected distributed tracing backend.
+                    // Wolverine's own ActivitySource — emits the message send/receive/handle spans
+                    // for the saga regardless of transport (RabbitMQ today). This is the span source
+                    // you follow in the Aspire dashboard to watch an order walk Order→Payment→Shipping.
+                    .AddSource("Wolverine")
+                    // "NextAurora.Messaging" is the project's own ActivitySource (context-propagation
+                    // middleware). Registering it makes those spans appear in the Aspire dashboard
+                    // and any connected distributed tracing backend.
                     .AddSource("NextAurora.Messaging")
                     .AddAspNetCoreInstrumentation(tracing =>
                         // Exclude health check requests from tracing
@@ -114,13 +112,6 @@ public static class Extensions
         {
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
-
-        // Uncomment the following lines to enable the Azure Monitor exporter (requires the Azure.Monitor.OpenTelemetry.AspNetCore package)
-        //if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
-        //{
-        //    builder.Services.AddOpenTelemetry()
-        //       .UseAzureMonitor();
-        //}
     }
 
     public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
@@ -233,12 +224,36 @@ public static class Extensions
             return;
         }
 
+        // RequireHttpsMetadata is fail-closed outside Development. An http authority in
+        // Production must fail LOUDLY at startup, not silently fetch OIDC discovery + JWKS
+        // over plaintext (an active MITM could inject signing keys and forge tokens every
+        // service would accept). The explicit Authentication:RequireHttpsMetadata=false key
+        // is the auditable opt-out for legitimate internal-http deployments (e.g. Keycloak
+        // behind a service mesh); the default derives it only for local dev. See CLAUDE.md.
+        var requireHttpsMetadata = builder.Configuration.GetValue("Authentication:RequireHttpsMetadata", (bool?)null);
+        if (!requireHttpsMetadata.HasValue)
+        {
+            requireHttpsMetadata = authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                || !builder.Environment.IsDevelopment();
+        }
+
+        if (!requireHttpsMetadata.Value)
+        {
+            // An opt-out (derived or explicit) should be visible in the app's logs, never
+            // silent. PostConfigure runs when the options are first resolved, after the DI
+            // logging pipeline exists — so this lands in the real log stream, not a side channel.
+            builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+                .PostConfigure<ILoggerFactory>((_, loggerFactory) =>
+                    loggerFactory.CreateLogger("NextAurora.ServiceDefaults.Authentication")
+                        .LogWarning("JWT bearer RequireHttpsMetadata is DISABLED (authority: {Authority}) — OIDC metadata/JWKS are fetched without TLS. Acceptable for local dev only.", authority));
+        }
+
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
                 options.Authority = authority;
                 options.Audience = builder.Configuration["Authentication:Audience"] ?? "nextaurora-api";
-                options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+                options.RequireHttpsMetadata = requireHttpsMetadata.Value;
                 options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
                 {
                     ValidateAudience = true,
@@ -250,9 +265,10 @@ public static class Extensions
                     // change from accidentally disabling signature validation.
                     ValidateIssuerSigningKey = true,
                     // Default ClockSkew is 5 minutes — revoked/expired tokens remain
-                    // accepted for 5 extra minutes, which is material on a 15-minute
-                    // access-token lifetime. 30 seconds covers reasonable inter-server
-                    // clock drift without giving attackers a long replay window.
+                    // accepted for 5 extra minutes. The realm pins 5-MINUTE access tokens
+                    // (nextaurora-realm.json accessTokenLifespan: 300), so the default skew
+                    // would double every token's effective lifetime. 30 seconds covers
+                    // reasonable inter-server clock drift without a long replay window.
                     ClockSkew = TimeSpan.FromSeconds(30),
                     NameClaimType = "preferred_username",
                     RoleClaimType = "realm_access.roles",
@@ -349,7 +365,7 @@ public static class Extensions
     ///         picks them up.</item>
     /// </list>
     /// Call inside <c>UseWolverine()</c> in every service. Without this, observability falls
-    /// apart at the Service Bus boundary — you can't trace one transaction across services.
+    /// apart at the message-broker boundary — you can't trace one transaction across services.
     /// </summary>
     public static WolverineOptions AddNextAuroraContextPropagation(this WolverineOptions opts)
     {
@@ -384,6 +400,37 @@ public static class Extensions
     {
         opts.OnException<DbUpdateConcurrencyException>()
             .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+        return opts;
+    }
+
+    /// <summary>
+    /// Permit Wolverine's generated handler code to resolve dependencies from the DI container
+    /// (service location) instead of failing the build.
+    ///
+    /// <para>
+    /// <b>Why this is needed (Wolverine 6 breaking change):</b> Wolverine generates code that
+    /// constructs each handler and resolves its dependencies. When a dependency can be *inlined*
+    /// (concrete type, or a simple registration the generator can reproduce), it emits
+    /// <c>new Dependency(...)</c>. When it can't — e.g. an interface registered with a factory
+    /// lambda such as <c>IProductCache</c> over <c>HybridCache</c>, or EF's <c>DbContext</c> via
+    /// a pooling factory — it falls back to <c>serviceProvider.GetRequiredService&lt;T&gt;()</c>.
+    /// Wolverine 6 flipped the default <see cref="ServiceLocationPolicy"/> to
+    /// <see cref="ServiceLocationPolicy.NotAllowed"/>, which turns that fallback into a startup
+    /// exception. Setting <see cref="ServiceLocationPolicy.AlwaysAllowed"/> restores the 5.x
+    /// behavior.
+    /// </para>
+    /// <para>
+    /// <b>This is NOT the service-locator anti-pattern.</b> Our handlers use constructor injection;
+    /// the container resolution happens once in generated bootstrap code, not via an ambient
+    /// <c>IServiceProvider</c> threaded through business logic. The alternative — pre-generated
+    /// static codegen with method-injected handlers — is the production-grade path and is tracked
+    /// as a follow-up; until then this keeps the dynamic-codegen developer loop working.
+    /// Call inside <c>UseWolverine()</c> in every service.
+    /// </para>
+    /// </summary>
+    public static WolverineOptions AllowHandlerServiceLocation(this WolverineOptions opts)
+    {
+        opts.ServiceLocationPolicy = ServiceLocationPolicy.AlwaysAllowed;
         return opts;
     }
 

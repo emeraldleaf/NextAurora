@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using NextAurora.Contracts.Events;
 using ShippingService.Domain;
 using ShippingService.Infrastructure.Data;
+using Wolverine;
 
 namespace ShippingService.Features;
 
@@ -27,9 +28,7 @@ namespace ShippingService.Features;
 /// </summary>
 public record CreateShipmentCommand(Guid OrderId, Guid BuyerId);
 
-public class CreateShipmentHandler(
-    ShippingDbContext context,
-    IEventPublisher eventPublisher)
+public class CreateShipmentHandler(ShippingDbContext context)
 {
     // Placeholder carrier list — picked randomly per shipment for demo purposes.
     private static readonly string[] Carriers = ["FedEx", "UPS", "USPS", "DHL"];
@@ -37,7 +36,11 @@ public class CreateShipmentHandler(
     private static readonly Counter<long> ShipmentsDispatched =
         new Meter("NextAurora").CreateCounter<long>("shipments.dispatched");
 
-    public async Task<Guid> HandleAsync(CreateShipmentCommand request, CancellationToken cancellationToken)
+    // IMessageContext is a METHOD parameter so Wolverine enlists it in the handler's outbox
+    // transaction; a constructor-injected IMessageBus publishes inline under Wolverine 6 and would
+    // leak ShipmentDispatchedEvent even if the shipment write rolls back. See OrderService PlaceOrder
+    // + the Wolverine 5→6 upgrade notes (docs/project-decisions.md). See CLAUDE.md.
+    public async Task<Guid> HandleAsync(CreateShipmentCommand request, IMessageContext messageContext, CancellationToken cancellationToken)
     {
         var existing = await context.Shipments
             .FirstOrDefaultAsync(s => s.OrderId == request.OrderId, cancellationToken);
@@ -55,10 +58,12 @@ public class CreateShipmentHandler(
 
         await context.Shipments.AddAsync(shipment, cancellationToken);
 
-        // Cross-service event. Wolverine's AutoApplyTransactions wraps the SaveChanges below
-        // around both the shipment write and the staged ShipmentDispatchedEvent envelope —
-        // no risk of "shipped but no one heard about it".
-        await eventPublisher.PublishAsync(new ShipmentDispatchedEvent
+        // Cross-service event published through the enlisted messageContext so AutoApplyTransactions'
+        // SaveChanges below stages BOTH the shipment write and the ShipmentDispatchedEvent envelope
+        // into one transaction — no risk of "shipped but no one heard about it", and no leak if the
+        // commit rolls back. (Must be messageContext, not a constructor IMessageBus — see note above.)
+        cancellationToken.ThrowIfCancellationRequested();
+        await messageContext.PublishAsync(new ShipmentDispatchedEvent
         {
             ShipmentId = shipment.Id,
             OrderId = shipment.OrderId,
@@ -66,7 +71,7 @@ public class CreateShipmentHandler(
             Carrier = shipment.Carrier,
             TrackingNumber = shipment.TrackingNumber,
             DispatchedAt = shipment.DispatchedAt!.Value
-        }, cancellationToken);
+        });
 
         try
         {

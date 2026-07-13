@@ -261,7 +261,7 @@ reviews:
         one EF transaction via AutoApplyTransactions.
 
         NextAurora already has the full infrastructure for this — Wolverine +
-        Service Bus + outbox + saga handlers — so the rule is "use it when a
+        RabbitMQ + outbox + saga handlers — so the rule is "use it when a
         handler would otherwise block on minutes-scale work." Reference shape:
         POST /api/v1/orders (place → publish OrderPlaced → return OrderId
         immediately; PaymentService + ShippingService handle the downstream
@@ -491,6 +491,21 @@ reviews:
         in PR #N" or "docs/diagram updated in tracking issue #N, this PR ships
         the code only because [reason]."
 
+    - path: "NextAurora.AppHost/realms/*.json"
+      instructions: |
+        AUTH CONFIG LIVES ON THREE SURFACES — a change on one alone breaks OIDC
+        silently. When client `redirectUris`, `webOrigins`, `post.logout.redirect.uris`,
+        or client/host ports change here, verify the mirrors move in the same PR:
+          - AppHost.cs: `SpaDevOrigin` (CORS origins injected into services) and the
+            pinned Keycloak/Storefront/SellerPortal ports (redirect URIs are exact-match).
+          - `frontend/.env*` / `frontend/src/core/env.ts`: VITE_KEYCLOAK_URL + client id.
+        Also: token-policy fields (accessTokenLifespan, revokeRefreshToken,
+        refreshTokenMaxReuse, ssoSession*) are pinned EXPLICITLY per CLAUDE.md
+        "Keycloak token policy" — flag a PR that removes them (falling back to
+        version-dependent Keycloak defaults) or changes accessTokenLifespan without
+        updating the ClockSkew rationale in Extensions.cs + CLAUDE.md. Realm changes
+        need a local Keycloak re-import; the PR description should say so.
+
     - path: "NextAurora.ServiceDefaults/Extensions.cs"
       instructions: |
         SERVICE-REQUEST-FLOW DOC PAIRING (CLAUDE.md "Doc-and-diagram discipline").
@@ -507,6 +522,40 @@ reviews:
 
         Same reasoning as the AppHost.cs rule above — reviewers reason against
         the .svg picture of the request lifecycle. Flag missing pairs.
+
+        TRANSPORT-REMOVAL SWEEP. When a messaging/transport package is removed
+        (e.g. a Wolverine transport swap), removing the `PackageReference` is not
+        enough — flag two orphans: (1) a dead OpenTelemetry `AddSource("...")` for
+        that transport's ActivitySource in the `.WithTracing(...)` block here
+        (silently drops messaging spans from the dashboard), and (2) an orphaned
+        `PackageVersion` left in `Directory.Packages.props` with no remaining
+        `PackageReference`. Both bit the ASB→RabbitMQ swap (PR #159).
+
+    - path: "**/Program.cs"
+      instructions: |
+        MESSAGING WIRING (Wolverine/RabbitMQ — see CLAUDE.md Package Management +
+        Communication Patterns traps). (1) Fanout exchanges DISCARD unroutable
+        messages and AutoProvision declares topology lazily per-service: flag a new
+        publisher whose consumers' queues aren't guaranteed to exist before first
+        publish (first-boot loss window — CLAUDE.md trap, tracked #168). (2)
+        Durability is per-direction: UseDurableOutboxOnAllSendingEndpoints covers
+        only sends; new ListenToRabbitQueue endpoints without
+        UseDurableInboxOnAllListeningEndpoints (or ProcessInline for stateless
+        services) are buffered and lose in-flight messages on crash (tracked #169).
+        (3) Exchange/queue name literals duplicated between BindExchange().ToQueue()
+        and ListenToRabbitQueue() must be a single const — a typo'd name is silently
+        auto-provisioned and the consumer starves with no error.
+
+    - path: "docs/**/*.md"
+      instructions: |
+        TOMBSTONED IDENTIFIERS (see CLAUDE.md "Identifier-move discipline"). Flag
+        any PRESENT-TENSE claim that a removed subsystem is current — the tombstone
+        list lives in .claude/tombstones.txt (currently: the removed cloud-broker
+        transport's API names and its old *-sub queue names). Historical/comparative mentions are fine in
+        the allowlisted decision docs (.claude/tombstones-allowlist.txt). Also flag
+        docs that assert a metric, trace source, or config key exists when the diff
+        (or repo) shows nothing emits/reads it — a documented-but-dead signal is
+        worse than none.
 
     - path: "**"
       instructions: |

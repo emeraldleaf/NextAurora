@@ -8,7 +8,7 @@ namespace PaymentService.Domain;
 /// <para>
 /// <b>Why <paramref name="idempotencyKey"/> is required, not optional.</b> The Gateway
 /// handler (<c>PaymentProcessingRequestedHandler</c>) runs on Wolverine's at-least-once
-/// delivery semantics — Service Bus or the local in-memory queue can hand the same
+/// delivery semantics — the broker or the local in-memory queue can hand the same
 /// <c>PaymentProcessingRequested</c> message to the handler more than once (process death
 /// after a successful Stripe call but before <c>MarkAsCompleted</c> is the canonical
 /// race). Without an idempotency key, redelivery makes the second Stripe call too — the

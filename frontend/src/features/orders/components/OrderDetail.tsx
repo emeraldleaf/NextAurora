@@ -4,10 +4,12 @@ import { formatPrice } from '@/shared/format'
 
 import { orderByIdQuery } from '../api/orders'
 
+import { SagaTimeline } from './SagaTimeline'
+
 /**
- * Single order view. Phase 3 turns the status line into the saga timeline + narrator
- * (Placed → Paid → Shipped with "what the backend just did" panels) and polls this query;
- * for now it's a static read of current status.
+ * Single order view — the saga-narrator page (epic #130 Phase 3). orderByIdQuery polls
+ * while the saga is in flight, so the timeline below advances live as PaymentService and
+ * ShippingService consume and re-publish events; polling stops once the order settles.
  */
 export function OrderDetail({ orderId }: Readonly<{ orderId: string }>) {
   const { data, isPending, isError, fetchStatus } = useQuery(orderByIdQuery(orderId))
@@ -33,6 +35,7 @@ export function OrderDetail({ orderId }: Readonly<{ orderId: string }>) {
         <h1 className="text-xl font-semibold">Order {data.orderId.slice(0, 8)}</h1>
         <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs">{data.status}</span>
       </div>
+      <SagaTimeline status={data.status} />
       <ul className="divide-y divide-zinc-200">
         {data.lines.map((line) => (
           <li key={line.productId} className="flex items-center gap-3 py-2 text-sm">

@@ -7,7 +7,7 @@ using OrderService.Infrastructure;
 using OrderService.Infrastructure.Data;
 using Scalar.AspNetCore;
 using Wolverine;
-using Wolverine.AzureServiceBus;
+using Wolverine.RabbitMQ;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
 using Wolverine.SqlServer;
@@ -19,29 +19,28 @@ builder.AddServiceDefaults();
 builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
-    var azureServiceBus = opts.UseAzureServiceBus(connectionString);
 
-    // AutoProvision creates topics/subscriptions via the Service Bus *management* API
-    // (ServiceBusAdministrationClient) at host startup — a real network operation against the
-    // configured endpoint. Two environments must disable it:
-    //   1. Integration tests use a fake ASB connection string, so provisioning hangs/times out
-    //      (it fires before DisableAllExternalWolverineTransports() takes effect).
-    //   2. Local dev (Aspire) uses the Service Bus emulator, which implements only the AMQP data
-    //      plane — NOT the management API — so AutoProvision retries 4× and the host dies with
-    //      BrokerInitializationException. The AppHost declares the topology and injects
-    //      Wolverine__AutoProvision=false for each Wolverine service.
-    // Gate on a config flag (defaults true) so real Azure / Publish mode still provisions. See CLAUDE.md.
+    // Channel names (RabbitMQ fanout exchanges).
+    const string orderEvents = "order-events";
+    const string paymentEvents = "payment-events";
+    const string shippingEvents = "shipping-events";
+
+    // RabbitMQ transport (local dev, CI, and the Hetzner deployment). Wolverine declares the
+    // exchanges/queues/bindings via AutoProvision against the live broker: this service's published
+    // events go to a fanout exchange, and each consumed subscription is a queue bound to its source
+    // exchange. AutoProvision is gated (default on) so it's OFF for integration tests, which stub the
+    // transport and would otherwise block on the fake connection string. See CLAUDE.md.
+    var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString));
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
-        azureServiceBus.AutoProvision();
+        rabbit.AutoProvision();
     }
-
-    // Publish outgoing events to their topics
-    opts.PublishMessage<OrderPlacedEvent>().ToAzureServiceBusTopic("order-events");
-
-    // Listen to incoming events from other services
-    opts.ListenToAzureServiceBusSubscription("payment-events/order-payments-sub");
-    opts.ListenToAzureServiceBusSubscription("shipping-events/order-shipping-sub");
+    rabbit.DeclareExchange(orderEvents, e => e.ExchangeType = ExchangeType.Fanout);
+    rabbit.BindExchange(paymentEvents, ExchangeType.Fanout).ToQueue("order-payments");
+    rabbit.BindExchange(shippingEvents, ExchangeType.Fanout).ToQueue("order-shipping");
+    opts.PublishMessage<OrderPlacedEvent>().ToRabbitExchange(orderEvents);
+    opts.ListenToRabbitQueue("order-payments");
+    opts.ListenToRabbitQueue("order-shipping");
 
     // Transactional outbox: persist outgoing messages to SQL Server in the same
     // transaction as the entity write, then dispatch via background flush.
@@ -54,6 +53,7 @@ builder.Host.UseWolverine(opts =>
     // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly.
     opts.UseFluentValidation();
     opts.Policies.LogMessageStarting(LogLevel.Information);
+    opts.AllowHandlerServiceLocation();
     opts.AddNextAuroraContextPropagation();
     opts.AddConcurrencyRetry();
 });

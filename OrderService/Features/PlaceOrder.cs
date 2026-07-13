@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NextAurora.Contracts.Events;
 using OrderService.Domain;
 using OrderService.Infrastructure.Data;
+using Wolverine;
 
 namespace OrderService.Features;
 
@@ -26,8 +27,9 @@ namespace OrderService.Features;
 /// </list>
 ///
 /// <para>
-/// <b>Transactional outbox — order matters.</b> <c>eventPublisher.PublishAsync</c> stages the
-/// envelope into Wolverine's in-memory tracker; <c>context.SaveChangesAsync</c> then flushes
+/// <b>Transactional outbox — order matters.</b> Publishing through the method-injected
+/// <c>IMessageContext</c> (enlisted in the handler transaction) stages the envelope;
+/// <c>context.SaveChangesAsync</c> then flushes
 /// BOTH the new <see cref="Order"/> row AND the staged envelope into the SAME DB transaction
 /// (via <c>UseEntityFrameworkCoreTransactions</c>). The publish must happen BEFORE the save —
 /// the previous shape (save first, publish after) committed the entity alone and left a brief
@@ -68,14 +70,19 @@ public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
 
 public class PlaceOrderHandler(
     OrderDbContext context,
-    IEventPublisher eventPublisher,
     ICatalogClient catalogClient,
     ILogger<PlaceOrderHandler> logger)
 {
     private static readonly Counter<long> OrdersPlaced =
         new Meter("NextAurora").CreateCounter<long>("orders.placed");
 
-    public async Task<Guid> HandleAsync(PlaceOrderCommand request, CancellationToken cancellationToken)
+    // IMessageContext is injected as a METHOD parameter (not via a constructor IEventPublisher/IMessageBus):
+    // only the method-injected context is enlisted in the handler's outbox transaction. A
+    // constructor-injected IMessageBus publishes INLINE under Wolverine 6 — the event would be
+    // dispatched before SaveChanges commits, so a rolled-back commit still leaks an OrderPlacedEvent
+    // (proven by OrderSagaTests.PlaceOrder_does_not_dispatch_OrderPlacedEvent_when_the_commit_rolls_back).
+    // See the Wolverine 5→6 upgrade notes (docs/project-decisions.md). See CLAUDE.md.
+    public async Task<Guid> HandleAsync(PlaceOrderCommand request, IMessageContext messageContext, CancellationToken cancellationToken)
     {
         var lines = new List<OrderLine>();
 
@@ -153,14 +160,16 @@ public class PlaceOrderHandler(
             }).ToList()
         };
 
-        // PUBLISH BEFORE SAVE — required for outbox atomicity. PublishAsync stages the envelope
-        // into Wolverine's in-memory tracker; SaveChangesAsync below then flushes BOTH the new
+        // PUBLISH BEFORE SAVE — required for outbox atomicity. Publishing through the enlisted
+        // messageContext stages the envelope; SaveChangesAsync below then flushes BOTH the new
         // Order row AND the staged envelope into the SAME DB transaction (via
         // UseEntityFrameworkCoreTransactions). If we saved first and published after, the entity
         // would commit alone — leaving a brief window where the order is in the DB but no event
         // is enqueued. A process death in that window stalls the saga because PaymentService
-        // never sees the OrderPlacedEvent. See class summary for the full rationale.
-        await eventPublisher.PublishAsync(@event, cancellationToken);
+        // never sees the OrderPlacedEvent. (Must be messageContext, not a constructor-injected
+        // IMessageBus — see the method-parameter note above.) See class summary for the rationale.
+        cancellationToken.ThrowIfCancellationRequested();
+        await messageContext.PublishAsync(@event);
 
         // SaveChanges flushes the Order write AND the staged envelope into the same DB
         // transaction. Atomic — either both land in the DB or both roll back.

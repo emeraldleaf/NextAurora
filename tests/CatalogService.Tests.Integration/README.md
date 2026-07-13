@@ -57,6 +57,6 @@ CI (`ubuntu-latest`) ships Docker at the standard path, so the `integration-test
 ## Adding more
 
 This is the CatalogService slice — the proven harness pattern. The heavier saga/messaging
-integration tests (Wolverine outbox staging, cross-service choreography) need the Azure
-Service Bus emulator container and are a separate, larger effort. See
+integration tests (Wolverine outbox staging, cross-service choreography) need a RabbitMQ
+broker (Testcontainer) and are a separate, larger effort. See
 [docs/STATUS.md](../../docs/STATUS.md).

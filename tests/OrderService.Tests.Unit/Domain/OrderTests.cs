@@ -111,7 +111,7 @@ public class OrderTests
     public void MarkAsPaid_WhenPlaced_SetsStatusToPaid()
     {
         // ARRANGE — Happy-path saga transition: PaymentCompletedHandler calls MarkAsPaid
-        // after Service Bus delivers PaymentCompletedEvent.
+        // after the broker delivers PaymentCompletedEvent.
         var order = OrderBuilder.Default().Build();
 
         // ACT — Transition Placed → Paid.
@@ -128,7 +128,7 @@ public class OrderTests
     public void MarkAsPaid_WhenNotPlaced_ThrowsInvalidOperationException()
     {
         // ARRANGE — Calling MarkAsPaid on an order that's already Paid (or any non-Placed
-        // state). The status guard is what makes the handler idempotent under Service Bus
+        // state). The status guard is what makes the handler idempotent under RabbitMQ
         // at-least-once delivery — a redelivered PaymentCompletedEvent must NOT corrupt
         // state. The HANDLER catches the throw and treats it as a no-op (see
         // PaymentCompletedHandlerTests); here we verify the DOMAIN-level guard exists.

@@ -41,6 +41,7 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeAssembly(typeof(CreateProductCommand).Assembly);
     opts.UseFluentValidation();
     opts.Policies.LogMessageStarting(LogLevel.Information);
+    opts.AllowHandlerServiceLocation();
     opts.AddNextAuroraContextPropagation();
 });
 builder.Services.AddValidatorsFromAssemblyContaining<CreateProductCommand>();

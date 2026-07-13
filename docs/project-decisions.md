@@ -45,7 +45,7 @@ This doc is the **map of the technical decisions** with the *rationale* for each
 
 ## 2. Architectural style — microservices over modular monolith
 
-NextAurora is **microservices, not modular monolith**. Five backend services, each independently deployable, each owning its own database, each communicating with peers via gRPC (sync) or Azure Service Bus (async).
+NextAurora is **microservices, not modular monolith**. Five backend services, each independently deployable, each owning its own database, each communicating with peers via gRPC (sync) or RabbitMQ (async, via Wolverine).
 
 ```
 NextAurora/
@@ -300,25 +300,49 @@ OpenAPI specs reveal the full API shape — endpoints, schemas, auth requirement
 
 ## 7. Authentication — Keycloak + JWT Bearer
 
-Identity provider is **Keycloak**, an Aspire-managed container in local dev. JWT Bearer authentication is wired in [NextAurora.ServiceDefaults/Extensions.cs:153](../NextAurora.ServiceDefaults/Extensions.cs#L153) via `AddJwtBearerAuthentication()`:
+Identity provider is **Keycloak**, an Aspire-managed container in local dev. JWT Bearer authentication is wired in [NextAurora.ServiceDefaults/Extensions.cs](../NextAurora.ServiceDefaults/Extensions.cs) (`AddDefaultAuthentication`):
 
 ```csharp
+// RequireHttpsMetadata is FAIL-CLOSED outside Development: an http authority in Production
+// fails loudly at options resolution (framework guard) instead of silently fetching OIDC
+// metadata + JWKS over plaintext. Explicit opt-out: Authentication:RequireHttpsMetadata=false
+// (logged as a warning) for legitimate internal-http deployments.
+var requireHttpsMetadata = builder.Configuration.GetValue("Authentication:RequireHttpsMetadata", (bool?)null)
+    ?? (authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+        || !builder.Environment.IsDevelopment());
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.Authority = authority;  // Keycloak URL
         options.Audience = builder.Configuration["Authentication:Audience"] ?? "nextaurora-api";
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.RequireHttpsMetadata = requireHttpsMetadata;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateAudience = true,
             ValidateIssuer = true,
             ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,          // explicit — auditable posture
+            ClockSkew = TimeSpan.FromSeconds(30),     // default 5 min would double a 5-min token's life
             NameClaimType = "preferred_username",
             RoleClaimType = "realm_access.roles",
         };
     });
 ```
+
+### Token policy (pinned explicitly in the realm)
+
+`nextaurora-realm.json` pins the Keycloak token policy instead of riding version-dependent
+defaults — same explicit-over-implicit posture as `ValidateIssuerSigningKey`/`ClockSkew` above:
+
+| Setting | Value | Why |
+|---|---|---|
+| `accessTokenLifespan` | 300 (5 min) | Short-lived access tokens; a leaked token dies fast. Pairs with the 30s ClockSkew (the default 5-min skew would double the effective lifetime). |
+| `revokeRefreshToken` + `refreshTokenMaxReuse: 0` | rotation, single-use | Every refresh mints a new refresh token and kills the old one — a stolen refresh token dies on the next legitimate renewal. The SPA's `automaticSilentRenew` (oidc-client-ts) handles rotation transparently. |
+| `ssoSessionIdleTimeout` | 1800 (30 min) | Refresh window tied to the SSO session — idle sessions can't renew forever. |
+| `ssoSessionMaxLifespan` | 36000 (10 h) | Hard ceiling per login regardless of activity. |
+
+Realm changes require a Keycloak re-import locally (fresh container/volume) to take effect.
 
 ### Why Keycloak
 
@@ -703,6 +727,23 @@ public class PlaceOrderHandler(IOrderRepository repo, IEventPublisher pub, ICata
 
 Wolverine finds it because the class name ends with `Handler`, it has a public `HandleAsync` method, and the first parameter is a known message type.
 
+### Wolverine 5→6 upgrade notes
+
+> **Full narrative write-up** (the investigation, the wrong turns, the root cause, the lessons):
+> [docs/war-story-wolverine6-outbox-atomicity.md](war-story-wolverine6-outbox-atomicity.md).
+
+We upgraded `WolverineFx.*` 5.39.3 → 6.8.0 (a major version). Build was source-compatible; three runtime breaking changes surfaced, all caught by the integration suite. Encoding them so the next major bump (or a fresh reader) doesn't re-derive:
+
+1. **The runtime code generator was split out of core (GH-2876).** Core `WolverineFx` no longer ships the Roslyn compiler. In the default `TypeLoadMode.Dynamic`, the host throws at startup: *"no `IAssemblyGenerator` (Roslyn) is registered."* Fix: reference `WolverineFx.RuntimeCompilation` (auto-registers) — we added it to `NextAurora.ServiceDefaults` so it flows to every service. Production alternative (deferred): pre-generated static codegen (`dotnet run -- codegen write` + `TypeLoadMode.Static`), which drops the runtime Roslyn dependency for faster cold start / AOT.
+
+2. **`ServiceLocationPolicy` default flipped to `NotAllowed`.** Wolverine's generated handler code resolves dependencies either by inlining them or by falling back to a container lookup ("service location"). When a dependency can't be inlined — e.g. an interface with a factory registration like `IProductCache` over `HybridCache`, or a pooled `DbContext` — codegen falls back to service location, which 6.x now rejects at startup by default. This is a *codegen-strategy* concern, not the service-locator anti-pattern (our handlers use ordinary constructor injection). Fix: `opts.ServiceLocationPolicy = ServiceLocationPolicy.AlwaysAllowed` via the shared `AllowHandlerServiceLocation()` extension in `ServiceDefaults`, called in every service.
+
+3. **In-handler publishing via a constructor-injected `IMessageBus` is no longer transaction-enlisted.** This is the subtle one and it cost the most to find. Wolverine enlists in the handler's outbox transaction only the `IMessageContext` it injects as a **`HandleAsync` method parameter**. The `IEventPublisher` shim wraps a *constructor*-injected `IMessageBus`, which under 6.x is **not** enlisted — a publish through it fires *immediately*, before the handler commits. PaymentService's Acceptor→Gateway split depends on the opposite: the Acceptor persists `Payment(Pending)` and publishes a local `PaymentProcessingRequested` continuation that the Gateway handler reads back. Under 6.x the continuation reached the Gateway *before* the Pending row committed (confirmed by log ordering: the Gateway's `Starting to process` line preceded the `INSERT INTO [Payments]`), so the Gateway found no row, no-op'd, and the payment stuck in `Pending` forever. Three config-level attempts (`UseDurableLocalQueues`, swapping the shim to a constructor `IMessageContext`, both together) did **not** fix it — because none of them gives the handler its *enlisted* context. The fix is one method parameter: `ProcessPaymentHandler.HandleAsync(ProcessPaymentCommand request, IMessageContext messageContext, CancellationToken ct)` and publish the continuation through `messageContext`. See `PaymentService/Features/ProcessPayment.cs`.
+
+   **Cross-service: proven and fixed.** The non-enlistment was *not* PaymentService-specific. We proved it with a rollback test — a `SaveChangesInterceptor` that throws when an `Order` commits, then assert the order rolled back **and** no `OrderPlacedEvent` was dispatched. On the unfixed code the order rolled back but the event was already sent: external publishes were non-atomic too (`OrderService.Tests.Integration` → `PlaceOrder_does_not_dispatch_OrderPlacedEvent_when_the_commit_rolls_back`). Fix applied to every **write-then-publish handler** — `PlaceOrder`, `CreateShipment`, PaymentService Gateway — now publish through the method-injected `IMessageContext`. The now-unused `IEventPublisher` shim was deleted from OrderService and ShippingService (dead port). It's retained only in PaymentService for two paths that are *not* write-then-publish: the Acceptor's **republish** of a terminal event for an already-committed payment (no entity write → inline send is correct), and the `PaymentRecoveryJob`.
+
+   **`PaymentRecoveryJob` (non-handler) — also fixed.** The background sweeper marks timed-out payments `Failed` and publishes `PaymentFailedEvent` outside the handler pipeline, so it has no method-injected context. The fix is Wolverine's **non-handler outbox API**: enroll the `DbContext` in an `IDbContextOutbox`, publish through it, then `SaveChangesAndFlushMessagesAsync()` — which stages the envelope, saves the entity, and commits both in one transaction (replacing the old manual `BeginTransaction → Publish → SaveChanges → Commit`, which silently stopped being atomic on 6.x for the same constructor-`IMessageBus` reason). `IDbContextOutbox` resolves from the existing `AddDbContext` + `UseEntityFrameworkCoreTransactions()` registration — no registration change needed. Proven by the "outbox-in-non-handler" rollback test `PaymentRecoveryAtomicityTests` (CLAUDE.md required it; it now exists). `IEventPublisher` is retained in PaymentService only for the Acceptor's terminal-event republish (an already-committed payment, no entity write → inline send is correct).
+
 ---
 
 ## 14. Observability — OpenTelemetry + context propagation
@@ -736,7 +777,7 @@ builder.Services.AddOpenTelemetry()
         .AddMeter("NextAurora"))
     .WithTracing(t => t
         .AddSource(builder.Environment.ApplicationName)
-        .AddSource("Azure.Messaging.ServiceBus")
+        .AddSource("Wolverine")
         .AddSource("NextAurora.Messaging")
         .AddAspNetCoreInstrumentation(opts =>
             opts.Filter = ctx =>
@@ -934,7 +975,7 @@ Every project references packages **without versions**. Versions live in [Direct
 ```xml
 <!-- Directory.Packages.props -->
 <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
-<PackageVersion Include="WolverineFx" Version="5.36.2" />
+<PackageVersion Include="WolverineFx" Version="6.8.0" />
 ```
 
 ```xml
@@ -995,9 +1036,9 @@ The full inventory of significant non-Microsoft libraries, what they do, why we 
 
 | Package | Version | Role | Why this, not [X] |
 |---|---|---|---|
-| **WolverineFx** | 5.36.2 | In-process CQRS dispatch + distributed async messaging + transactional outbox | Covers what **MediatR** (in-process CQRS — commercial since 2024) and **MassTransit** (distributed messaging — commercial in v9, GA Q1 2026) together do, in one MIT-licensed framework. The combined library + license story is the load-bearing reason |
-| **WolverineFx.AzureServiceBus** | 5.36.2 | Wolverine transport for Azure Service Bus | Production target; swappable for `WolverineFx.AmazonSqs` in AWS deploy |
-| **WolverineFx.SqlServer / .Postgresql** | 5.36.2 | Wolverine outbox persistence | Same DB as the service, same transaction as the entity write |
+| **WolverineFx** | 6.8.0 | In-process CQRS dispatch + distributed async messaging + transactional outbox | Covers what **MediatR** (in-process CQRS — commercial since 2024) and **MassTransit** (distributed messaging — commercial in v9, GA Q1 2026) together do, in one MIT-licensed framework. The combined library + license story is the load-bearing reason |
+| **WolverineFx.RabbitMQ** | 6.8.0 | Wolverine transport for RabbitMQ | Broker in every environment (local/CI/Hetzner); swappable for another Wolverine transport if a cloud-managed target lands |
+| **WolverineFx.SqlServer / .Postgresql** | 6.8.0 | Wolverine outbox persistence | Same DB as the service, same transaction as the entity write |
 | **Microsoft.EntityFrameworkCore** | 10.0.2 | ORM | Standard .NET ORM. See [ef-core.md](ef-core.md) for the full decision |
 | **Npgsql.EntityFrameworkCore.PostgreSQL** | 10.0.0 | Postgres EF provider | Only viable Postgres provider for EF Core |
 | **Microsoft.EntityFrameworkCore.SqlServer** | 10.0.2 | SQL Server EF provider | Microsoft's first-party SQL Server provider |
@@ -1006,7 +1047,7 @@ The full inventory of significant non-Microsoft libraries, what they do, why we 
 | **Microsoft.Extensions.Caching.StackExchangeRedis** | 10.0.2 | Redis L2 backend for HybridCache | Standard ASP.NET Core Redis integration |
 | **Microsoft.Extensions.Http.Resilience** | 10.1.0 | Wraps Polly v8 with curated defaults | vs custom Polly pipelines — one line gives the full pattern |
 | **FluentValidation.DependencyInjectionExtensions** | (latest) | DI integration for FluentValidation validators | Standard FluentValidation auto-discovery |
-| **WolverineFx.FluentValidation** | 5.36.2 | Wolverine pipeline integration | Runs validators before handlers |
+| **WolverineFx.FluentValidation** | 6.8.0 | Wolverine pipeline integration | Runs validators before handlers |
 | **Asp.Versioning.Http** | 10.0.0 | URL-segment API versioning | vs header versioning — see §5 |
 | **Asp.Versioning.Mvc.ApiExplorer** | 10.0.0 | OpenAPI integration for versioned routes | Required for `MapV1ApiGroup` helper |
 | **Microsoft.AspNetCore.OpenApi** | 10.0.2 | OpenAPI emission | First-party, replaces Swashbuckle for new projects |
@@ -1039,7 +1080,7 @@ A condensed walkthrough of the key decisions, each mapped to a section above. Us
 
 ### "Walk me through the architecture."
 
-> NextAurora is a .NET 10 microservices platform with 5 backend services — Catalog, Order, Payment, Shipping, Notification. Each is independently deployable with its own database. Catalog and Shipping run on Postgres; Order and Payment on SQL Server; Notification is stateless. Cross-service communication is gRPC for synchronous queries (Order calls Catalog to validate products) and Azure Service Bus for asynchronous workflow events. **The per-service shape varies by complexity**: CatalogService — the largest — uses Clean Architecture (Domain/Application/Infrastructure/Api as four csprojs). The other four are smaller (≤2 aggregates each) and use Vertical Slice Architecture: a single project with feature folders, Domain/, Infrastructure/, Endpoints/. The cross-service diff is intentional and documented in CLAUDE.md.
+> NextAurora is a .NET 10 microservices platform with 5 backend services — Catalog, Order, Payment, Shipping, Notification. Each is independently deployable with its own database. Catalog and Shipping run on Postgres; Order and Payment on SQL Server; Notification is stateless. Cross-service communication is gRPC for synchronous queries (Order calls Catalog to validate products) and RabbitMQ for asynchronous workflow events. **The per-service shape varies by complexity**: CatalogService — the largest — uses Clean Architecture (Domain/Application/Infrastructure/Api as four csprojs). The other four are smaller (≤2 aggregates each) and use Vertical Slice Architecture: a single project with feature folders, Domain/, Infrastructure/, Endpoints/. The cross-service diff is intentional and documented in CLAUDE.md.
 
 ### "Why microservices instead of modular monolith?"
 
@@ -1103,7 +1144,7 @@ A condensed walkthrough of the key decisions, each mapped to a section above. Us
 
 ### "How would you scale this?"
 
-> Three layers. **Vertically:** each service can scale to a larger VM. **Horizontally:** add replicas — but Catalog needs FusionCache before we deploy multi-replica because HybridCache 10.x lacks a backplane. **Database:** move from Aspire-managed local containers to RDS / managed Postgres / Azure SQL. The whole deployment story (AWS via SNS+SQS replacing Azure Service Bus) is laid out in [architecture.md "Deployment"](architecture.md). Wolverine's transport-agnostic design means swapping `WolverineFx.AzureServiceBus` for `WolverineFx.AmazonSqs` is a Program.cs change — handlers, contracts, the outbox all stay the same.
+> Three layers. **Vertically:** each service can scale to a larger VM. **Horizontally:** add replicas — but Catalog needs FusionCache before we deploy multi-replica because HybridCache 10.x lacks a backplane. **Database:** move from Aspire-managed local containers to RDS / managed Postgres / Azure SQL. The whole deployment story (AWS via SNS+SQS replacing RabbitMQ) is laid out in [architecture.md "Deployment"](architecture.md). Wolverine's transport-agnostic design means swapping `WolverineFx.RabbitMQ` for `WolverineFx.AmazonSqs` is a Program.cs change — handlers, contracts, the outbox all stay the same.
 
 ---
 
@@ -1122,7 +1163,7 @@ The classic five, plus **Workflow** — the durable-orchestration block that new
 | Dapr building block | What NextAurora uses today | Verdict |
 |---|---|---|
 | **Service invocation** | gRPC client factory + `.proto`-defined contracts (Order → Catalog product validation) | Covered with typed contracts |
-| **Pub/sub** | Wolverine + Azure Service Bus + transactional outbox (§13) | Covered — and *better-integrated* (outbox in the EF `SaveChanges`) |
+| **Pub/sub** | Wolverine + RabbitMQ + transactional outbox (§13) | Covered — and *better-integrated* (outbox in the EF `SaveChanges`) |
 | **State store** | EF Core (aggregates with concurrency tokens) + HybridCache (L1+L2 with stampede protection, §16) | Covered |
 | **Secrets** | Standard `IConfiguration` provider chain — env vars locally, Azure Key Vault in prod | Covered |
 | **Distributed locks** | None today | Not needed today — see below |
@@ -1131,7 +1172,7 @@ The classic five, plus **Workflow** — the durable-orchestration block that new
 ### Why Dapr would *regress* what we have
 
 1. **The transactional outbox is better-integrated in Wolverine.** Dapr *does* have a transactional outbox (added v1.12) — earlier versions of this doc claimed it didn't; that's now wrong and the correction matters. But Dapr's outbox is coupled to its **state-store** model: the atomic unit is "Dapr state write + Dapr pub/sub publish," routed through a configured state component. Ours is coupled to **EF Core**: the entity write and the staged message commit in the *same* `SaveChangesAsync` against the service's own DbContext (`PersistMessagesWithSqlServer` + `AutoApplyTransactions`), with the message store living in the same database as the aggregates. For a stack where the source of truth is EF aggregates (not a Dapr state component), Wolverine's outbox is the natural fit and Dapr's would mean routing writes through Dapr's state abstraction to get the atomicity — adopting Dapr's data model, not just its messaging. So: not "Dapr can't," but "Dapr's version assumes a Dapr-shaped persistence layer we don't have."
-2. **The "swap brokers via YAML" claim oversells portability.** Broker semantics differ — Service Bus topic+subscription with sessions, FIFO, dead-lettering, and the globally-unique-subscription-name constraint doesn't map to a Kafka swap by editing one YAML line. The portability is real only for trivial fire-and-forget publishes. The real cross-cloud swap (ASB → SQS) is already in scope and handled by switching `WolverineFx.AzureServiceBus` to `WolverineFx.AmazonSqs` in `Program.cs` — same handler shape, same outbox guarantees.
+2. **The "swap brokers via YAML" claim oversells portability.** Broker semantics differ — Service Bus topic+subscription with sessions, FIFO, dead-lettering, and the globally-unique-subscription-name constraint doesn't map to a Kafka swap by editing one YAML line. The portability is real only for trivial fire-and-forget publishes. The real cross-cloud swap (ASB → SQS) is already in scope and handled by switching `WolverineFx.RabbitMQ` to `WolverineFx.AmazonSqs` in `Program.cs` — same handler shape, same outbox guarantees.
 3. **Typed contracts become stringly-typed Dapr invocations.** gRPC's compile-time safety and `.proto`-based versioning would disappear behind generic `InvokeMethodAsync<T>(appId, method, payload)` calls.
 4. **Sidecar adds a hop on every call.** localhost → sidecar → network → sidecar → service. For gRPC product validation on the order hot path, measurable cost we don't pay today.
 5. **Speculative coupling at a runtime level.** The CLAUDE.md "interfaces earn their keep through consumer substitution" rule applies to runtimes too. Dapr adds an abstraction layer to enable swaps we've never needed and aren't planning. The five SDKs Dapr "replaces" in the marketing pitch are largely a strawman for our stack: Wolverine is *one* SDK covering messaging + outbox + middleware; secrets are stock .NET config; caching is HybridCache; service-to-service is gRPC. That's a coherent .NET-native stack, not five disconnected concerns.

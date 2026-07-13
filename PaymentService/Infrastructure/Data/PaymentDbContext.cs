@@ -11,7 +11,7 @@ namespace PaymentService.Infrastructure.Data;
 ///
 /// <para>
 /// <b>Why a unique index on <c>OrderId</c>:</b> the saga can deliver <c>OrderPlacedEvent</c>
-/// more than once (Service Bus retries, DLQ replays). The handler does an existence check
+/// more than once (broker redeliveries, DLQ replays). The handler does an existence check
 /// first, but races between two simultaneous deliveries could still attempt two inserts. The
 /// unique index turns the second insert into a database error rather than two payments for one
 /// order. Defense in depth.
