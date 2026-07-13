@@ -16,7 +16,7 @@ Full microservices architecture (.NET 10, Aspire, Wolverine, EF Core, choreograp
 
 **In-flight: the merge train.** #166 (Keycloak token policy + fail-closed HTTPS metadata + NU1903 pin) **merged**; next #159 (RabbitMQ transport, ASB removed — full saga verified live: order → `Shipped` in seconds), then #167 (frontend saga timeline + narrator, verified in-browser against the merged stack). Wolverine is on 6.8.0 (upgrade landed).
 
-**Durability hardening landed:** publisher-side topology declaration + `MessagingExchanges`/`MessagingQueues` constants (#168) and durable-inbox/inline listeners (#169) — the no-loss guarantee now holds from first boot on both sides. Still open from the #159 ultracode review: dead-end `send-notification` queue (#170), dead observability artifacts `messages.abandoned` / `NextAurora.Messaging` (#171), real-wire failure-injection tests (#68). Drift RCA + new controls (tombstone CI audit, upgraded paraphrase hook): `.claude/audits/2026-07-02-ultracode-review-pr159.md`.
+**Durability hardening landed:** publisher-side topology declaration + `MessagingExchanges`/`MessagingQueues` constants (#168) and durable-inbox/inline listeners (#169) — the no-loss guarantee now holds from first boot on both sides. Dead artifacts from that review are also removed: the dead-end direct notification queue (#170) and the never-incremented abandoned-message counter + emitter-less trace source (#171 — Wolverine's own meter is registered in their place). Still open: real-wire failure-injection tests (#68).
 
 ---
 

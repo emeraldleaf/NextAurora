@@ -14,3 +14,18 @@ servicebus\.windows\.net
 service bus
 # Old ASB subscription names (renamed to queue names without the -sub suffix)
 (payment-orders|notify-orders|order-payments|shipping-payments|notify-payments|order-shipping|notify-shipping)-sub
+#
+# --- Dead-end send-notification queue (removed in the dead-artifacts cleanup; #170) ---
+# Nothing published SendNotificationCommand and it had no handler; the working path is the
+# in-process Wolverine cascade of the internal SendNotificationRequest. Documenting the queue
+# as publishable was actively harmful (a conforming publisher's message would be discarded).
+SendNotificationCommand
+send-notification
+#
+# --- Dead observability artifacts (removed; #171) ---
+# messages.abandoned was declared but never incremented (the ASB processors that did were
+# deleted in the Wolverine migration); NextAurora.Messaging was registered as a trace source
+# with no emitter. Wolverine's own meter (wolverine-*) is registered in their place.
+messages\.abandoned
+MessagesAbandoned
+NextAurora\.Messaging

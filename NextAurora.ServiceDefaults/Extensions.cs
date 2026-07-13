@@ -76,7 +76,14 @@ public static class Extensions
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
-                    .AddMeter("NextAurora");
+                    .AddMeter("NextAurora")
+                    // Wolverine's own meter: wolverine-messages-sent/-received/-succeeded,
+                    // wolverine-execution-time/-failure, wolverine-dead-letter-queue, and the
+                    // inbox counters. Previously unregistered, so none of it was collected —
+                    // which is why the hand-rolled abandoned-message counter (declared, never
+                    // incremented, deleted with this change) looked like the only DLQ signal.
+                    // Wildcard because the exact meter name is Wolverine's to choose.
+                    .AddMeter("Wolverine*");
             })
             .WithTracing(tracing =>
             {
@@ -85,10 +92,6 @@ public static class Extensions
                     // for the saga regardless of transport (RabbitMQ today). This is the span source
                     // you follow in the Aspire dashboard to watch an order walk Order→Payment→Shipping.
                     .AddSource("Wolverine")
-                    // "NextAurora.Messaging" is the project's own ActivitySource (context-propagation
-                    // middleware). Registering it makes those spans appear in the Aspire dashboard
-                    // and any connected distributed tracing backend.
-                    .AddSource("NextAurora.Messaging")
                     .AddAspNetCoreInstrumentation(tracing =>
                         // Exclude health check requests from tracing
                         tracing.Filter = context =>

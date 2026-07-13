@@ -37,7 +37,8 @@ public interface INotificationSender
 
 /// <summary>
 /// Single point of egress for notifications. Every <see cref="SendNotificationRequest"/> —
-/// whether produced by an event handler or sent directly to the queue — lands here. Validates
+/// cascaded in-process by the event handlers (Wolverine dispatches their return value) — lands
+/// here. Validates
 /// the email shape, delivers via <see cref="INotificationSender"/>, increments the metric,
 /// re-throws so Wolverine can retry on transient failures.
 /// </summary>

@@ -68,7 +68,6 @@ For the full three-identifier guide (UserId, SessionId, new-service checklist, c
 |--------|----------------|
 | `{ServiceName}` (application name) | Custom spans per service |
 | `Wolverine` | Message send/receive/handle spans for the saga — transport-agnostic (RabbitMQ today) |
-| `NextAurora.Messaging` | Registered but currently dormant — no code emits spans under this name today; saga message spans come from the `Wolverine` source |
 | ASP.NET Core instrumentation | Inbound HTTP requests |
 | gRPC client instrumentation | OrderService → CatalogService gRPC calls |
 | HTTP client instrumentation | All outbound HTTP calls |
@@ -139,7 +138,6 @@ Each event family has a fanout exchange with one queue per consumer bound to it:
 | `order-events` | `payment-orders`, `notify-orders` |
 | `payment-events` | `order-payments`, `shipping-payments`, `notify-payments` |
 | `shipping-events` | `order-shipping`, `notify-shipping` |
-| — (direct send) | `send-notification` |
 
 ### Investigating a Dead-Lettered Message
 
@@ -160,7 +158,20 @@ A `Meter("NextAurora")` is registered in `ServiceDefaults` and collected by the 
 | `payments.processed` | `ProcessPaymentHandler` | `outcome=success\|failed` |
 | `shipments.dispatched` | `CreateShipmentHandler` | — |
 | `notifications.sent` | `SendNotificationHandler` | `channel=Email\|…` |
-| `messages.abandoned` | Nothing currently — declared in `NextAuroraMetrics`, but the processors that incremented it were deleted in the RabbitMQ/Wolverine migration; re-wiring it is a tracked follow-up. Monitor DLQ depth via the RabbitMQ management UI (`:15672`) or the `wolverine` schema instead | `subject=<EventType>`, `service=<ServiceName>` |
+
+### Messaging metrics (Wolverine's own meter)
+
+`ServiceDefaults` also registers Wolverine's meter (`AddMeter("Wolverine*")`), so the messaging pipeline reports its own instruments — no hand-rolled counters:
+
+| Metric Name | What It Measures |
+|-------------|------------------|
+| `wolverine-messages-sent` / `-received` / `-succeeded` | Message throughput per endpoint |
+| `wolverine-execution-time` | Handler execution duration |
+| `wolverine-execution-failure` | Handler failures |
+| `wolverine-dead-letter-queue` | **Messages dead-lettered — the DLQ alarm signal** |
+| `wolverine-inbox-count` | Durable-inbox depth |
+
+(A hand-rolled `abandoned` counter previously sat in `NextAuroraMetrics` but was incremented by nothing — the ASB processors that fed it were deleted in the Wolverine migration. It was removed in favour of Wolverine's native instruments, which report the same thing for real.)
 
 These are available in the Aspire dashboard under **Metrics** in development. In production, they are exported via OTLP to your metrics backend (Prometheus, Azure Monitor, etc.).
 

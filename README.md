@@ -65,9 +65,6 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 |   payment-events ---> OrderSvc, ShippingSvc,         |
 |                       NotificationSvc                |
 |   shipping-events --> OrderSvc, NotificationSvc      |
-|                                                      |
-|   Direct queue:                                       |
-|   send-notification -> NotificationSvc               |
 +-----------------------------------------------------+
         |                |               |
         v                v               v

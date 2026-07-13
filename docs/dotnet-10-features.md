@@ -171,7 +171,7 @@ Full deep-dive: [docs/ef-core.md](ef-core.md).
 
 **Why** (vs Serilog + Seq + Jaeger, which was the .NET-typical stack 3 years ago): one library handles all three signals; vendor-neutral; supports Activity baggage for correlation/user/session ID propagation across services.
 
-Business counters are defined once in [NextAuroraMetrics.cs](../NextAurora.ServiceDefaults/Metrics/NextAuroraMetrics.cs) (`orders.placed`, `payments.processed`, `shipments.dispatched`, `messages.abandoned`) and consumed in handlers.
+Business counters are defined once in [NextAuroraMetrics.cs](../NextAurora.ServiceDefaults/Metrics/NextAuroraMetrics.cs) (`orders.placed`, `payments.processed`, `shipments.dispatched`) and consumed in handlers.
 
 **Structured logging templates** (not string interpolation):
 ```csharp

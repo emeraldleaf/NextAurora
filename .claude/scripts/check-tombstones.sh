@@ -5,6 +5,13 @@
 # tombstoned in .claude/tombstones.txt. This script fails if any tombstoned pattern
 # appears in tracked files outside the allowlist (.claude/tombstones-allowlist.txt).
 #
+# KNOWN BLIND SPOT: identifiers split across a line break evade these regexes — in
+# .excalidraw JSON a wrapped label is literally "messages.\nabandoned", which the pattern
+# `messages\.abandoned` cannot match. The 2026-07 dead-artifact sweep hit exactly this: the
+# audit passed while the rendered diagram still showed the deleted counter. When a tombstoned
+# name appears in a DIAGRAM, check the rendered .png/.svg too — the render is the only
+# surface that sees wrapped text.
+#
 # Why: the compiler catches stale identifiers in code; NOTHING catches them in docs,
 # comments, and config. The RabbitMQ swap (#159) left 15+ docs teaching Azure Service
 # Bus as current — found by an ultracode review, not by the loop. This closes that gap
