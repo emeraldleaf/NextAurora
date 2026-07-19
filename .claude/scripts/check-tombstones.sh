@@ -55,21 +55,27 @@ while IFS= read -r line; do
 
     # Build this pattern's exclusions: files allowlisted for THIS group only.
     excludes=()
-    while IFS= read -r a; do
-        [ -z "$a" ] && continue
-        case "$a" in \#*) continue ;; esac
-        # shellcheck disable=SC2086
-        set -- $a
-        [ "$#" -ge 2 ] || continue
-        if [ "$1" = "$group" ]; then
-            excludes+=(":(exclude)$2")
+    while read -r grp pth; do
+        [ -z "$grp" ] && continue
+        case "$grp" in \#*) continue ;; esac
+        [ -n "$pth" ] || continue
+        if [ "$grp" = "$group" ]; then
+            excludes+=(":(exclude)$pth")
         fi
     done < "$ALLOWLIST"
 
     # git grep exit codes: 0 = matches (violation), 1 = clean, >=2 = error (e.g. invalid regex).
     # An invalid tombstone must FAIL the audit, not silently disable itself.
+    # `-e "$pattern"` so a pattern starting with `-` (e.g. `-sub`) is never parsed as a flag.
+    # Guard the array expansion: under `set -u`, "${excludes[@]}" on an empty array is an
+    # "unbound variable" error in bash < 4.4 (macOS default 3.2) — a group with zero
+    # exemptions would otherwise break local runs.
     set +e
-    hits=$(git grep -inE "$pattern" -- '.' "${excludes[@]}" 2>&1)
+    if [ "${#excludes[@]}" -gt 0 ]; then
+        hits=$(git grep -inE -e "$pattern" -- '.' "${excludes[@]}" 2>&1)
+    else
+        hits=$(git grep -inE -e "$pattern" -- '.' 2>&1)
+    fi
     status=$?
     set -e
 

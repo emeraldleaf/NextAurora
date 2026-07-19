@@ -2,7 +2,7 @@
 
 > **Read this first when picking up work.** Entry-point doc: where the project is, how to run it, what's source-of-truth where. Keep it short (~100 lines). **Open work lives in [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues)**, not here.
 
-**Last updated:** 2026-07-12 (merge train landed: #166 auth, #159 RabbitMQ, #167 saga narrator; durability hardening #168/#169 in review on #173)
+**Last updated:** 2026-07-19 (merge train landed through #173 durability + #152 retrospective; dead-artifact cleanup #170/#171 in review on #174)
 
 ---
 
@@ -16,7 +16,7 @@ Full microservices architecture (.NET 10, Aspire, Wolverine, EF Core, choreograp
 
 **In-flight: the merge train.** #166 (Keycloak token policy + fail-closed HTTPS metadata + NU1903 pin) **merged**; next #159 (RabbitMQ transport, ASB removed — full saga verified live: order → `Shipped` in seconds), then #167 (frontend saga timeline + narrator, verified in-browser against the merged stack). Wolverine is on 6.8.0 (upgrade landed).
 
-**Durability hardening landed:** publisher-side topology declaration + `MessagingExchanges`/`MessagingQueues` constants (#168) and durable-inbox/inline listeners (#169) — the no-loss guarantee now holds from first boot on both sides. Dead artifacts from that review are also removed: the dead-end direct notification queue (#170) and the never-incremented abandoned-message counter + emitter-less trace source (#171 — Wolverine's own meter is registered in their place). Still open: real-wire failure-injection tests (#68).
+**Durability hardening landed:** publisher-side topology declaration + `MessagingExchanges`/`MessagingQueues` constants (#168) and durable-inbox/inline listeners (#169) — the no-loss guarantee now holds from first boot on both sides. Dead artifacts from that review are removed on **#174** (in review): the dead-end direct notification queue (#170) and the entire never-injected `NextAuroraMetrics` class + emitter-less trace source (#171 — Wolverine's own meter `Wolverine:{ServiceName}` registered via `AddMeter("Wolverine*")` in their place). That review also hardened the tombstone control itself — allowlist exemptions are now group-scoped, not file-scoped (a file-scoped exemption had silently hidden later tombstones). Still open: real-wire failure-injection tests (#68).
 
 ---
 
