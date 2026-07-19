@@ -46,8 +46,10 @@ The five places encoded rules live in this project:
 4. **Procedures** — skills + slash commands in `.claude/`
 5. **Deep context** — `docs/` + paired diagrams
 
-A potential **6th surface** (not in NextAurora yet, but tracked): trigger-loaded
-microagents in the OpenHands style — see `docs/post-ideas/two-readers-one-canon.md`.
+A **6th surface**, now built: a fail-closed, cross-repo knowledge layer (the OKL)
+that both this repo's and other repos' agents read before starting work — the
+enforced, org-scoped evolution of the original "trigger-loaded microagents" idea.
+See `docs/decisions/2026-07-17-sixth-surface-okl.md` for the decision record.
 
 *Avoid:* "the canon" when you mean the broad body of all encoded rules across
 all surfaces — that's ambiguous (canon is also the name of surface #1). Use

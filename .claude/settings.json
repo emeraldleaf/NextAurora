@@ -50,6 +50,15 @@
             "command": "/Users/joshuadell/NovaCraft/.claude/scripts/block-sync-over-async.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/joshuadell/NovaCraft/.claude/scripts/remind-architecture-review.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [

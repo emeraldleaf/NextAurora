@@ -249,7 +249,6 @@ RabbitMQ (fanout exchanges -> bound queues)
   |     +-- Queue: order-shipping      -> OrderService
   |     +-- Queue: notify-shipping     -> NotificationService
   |
-  +-- Queue: send-notification         -> NotificationService (direct)
 ```
 
 **Queue naming convention: `{consumer}-{source-events}`** (e.g. `payment-orders` = PaymentService consuming `order-events`). Each consumer gets its own queue bound to the source fanout exchange, so consumers scale and dead-letter independently. Topology names live in `NextAurora.Contracts/Messaging/MessagingTopology.cs` (`MessagingExchanges`/`MessagingQueues` — never inline literals), and **each publisher declares its own exchange plus all of its consumers' queues+bindings** via `BindExchange(...).ToQueue(...)`, provisioned by `AutoProvision()` — so the full event-family topology exists before first publish (a fanout exchange with zero bindings silently discards; see CLAUDE.md). Consumers also keep their own bindings: declarations are idempotent, and both-sides declaration means no boot order leaves a gap.
@@ -262,7 +261,6 @@ RabbitMQ (fanout exchanges -> bound queues)
 | **PaymentCompletedEvent** | PaymentService | OrderService, ShippingService | PaymentId, OrderId, Amount, Provider, CompletedAt |
 | **PaymentFailedEvent** | PaymentService | OrderService, NotificationService | PaymentId, OrderId, BuyerId, Reason, FailedAt |
 | **ShipmentDispatchedEvent** | ShippingService | OrderService, NotificationService | ShipmentId, OrderId, Carrier, TrackingNumber, DispatchedAt |
-| **SendNotificationCommand** | Any service | NotificationService | RecipientId, Email, Subject, Body, Channel |
 
 ### Order Lifecycle Saga
 
@@ -434,7 +432,7 @@ All services inherit shared infrastructure configuration:
 - **Tracing:** OpenTelemetry distributed traces across all services (ASP.NET Core, HTTP client, gRPC client, `Wolverine`). Wolverine's own ActivitySource emits the message send/receive/handle spans for the saga — transport-agnostic — so the full event chain is visible in the Aspire dashboard and any OTLP backend.
 - **Context Propagation:** Every HTTP request and RabbitMQ message carries three identifiers — `CorrelationId`, `UserId`, `SessionId` — stamped by `CorrelationIdMiddleware` (HTTP) or each processor (Service Bus) into `Activity` baggage and `logger.BeginScope()`. All log lines produced by any handler automatically include these fields. See [docs/context-propagation.md](context-propagation.md).
 - **Wolverine Pipeline Logging:** Wolverine's built-in `Policies.LogMessageStarting()` logs handler name and elapsed time. `ContextPropagationMiddleware` (in ServiceDefaults) opens a `logger.BeginScope()` so all handler log lines carry `CorrelationId`/`UserId`/`SessionId`.
-- **Metrics:** Business counters via `Meter("NextAurora")` in `NextAuroraMetrics`: `orders.placed`, `payments.processed` (tag: `outcome`), `shipments.dispatched`, `notifications.sent` (tag: `channel`), `messages.abandoned` (tags: `subject`, `service`). Exported via OTLP; visible in Aspire Metrics dashboard.
+- **Metrics:** Business counters on the `Meter("NextAurora")`, declared in the handlers that emit them: `orders.placed`, `payments.processed` (tag: `outcome`), `shipments.dispatched`, `notifications.sent` (tag: `channel`). Wolverine's own meter is registered too (`AddMeter("Wolverine*")` — the meter is named `Wolverine:{ServiceName}`, so the wildcard is required): `wolverine-dead-letter-queue`, `wolverine-execution-failure`, `wolverine-messages-sent`/`-received`, inbox depth. Exported via OTLP; visible in the Aspire Metrics dashboard.
 - **Logging:** Structured logging with OpenTelemetry export
 - **Dashboard:** Aspire dashboard shows all services, traces, logs, and metrics in development
 
@@ -544,7 +542,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 - **EF Core Migrations** - Initial migrations for all four DB services (Catalog, Order, Payment, Shipping). `IDesignTimeDbContextFactory<T>` per context for `dotnet ef` tooling. `MigrateDatabaseAsync<T>()` runs at app startup in development; production should run as a separate deploy step.
 - **Authentication & Authorization** - JWT Bearer authentication wired in `NextAurora.ServiceDefaults` (`AddDefaultAuthentication()`); identity provider is **Keycloak** (Aspire-managed container, `nextaurora-realm` imported from `realms/nextaurora-realm.json`). `AddJwtBearer` validates issuer, audience, lifetime; claim mapping uses `preferred_username` → name and `realm_access.roles` → role. `.RequireAuthorization()` on every state-changing endpoint and buyer-scoped reads (Catalog write endpoints, all of `/api/v1/orders`, `/api/v1/payments/process`, all of `/api/v1/shipments`). Buyer-scope endpoints additionally verify the JWT `sub` claim matches the route/body buyer ID. `GET /api/v1/products` remains anonymous.
 - **API Versioning** - URL-segment versioning via `Asp.Versioning.Http`. Routes follow `/api/v{version:apiVersion}/...` with the version required in the URL (`AssumeDefaultVersionWhenUnspecified = false`). Default version is `1.0`; `Asp.Versioning.Mvc.ApiExplorer` integrates with OpenAPI so versioned endpoints show up under group `v1` in the OpenAPI spec (rendered in Scalar). Configured globally in `AddServiceDefaults()` so every service inherits the same policy. gRPC is versioned separately via `.proto` `package` (out of scope here).
-- **Dead Letter Queue Processing** - `messages.abandoned` metric counter on all processors. Replay/audit available via Wolverine's `IMessageStore` API or by querying the `wolverine` schema directly.
+- **Dead Letter Queue Processing** - Wolverine dead-letters retry-exhausted messages; the `wolverine-dead-letter-queue` counter is the alarm signal. Replay/audit available via Wolverine's `IMessageStore` API or by querying the `wolverine` schema directly.
 - **Distributed Caching (Catalog)** - `IProductCache` (read-side, factory-based `GetOrLoadAsync` + `InvalidateAsync`) backed by `Microsoft.Extensions.Caching.Hybrid` 10.5.0: **L1 in-process MemoryCache + L2 Redis**, stampede protection (concurrent misses for the same key invoke the factory once), and tag-based invalidation that clears both layers atomically. `GetProductByIdHandler` reads through the cache; `UpdateProductHandler` and `ReserveStockHandler` call `InvalidateAsync` in the write path. 5-min absolute TTL on both tiers as the safety net for missed invalidations. Cache stores the `ProductDto` projection (not the EF entity) — see [IProductCache.cs](../CatalogService/Domain/IProductCache.cs) and [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs). List queries (`GetAllProducts`, `SearchProducts`) are intentionally not cached — paginated reads are less hot than single-product lookups, and cross-page invalidation is harder. Full rationale and trade-offs: [docs/performance-and-data-correctness.md "Decision: distributed read caching with HybridCache"](performance-and-data-correctness.md#decision-distributed-read-caching-with-hybridcache).
 - **OpenAPI Output (JSON + YAML) + Scalar UI** - All five services emit OpenAPI specs at `/openapi/v1.json` and `/openapi/v1.yaml` in development. Built on `Microsoft.AspNetCore.OpenApi`'s extension-driven format selection — same `MapOpenApi(pattern)` call, different file extension. **Interactive API documentation UI** at `/scalar/v1` via `Scalar.AspNetCore` — reads the same OpenAPI doc and renders it as a polished, searchable reference with try-it-out support. Dev-only (gated on `IsDevelopment()`).
 
@@ -584,7 +582,6 @@ If the target is AWS, the cloud-native equivalent of the fanout-exchange / per-c
 | Queue `notify-orders` (bound to it) | SQS queue `notify-orders` (subscribed to the topic) |
 | Exchange `payment-events` + 3 queues | SNS topic + 3 SQS queues |
 | Exchange `shipping-events` + 2 queues | SNS topic + 2 SQS queues |
-| Queue `send-notification` | SQS queue `send-notification` (no SNS needed; direct send) |
 
 Idempotency, dead-letter handling, and the transactional outbox all behave the same — Wolverine implements them at the framework level.
 
@@ -614,7 +611,6 @@ Phased plan, smallest blast radius first. Each phase is independently shippable.
 **Phase 1 — AWS infrastructure as code (~2-3 days).** Pure Terraform/CDK work, no app changes.
 - 3 SNS topics: `order-events`, `payment-events`, `shipping-events`.
 - 7 SQS queues mapping to today's consumer queues (`payment-orders`, `notify-orders`, `order-payments`, `shipping-payments`, `notify-payments`, `order-shipping`, `notify-shipping`), each subscribed to its source SNS topic.
-- 1 standalone SQS queue: `send-notification` (NotificationService's direct queue, no SNS).
 - DLQ per queue with `maxReceiveCount` (~5).
 - IAM policies — each service gets a role with minimum-privilege publish/subscribe for the topics/queues it touches.
 - RDS for PostgreSQL (catalog-db, shipping-db) and SQL Server (orders-db, payments-db). Or Aurora.

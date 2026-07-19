@@ -896,7 +896,7 @@ public static WolverineOptions AddConcurrencyRetry(this WolverineOptions opts)
 }
 ```
 
-Called from each event-publishing service's `Program.cs`: `opts.AddConcurrencyRetry()`. Three retries with backoff. After exhaustion, the message goes to the DLQ (`messages.abandoned` metric increments).
+Called from each event-publishing service's `Program.cs`: `opts.AddConcurrencyRetry()`. Three retries with backoff. After exhaustion, the message goes to the DLQ (`wolverine-dead-letter-queue` metric increments).
 
 ### 16.3 Concrete saga example
 
