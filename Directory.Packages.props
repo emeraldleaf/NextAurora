@@ -43,7 +43,7 @@
          ServiceDefaults so it flows to every Wolverine service. Production alternative: pre-generated
          static codegen (TypeLoadMode.Static) — deferred. See https://wolverinefx.net/guide/codegen.html. -->
     <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.17.3" />
-    <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.8.0" />
+    <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.17.3" />
     <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="6.17.3" />
     <PackageVersion Include="WolverineFx.FluentValidation" Version="6.17.3" />
     <PackageVersion Include="WolverineFx.SqlServer" Version="6.17.3" />
