@@ -198,9 +198,12 @@ One of:
 - **Open an issue for a genuine gap** — same shape, but the work is larger.
   Flag if it's an epic.
 
-If the answer is "open an issue," **ask the user before running
-`gh issue create`.** They might want to tweak wording, add labels, or defer.
-Don't just create issues on their behalf.
+If the answer is "open an issue," **first search for an existing one** —
+`gh issue list --state open --search "<keywords>"` — and if a live issue
+already covers the topic, extend/comment on it instead of opening a
+near-duplicate (see CLAUDE.md "Search before you open an issue"). Then **ask
+the user before running `gh issue create`.** They might want to tweak wording,
+add labels, or defer. Don't just create issues on their behalf.
 
 ## Style notes
 

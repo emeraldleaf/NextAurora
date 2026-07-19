@@ -508,6 +508,11 @@ reviews:
 
     - path: "NextAurora.ServiceDefaults/Extensions.cs"
       instructions: |
+        OTEL METER NAMES: Wolverine names its meter "Wolverine:{ServiceName}" (e.g.
+        "Wolverine:NextAurora.OrderService"), so the registration MUST be the wildcard
+        AddMeter("Wolverine*") — a literal AddMeter("Wolverine") silently collects
+        nothing. Flag any change that "tidies" the wildcard to a literal. See CLAUDE.md.
+
         SERVICE-REQUEST-FLOW DOC PAIRING (CLAUDE.md "Doc-and-diagram discipline").
         Extensions.cs configures the middleware pipeline ordering (auth →
         correlation-id → authorization), JWT validation, and the
@@ -558,6 +563,16 @@ reviews:
         "direct queue" in the constants file — are declared by their
         ListenToRabbitQueue call instead), or a renamed const whose old string
         should be tombstoned (.claude/tombstones.txt).
+
+    - path: "**/Metrics/*.cs"
+      instructions: |
+        DEAD INSTRUMENTS ARE A DEFECT (Must-fix). Every CreateCounter/CreateHistogram
+        needs at least one .Add(...)/.Record(...) call site in tracked code, and a
+        metrics holder class must actually be injected somewhere. A counter nothing
+        increments reads as a working alarm signal — an operator alerts on it and it
+        never fires. Prefer the framework's own instruments (Wolverine already emits
+        wolverine-dead-letter-queue, -execution-failure, -messages-sent/-received,
+        inbox/outbox depth) over hand-rolled equivalents. See CLAUDE.md.
 
     - path: "docs/**/*.md"
       instructions: |

@@ -787,7 +787,7 @@ public static WolverineOptions AddConcurrencyRetry(this WolverineOptions opts)
 }
 ```
 
-Called from each event-publishing service's `Program.cs`: `opts.AddConcurrencyRetry()`. Three retries with increasing cooldown; after exhaustion the message goes to the dead-letter queue, where it shows up as a `messages.abandoned` metric (per `architecture.md`).
+Called from each event-publishing service's `Program.cs`: `opts.AddConcurrencyRetry()`. Three retries with increasing cooldown; after exhaustion the message goes to the dead-letter queue, where it shows up on Wolverine's `wolverine-dead-letter-queue` counter (per `architecture.md`).
 
 The status guards in domain methods (`MarkAsPaid()` checks status is `Placed`) handle the "operation no longer valid" case naturally — the retry hits the guard, throws `InvalidOperationException`, and the message is acked rather than DLQ'd (Wolverine treats domain exceptions outside the retry filter as terminal).
 
