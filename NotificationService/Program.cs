@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NextAurora.Contracts.Commands;
 using NextAurora.Contracts.Events;
+using NextAurora.Contracts.Messaging;
 using NotificationService.Features;
 using NotificationService.Infrastructure;
 using Scalar.AspNetCore;
@@ -22,13 +23,22 @@ builder.Host.UseWolverine(opts =>
     {
         rabbit.AutoProvision();
     }
-    rabbit.BindExchange("order-events", ExchangeType.Fanout).ToQueue("notify-orders");
-    rabbit.BindExchange("payment-events", ExchangeType.Fanout).ToQueue("notify-payments");
-    rabbit.BindExchange("shipping-events", ExchangeType.Fanout).ToQueue("notify-shipping");
-    opts.ListenToRabbitQueue("notify-orders");
-    opts.ListenToRabbitQueue("notify-payments");
-    opts.ListenToRabbitQueue("notify-shipping");
-    opts.ListenToRabbitQueue("send-notification");
+    rabbit.BindExchange(MessagingExchanges.OrderEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.NotifyOrders);
+    rabbit.BindExchange(MessagingExchanges.PaymentEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.NotifyPayments);
+    rabbit.BindExchange(MessagingExchanges.ShippingEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.NotifyShipping);
+    // ProcessInline: durability is per-direction, and this service has NO message store (stateless,
+    // no DB) — so a durable inbox isn't available. Inline processing acks the broker only AFTER the
+    // handler completes, which restores consume-side at-least-once here: a crash mid-handle means
+    // the broker redelivers. Note the trade-off: these handlers have no dedup store, so a
+    // redelivery re-sends the notification — duplicates are BENIGN for a notification sink,
+    // which is not the same claim as idempotent. See CLAUDE.md (#169).
+    opts.ListenToRabbitQueue(MessagingQueues.NotifyOrders).ProcessInline();
+    opts.ListenToRabbitQueue(MessagingQueues.NotifyPayments).ProcessInline();
+    opts.ListenToRabbitQueue(MessagingQueues.NotifyShipping).ProcessInline();
+    opts.ListenToRabbitQueue(MessagingQueues.SendNotification).ProcessInline();
 
     // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly,
     // so no explicit IncludeAssembly call is needed.
