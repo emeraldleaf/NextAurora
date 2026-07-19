@@ -778,7 +778,9 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(t => t
         .AddSource(builder.Environment.ApplicationName)
         .AddSource("Wolverine")
-        .AddSource("NextAurora.Messaging")
+        .AddSource("NextAurora.Messaging")   // NOTE: as of this decision. Today ServiceDefaults
+                                             // registers "Wolverine" + AddMeter("Wolverine*") instead;
+                                             // this source had no emitter and was removed (#171).
         .AddAspNetCoreInstrumentation(opts =>
             opts.Filter = ctx =>
                 !ctx.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase)
