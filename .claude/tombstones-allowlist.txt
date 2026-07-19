@@ -1,21 +1,46 @@
-# Files exempt from the tombstone audit — each entry earns its place by containing
-# LEGITIMATE historical or comparative mentions of removed identifiers. Keep this list
-# short; an allowlisted file can re-drift invisibly, so prefer fixing over allowlisting.
+# Tombstone-audit exemptions — GROUP-SCOPED.
 #
-# Historical decision records (past-tense by nature):
-docs/project-decisions.md
-docs/full-saga-deployment-plan.md
-docs/war-story-wolverine6-outbox-atomicity.md
-# Comparative/portable guides where the removed transport is a subject of comparison:
-docs/messaging-transport-selection.md
-docs/performance-and-data-correctness.md
-# Canon: carries the "evaluated and removed" rationale + durable-pub/sub pattern comparison:
-CLAUDE.md
-# Past-tense removal note (line ~57) + AWS-alternative comparison section:
-docs/architecture.md
-# The control's own definition files:
-.claude/tombstones.txt
-.claude/tombstones-allowlist.txt
-.claude/scripts/check-tombstones.sh
-# Audit log of external-article reviews (historical verdicts, intentionally tracked):
-.claude/audits/INDEX.md
+# FORMAT:  <group-name>  <path>
+#
+# Each line exempts ONE file from ONE tombstone group (groups are the `[name]` headings in
+# tombstones.txt). An entry earns its place by containing LEGITIMATE historical or comparative
+# mentions of that group's removed identifiers.
+#
+# WHY GROUP-SCOPED: a file allowlisted for a past removal must STILL be audited against every
+# future tombstone. The earlier file-scoped format silently exempted `docs/architecture.md`
+# (allowlisted for the Azure Service Bus removal) from the send-notification and
+# messages.abandoned tombstones added months later — so the audit reported "clean" while
+# architecture.md still documented both deleted artifacts as live. Never re-introduce a
+# whole-file exemption.
+#
+# Keep this list short: an allowlisted (file, group) pair can re-drift invisibly, so prefer
+# fixing the reference over adding an exemption.
+
+# --- azure-service-bus: historical decision records + comparative guides ---
+azure-service-bus  docs/project-decisions.md
+azure-service-bus  docs/full-saga-deployment-plan.md
+azure-service-bus  docs/war-story-wolverine6-outbox-atomicity.md
+azure-service-bus  docs/messaging-transport-selection.md
+azure-service-bus  docs/performance-and-data-correctness.md
+azure-service-bus  docs/the-integration-gap.md
+azure-service-bus  CLAUDE.md
+azure-service-bus  docs/architecture.md
+azure-service-bus  .claude/audits/INDEX.md
+
+# --- dead-observability-artifacts: the decision record showing the pre-removal OTel wiring ---
+dead-observability-artifacts  docs/project-decisions.md
+
+# --- dead-observability-artifacts: the reviewer checklist cites the deleted class as the
+#     worked example of the rule it encodes (historical, by construction) ---
+dead-observability-artifacts  .claude/agents/architecture-reviewer.md
+
+# --- the control's own definition files (they must name every pattern, by construction) ---
+azure-service-bus             .claude/tombstones.txt
+azure-service-bus             .claude/tombstones-allowlist.txt
+azure-service-bus             .claude/scripts/check-tombstones.sh
+send-notification-queue       .claude/tombstones.txt
+send-notification-queue       .claude/tombstones-allowlist.txt
+send-notification-queue       .claude/scripts/check-tombstones.sh
+dead-observability-artifacts  .claude/tombstones.txt
+dead-observability-artifacts  .claude/tombstones-allowlist.txt
+dead-observability-artifacts  .claude/scripts/check-tombstones.sh

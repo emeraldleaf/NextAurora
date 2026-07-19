@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using NextAurora.Contracts.Commands;
 using NextAurora.Contracts.Events;
 using NextAurora.Contracts.Messaging;
 using NotificationService.Features;
@@ -15,9 +14,9 @@ builder.AddServiceDefaults();
 builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
-    // RabbitMQ transport. NotificationService is listen-only (the saga sink): bind a per-source
-    // queue to each event exchange, plus the direct send-notification queue. AutoProvision is gated
-    // (default on) for consistency with the other services. See OrderService/Program.cs + CLAUDE.md.
+    // RabbitMQ transport. NotificationService is listen-only (the saga sink): it binds a
+    // per-source queue to each event exchange. AutoProvision is gated (default on) for
+    // consistency with the other services. See OrderService/Program.cs + CLAUDE.md.
     var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString));
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
@@ -38,7 +37,6 @@ builder.Host.UseWolverine(opts =>
     opts.ListenToRabbitQueue(MessagingQueues.NotifyOrders).ProcessInline();
     opts.ListenToRabbitQueue(MessagingQueues.NotifyPayments).ProcessInline();
     opts.ListenToRabbitQueue(MessagingQueues.NotifyShipping).ProcessInline();
-    opts.ListenToRabbitQueue(MessagingQueues.SendNotification).ProcessInline();
 
     // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly,
     // so no explicit IncludeAssembly call is needed.
