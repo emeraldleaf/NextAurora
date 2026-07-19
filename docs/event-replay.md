@@ -8,7 +8,7 @@
 
 | Table | What it holds |
 |---|---|
-| `wolverine.outgoing_envelopes` | Messages staged in a DB transaction but not yet flushed to Service Bus. The "in-flight" queue. |
+| `wolverine.outgoing_envelopes` | Messages staged in a DB transaction but not yet flushed to the broker. The "in-flight" queue. |
 | `wolverine.incoming_envelopes` | Inbox: deduplication record for received messages. |
 | `wolverine.dead_letters` | Messages that exhausted retries and are no longer being processed. |
 
@@ -54,5 +54,5 @@ Resending from the DLQ, requeueing scheduled messages, and pausing a sending end
 
 - [docs/performance-and-data-correctness.md](performance-and-data-correctness.md) — outbox decisions, dual-write problem, retry policies.
 - [docs/event-driven-observability.md](event-driven-observability.md) — distributed tracing, event end-to-end.
-- [docs/observability.md](observability.md) — metrics (`messages.abandoned`), logs, traces.
+- [docs/observability.md](observability.md) — metrics (`wolverine-dead-letter-queue`), logs, traces.
 - [docs/architecture.md](architecture.md#event-driven-architecture) — event topology and the choreography saga.

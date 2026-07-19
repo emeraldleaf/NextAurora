@@ -1,0 +1,43 @@
+# Removed-identifier tombstones. See CLAUDE.md "Identifier-move discipline".
+#
+# When a subsystem/identifier is REMOVED, its names go here so CI fails any doc, comment, or
+# config that still presents it as current. This is the identifier-level counterpart of the
+# file-move discipline: the compiler catches stale identifiers in code; nothing catches them
+# in prose.
+#
+# FORMAT: patterns are organised into GROUPS. A group starts with `[group-name]`; every
+# pattern below it belongs to that group until the next `[...]` line. Patterns are
+# case-insensitive extended regexes (git grep -iE).
+#
+# WHY GROUPS: allowlist entries are scoped to ONE group (see tombstones-allowlist.txt). A file
+# exempted for a past removal must still be audited against every future tombstone. The
+# earlier file-scoped allowlist let `docs/architecture.md` — exempted for the Azure Service Bus
+# removal — silently skip the send-notification and messages.abandoned tombstones added months
+# later, so the audit reported "clean" on a sweep that was not to zero. Group-scoping closes it.
+
+[azure-service-bus]
+# Removed in #159 — RabbitMQ is the transport.
+azureservicebus
+azure service bus
+azure\.messaging\.servicebus
+servicebus\.windows\.net
+service bus
+# Old ASB subscription names (renamed to queue names without the -sub suffix)
+(payment-orders|notify-orders|order-payments|shipping-payments|notify-payments|order-shipping|notify-shipping)-sub
+
+[send-notification-queue]
+# Removed in #170 — dead-end wiring. Nothing published SendNotificationCommand and it had no
+# handler; the working path is the in-process Wolverine cascade of the internal
+# SendNotificationRequest. Documenting the queue as publishable was actively harmful (a
+# conforming publisher's message would arrive unhandleable and be discarded).
+SendNotificationCommand
+send-notification
+
+[dead-observability-artifacts]
+# Removed in #171 — declared/registered but never incremented/emitted (the ASB processors that
+# fed them died in the Wolverine migration). Wolverine's own meter (Wolverine:{ServiceName},
+# registered via AddMeter("Wolverine*")) provides the real instruments in their place.
+messages\.abandoned
+MessagesAbandoned
+NextAuroraMetrics
+NextAurora\.Messaging

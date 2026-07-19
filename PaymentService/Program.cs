@@ -4,12 +4,13 @@ using JasperFx.Resources;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using NextAurora.Contracts.Events;
+using NextAurora.Contracts.Messaging;
 using PaymentService.Endpoints;
 using PaymentService.Infrastructure;
 using PaymentService.Infrastructure.Data;
 using Scalar.AspNetCore;
 using Wolverine;
-using Wolverine.AzureServiceBus;
+using Wolverine.RabbitMQ;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
 using Wolverine.SqlServer;
@@ -42,24 +43,31 @@ builder.Services.AddRateLimiter(options =>
 builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
-    var azureServiceBus = opts.UseAzureServiceBus(connectionString);
 
-    // AutoProvision creates topics/subscriptions via the Service Bus management API at host
-    // startup. Disabled in two environments: integration tests (fake ASB string hangs) and
-    // local dev (the emulator has no management API → BrokerInitializationException). The
-    // AppHost injects Wolverine__AutoProvision=false for the emulator. Gate on a config flag
-    // (defaults true) so real Azure still provisions. See OrderService/Program.cs + CLAUDE.md.
+    // RabbitMQ transport. Wolverine declares the exchange/queue/binding via AutoProvision (gated so
+    // it's off for transport-stubbed integration tests). See OrderService/Program.cs + CLAUDE.md.
+    var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString));
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
-        azureServiceBus.AutoProvision();
+        rabbit.AutoProvision();
     }
-
-    // Publish outgoing events to their topics
-    opts.PublishMessage<PaymentCompletedEvent>().ToAzureServiceBusTopic("payment-events");
-    opts.PublishMessage<PaymentFailedEvent>().ToAzureServiceBusTopic("payment-events");
-
-    // Listen to incoming events from other services
-    opts.ListenToAzureServiceBusSubscription("order-events/payment-orders-sub");
+    // Publisher-side topology: this service owns payment-events, so it declares the exchange AND
+    // every consumer queue bound to it — a fanout exchange with zero bindings silently DISCARDS
+    // publishes, and consumers only declare their own bindings at their own startup, so without
+    // this a fresh broker has a first-boot loss window. Names come from MessagingExchanges/MessagingQueues (a
+    // typo'd inline literal is silently auto-provisioned as a new empty object). See CLAUDE.md (#168).
+    rabbit.BindExchange(MessagingExchanges.PaymentEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.OrderPayments);
+    rabbit.BindExchange(MessagingExchanges.PaymentEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.ShippingPayments);
+    rabbit.BindExchange(MessagingExchanges.PaymentEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.NotifyPayments);
+    // Consumer-side binding (also declared by its publisher; declarations are idempotent).
+    rabbit.BindExchange(MessagingExchanges.OrderEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.PaymentOrders);
+    opts.PublishMessage<PaymentCompletedEvent>().ToRabbitExchange(MessagingExchanges.PaymentEvents);
+    opts.PublishMessage<PaymentFailedEvent>().ToRabbitExchange(MessagingExchanges.PaymentEvents);
+    opts.ListenToRabbitQueue(MessagingQueues.PaymentOrders);
 
     // Transactional outbox: persist outgoing messages to SQL Server in the same
     // transaction as the entity write, then dispatch via background flush.
@@ -68,6 +76,9 @@ builder.Host.UseWolverine(opts =>
     opts.UseEntityFrameworkCoreTransactions();
     opts.Policies.AutoApplyTransactions();
     opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+    // Durable INBOX too — durability is per-direction: without this, listeners run buffered
+    // (broker acked before handlers run; a crash loses the buffer). See CLAUDE.md (#169).
+    opts.Policies.UseDurableInboxOnAllListeners();
 
     // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly,
     // so no explicit IncludeAssembly call is needed.

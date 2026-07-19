@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Logging;
-using NextAurora.Contracts.Commands;
 using NextAurora.Contracts.Events;
+using NextAurora.Contracts.Messaging;
 using NotificationService.Features;
 using NotificationService.Infrastructure;
 using Scalar.AspNetCore;
 using Wolverine;
-using Wolverine.AzureServiceBus;
+using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,25 +14,29 @@ builder.AddServiceDefaults();
 builder.Host.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("messaging")!;
-    var azureServiceBus = opts.UseAzureServiceBus(connectionString);
-
-    // AutoProvision creates topics/subscriptions via the Service Bus management API at host
-    // startup. Disabled in two environments: integration tests (fake ASB string hangs) and
-    // local dev (the emulator has no management API → BrokerInitializationException). The
-    // AppHost injects Wolverine__AutoProvision=false for the emulator. Gate on a config flag
-    // (defaults true) so real Azure still provisions. See OrderService/Program.cs + CLAUDE.md.
+    // RabbitMQ transport. NotificationService is listen-only (the saga sink): it binds a
+    // per-source queue to each event exchange. AutoProvision is gated (default on) for
+    // consistency with the other services. See OrderService/Program.cs + CLAUDE.md.
+    var rabbit = opts.UseRabbitMq(factory => factory.Uri = new Uri(connectionString));
     if (builder.Configuration.GetValue("Wolverine:AutoProvision", defaultValue: true))
     {
-        azureServiceBus.AutoProvision();
+        rabbit.AutoProvision();
     }
-
-    // Listen to events from other services
-    opts.ListenToAzureServiceBusSubscription("order-events/notify-orders-sub");
-    opts.ListenToAzureServiceBusSubscription("payment-events/notify-payments-sub");
-    opts.ListenToAzureServiceBusSubscription("shipping-events/notify-shipping-sub");
-
-    // Listen to direct command queue
-    opts.ListenToAzureServiceBusQueue("send-notification");
+    rabbit.BindExchange(MessagingExchanges.OrderEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.NotifyOrders);
+    rabbit.BindExchange(MessagingExchanges.PaymentEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.NotifyPayments);
+    rabbit.BindExchange(MessagingExchanges.ShippingEvents, ExchangeType.Fanout)
+        .ToQueue(MessagingQueues.NotifyShipping);
+    // ProcessInline: durability is per-direction, and this service has NO message store (stateless,
+    // no DB) — so a durable inbox isn't available. Inline processing acks the broker only AFTER the
+    // handler completes, which restores consume-side at-least-once here: a crash mid-handle means
+    // the broker redelivers. Note the trade-off: these handlers have no dedup store, so a
+    // redelivery re-sends the notification — duplicates are BENIGN for a notification sink,
+    // which is not the same claim as idempotent. See CLAUDE.md (#169).
+    opts.ListenToRabbitQueue(MessagingQueues.NotifyOrders).ProcessInline();
+    opts.ListenToRabbitQueue(MessagingQueues.NotifyPayments).ProcessInline();
+    opts.ListenToRabbitQueue(MessagingQueues.NotifyShipping).ProcessInline();
 
     // Single-project assembly — Wolverine auto-discovers handlers from the entry assembly,
     // so no explicit IncludeAssembly call is needed.

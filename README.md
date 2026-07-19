@@ -17,12 +17,12 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 > **How it was built — AI-assisted, multi-model review, verification at every layer.**
 > - **Two AI reviewers, not one.** [Claude Code](https://claude.com/claude-code) (Opus 4.7) is the primary pair-programmer — reads [`CLAUDE.md`](CLAUDE.md) plus the [`.claude/`](.claude/) folder beside it (agents, [skills](.claude/skills/), [slash commands](.claude/commands/), hook scripts, hook + permission wiring) every session, and a persistent project memory. **GitHub Copilot (GPT-5)** sits in-editor for second-opinion diff review, with project conventions encoded in [`.github/copilot-instructions.md`](.github/copilot-instructions.md). Disagreement between the two is treated as a signal to dig deeper, not pick the louder voice. The principle is not "AI wrote it" — it's *two models + a human author + automated checks all sign off before merge*. The working loop: implement → run unit + integration tests → cross-model review → fix → commit.
 > - **Continuous Rule Encoding — the compounding feedback loop.** Every meaningful finding (CodeRabbit catch, test failure, architecture-reviewer agent flag, manual code review, prod incident, even community articles audited via [`/article-audit`](.claude/commands/article-audit.md)) gets the question: *"could the next person repeat this?"* If yes, the rule gets written down at the right tier of an enforcement spectrum — **Convention** (CLAUDE.md + `.claude/`), **PR-review automation** ([`.coderabbit.yaml`](.coderabbit.yaml) + the [architecture-reviewer agent](.claude/agents/architecture-reviewer.md)), or **Mechanical** (build-fail / hook-block / CI-grep). Rules move down the spectrum as they prove their value — the looser the tier, the more you rely on noticing, and noticing always degrades first. CLAUDE.md itself stays lean (~300 lines; CI-guarded soft cap at 400, hard fail at 500); deep dives live in [`docs/`](docs/) and the [`dotnet-performance` skill](.claude/skills/dotnet-performance/SKILL.md). Six **disciplines** sit alongside the surfaces — *cross-reference convention, file-move, doc-and-diagram, lean-CLAUDE.md, presence-in-the-loop, continue-is-the-verb* — the first four with mechanical floors (hooks, CI guards, size budget), the last two convention-tier (judgment calls about presence and stopping). New features run through [`/feature-spec`](.claude/commands/feature-spec.md), which opens with a value gate (who needs this, would we still build it at engineering-time cost, who owns saying no), then drafts a structured handoff (goal + acceptance + upstream dependencies + auto-referenced CLAUDE.md constraints) and closes with a hole-test (*imagine handing this to someone not in your head — where would they have to guess?*). Full mechanics + the 5 encoding surfaces + the disciplines catalog: [`docs/dev-loop.md`](docs/dev-loop.md); scaffolding diagram: [`docs/dev-loop-scaffolding.svg`](docs/dev-loop-scaffolding.svg).
-> - **Verification at every layer.** Build: `TreatWarningsAsErrors` + four build-time analyzers (Meziantou, SonarAnalyzer.CSharp, Roslynator, BannedApiAnalyzers — the last rejects concrete concurrency hazards at compile). Tests: 100+ unit + integration tests, with integration slices for all four DB-touching services via [Testcontainers](https://dotnet.testcontainers.org/) — Catalog (Postgres + Redis), Order (SQL Server + stubbed Wolverine transport), Payment (SQL Server), Shipping (Postgres). Each slice runs as its own step in CI so a single-slice failure doesn't mask the rest. CI: GitHub Actions runs build + tests + Coverlet/Cobertura coverage on every PR. Security: CodeQL on every push + weekly schedule. Dependencies: Dependabot weekly NuGet bumps (grouped per ecosystem). Local dev: Aspire orchestrates Postgres / SQL Server / Service Bus emulator / Redis / Keycloak in Docker so integration issues surface *before* push.
-> - **Testing strategy was decided upfront, not retrofitted.** Unit tests cover handlers + domain rules with mocked infrastructure (NSubstitute, FakeTimeProvider). Integration tests use live containers to prove what mocks can't: EF migrations apply cleanly to fresh DBs, HybridCache actually invalidates on write, the `xmin` / `RowVersion` concurrency tokens actually fire under racing writes, Wolverine's transactional outbox + saga handlers actually persist and dispatch. Cross-service E2E over a live Azure Service Bus wire is tracked as deferred in [STATUS.md](docs/STATUS.md). Open issues and other deferred cleanups live there too.
+> - **Verification at every layer.** Build: `TreatWarningsAsErrors` + four build-time analyzers (Meziantou, SonarAnalyzer.CSharp, Roslynator, BannedApiAnalyzers — the last rejects concrete concurrency hazards at compile). Tests: 100+ unit + integration tests, with integration slices for all four DB-touching services via [Testcontainers](https://dotnet.testcontainers.org/) — Catalog (Postgres + Redis), Order (SQL Server + stubbed Wolverine transport), Payment (SQL Server), Shipping (Postgres). Each slice runs as its own step in CI so a single-slice failure doesn't mask the rest. CI: GitHub Actions runs build + tests + Coverlet/Cobertura coverage on every PR. Security: CodeQL on every push + weekly schedule. Dependencies: Dependabot weekly NuGet bumps (grouped per ecosystem). Local dev: Aspire orchestrates Postgres / SQL Server / RabbitMQ / Redis / Keycloak in Docker so integration issues surface *before* push.
+> - **Testing strategy was decided upfront, not retrofitted.** Unit tests cover handlers + domain rules with mocked infrastructure (NSubstitute, FakeTimeProvider). Integration tests use live containers to prove what mocks can't: EF migrations apply cleanly to fresh DBs, HybridCache actually invalidates on write, the `xmin` / `RowVersion` concurrency tokens actually fire under racing writes, Wolverine's transactional outbox + saga handlers actually persist and dispatch. Cross-service E2E over a live RabbitMQ wire is tracked as deferred in [STATUS.md](docs/STATUS.md). Open issues and other deferred cleanups live there too.
 
 [![NextAurora architecture — full system in one view](docs/nextaurora-architecture.svg)](docs/nextaurora-architecture.svg)
 
-*Full system in one view — services, Service Bus topology, databases, and the 10-step order-placement saga. Click to view full-size.*
+*Full system in one view — services, RabbitMQ messaging topology, databases, and the 10-step order-placement saga. Click to view full-size.*
 
 **Drill down into specific subsystems:** [service request lifecycle](#service-request-lifecycle) · [HybridCache flow](#hybridcache-flow) · [transactional outbox](#transactional-outbox) · [EF Core read and write](#ef-core-read-and-write) · [EF Core migrations](#ef-core-migrations) — all six diagrams in the [Reference diagrams](#reference-diagrams) section below.
 
@@ -56,18 +56,15 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 +-----------------------------------------------------+
 |                 MESSAGING LAYER                      |
 |                                                      |
-|   Async Messaging (Topics & Subscriptions)          |
-|   Local/CI: Azure Service Bus emulator              |
-|   AWS prod: Amazon SNS + SQS                        |
+|   Async Messaging (Fanout Exchanges & Queues)       |
+|   RabbitMQ via Wolverine — same broker in           |
+|   every environment (local dev, CI, deployment)     |
 |                                                      |
-|   Topics:                                            |
+|   Fanout exchanges (queue per consumer):             |
 |   order-events -----> PaymentSvc, NotificationSvc    |
 |   payment-events ---> OrderSvc, ShippingSvc,         |
 |                       NotificationSvc                |
 |   shipping-events --> OrderSvc, NotificationSvc      |
-|                                                      |
-|   Queue:                                             |
-|   send-notification -> NotificationSvc               |
 +-----------------------------------------------------+
         |                |               |
         v                v               v
@@ -101,7 +98,7 @@ Orchestrated by .NET Aspire (service discovery, health checks, OpenTelemetry)
 - **Blazor WebAssembly** (Storefront, scaffolded — no business logic yet)
 - **ASP.NET Core static-file host** (SellerPortal scaffold — no UI framework chosen yet, currently serves a placeholder `index.html`)
 - **Entity Framework Core 10** (PostgreSQL + SQL Server) with EF migrations
-- **Azure Service Bus** for async event-driven messaging
+- **RabbitMQ** for async event-driven messaging (fanout exchanges + queue per consumer, via Wolverine's `WolverineFx.RabbitMQ` transport)
 - **Wolverine** for command/query dispatch, message handling, and the transactional outbox
 - **gRPC** for synchronous inter-service communication
 - **Keycloak + JWT Bearer** for authentication and authorization
@@ -113,7 +110,7 @@ Orchestrated by .NET Aspire (service discovery, health checks, OpenTelemetry)
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — running, not just installed (Aspire spins up Postgres/SQL Server/Service Bus emulator/Keycloak/Redis as containers)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — running, not just installed (Aspire spins up Postgres/SQL Server/RabbitMQ/Keycloak/Redis as containers)
 - [Aspire CLI](https://learn.microsoft.com/en-us/dotnet/aspire/)
 - **ASP.NET Core dev certificate** — required by the Aspire dashboard's HTTPS endpoint. One-time per machine:
 
@@ -146,7 +143,7 @@ dotnet restore
 dotnet run --project NextAurora.AppHost
 ```
 
-This starts all services, databases (PostgreSQL, SQL Server), Redis, and Azure Service Bus emulator in Docker containers. The Aspire dashboard opens automatically showing all services, health status, logs, and distributed traces.
+This starts all services, databases (PostgreSQL, SQL Server), Redis, and RabbitMQ (management UI on :15672) in Docker containers. The Aspire dashboard opens automatically showing all services, health status, logs, and distributed traces.
 
 4. **Access the applications**
 
@@ -158,7 +155,7 @@ This starts all services, databases (PostgreSQL, SQL Server), Redis, and Azure S
 | CatalogService API | Shown in Aspire Dashboard |
 | OrderService API | Shown in Aspire Dashboard |
 
-5. **Verify it's working** — once every resource in the Aspire dashboard reaches `Running` (first boot is slow; SQL Server + Service Bus emulator take 60–90s to be healthy on cold runs):
+5. **Verify it's working** — once every resource in the Aspire dashboard reaches `Running` (first boot is slow; SQL Server takes 60–90s to be healthy on cold runs):
 
    - Click `catalog-service` in the Resources tab and open its `/scalar/v1` URL
    - Run `GET /api/v1/products` — you should see 7 seeded products
@@ -270,13 +267,13 @@ NotificationService receives ShipmentDispatchedEvent
 
 ## Observability
 
-Every request and Service Bus message carries three identifiers through the entire chain:
+Every request and RabbitMQ message carries three identifiers through the entire chain:
 
 | Field | Source | Propagated Via |
 |-------|--------|---------------|
-| `CorrelationId` | `X-Correlation-Id` header (generated if absent) | Activity baggage → Service Bus `ApplicationProperties` |
-| `UserId` | JWT `sub` claim | Activity baggage → Service Bus `ApplicationProperties` |
-| `SessionId` | `X-Session-Id` header | Activity baggage → Service Bus `ApplicationProperties` |
+| `CorrelationId` | `X-Correlation-Id` header (generated if absent) | Activity baggage → message envelope headers |
+| `UserId` | JWT `sub` claim | Activity baggage → message envelope headers |
+| `SessionId` | `X-Session-Id` header | Activity baggage → message envelope headers |
 
 These appear on **every structured log line** in every service, making it possible to search for a single `CorrelationId` and see the complete transaction timeline across all five services.
 
@@ -286,7 +283,7 @@ Key components:
 - **`OutgoingContextMiddleware`** — Wolverine middleware on the outgoing side; stamps the three IDs onto outgoing message envelopes
 - **`WolverineEventPublisher`** — thin pass-through to `IMessageBus.PublishAsync` so domain code stays infrastructure-agnostic
 
-Order, Payment, and Shipping run **Wolverine's transactional outbox**: outgoing events persist to a `wolverine` schema in each service's database in the same DB transaction as the entity write, then dispatch to Service Bus via a background flush. See [`docs/context-propagation.md`](docs/context-propagation.md) and [`docs/performance-and-data-correctness.md`](docs/performance-and-data-correctness.md) for full details.
+Order, Payment, and Shipping run **Wolverine's transactional outbox**: outgoing events persist to a `wolverine` schema in each service's database in the same DB transaction as the entity write, then dispatch to RabbitMQ via a background flush. See [`docs/context-propagation.md`](docs/context-propagation.md) and [`docs/performance-and-data-correctness.md`](docs/performance-and-data-correctness.md) for full details.
 
 ## Performance Testing
 
@@ -349,7 +346,7 @@ If Keycloak isn't configured (no `Authentication:Authority` and no `Keycloak:Url
 
 | Pattern | Technology | Use Case |
 |---------|-----------|----------|
-| **Event-Driven (Async)** | Azure Service Bus | Order workflows, payment processing, shipping, notifications |
+| **Event-Driven (Async)** | RabbitMQ (via Wolverine) | Order workflows, payment processing, shipping, notifications |
 | **gRPC (Sync)** | Protocol Buffers | Product validation during order placement |
 | **REST (External)** | ASP.NET Core Minimal APIs | Frontend-to-service communication |
 
@@ -389,7 +386,7 @@ This is documented as a hard rule in [CLAUDE.md "Communication Patterns → Wolv
 | [Modern .NET 10 / C# 13 Features in Use](docs/dotnet-10-features.md) | Reference of the modern .NET features actively used in NextAurora — HybridCache, primary constructors, collection expressions, Asp.Versioning.Http, IExceptionHandler, Wolverine over MediatR+MassTransit, etc. Anchored in file:line. |
 | [Project Decisions — API, Libraries, Architecture](docs/project-decisions.md) | Reference guide: cross-cutting decisions — Minimal APIs, URL versioning, Wolverine vs MediatR, HybridCache, Keycloak, observability, every library pick + alternative considered |
 | [VSA vs. Clean Architecture](docs/vsa-vs-clean-architecture.md) | Portable decision guide (reusable across systems): the dependency rule vs the 4-project structure, the enforcement spectrum (convention → architecture tests → project split), how Testcontainers shifted the testing calculus, the duplication tradeoff, when to use which — NextAurora's VSA-everywhere choice as worked example |
-| [Messaging Transport Selection](docs/messaging-transport-selection.md) | Portable decision guide (reusable across systems): when to use Redis Pub/Sub vs Redis Streams vs RabbitMQ vs Azure Service Bus vs AWS SNS+SQS vs Kafka/Event Hubs/Kinesis — decision axes, comparison matrix, common mistakes, NextAurora's choice as worked example |
+| [Messaging Transport Selection](docs/messaging-transport-selection.md) | Portable decision guide (reusable across systems): when to use Redis Pub/Sub vs Redis Streams vs RabbitMQ vs cloud brokers (ASB, AWS SNS+SQS) vs Kafka/Event Hubs/Kinesis — decision axes, comparison matrix, common mistakes, NextAurora's RabbitMQ choice as worked example |
 | [Observability](docs/observability.md) | Correlation/user/session ID propagation, distributed tracing, Wolverine handler logging, DLQ handling, metrics |
 | [Event Replay](docs/event-replay.md) | Wolverine outbox state, where to inspect outgoing/dead-letter envelopes, `IMessageStore` API |
 | [Business Requirements](docs/BRD.md) | Functional requirements, implementation status, business processes, glossary |
@@ -403,7 +400,7 @@ Six diagrams break the system down — one concept per visual. Each is self-cont
 
 #### Full system architecture
 
-5 services, Service Bus topology, databases, 10-step order-placement saga, cache + outbox callouts — embedded above in the overview.
+5 services, RabbitMQ messaging topology, databases, 10-step order-placement saga, cache + outbox callouts — embedded above in the overview.
 
 #### Service request lifecycle
 
@@ -419,7 +416,7 @@ Catalog's cache flow: GetOrLoadAsync → L1 (μs) → L2 (ms) → factory (once 
 
 #### Transactional outbox
 
-The load-bearing reliability mechanism behind every cross-service event. Entity write + outbox-row write committed in ONE transaction (visual: dotted "TRANSACTION BOUNDARY" wrapping both). Background dispatcher → Service Bus → delete envelope. All failure modes spelled out.
+The load-bearing reliability mechanism behind every cross-service event. Entity write + outbox-row write committed in ONE transaction (visual: dotted "TRANSACTION BOUNDARY" wrapping both). Background dispatcher → RabbitMQ → delete envelope. All failure modes spelled out.
 
 [![Transactional outbox](docs/transactional-outbox.svg)](docs/transactional-outbox.svg)
 

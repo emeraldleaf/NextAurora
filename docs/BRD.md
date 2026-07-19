@@ -137,15 +137,15 @@ The system is built as a set of independently deployable microservices to suppor
 | PERF-01 | API response time for product queries | < 200ms (p95) |
 | PERF-02 | Order placement end-to-end | < 500ms |
 | PERF-03 | gRPC product validation latency | < 50ms |
-| PERF-04 | Event processing latency (Service Bus) | < 2 seconds |
+| PERF-04 | Event processing latency (RabbitMQ) | < 2 seconds |
 
 ### 5.2 Reliability
 
 | ID | Requirement | Target |
 |----|-------------|--------|
 | REL-01 | Service availability | 99.9% per service |
-| REL-02 | No data loss on service failure | Event-driven with at-least-once delivery |
-| REL-03 | Independent service failure isolation | Service Bus decouples services |
+| REL-02 | No data loss on service failure | Transactional outbox (publish side) + durable RabbitMQ queues + durable inbox/inline listeners with at-least-once redelivery (consume side) |
+| REL-03 | Independent service failure isolation | RabbitMQ decouples services |
 | REL-04 | Health check endpoints on all services | Implemented (/health, /alive) |
 
 ### 5.3 Scalability
@@ -162,7 +162,7 @@ The system is built as a set of independently deployable microservices to suppor
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
 | SEC-01 | API authentication (JWT/OAuth2) | High | Implemented (JWT Bearer + Keycloak realm via Aspire; `.RequireAuthorization()` on protected endpoints; buyer-scope checks on order endpoints) |
-| SEC-02 | Service-to-service authentication | High | Not implemented (gRPC + Service Bus calls are inside the Aspire-managed mesh; mTLS / per-service tokens not yet configured) |
+| SEC-02 | Service-to-service authentication | High | Not implemented (gRPC + RabbitMQ traffic is inside the Aspire-managed mesh; mTLS / per-service tokens not yet configured) |
 | SEC-03 | Input validation on all endpoints | High | Implemented (FluentValidation + Wolverine pipeline + domain guard clauses) |
 | SEC-04 | Secrets management | Medium | Aspire User Secrets (dev) |
 | SEC-05 | HTTPS enforcement | Medium | Implemented (production redirection) |
@@ -265,7 +265,7 @@ The system is built as a set of independently deployable microservices to suppor
 ### Data Consistency Model
 
 - **Within a service:** Strong consistency (ACID transactions via EF Core)
-- **Across services:** Eventual consistency (Azure Service Bus at-least-once delivery)
+- **Across services:** Eventual consistency (RabbitMQ at-least-once delivery)
 - **Product validation at order time:** Strong consistency via synchronous gRPC call
 
 ---
@@ -277,7 +277,7 @@ The system is built as a set of independently deployable microservices to suppor
 | Stripe (Payment Gateway) | External API | Simulated |
 | Email Provider (SendGrid/Twilio) | External API | Console placeholder |
 | Carrier APIs (FedEx/UPS/USPS/DHL) | External API | Simulated |
-| Azure Service Bus | Managed Service | Implemented (emulator for dev) |
+| RabbitMQ | Message Broker | Implemented (Docker container via Aspire, same broker in every environment) |
 | PostgreSQL | Database | Implemented (Docker) |
 | SQL Server | Database | Implemented (Docker) |
 | Redis | Cache (L2 tier) | Implemented (CatalogService via HybridCache; other services pending need) |
@@ -289,7 +289,7 @@ The system is built as a set of independently deployable microservices to suppor
 
 ### Assumptions
 1. Customers have a stable internet connection for the Blazor WASM storefront
-2. Azure Service Bus (or emulator) is available for event processing
+2. RabbitMQ is available for event processing (Aspire-managed container in every environment)
 3. Payment gateway is reachable for order processing
 4. Single currency per order (multi-currency across orders is supported)
 
@@ -305,10 +305,10 @@ The system is built as a set of independently deployable microservices to suppor
 
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
-| Payment service failure | Orders placed but not processed | Service Bus queues messages; payment processes when service recovers |
-| Stock oversold (concurrent orders) | Customer dissatisfaction | Optimistic concurrency tokens (`xmin`/`RowVersion`) on all aggregates; `DbUpdateConcurrencyException` → 409 on HTTP, 3-attempt Wolverine retry on Service Bus. Future: stock reservation in Catalog. |
-| Event message loss | Incomplete order lifecycle | Wolverine transactional outbox in Order/Payment/Shipping (events persist to a `wolverine` schema in the same DB transaction as the entity write); Azure Service Bus at-least-once delivery + DLQ for downstream consumers. |
-| Service Bus unavailable | Order pipeline halts | Wolverine outbox dispatcher retries with backoff; events stay durable on disk until the bus recovers. Aspire resilience handlers cover gRPC/HTTP. |
+| Payment service failure | Orders placed but not processed | RabbitMQ queues messages; payment processes when service recovers |
+| Stock oversold (concurrent orders) | Customer dissatisfaction | Optimistic concurrency tokens (`xmin`/`RowVersion`) on all aggregates; `DbUpdateConcurrencyException` → 409 on HTTP, 3-attempt Wolverine retry on the message path. Future: stock reservation in Catalog. |
+| Event message loss | Incomplete order lifecycle | Wolverine transactional outbox in Order/Payment/Shipping (events persist to a `wolverine` schema in the same DB transaction as the entity write); RabbitMQ at-least-once delivery + DLQ for downstream consumers. |
+| RabbitMQ unavailable | Order pipeline halts | Wolverine outbox dispatcher retries with backoff; events stay durable on disk until the broker recovers. Aspire resilience handlers cover gRPC/HTTP. |
 | gRPC catalog call failure | Order placement fails | HTTP resilience handler retries; future: circuit breaker with cached fallback |
 
 ---
@@ -333,7 +333,7 @@ The system is built as a set of independently deployable microservices to suppor
 | **CQRS** | Command Query Responsibility Segregation - separating read and write operations |
 | **Choreography Saga** | A distributed transaction pattern where services react to events independently |
 | **gRPC** | A high-performance RPC framework using Protocol Buffers |
-| **Service Bus** | Azure messaging service for pub/sub and queue-based communication |
+| **RabbitMQ** | Open-source message broker used for pub/sub (fanout exchanges) and queue-based communication |
 | **Eventual Consistency** | Data across services will become consistent over time, not immediately |
 | **Dead Letter Queue** | A queue for messages that cannot be processed after multiple attempts |
 | **Idempotent** | An operation that produces the same result regardless of how many times it is executed |

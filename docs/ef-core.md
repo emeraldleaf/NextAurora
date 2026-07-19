@@ -849,7 +849,7 @@ await eventPublisher.PublishAsync(@event, cancellationToken);
 return order.Id;
 ```
 
-After the handler returns: the transaction commits, both rows persist atomically, a background dispatcher reads from `wolverine.outgoing_envelopes` and sends to Service Bus.
+After the handler returns: the transaction commits, both rows persist atomically, a background dispatcher reads from `wolverine.outgoing_envelopes` and sends to RabbitMQ.
 
 ### 15.4 Failure modes — all handled
 
@@ -883,7 +883,7 @@ DbUpdateConcurrencyException => new ProblemDetails
 
 The caller refetches and decides what to do.
 
-### 16.2 Service Bus path → Wolverine retry
+### 16.2 Message path → Wolverine retry
 
 For event handlers, retry is correct: the event is still valid, the handler just needs to reload state and reapply. Wolverine policy in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/Extensions.cs):
 
@@ -896,7 +896,7 @@ public static WolverineOptions AddConcurrencyRetry(this WolverineOptions opts)
 }
 ```
 
-Called from each event-publishing service's `Program.cs`: `opts.AddConcurrencyRetry()`. Three retries with backoff. After exhaustion, the message goes to the DLQ (`messages.abandoned` metric increments).
+Called from each event-publishing service's `Program.cs`: `opts.AddConcurrencyRetry()`. Three retries with backoff. After exhaustion, the message goes to the DLQ (`wolverine-dead-letter-queue` metric increments).
 
 ### 16.3 Concrete saga example
 
@@ -1141,7 +1141,7 @@ A condensed walkthrough of the key EF Core decisions in this codebase, each mapp
 
 ### "How do you handle the dual-write problem?"
 
-> Wolverine's transactional outbox. The entity write and the outgoing message persist to a `wolverine` schema in the same DB, in the same EF transaction. After the handler returns, both commit together — neither happens without the other. A background dispatcher reads from `wolverine.outgoing_envelopes` and sends to Service Bus with retry. So "order saved but event lost" can't happen.
+> Wolverine's transactional outbox. The entity write and the outgoing message persist to a `wolverine` schema in the same DB, in the same EF transaction. After the handler returns, both commit together — neither happens without the other. A background dispatcher reads from `wolverine.outgoing_envelopes` and sends to RabbitMQ with retry. So "order saved but event lost" can't happen.
 
 ### "Repository pattern over EF Core — isn't that redundant?"
 

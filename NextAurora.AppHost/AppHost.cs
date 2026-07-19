@@ -2,7 +2,7 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Azure;
 
 // .NET Aspire orchestration root for NextAurora. Defines the entire local-development topology:
-// every container (Postgres, SQL Server, Redis, Service Bus emulator, Keycloak, App Insights),
+// every container (Postgres, SQL Server, Redis, RabbitMQ, Keycloak, App Insights),
 // every service project, and every dependency edge between them. When you run this project,
 // Aspire spins up the containers, sets per-service connection strings/auth via environment
 // variables (the magic behind `WithReference`), boots the services in dependency order, and
@@ -11,6 +11,8 @@ using Aspire.Hosting.Azure;
 // SOLID — composition over configuration: each .WithReference(...) call is an explicit dep edge.
 // There's no service-discovery magic guessing what to wire — if Order needs gRPC to Catalog,
 // it's stated here. That makes it easy to reason about what runs in any environment.
+
+const string keycloakHostname = "http://localhost:8080/";
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -34,36 +36,14 @@ var shippingDb = builder.AddPostgres("shipping-pg")
 // once we wire it (architecture.md "Future Considerations").
 var redis = builder.AddRedis("cache");
 
-// Azure Service Bus — Aspire 13 requires explicit `.RunAsEmulator()` for local dev (in 9.x
-// the emulator was implicit). Without this, AppHost reports "Missing subscription configuration"
-// at startup because Aspire treats the resource as needing a real Azure subscription.
-// See CLAUDE.md.
-var serviceBus = builder.AddAzureServiceBus("messaging")
-    .RunAsEmulator();
-
-// Topic / subscription topology. Each service that publishes events owns a topic; subscribers
-// get their own subscription per topic so they can be scaled and dead-lettered independently.
-//
-// Subscription naming: `{consumer}-{source-events}-sub`. Aspire 13 requires subscription names
-// to be globally unique within the bus namespace (not scoped per topic), hence the source
-// suffix. The strings here must match the `ListenToAzureServiceBusSubscription("{topic}/{sub}")`
-// calls in each service's Program.cs.
-var orderEventsTopic = serviceBus.AddServiceBusTopic("order-events");
-orderEventsTopic.AddServiceBusSubscription("payment-orders-sub");      // PaymentService consumes
-orderEventsTopic.AddServiceBusSubscription("notify-orders-sub");       // NotificationService consumes
-
-var paymentEventsTopic = serviceBus.AddServiceBusTopic("payment-events");
-paymentEventsTopic.AddServiceBusSubscription("order-payments-sub");    // OrderService consumes
-paymentEventsTopic.AddServiceBusSubscription("shipping-payments-sub"); // ShippingService consumes
-paymentEventsTopic.AddServiceBusSubscription("notify-payments-sub");   // NotificationService consumes (failure notifications)
-
-var shippingEventsTopic = serviceBus.AddServiceBusTopic("shipping-events");
-shippingEventsTopic.AddServiceBusSubscription("order-shipping-sub");   // OrderService consumes
-shippingEventsTopic.AddServiceBusSubscription("notify-shipping-sub");  // NotificationService consumes
-
-// Direct queue (not topic) for "send a notification right now" requests — single consumer,
-// fan-in only. NotificationService listens here in addition to the topic subscriptions.
-serviceBus.AddServiceBusQueue("send-notification");
+// --- Messaging broker: RabbitMQ ---
+// One container + the management UI (a demo artifact at :15672). Wolverine declares the
+// exchanges/queues/bindings itself via AutoProvision against the live broker, so no topology is
+// hand-declared here. RabbitMQ is also the deployed broker (Hetzner) — dev/prod parity. The
+// connection string is exposed under "messaging". The transport stays swappable (~5-line Wolverine
+// block per service); the previous cloud-broker wiring was evaluated and removed — its emulator
+// couldn't run the saga locally and there's no Azure deployment today. See CLAUDE.md + docs/full-saga-deployment-plan.md (D3) + #148.
+var messaging = builder.AddRabbitMQ("messaging").WithManagementPlugin();
 
 // Application Insights only when running in Publish mode (i.e. real deploys to Azure).
 // Aspire 13 has no local emulator for App Insights — keeping this in for local dev causes
@@ -78,7 +58,8 @@ if (builder.ExecutionContext.IsPublishMode)
 
 // Keycloak runs as a container. The realm definition is imported from a JSON file so the
 // dev environment always boots with the same users/clients/roles configured.
-var keycloak = builder.AddKeycloakContainer("keycloak")
+var keycloak = builder.AddKeycloakContainer("keycloak", port: 8080)
+    .WithHostname(keycloakHostname)
     .WithImport("./realms/nextaurora-realm.json");
 
 var realm = keycloak.AddRealm("nextaurora-realm", "nextaurora");
@@ -105,7 +86,7 @@ static IResourceBuilder<ProjectResource> WithOptionalAppInsights(
 // Origin of the Vite-served React SPA in local dev. Injected only into the services the
 // browser calls directly (Catalog, Order, Shipping) — ServiceDefaults registers the CORS
 // policy only when this is present. Payment/Notification have no browser-facing surface.
-const string SpaDevOrigin = "http://localhost:5173";
+const string SpaDevOrigin = "http://localhost:5173;http://127.0.0.1:5173";
 
 var catalogService = WithOptionalAppInsights(
     builder.AddProject<Projects.CatalogService>("catalog-service")
@@ -114,48 +95,37 @@ var catalogService = WithOptionalAppInsights(
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
     .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin);
 
-// Wolverine's AutoProvision() uses the Service Bus *management* API (ServiceBusAdministrationClient)
-// to create/verify topics + subscriptions at host startup. The Service Bus emulator does NOT
-// implement the management API — only the AMQP data plane — so AutoProvision retries, times out,
-// and the host dies with `BrokerInitializationException: Unable to initialize the Broker asb in
-// time`. Locally the topology is already declared above (AddServiceBusTopic/AddServiceBusSubscription
-// write the emulator's config), so provisioning is both impossible AND redundant. Disable it for
-// the four Wolverine services in dev; in Publish mode against real Azure, AutoProvision stays on
-// (Wolverine:AutoProvision defaults true) to create the entities. Mirrors the test harnesses'
-// `Wolverine:AutoProvision=false`. See CLAUDE.md.
-const string disableAutoProvision = "Wolverine__AutoProvision";
+// Wires a Wolverine service to RabbitMQ: connection-string reference + WaitFor (Aspire 13 needs an
+// explicit WaitFor for health). Wolverine AutoProvisions its exchanges/queues against the live
+// broker at startup. See CLAUDE.md.
+IResourceBuilder<ProjectResource> WithMessaging(IResourceBuilder<ProjectResource> project)
+{
+    return project.WithReference(messaging).WaitFor(messaging);
+}
 
 // OrderService also references catalogService — that gives it the gRPC client config to call
 // into Catalog for product validation during order placement.
-var orderService = WithOptionalAppInsights(
+var orderService = WithMessaging(WithOptionalAppInsights(
     builder.AddProject<Projects.OrderService>("order-service")
         .WithReference(ordersDb).WaitFor(ordersDb)
-        .WithReference(serviceBus).WaitFor(serviceBus)
         .WithReference(catalogService).WaitFor(catalogService), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
-    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin)
-    .WithEnvironment(disableAutoProvision, "false");
+    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin));
 
-WithOptionalAppInsights(
+WithMessaging(WithOptionalAppInsights(
     builder.AddProject<Projects.PaymentService>("payment-service")
-        .WithReference(paymentsDb).WaitFor(paymentsDb)
-        .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
-    .WithEnvironment(disableAutoProvision, "false");
+        .WithReference(paymentsDb).WaitFor(paymentsDb), appInsights)
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm));
 
-WithOptionalAppInsights(
+WithMessaging(WithOptionalAppInsights(
     builder.AddProject<Projects.ShippingService>("shipping-service")
-        .WithReference(shippingDb).WaitFor(shippingDb)
-        .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
+        .WithReference(shippingDb).WaitFor(shippingDb), appInsights)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
-    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin)
-    .WithEnvironment(disableAutoProvision, "false");
+    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin));
 
 // NotificationService is stateless — no DB reference, just messaging + telemetry.
-WithOptionalAppInsights(
-    builder.AddProject<Projects.NotificationService>("notification-service")
-        .WithReference(serviceBus).WaitFor(serviceBus), appInsights)
-    .WithEnvironment(disableAutoProvision, "false");
+WithMessaging(WithOptionalAppInsights(
+    builder.AddProject<Projects.NotificationService>("notification-service"), appInsights));
 
 // --- Frontend ---
 // Storefront and SellerPortal reference the API services so service-discovery resolves
@@ -163,14 +133,17 @@ WithOptionalAppInsights(
 // outside the Aspire-internal network.
 builder.AddProject<Projects.Storefront>("storefront")
     .WithExternalHttpEndpoints()
+    .WithHttpEndpoint(port: 5079, targetPort: 5079, isProxied: false)
+    .WithHttpsEndpoint(port: 7088, targetPort: 7088, isProxied: false)
     .WithReference(catalogService)
     .WithReference(orderService)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
 builder.AddProject<Projects.SellerPortal>("seller-portal")
     .WithExternalHttpEndpoints()
+    .WithHttpEndpoint(port: 5177, targetPort: 5177, isProxied: false)
     .WithReference(catalogService)
     .WithReference(orderService)
     .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
 
-builder.Build().Run();
+await builder.Build().RunAsync();

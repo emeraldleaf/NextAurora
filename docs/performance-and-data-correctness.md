@@ -774,9 +774,9 @@ DbUpdateConcurrencyException => new ProblemDetails
 
 The caller refetches and decides what to do. This is the right response for HTTP commands (admin-initiated updates, etc.) where the user can react.
 
-### Service Bus path → Wolverine retry
+### Message path → Wolverine retry
 
-For event handlers (driven by Azure Service Bus), retry is correct: the event is still valid, the handler just needs to read the latest state and reapply. We added a Wolverine error policy in `NextAurora.ServiceDefaults`:
+For event handlers (driven by RabbitMQ via Wolverine), retry is correct: the event is still valid, the handler just needs to read the latest state and reapply. We added a Wolverine error policy in `NextAurora.ServiceDefaults`:
 
 ```csharp
 public static WolverineOptions AddConcurrencyRetry(this WolverineOptions opts)
@@ -787,7 +787,7 @@ public static WolverineOptions AddConcurrencyRetry(this WolverineOptions opts)
 }
 ```
 
-Called from each event-publishing service's `Program.cs`: `opts.AddConcurrencyRetry()`. Three retries with increasing cooldown; after exhaustion the message goes to the dead-letter queue, where it shows up as a `messages.abandoned` metric (per `architecture.md`).
+Called from each event-publishing service's `Program.cs`: `opts.AddConcurrencyRetry()`. Three retries with increasing cooldown; after exhaustion the message goes to the dead-letter queue, where it shows up on Wolverine's `wolverine-dead-letter-queue` counter (per `architecture.md`).
 
 The status guards in domain methods (`MarkAsPaid()` checks status is `Placed`) handle the "operation no longer valid" case naturally — the retry hits the guard, throws `InvalidOperationException`, and the message is acked rather than DLQ'd (Wolverine treats domain exceptions outside the retry filter as terminal).
 

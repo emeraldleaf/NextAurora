@@ -171,7 +171,7 @@ Full deep-dive: [docs/ef-core.md](ef-core.md).
 
 **Why** (vs Serilog + Seq + Jaeger, which was the .NET-typical stack 3 years ago): one library handles all three signals; vendor-neutral; supports Activity baggage for correlation/user/session ID propagation across services.
 
-Business counters are defined once in [NextAuroraMetrics.cs](../NextAurora.ServiceDefaults/Metrics/NextAuroraMetrics.cs) (`orders.placed`, `payments.processed`, `shipments.dispatched`, `messages.abandoned`) and consumed in handlers.
+Business counters (`orders.placed`, `payments.processed`, `shipments.dispatched`, `notifications.sent`) are declared on the `Meter("NextAurora")` in the handlers that emit them.
 
 **Structured logging templates** (not string interpolation):
 ```csharp
@@ -185,7 +185,7 @@ Lets log aggregators index by `UserId` and `OrderId` — searchable, not text-gr
 
 ## 11. Wolverine — covers MediatR + MassTransit (both gone commercial)
 
-**What it is**: Single library that handles in-process CQRS (the MediatR slot), Service Bus message dispatch (the MassTransit slot), AND the transactional outbox pattern across both.
+**What it is**: Single library that handles in-process CQRS (the MediatR slot), message-broker dispatch (the MassTransit slot), AND the transactional outbox pattern across both.
 
 **Where**: Every service's `Program.cs` has `builder.Host.UseWolverine(opts => ...)`. Example: [CatalogService.Api/Program.cs:29-35](../CatalogService/Program.cs#L29-L35).
 

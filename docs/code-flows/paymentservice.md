@@ -1,6 +1,6 @@
 # PaymentService — code flow walkthrough
 
-> **What this is.** A walk through the code paths a new contributor will hit first in [PaymentService](../../PaymentService/). PaymentService is the **saga middle step** — it receives `OrderPlacedEvent` from OrderService over Service Bus, charges via a payment gateway (Stripe), and publishes `PaymentCompletedEvent` or `PaymentFailedEvent`. A `BackgroundService` recovery sweeper handles the "stuck in Pending" case where the gateway hangs.
+> **What this is.** A walk through the code paths a new contributor will hit first in [PaymentService](../../PaymentService/). PaymentService is the **saga middle step** — it receives `OrderPlacedEvent` from OrderService over RabbitMQ, charges via a payment gateway (Stripe), and publishes `PaymentCompletedEvent` or `PaymentFailedEvent`. A `BackgroundService` recovery sweeper handles the "stuck in Pending" case where the gateway hangs.
 >
 > **Architecture style:** Vertical Slice Architecture (single csproj). Folders: [`Endpoints/`](../../PaymentService/Endpoints), [`Features/`](../../PaymentService/Features), [`Domain/`](../../PaymentService/Domain), [`Infrastructure/`](../../PaymentService/Infrastructure). Composition root: [`Program.cs`](../../PaymentService/Program.cs).
 >
@@ -16,7 +16,7 @@
 ```mermaid
 sequenceDiagram
     autonumber
-    participant ASB1 as Azure Service Bus<br/>(orders topic)
+    participant MQ1 as RabbitMQ<br/>(payment-orders queue, bound to the<br/>order-events fanout exchange)
     participant W1 as Wolverine consumer +<br/>ContextPropagation middleware
     participant OPH as OrderPlacedHandler<br/>Features/OrderPlacedHandler.cs<br/>(static, returns command)
     participant Val as ProcessPaymentCommandValidator<br/>Features/ProcessPayment.cs<br/>(FluentValidation)
@@ -26,9 +26,9 @@ sequenceDiagram
     participant GW as IPaymentGateway<br/>Infrastructure/Gateway/<br/>StripePaymentGateway.cs
     participant Pub as IEventPublisher<br/>Infrastructure/WolverineEventPublisher.cs
     participant DB as SQL Server +<br/>wolverine.outgoing_envelopes
-    participant ASB2 as Azure Service Bus<br/>(payments topic)
+    participant MQ2 as RabbitMQ<br/>(payment-events fanout exchange)
 
-    ASB1->>W1: OrderPlacedEvent
+    MQ1->>W1: OrderPlacedEvent
     Note over W1: restores logger scope from<br/>envelope headers (CorrelationId,<br/>UserId, SessionId)
     W1->>OPH: Handle(@event)
     OPH-->>W1: returns ProcessPaymentCommand<br/>(Wolverine cascading message —<br/>no IMessageBus call needed)
@@ -66,7 +66,7 @@ sequenceDiagram
         H->>Ctx: context.SaveChangesAsync(ct)
         Note over Ctx,DB: AutoApplyTransactions wraps —<br/>UPDATE payments + outbox envelope<br/>in ONE DB tx
         DB-->>H: tx commit
-        DB->>ASB2: dispatched to ASB<br/>(payments topic)
+        DB->>MQ2: dispatched to RabbitMQ<br/>(payment-events fanout exchange)
     end
 ```
 
@@ -97,7 +97,7 @@ sequenceDiagram
     EP-->>Admin: 200 OK + { Id }
 ```
 
-The admin endpoint matters because it's how an operator manually triggers a payment when the saga is unavailable (e.g. Service Bus outage). Same code path; same outbox guarantees.
+The admin endpoint matters because it's how an operator manually triggers a payment when the saga is unavailable (e.g. RabbitMQ outage). Same code path; same outbox guarantees.
 
 ---
 
@@ -115,7 +115,7 @@ sequenceDiagram
     participant Agg as Payment aggregate
     participant Pub as IEventPublisher
     participant DB as SQL Server +<br/>wolverine.outgoing_envelopes
-    participant ASB as Azure Service Bus
+    participant MQ as RabbitMQ<br/>(payment-events fanout exchange)
 
     loop every SweepInterval (default 60s)
         Tick->>Lock: TryAcquireLockAsync("payments-recovery",<br/>TimeSpan.Zero)
@@ -145,7 +145,7 @@ sequenceDiagram
                     Note over Ctx,DB: flushes BOTH the MarkAsFailed mutation<br/>AND the staged outbox envelope into<br/>the ambient transaction
                     Tick->>Ctx: tx.CommitAsync(ct)
                     DB-->>Tick: tx commit (both rows or neither)
-                    DB->>ASB: PaymentFailedEvent dispatched
+                    DB->>MQ: PaymentFailedEvent dispatched
                 end
 
                 alt DbUpdateConcurrencyException

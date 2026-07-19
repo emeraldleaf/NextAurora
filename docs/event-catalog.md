@@ -4,19 +4,19 @@ This catalog documents every domain event in NextAurora: who publishes it, who c
 
 ---
 
-## Topic / Subscription Matrix
+## Exchange / Queue Matrix (RabbitMQ)
 
-| Topic | Publisher | Subscription | Subscriber |
+One **fanout exchange** per event family; one queue per consumer bound to it (naming: `{consumer}-{source-events}`). **Each publisher declares its own exchange AND its consumers' queues+bindings** (consumers keep their own bindings too — idempotent declares, no boot-order gap), AutoProvisioned by Wolverine at startup. The code-side source of truth for these names is [`NextAurora.Contracts/Messaging/MessagingTopology.cs`](../NextAurora.Contracts/Messaging/MessagingTopology.cs) — **this matrix and that file update together**.
+
+| Exchange | Publisher | Bound queue | Consumer |
 |---|---|---|---|
-| `order-events` | OrderService | `payment-sub` | PaymentService |
-| `order-events` | OrderService | `shipping-sub` | *(reserved — ShippingService subscribes via PaymentService cascade)* |
-| `order-events` | OrderService | `notify-sub` | NotificationService |
-| `payment-events` | PaymentService | `order-sub` | OrderService |
-| `payment-events` | PaymentService | `shipping-sub` | ShippingService |
-| `payment-events` | PaymentService | `notify-sub` | NotificationService |
-| `shipping-events` | ShippingService | `order-sub` | OrderService |
-| `shipping-events` | ShippingService | `notify-sub` | NotificationService |
-| `send-notification` *(queue)* | Any service | *(queue)* | NotificationService |
+| `order-events` | OrderService | `payment-orders` | PaymentService |
+| `order-events` | OrderService | `notify-orders` | NotificationService |
+| `payment-events` | PaymentService | `order-payments` | OrderService |
+| `payment-events` | PaymentService | `shipping-payments` | ShippingService |
+| `payment-events` | PaymentService | `notify-payments` | NotificationService |
+| `shipping-events` | ShippingService | `order-shipping` | OrderService |
+| `shipping-events` | ShippingService | `notify-shipping` | NotificationService |
 
 ---
 
@@ -24,7 +24,7 @@ This catalog documents every domain event in NextAurora: who publishes it, who c
 
 ### `OrderPlacedEvent`
 
-**Topic:** `order-events`  
+**Exchange:** `order-events`  
 **Subject header:** `OrderPlacedEvent`  
 **Producer:** OrderService (`PlaceOrderHandler`)  
 **Consumers:** PaymentService → triggers payment processing; NotificationService → sends "Order Received" email
@@ -42,7 +42,7 @@ This catalog documents every domain event in NextAurora: who publishes it, who c
 
 ### `PaymentCompletedEvent`
 
-**Topic:** `payment-events`  
+**Exchange:** `payment-events`  
 **Subject header:** `PaymentCompletedEvent`  
 **Producer:** PaymentService (`ProcessPaymentHandler`)  
 **Consumers:** OrderService → marks order as `Paid`; ShippingService → creates shipment
@@ -59,7 +59,7 @@ This catalog documents every domain event in NextAurora: who publishes it, who c
 
 ### `PaymentFailedEvent`
 
-**Topic:** `payment-events`  
+**Exchange:** `payment-events`  
 **Subject header:** `PaymentFailedEvent`  
 **Producer:** PaymentService (`ProcessPaymentHandler`)  
 **Consumers:** OrderService → marks order as `PaymentFailed`; NotificationService → sends "Payment Failed" email
@@ -76,7 +76,7 @@ This catalog documents every domain event in NextAurora: who publishes it, who c
 
 ### `ShipmentDispatchedEvent`
 
-**Topic:** `shipping-events`  
+**Exchange:** `shipping-events`  
 **Subject header:** `ShipmentDispatchedEvent`  
 **Producer:** ShippingService (`CreateShipmentHandler`)  
 **Consumers:** OrderService → marks order as `Shipped`; NotificationService → sends "Order Shipped" email
@@ -91,27 +91,12 @@ This catalog documents every domain event in NextAurora: who publishes it, who c
 
 ---
 
-## Commands (Service Bus Queue)
-
-### `SendNotificationCommand`
-
-**Queue:** `send-notification`  
-**Producers:** Any service that needs to trigger a notification without knowing the delivery channel  
-**Consumer:** NotificationService → dispatches to `SendNotificationHandler`
-
-| Field | Type | Description |
-|---|---|---|
-| `RecipientId` | `Guid` | Buyer/user identifier |
-| `RecipientEmail` | `string` | Resolved email address |
-| `Subject` | `string` | Notification subject line |
-| `Body` | `string` | Notification body text |
-| `Channel` | `string` | Delivery channel: `"Email"`, `"Push"`, `"SMS"` |
 
 ---
 
 ## Observability Headers
 
-All messages carry these `ApplicationProperties` on every Service Bus message:
+All messages carry these headers on every RabbitMQ message envelope:
 
 | Property | Description |
 |---|---|
@@ -128,15 +113,14 @@ These are stamped by `OutgoingContextMiddleware` (in `ServiceDefaults`) onto eve
 1. **Adding a new field** — safe. All consumers ignore unknown fields during JSON deserialization. Add the field as optional (with a default) in the C# record.
 2. **Renaming a field** — breaking change. Coordinate a dual-publish/dual-read migration window, or use a new event type name.
 3. **Removing a field** — breaking change for any consumer that depends on it. Check all subscribers in this catalog before removing.
-4. **New event type** — add it to this catalog. Add a handler in every subscriber listed in the topic matrix. Update the processor's Subject dispatch switch.
+4. **New event type** — add it to this catalog. Add a Wolverine handler in every consumer listed in the exchange/queue matrix.
 
 ---
 
 ## Dead Letter Queues
 
-Each subscription has a dead-letter sub-queue at:
-`{topic}/{subscription}/$deadletterqueue`
+Wolverine's RabbitMQ transport dead-letters exhausted messages to a Wolverine-managed dead-letter queue on the broker (visible alongside the consumer queues in the RabbitMQ management UI at `:15672`).
 
-Messages land there after exceeding `MaxDeliveryCount` retries. The `messages.abandoned` OTel counter (tagged with `subject` and `service`) rises as messages approach the DLQ. Alert when this counter crosses your threshold.
+Messages land there after exhausting Wolverine's retry policy. Wolverine's own `wolverine-dead-letter-queue` OTel counter is the alarm signal — its meter is registered in `ServiceDefaults`.
 
 Replay is available through Wolverine's transactional outbox tables (`wolverine` schema in each service's database) and its `IMessageStore` API. See [docs/event-replay.md](event-replay.md).

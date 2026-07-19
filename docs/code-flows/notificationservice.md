@@ -13,14 +13,14 @@
 ```mermaid
 sequenceDiagram
     autonumber
-    participant ASB as Azure Service Bus<br/>(orders / payments / shipping topics)
+    participant MQ as RabbitMQ<br/>(notify-orders / notify-payments /<br/>notify-shipping queues, each bound to<br/>its event family's fanout exchange)
     participant W as Wolverine consumer +<br/>ContextPropagation middleware
     participant EH as NotificationEventHandlers<br/>Features/NotificationEventHandlers.cs<br/>(3 static overloads, return commands)
     participant SH as SendNotificationHandler<br/>Features/SendNotification.cs
     participant Send as INotificationSender<br/>Features/SendNotification.cs<br/>(port)
     participant CS as ConsoleNotificationSender<br/>Infrastructure/<br/>(dev impl —<br/>SendGrid/Twilio/SES swap in prod)
 
-    ASB->>W: OrderPlacedEvent<br/>OR PaymentFailedEvent<br/>OR ShipmentDispatchedEvent
+    MQ->>W: OrderPlacedEvent<br/>OR PaymentFailedEvent<br/>OR ShipmentDispatchedEvent
     Note over W: ContextPropagation restores<br/>logger scope from envelope headers
     W->>EH: Handle(@event)
     Note over EH: pure event-to-command mapping —<br/>no I/O, no state, just string formatting<br/>(see "Why merged into one class" below)
@@ -107,7 +107,7 @@ Adding a `Notification` entity with `Create()`, status enum, `private set` prope
 | [Features/SendNotification.cs](../../NotificationService/Features/SendNotification.cs) | The request record + `INotificationSender` port + `SendNotificationHandler` (all in one file — VSA) |
 | [Infrastructure/ConsoleNotificationSender.cs](../../NotificationService/Infrastructure/ConsoleNotificationSender.cs) | Dev-time `INotificationSender` impl — logs instead of sending |
 | [Infrastructure/DependencyInjection.cs](../../NotificationService/Infrastructure/DependencyInjection.cs) | DI wiring (registers the sender impl) |
-| [Program.cs](../../NotificationService/Program.cs) | Composition root — Wolverine + ASB subscriptions + sender |
+| [Program.cs](../../NotificationService/Program.cs) | Composition root — Wolverine + RabbitMQ queue bindings (notify-orders / notify-payments / notify-shipping) |
 
 ---
 

@@ -387,12 +387,12 @@ different cadence, different lens.**
 
 | Tool | Role |
 |---|---|
-| **.NET Aspire** | Local dev orchestration. `dotnet run --project NextAurora.AppHost` brings up all services + Postgres + SQL Server + Service Bus emulator + Redis + Keycloak in one command. Aspire dashboard at http://localhost:18888. |
+| **.NET Aspire** | Local dev orchestration. `dotnet run --project NextAurora.AppHost` brings up all services + Postgres + SQL Server + RabbitMQ + Redis + Keycloak in one command. Aspire dashboard at http://localhost:18888. |
 | **OpenTelemetry** | Traces + metrics + logs throughout. Aspire ingests in dev; Application Insights ingests in prod. |
-| **Wolverine** | In-process message bus + transactional outbox. Adapter for Azure Service Bus. |
+| **Wolverine** | In-process message bus + transactional outbox. RabbitMQ transport for cross-service events. |
 | **Scalar UI** | Interactive API docs at `/scalar/v1` per service (dev-only). |
 | **Fly.io** | CatalogService demo at https://catalog-api-demo.fly.dev. Single Machine, auto-stops when idle. |
-| **CorrelationId middleware** (in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/)) | Correlation/User/Session ID propagation across HTTP + Service Bus boundaries. |
+| **CorrelationId middleware** (in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/)) | Correlation/User/Session ID propagation across HTTP + RabbitMQ boundaries. |
 
 ---
 
@@ -438,20 +438,22 @@ before the first endpoint lands. That belongs in Gaps, not here.
 The gaps below are real. Each one is sized for how much the *actual* problem
 warrants — not how much could theoretically be done.
 
-### Gap 1 — Cross-service E2E over the real Azure Service Bus wire is not tested
+### Gap 1 — Cross-service E2E over the real RabbitMQ wire is not tested
 
 **What's missing:** All four integration slices use a stubbed Wolverine
-transport. The actual `OrderPlacedEvent` → ASB → PaymentService consumer
-round-trip is uncovered.
+transport. The actual `OrderPlacedEvent` → RabbitMQ → PaymentService consumer
+round-trip is uncovered in CI (it IS verified manually — the live saga runs
+end-to-end on the local stack, order → Shipped in seconds).
 
 **Pragmatic solution:** Defer until needed. The stubbed-transport tests cover
 the load-bearing correctness (handler logic, outbox staging, EF + concurrency
-tokens, idempotency); the wire itself mostly exercises Microsoft's ASB
-emulator + Wolverine's adapter — the fragile last mile, not the architecture.
-When this slice does land, gate it as a **manual nightly job**
-(`workflow_dispatch:` or `schedule:` once a day), not every PR — the ASB
-emulator container wants an MSSQL sidecar and adds ~3 minutes per run. Not
-worth that tax per-PR.
+tokens, idempotency); the wire itself mostly exercises RabbitMQ + Wolverine's
+adapter — the fragile last mile, not the architecture. When this slice does
+land, a **RabbitMQ Testcontainer** makes it far cheaper than the old
+ASB-emulator plan: the broker is a single self-contained container, so it drops
+the emulator's required MSSQL sidecar (the service DBs the saga harness needs
+are unchanged), and AutoProvision works against it. Still gate it as a
+nightly/manual job rather than per-PR until its runtime cost is measured.
 
 ### Gap 2 — No production performance baselines
 

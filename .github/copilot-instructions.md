@@ -277,7 +277,7 @@ When generating code for NextAurora, follow CLAUDE.md for:
 - **Coding standards** — `.NET 10` / C# 13, `_` field prefix, `Async` suffix, `I` interface prefix, `var` when type is apparent, `TreatWarningsAsErrors`
 - **Central Package Management** — `Directory.Packages.props` declares versions; `<PackageReference>` in csproj never includes `Version=`
 - **Static analyzer compliance** — Meziantou, SonarAnalyzer, Roslynator at error severity (notably MA0002: `Dictionary<string,T>` requires `StringComparer.Ordinal`)
-- **Performance Rules** — `AsNoTracking()` + projection on reads, no N+1, async + `CancellationToken` everywhere, pagination caps, bulk ops via `ExecuteUpdateAsync`, optimistic concurrency tokens, **Wolverine transactional outbox** semantics, `DbContext` thread-safety, structured logging templates, no logging in tight loops, brief DB connection holds, cache invalidation in the write path, immutable migrations, measure before optimizing
+- **Performance Rules** — `AsNoTracking()` + projection on reads, no N+1, async + `CancellationToken` everywhere, pagination caps, bulk ops via `ExecuteUpdateAsync`, optimistic concurrency tokens, **Wolverine transactional outbox** semantics, `DbContext` thread-safety, structured logging templates, no logging in tight loops, brief DB connection holds, cache invalidation in the write path, immutable migrations, measure before optimizing. See CLAUDE.md.
 - **Observability & context propagation** — `CorrelationId`/`UserId`/`SessionId` flow via `CorrelationIdMiddleware` (HTTP) and `ContextPropagationMiddleware` (Wolverine). Never extract context manually inside handlers — the middleware handles it
 - **Authentication** — JWT Bearer + Keycloak realm wired in `NextAurora.ServiceDefaults`; selective `.RequireAuthorization()`; buyer-scope checks on order endpoints
 - **Error handling** — `GlobalExceptionHandler` returns RFC 7807 ProblemDetails; never expose internal state, IDs, or stack traces to clients
@@ -292,14 +292,14 @@ When generating code for NextAurora, follow CLAUDE.md for:
 
 ### What changed (so prior guidance doesn't mislead)
 
-The platform migrated to Wolverine for command/query dispatch and event publishing. Anything you may have read about MediatR `IPipelineBehavior`, `LoggingBehavior`, `ValidationBehavior`, hand-rolled `ServiceBusEventPublisher`/`LoggingEventPublisher`, or `EventLogs`/`/admin/events` replay endpoints is **historical** — those are gone. The current pipeline is:
+The platform migrated to Wolverine for command/query dispatch and event publishing, with RabbitMQ as the messaging transport in every environment. Anything you may have read about MediatR `IPipelineBehavior`, `LoggingBehavior`, `ValidationBehavior`, hand-rolled `ServiceBusEventPublisher`/`LoggingEventPublisher`, or `EventLogs`/`/admin/events` replay endpoints is **historical** — those are gone. See CLAUDE.md. The current pipeline is:
 
-```
+```text
 FluentValidation policy (opts.UseFluentValidation)
   → ContextPropagationMiddleware (logger scope, baggage restore)
     → handler
 ```
 
-Outgoing events go through `WolverineEventPublisher` → `IMessageBus.PublishAsync` → Wolverine transactional outbox (`wolverine` schema in each service's database) → background dispatcher to Azure Service Bus.
+Outgoing events publish via the Wolverine-enlisted APIs — the `IMessageContext` parameter injected into `HandleAsync` (handlers) or `IDbContextOutbox` (non-handler code); a constructor-injected `IMessageBus`/`IEventPublisher` publishes inline, OUTSIDE the transaction, and is only for fire-and-forget — → Wolverine transactional outbox (`wolverine` schema in each service's database) → background dispatcher to RabbitMQ (fanout exchanges). See CLAUDE.md.
 
 If your suggestion would reintroduce any of the removed concepts above, stop and check CLAUDE.md and the perf guide first.

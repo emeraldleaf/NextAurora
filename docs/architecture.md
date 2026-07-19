@@ -1,6 +1,6 @@
 # NextAurora Architecture
 
-[![NextAurora architecture — full system, services, Service Bus topology, databases, and the 10-step order-placement saga](nextaurora-architecture.svg)](nextaurora-architecture.svg)
+[![NextAurora architecture — full system, services, RabbitMQ messaging topology, databases, and the 10-step order-placement saga](nextaurora-architecture.svg)](nextaurora-architecture.svg)
 
 *Full system in one view. Click for full-size. Source: [`nextaurora-architecture.excalidraw`](nextaurora-architecture.excalidraw) — edit with the [VS Code Excalidraw extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor) or [excalidraw.com](https://excalidraw.com).*
 
@@ -43,7 +43,8 @@ NextAurora is a distributed e-commerce platform built as a microservices archite
                                   |
                     +-------------v--------------+
                     |     Async Messaging         |
-                    |  (Topics & Subscriptions)   |
+                    |  (RabbitMQ: fanout exchanges|
+                    |     + queue per consumer)   |
                     +---+------+------+------+---+
                         |      |      |      |
                   +-----v-+ +--v---+ +v------v+ +--------+
@@ -54,7 +55,7 @@ NextAurora is a distributed e-commerce platform built as a microservices archite
                   SQL Server  SQL Svr  PostgreSQL  Stateless
 ```
 
-> **Transport choice is environmental, not architectural.** Locally and in CI, the async-messaging layer is Azure Service Bus run as an Aspire-managed emulator. In production on AWS, it's Amazon SNS + SQS. Handlers and domain code don't change — see the [Deployment](#deployment) section.
+> **Transport choice is environmental, not architectural.** The async-messaging broker is **RabbitMQ** in every environment — local dev, CI, and the Hetzner deployment, so dev matches prod. Wolverine abstracts the broker (handlers and domain code don't change, only a small per-service transport block), so the transport stays swappable — Azure Service Bus was evaluated and removed. See the [Messaging transport](#messaging-transport--rabbitmq) and [Deployment](#deployment) sections.
 
 ## Service Architecture
 
@@ -104,7 +105,7 @@ See [CLAUDE.md](../CLAUDE.md#project-structure) for the canonical rule.
 - **Purpose:** Order lifecycle management
 - **Database:** SQL Server
 - **Exposes:** REST API (external)
-- **Consumes:** CatalogService via gRPC, PaymentService and ShippingService events via Service Bus
+- **Consumes:** CatalogService via gRPC, PaymentService and ShippingService events via RabbitMQ
 - **Entities:** Order, OrderLine
 - **Key Feature:** Orchestrates order state through event-driven saga
 
@@ -112,7 +113,7 @@ See [CLAUDE.md](../CLAUDE.md#project-structure) for the canonical rule.
 - **Purpose:** Payment processing
 - **Database:** SQL Server
 - **Exposes:** REST API (external)
-- **Consumes:** OrderService events via Service Bus
+- **Consumes:** OrderService events via RabbitMQ
 - **Entities:** Payment, Refund
 - **Key Feature:** Stripe gateway integration (anti-corruption layer)
 
@@ -120,14 +121,14 @@ See [CLAUDE.md](../CLAUDE.md#project-structure) for the canonical rule.
 - **Purpose:** Shipment creation and tracking
 - **Database:** PostgreSQL
 - **Exposes:** REST API (external)
-- **Consumes:** PaymentService events via Service Bus
+- **Consumes:** PaymentService events via RabbitMQ
 - **Entities:** Shipment, TrackingEvent
 - **Key Feature:** Auto-generates tracking numbers and assigns carriers
 
 #### NotificationService
 - **Purpose:** Customer notifications
 - **Database:** None (stateless)
-- **Consumes:** OrderService and ShippingService events via Service Bus
+- **Consumes:** OrderService and ShippingService events via RabbitMQ
 - **Entities:** NotificationRequest (in-memory)
 - **Key Feature:** Pluggable notification sender (console in dev, email/SMS in production)
 
@@ -137,7 +138,7 @@ See [CLAUDE.md](../CLAUDE.md#project-structure) for the canonical rule.
 
 ### 1. Event-Driven Messaging (Async)
 
-Used for all workflow/saga communication between services. Azure Service Bus provides at-least-once delivery with topic/subscription pub-sub model.
+Used for all workflow/saga communication between services. RabbitMQ provides at-least-once delivery with a fanout-exchange / per-consumer-queue pub-sub model.
 
 **When to use:** State changes that trigger downstream workflows (order placed, payment completed, shipment dispatched).
 
@@ -233,25 +234,24 @@ Each service owns its database. No service accesses another service's database d
 ### Message Topology
 
 ```
-Azure Service Bus
+RabbitMQ (fanout exchanges -> bound queues)
   |
-  +-- Topic: order-events
-  |     +-- Subscription: payment-orders-sub      -> PaymentService
-  |     +-- Subscription: notify-orders-sub       -> NotificationService
+  +-- Exchange: order-events
+  |     +-- Queue: payment-orders      -> PaymentService
+  |     +-- Queue: notify-orders       -> NotificationService
   |
-  +-- Topic: payment-events
-  |     +-- Subscription: order-payments-sub      -> OrderService
-  |     +-- Subscription: shipping-payments-sub   -> ShippingService
-  |     +-- Subscription: notify-payments-sub     -> NotificationService
+  +-- Exchange: payment-events
+  |     +-- Queue: order-payments      -> OrderService
+  |     +-- Queue: shipping-payments   -> ShippingService
+  |     +-- Queue: notify-payments     -> NotificationService
   |
-  +-- Topic: shipping-events
-  |     +-- Subscription: order-shipping-sub      -> OrderService
-  |     +-- Subscription: notify-shipping-sub     -> NotificationService
+  +-- Exchange: shipping-events
+  |     +-- Queue: order-shipping      -> OrderService
+  |     +-- Queue: notify-shipping     -> NotificationService
   |
-  +-- Queue: send-notification                    -> NotificationService
 ```
 
-**Subscription naming convention: `{consumer}-{source-events}-sub`.** Aspire 13 enforces globally unique subscription names within a bus namespace (the per-topic scoping behavior of Aspire 9 was dropped). Including the source-events suffix in the name keeps it readable and unique. The strings here must match the `ListenToAzureServiceBusSubscription("{topic}/{sub}")` calls in each service's `Program.cs`.
+**Queue naming convention: `{consumer}-{source-events}`** (e.g. `payment-orders` = PaymentService consuming `order-events`). Each consumer gets its own queue bound to the source fanout exchange, so consumers scale and dead-letter independently. Topology names live in `NextAurora.Contracts/Messaging/MessagingTopology.cs` (`MessagingExchanges`/`MessagingQueues` — never inline literals), and **each publisher declares its own exchange plus all of its consumers' queues+bindings** via `BindExchange(...).ToQueue(...)`, provisioned by `AutoProvision()` — so the full event-family topology exists before first publish (a fanout exchange with zero bindings silently discards; see CLAUDE.md). Consumers also keep their own bindings: declarations are idempotent, and both-sides declaration means no boot order leaves a gap.
 
 ### Event Contracts (NextAurora.Contracts)
 
@@ -261,7 +261,6 @@ Azure Service Bus
 | **PaymentCompletedEvent** | PaymentService | OrderService, ShippingService | PaymentId, OrderId, Amount, Provider, CompletedAt |
 | **PaymentFailedEvent** | PaymentService | OrderService, NotificationService | PaymentId, OrderId, BuyerId, Reason, FailedAt |
 | **ShipmentDispatchedEvent** | ShippingService | OrderService, NotificationService | ShipmentId, OrderId, Carrier, TrackingNumber, DispatchedAt |
-| **SendNotificationCommand** | Any service | NotificationService | RecipientId, Email, Subject, Body, Channel |
 
 ### Order Lifecycle Saga
 
@@ -396,9 +395,11 @@ Storefront      -> catalog-service, order-service
 SellerPortal    -> catalog-service, order-service
 ```
 
-#### Service Bus emulator — Wolverine AutoProvision is disabled locally
+#### Messaging transport — RabbitMQ
 
-Locally the `messaging` resource runs as the Azure Service Bus **emulator** (`.RunAsEmulator()`), which implements only the AMQP data plane — **not** the management/administration HTTP API. Wolverine's `AutoProvision()` (on by default) provisions topics/subscriptions via that management API at host startup, so against the emulator it fails, retries, and the host dies with `BrokerInitializationException: Unable to initialize the Broker asb in time` — a deterministic startup crash for every Wolverine service (CatalogService has no Service Bus, so it's unaffected). The AppHost already declares the full topology (`AddServiceBusTopic` / `AddServiceBusSubscription`), so provisioning is both impossible and redundant locally. The AppHost therefore injects `Wolverine__AutoProvision=false` into the four Wolverine services (Order/Payment/Shipping/Notification); in Publish mode against real Azure the flag stays `true` so provisioning creates the entities. This mirrors the integration-test harnesses' `Wolverine:AutoProvision=false`. See CLAUDE.md "Package Management".
+The `messaging` broker is **RabbitMQ**. Wolverine maps the saga's pub/sub onto **fanout exchanges** (one per event family: `order-events`, `payment-events`, `shipping-events`) with a **queue per consumer** bound to each. It runs as a single Aspire container (`AddRabbitMQ("messaging").WithManagementPlugin()`, management UI at `:15672`); `AutoProvision()` declares the exchanges/queues/bindings against the live broker (gated by `Wolverine:AutoProvision`, default on — off in integration tests, which stub the transport). RabbitMQ is the broker in **every** environment (local dev, CI, Hetzner deploy — [full-saga-deployment-plan.md](full-saga-deployment-plan.md) D3), so dev matches prod and the **full saga flows locally** — verified end-to-end (place an order → it reaches `Shipped` within seconds as Payment and Shipping consume and re-publish).
+
+**Why not Azure Service Bus?** It was evaluated and removed. Wolverine abstracts the transport, so swapping back is a ~5-line block per service — but carrying a second wiring earned nothing today: there's no Azure deployment, and the local ASB **emulator can't run the saga**. The 2.0.0 emulator *does* expose the management API (port 5300), but its **subscription** admin endpoints return **HTTP 500** (topics/queues return 200; verified by `curl`), so Wolverine's `AutoProvision` crashes the host; and even with AutoProvision off, Wolverine's system queues (`wolverine.retries.*`/`response.*`) can't auto-provision against the emulator while `BrokerResource.Setup` calls the management API for every endpoint regardless — so the saga never flows on it. Full investigation: [#148](https://github.com/emeraldleaf/NextAurora/issues/148). Re-add ASB (or another Wolverine-supported broker) if a cloud-managed target becomes real.
 
 ### Service Defaults (NextAurora.ServiceDefaults)
 
@@ -428,10 +429,10 @@ All services inherit shared infrastructure configuration:
 ## Cross-Cutting Concerns
 
 ### Observability
-- **Tracing:** OpenTelemetry distributed traces across all services (ASP.NET Core, HTTP client, gRPC client, `Azure.Messaging.ServiceBus`). Service Bus processors create consumer spans via `ActivitySource("NextAurora.Messaging")` so the full event chain is visible in the Aspire dashboard and any OTLP backend.
-- **Context Propagation:** Every HTTP request and Service Bus message carries three identifiers — `CorrelationId`, `UserId`, `SessionId` — stamped by `CorrelationIdMiddleware` (HTTP) or each processor (Service Bus) into `Activity` baggage and `logger.BeginScope()`. All log lines produced by any handler automatically include these fields. See [docs/context-propagation.md](context-propagation.md).
+- **Tracing:** OpenTelemetry distributed traces across all services (ASP.NET Core, HTTP client, gRPC client, `Wolverine`). Wolverine's own ActivitySource emits the message send/receive/handle spans for the saga — transport-agnostic — so the full event chain is visible in the Aspire dashboard and any OTLP backend.
+- **Context Propagation:** Every HTTP request and RabbitMQ message carries three identifiers — `CorrelationId`, `UserId`, `SessionId` — stamped by `CorrelationIdMiddleware` (HTTP) or each processor (Service Bus) into `Activity` baggage and `logger.BeginScope()`. All log lines produced by any handler automatically include these fields. See [docs/context-propagation.md](context-propagation.md).
 - **Wolverine Pipeline Logging:** Wolverine's built-in `Policies.LogMessageStarting()` logs handler name and elapsed time. `ContextPropagationMiddleware` (in ServiceDefaults) opens a `logger.BeginScope()` so all handler log lines carry `CorrelationId`/`UserId`/`SessionId`.
-- **Metrics:** Business counters via `Meter("NextAurora")` in `NextAuroraMetrics`: `orders.placed`, `payments.processed` (tag: `outcome`), `shipments.dispatched`, `notifications.sent` (tag: `channel`), `messages.abandoned` (tags: `subject`, `service`). Exported via OTLP; visible in Aspire Metrics dashboard.
+- **Metrics:** Business counters on the `Meter("NextAurora")`, declared in the handlers that emit them: `orders.placed`, `payments.processed` (tag: `outcome`), `shipments.dispatched`, `notifications.sent` (tag: `channel`). Wolverine's own meter is registered too (`AddMeter("Wolverine*")` — the meter is named `Wolverine:{ServiceName}`, so the wildcard is required): `wolverine-dead-letter-queue`, `wolverine-execution-failure`, `wolverine-messages-sent`/`-received`, inbox depth. Exported via OTLP; visible in the Aspire Metrics dashboard.
 - **Logging:** Structured logging with OpenTelemetry export
 - **Dashboard:** Aspire dashboard shows all services, traces, logs, and metrics in development
 
@@ -517,7 +518,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 | **Repository (built-in)** | `DbContext` IS Unit-of-Work; `DbSet<T>` IS Repository. No `I*Repository` wrappers. |
 | **Domain-Driven Design** | Aggregates with factory methods, guard clauses, encapsulated collections (`IReadOnlyList`), no public setters |
 | **Validation Pipeline** | FluentValidation + Wolverine `opts.UseFluentValidation()` for pre-handler validation |
-| **Event-Driven Architecture** | Azure Service Bus pub/sub with topic/subscription model |
+| **Event-Driven Architecture** | RabbitMQ pub/sub with fanout-exchange / per-consumer-queue model |
 | **Choreography Saga** | Order lifecycle managed through event chain across services |
 | **Anti-Corruption Layer** | StripePaymentGateway isolates domain from external payment API |
 | **Service Discovery** | Aspire-based automatic service resolution |
@@ -530,7 +531,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 ### Implemented
 - **Input Validation** - FluentValidation on all commands via `opts.UseFluentValidation()` in Wolverine pipeline
 - **Wolverine Pipeline Logging** - Wolverine built-in `LogMessageStarting` + `ContextPropagationMiddleware` scope covers timing, correlation ID, elapsed time, and outcome
-- **Context Propagation** - `CorrelationId`, `UserId`, `SessionId` flow through HTTP and Service Bus; see [docs/context-propagation.md](context-propagation.md)
+- **Context Propagation** - `CorrelationId`, `UserId`, `SessionId` flow through HTTP and RabbitMQ; see [docs/context-propagation.md](context-propagation.md)
 - **Domain Invariants** - Guard clauses in all entity factory methods
 - **Global Exception Handling** - ProblemDetails responses, no internal state leakage
 - **Encapsulated Aggregates** - `IReadOnlyList` collections, private backing fields
@@ -541,7 +542,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 - **EF Core Migrations** - Initial migrations for all four DB services (Catalog, Order, Payment, Shipping). `IDesignTimeDbContextFactory<T>` per context for `dotnet ef` tooling. `MigrateDatabaseAsync<T>()` runs at app startup in development; production should run as a separate deploy step.
 - **Authentication & Authorization** - JWT Bearer authentication wired in `NextAurora.ServiceDefaults` (`AddDefaultAuthentication()`); identity provider is **Keycloak** (Aspire-managed container, `nextaurora-realm` imported from `realms/nextaurora-realm.json`). `AddJwtBearer` validates issuer, audience, lifetime; claim mapping uses `preferred_username` → name and `realm_access.roles` → role. `.RequireAuthorization()` on every state-changing endpoint and buyer-scoped reads (Catalog write endpoints, all of `/api/v1/orders`, `/api/v1/payments/process`, all of `/api/v1/shipments`). Buyer-scope endpoints additionally verify the JWT `sub` claim matches the route/body buyer ID. `GET /api/v1/products` remains anonymous.
 - **API Versioning** - URL-segment versioning via `Asp.Versioning.Http`. Routes follow `/api/v{version:apiVersion}/...` with the version required in the URL (`AssumeDefaultVersionWhenUnspecified = false`). Default version is `1.0`; `Asp.Versioning.Mvc.ApiExplorer` integrates with OpenAPI so versioned endpoints show up under group `v1` in the OpenAPI spec (rendered in Scalar). Configured globally in `AddServiceDefaults()` so every service inherits the same policy. gRPC is versioned separately via `.proto` `package` (out of scope here).
-- **Dead Letter Queue Processing** - `messages.abandoned` metric counter on all processors. Replay/audit available via Wolverine's `IMessageStore` API or by querying the `wolverine` schema directly.
+- **Dead Letter Queue Processing** - Wolverine dead-letters retry-exhausted messages; the `wolverine-dead-letter-queue` counter is the alarm signal. Replay/audit available via Wolverine's `IMessageStore` API or by querying the `wolverine` schema directly.
 - **Distributed Caching (Catalog)** - `IProductCache` (read-side, factory-based `GetOrLoadAsync` + `InvalidateAsync`) backed by `Microsoft.Extensions.Caching.Hybrid` 10.5.0: **L1 in-process MemoryCache + L2 Redis**, stampede protection (concurrent misses for the same key invoke the factory once), and tag-based invalidation that clears both layers atomically. `GetProductByIdHandler` reads through the cache; `UpdateProductHandler` and `ReserveStockHandler` call `InvalidateAsync` in the write path. 5-min absolute TTL on both tiers as the safety net for missed invalidations. Cache stores the `ProductDto` projection (not the EF entity) — see [IProductCache.cs](../CatalogService/Domain/IProductCache.cs) and [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs). List queries (`GetAllProducts`, `SearchProducts`) are intentionally not cached — paginated reads are less hot than single-product lookups, and cross-page invalidation is harder. Full rationale and trade-offs: [docs/performance-and-data-correctness.md "Decision: distributed read caching with HybridCache"](performance-and-data-correctness.md#decision-distributed-read-caching-with-hybridcache).
 - **OpenAPI Output (JSON + YAML) + Scalar UI** - All five services emit OpenAPI specs at `/openapi/v1.json` and `/openapi/v1.yaml` in development. Built on `Microsoft.AspNetCore.OpenApi`'s extension-driven format selection — same `MapOpenApi(pattern)` call, different file extension. **Interactive API documentation UI** at `/scalar/v1` via `Scalar.AspNetCore` — reads the same OpenAPI doc and renders it as a polished, searchable reference with try-it-out support. Dev-only (gated on `IsDevelopment()`).
 
@@ -549,7 +550,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 - **API Gateway** - Centralized routing, rate limiting, auth
 - **Saga Compensation** - Rollback logic for failed payments/shipments
 - **Frontend Implementation** - Storefront and SellerPortal business logic
-- **Cross-service integration tests over the real wire** - Single-service slices exist for all four DB-touching services (`tests/{CatalogService,OrderService,PaymentService,ShippingService}.Tests.Integration` — Testcontainers Postgres+Redis for Catalog, SQL Server for Order + Payment, Postgres for Shipping, Wolverine transports stubbed in each). The remaining gap is an end-to-end `OrderPlacedEvent → PaymentService → PaymentCompletedEvent` test over the real Azure Service Bus emulator container — wire-level cross-service coverage is still pending. See [docs/STATUS.md](STATUS.md) "After the smoke run."
+- **Cross-service integration tests over the real wire** - Single-service slices exist for all four DB-touching services (`tests/{CatalogService,OrderService,PaymentService,ShippingService}.Tests.Integration` — Testcontainers Postgres+Redis for Catalog, SQL Server for Order + Payment, Postgres for Shipping, Wolverine transports stubbed in each). The remaining gap is an end-to-end `OrderPlacedEvent → PaymentService → PaymentCompletedEvent` test over a real RabbitMQ Testcontainer — wire-level cross-service coverage is still pending (the saga is verified manually end-to-end on the live RabbitMQ stack). See [docs/dev-loop.md Gap 1](dev-loop.md) + issue #68.
 - **Order Cancellation Flow** - Cancel event and compensation logic
 - **Production migration deployment step** - In dev, `MigrateDatabaseAsync<T>()` runs at startup; production should run migrations as a separate deploy step (not in-process) to avoid races between replicas. Tooling exists; deploy automation does not.
 
@@ -557,38 +558,37 @@ Read paths never load tracked entities (would over-read columns + materialize en
 
 ## Deployment
 
-> **Status: planning, not implemented.** The codebase currently runs on **Azure Service Bus** in every environment (locally via the Aspire emulator). All five services use `WolverineFx.AzureServiceBus`. AppHost wires the messaging through `AddAzureServiceBus("messaging").RunAsEmulator()`. **No AWS code is in the repo yet.** This section describes the AWS migration target so the work has a plan when it's prioritized — it is not a record of work done.
+> **Status: planning, not implemented.** The codebase currently runs on **RabbitMQ** in every environment (local dev, CI, and the active Hetzner deployment plan — see [full-saga-deployment-plan.md](full-saga-deployment-plan.md)). All five services use `WolverineFx.RabbitMQ`; AppHost wires `AddRabbitMQ("messaging")`. **No AWS code is in the repo yet.** This section sketches an *alternative* AWS (SNS + SQS) target; the active plan is Hetzner + RabbitMQ. ASB-era swap examples below are illustrative of Wolverine's transport-agnosticism (the "from" is RabbitMQ today).
 
-NextAurora is built transport-agnostic via Wolverine — handlers depend on `IMessageBus` and `Envelope`, not on transport-specific types. That means the local-dev choice of Azure Service Bus (run as an Aspire emulator) does not lock the app into Azure. The intended production deployment target is **Amazon Web Services**, with **SNS + SQS** as the messaging backbone.
+NextAurora is built transport-agnostic via Wolverine — handlers depend on `IMessageBus` and `Envelope`, not on transport-specific types. So the broker choice (RabbitMQ today) does not lock the app in. One possible production target is **Amazon Web Services**, with **SNS + SQS** as the messaging backbone (the active plan, however, is Hetzner + RabbitMQ).
 
-### Why SNS + SQS over RabbitMQ
+### Why SNS + SQS (not self-managed RabbitMQ) on AWS
 
-A common confusion: "AWS deployment" doesn't imply RabbitMQ. The AWS-native equivalent of Azure Service Bus is the SNS + SQS pair — SNS provides the publish-subscribe topic surface; SQS provides per-subscriber queues.
+If the target is AWS, the cloud-native equivalent of the fanout-exchange / per-consumer-queue model is the SNS + SQS pair — SNS provides the publish-subscribe topic surface; SQS provides per-subscriber queues.
 
 | Concern | Recommended | Alternative | Notes |
 |---|---|---|---|
 | Topic + per-subscriber queues | SNS topic → SQS queues | RabbitMQ on Amazon MQ | SNS+SQS is fully managed, IAM/VPC/CloudWatch native, pay-per-message. |
-| Cross-cloud portability | — | RabbitMQ on Amazon MQ | Pick this only if running the same broker on AWS, Azure, GCP, on-prem matters more than first-class AWS integration. |
+| Cross-cloud portability / dev-prod parity | — | RabbitMQ on Amazon MQ | Pick this to keep the exact broker the app runs today (managed RabbitMQ — the smallest possible migration). |
 | Event-streaming workloads | Amazon MSK (Kafka) | — | Out of scope for our saga model — different mental model (log-based). |
-| Higher-level event routing | Amazon EventBridge | — | Wolverine support is limited; not a fit for the per-subscription idempotency model we use. |
+| Higher-level event routing | Amazon EventBridge | — | Wolverine support is limited; not a fit for the per-consumer idempotency model we use. |
 
 ### 1:1 topology mapping
 
-| NextAurora today (Azure) | AWS equivalent |
+| NextAurora today (RabbitMQ) | AWS equivalent |
 |---|---|
-| Topic `order-events` | SNS topic `order-events` |
-| Subscription `payment-orders-sub` | SQS queue `payment-orders-sub` (subscribed to the topic) |
-| Subscription `notify-orders-sub` | SQS queue `notify-orders-sub` (subscribed to the topic) |
-| Topic `payment-events` + 3 subs | SNS topic + 3 SQS queues |
-| Topic `shipping-events` + 2 subs | SNS topic + 2 SQS queues |
-| Queue `send-notification` | SQS queue `send-notification` (no SNS needed; direct send) |
+| Fanout exchange `order-events` | SNS topic `order-events` |
+| Queue `payment-orders` (bound to it) | SQS queue `payment-orders` (subscribed to the topic) |
+| Queue `notify-orders` (bound to it) | SQS queue `notify-orders` (subscribed to the topic) |
+| Exchange `payment-events` + 3 queues | SNS topic + 3 SQS queues |
+| Exchange `shipping-events` + 2 queues | SNS topic + 2 SQS queues |
 
 Idempotency, dead-letter handling, and the transactional outbox all behave the same — Wolverine implements them at the framework level.
 
 ### What changes during the swap
 
-- **`AppHost.cs`** — In production, infrastructure usually lives outside Aspire (Terraform/CDK/CloudFormation). The Aspire-driven `AddAzureServiceBus(...).RunAsEmulator()` exists only for local dev.
-- **Each service's `Program.cs`** — `opts.UseAzureServiceBus(...)` becomes `opts.UseAmazonSqs(...)` (and SNS publishing config). The package reference swap is `WolverineFx.AzureServiceBus` → `WolverineFx.AmazonSqs`.
+- **`AppHost.cs`** — In production, infrastructure usually lives outside Aspire (Terraform/CDK/CloudFormation). The Aspire-driven `AddRabbitMQ("messaging")` exists only for local dev.
+- **Each service's `Program.cs`** — `opts.UseRabbitMq(...)` becomes `opts.UseAmazonSqs(...)` (and SNS publishing config). The package reference swap is `WolverineFx.RabbitMQ` → `WolverineFx.AmazonSqs`.
 - **Handlers and domain code** — zero changes. They read/write the same `Envelope.Headers`, the same `IMessageBus.PublishAsync(...)`. The `WolverineEventPublisher` adapter we already have is the seam.
 - **Database hosting** — Postgres → Amazon RDS for PostgreSQL or Aurora; SQL Server → RDS for SQL Server. EF Core providers stay the same.
 - **Identity** — Keycloak can run on ECS/EKS/EC2, or swap for **Amazon Cognito**. JWT validation in `ServiceDefaults` doesn't care which IdP issued the token, only that audience/issuer/signing match.
@@ -603,15 +603,14 @@ The entire Domain layer, the entire Application layer (handlers + commands + que
 Phased plan, smallest blast radius first. Each phase is independently shippable.
 
 **Phase 0 — Code swap (~half day, app-level changes only).** No infra yet; just prove the codebase compiles and tests pass against the Wolverine SQS transport.
-- Bump packages: `WolverineFx.AzureServiceBus` → `WolverineFx.AmazonSqs` in [Directory.Packages.props](../Directory.Packages.props) and the four service Api csprojs.
-- In each service's `Program.cs`: `opts.UseAzureServiceBus(connectionString)` → `opts.UseAmazonSqs(...)`. Topic publish: `PublishMessage<X>().ToAzureServiceBusTopic("foo")` → `.ToSnsTopic("foo")`. Subscription listen: `ListenToAzureServiceBusSubscription("foo/bar")` → `ListenToSqsQueue("bar")` (SQS doesn't have the topic-prefix path).
-- Handlers, domain entities, DTOs, middleware, the `WolverineEventPublisher` adapter — all unchanged.
+- Bump packages: `WolverineFx.RabbitMQ` → `WolverineFx.AmazonSqs` in [Directory.Packages.props](../Directory.Packages.props) and the four service csprojs.
+- In each service's `Program.cs`: `opts.UseRabbitMq(...)` → `opts.UseAmazonSqs(...)`. Publish: `PublishMessage<X>().ToRabbitExchange("foo")` → `.ToSnsTopic("foo")`. Listen: `ListenToRabbitQueue("bar")` → `ListenToSqsQueue("bar")` (drop the `BindExchange(...).ToQueue(...)` declarations — SNS subscriptions replace the bindings).
+- Handlers, domain entities, DTOs, middleware — all unchanged.
 - Tests stay unit-level (no transport in unit tests). Add at least one integration test using LocalStack to exercise the new transport before going further.
 
 **Phase 1 — AWS infrastructure as code (~2-3 days).** Pure Terraform/CDK work, no app changes.
 - 3 SNS topics: `order-events`, `payment-events`, `shipping-events`.
-- 7 SQS queues mapping to today's subscriptions (`payment-orders-sub`, `notify-orders-sub`, `order-payments-sub`, `shipping-payments-sub`, `notify-payments-sub`, `order-shipping-sub`, `notify-shipping-sub`), each subscribed to its source SNS topic.
-- 1 standalone SQS queue: `send-notification` (NotificationService's direct queue, no SNS).
+- 7 SQS queues mapping to today's consumer queues (`payment-orders`, `notify-orders`, `order-payments`, `shipping-payments`, `notify-payments`, `order-shipping`, `notify-shipping`), each subscribed to its source SNS topic.
 - DLQ per queue with `maxReceiveCount` (~5).
 - IAM policies — each service gets a role with minimum-privilege publish/subscribe for the topics/queues it touches.
 - RDS for PostgreSQL (catalog-db, shipping-db) and SQL Server (orders-db, payments-db). Or Aurora.
@@ -647,4 +646,4 @@ Phased plan, smallest blast radius first. Each phase is independently shippable.
 
 ### Aspire's role after the migration
 
-The Aspire AppHost stays — for local development. It continues to spin up Postgres, SQL Server, Service Bus emulator, Redis, Keycloak as containers. Production never sees it. Local dev keeps the fast inner loop; AWS deploy is a separate set of artifacts.
+The Aspire AppHost stays — for local development. It continues to spin up Postgres, SQL Server, RabbitMQ, Redis, Keycloak as containers. Production never sees it. Local dev keeps the fast inner loop; AWS deploy is a separate set of artifacts.
