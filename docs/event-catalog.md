@@ -17,7 +17,6 @@ One **fanout exchange** per event family; one queue per consumer bound to it (na
 | `payment-events` | PaymentService | `notify-payments` | NotificationService |
 | `shipping-events` | ShippingService | `order-shipping` | OrderService |
 | `shipping-events` | ShippingService | `notify-shipping` | NotificationService |
-| `send-notification` *(direct queue, no exchange)* | Any service | `send-notification` | NotificationService |
 
 ---
 
@@ -92,21 +91,6 @@ One **fanout exchange** per event family; one queue per consumer bound to it (na
 
 ---
 
-## Commands (RabbitMQ Queue)
-
-### `SendNotificationCommand`
-
-**Queue:** `send-notification`  
-**Producers:** Any service that needs to trigger a notification without knowing the delivery channel  
-**Consumer:** NotificationService → dispatches to `SendNotificationHandler`
-
-| Field | Type | Description |
-|---|---|---|
-| `RecipientId` | `Guid` | Buyer/user identifier |
-| `RecipientEmail` | `string` | Resolved email address |
-| `Subject` | `string` | Notification subject line |
-| `Body` | `string` | Notification body text |
-| `Channel` | `string` | Delivery channel: `"Email"`, `"Push"`, `"SMS"` |
 
 ---
 
@@ -137,6 +121,6 @@ These are stamped by `OutgoingContextMiddleware` (in `ServiceDefaults`) onto eve
 
 Wolverine's RabbitMQ transport dead-letters exhausted messages to a Wolverine-managed dead-letter queue on the broker (visible alongside the consumer queues in the RabbitMQ management UI at `:15672`).
 
-Messages land there after exhausting Wolverine's retry policy. The `messages.abandoned` OTel counter (tagged with `subject` and `service`) rises as messages approach the DLQ. Alert when this counter crosses your threshold.
+Messages land there after exhausting Wolverine's retry policy. Wolverine's own `wolverine-dead-letter-queue` OTel counter is the alarm signal — its meter is registered in `ServiceDefaults`.
 
 Replay is available through Wolverine's transactional outbox tables (`wolverine` schema in each service's database) and its `IMessageStore` API. See [docs/event-replay.md](event-replay.md).

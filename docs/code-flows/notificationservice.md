@@ -107,7 +107,7 @@ Adding a `Notification` entity with `Create()`, status enum, `private set` prope
 | [Features/SendNotification.cs](../../NotificationService/Features/SendNotification.cs) | The request record + `INotificationSender` port + `SendNotificationHandler` (all in one file — VSA) |
 | [Infrastructure/ConsoleNotificationSender.cs](../../NotificationService/Infrastructure/ConsoleNotificationSender.cs) | Dev-time `INotificationSender` impl — logs instead of sending |
 | [Infrastructure/DependencyInjection.cs](../../NotificationService/Infrastructure/DependencyInjection.cs) | DI wiring (registers the sender impl) |
-| [Program.cs](../../NotificationService/Program.cs) | Composition root — Wolverine + RabbitMQ queue bindings (notify-orders / notify-payments / notify-shipping, plus the direct send-notification queue) + sender |
+| [Program.cs](../../NotificationService/Program.cs) | Composition root — Wolverine + RabbitMQ queue bindings (notify-orders / notify-payments / notify-shipping) |
 
 ---
 
