@@ -31,9 +31,10 @@ fail=0
 # --- 1. Every queue const reaches a .ToQueue( declaration somewhere -------------------
 while IFS= read -r name; do
     if ! grep -q "\.ToQueue(MessagingQueues\.$name)" "${PROGRAMS[@]}"; then
-        # Direct queues (no exchange binding) are exempt from .ToQueue() — but their
-        # declaration IS the ListenToRabbitQueue call, so that must exist instead;
-        # otherwise removing the sole listener leaves an undeclared queue and a clean audit.
+        # FORWARD-GUARD: no direct queue exists today (the only one was dead wiring, removed
+        # in #170). If one is ever re-introduced, it is exempt from .ToQueue() —
+        # but its declaration IS the ListenToRabbitQueue call, so that must exist instead;
+        # otherwise removing the sole listener would leave an undeclared queue and a clean audit.
         if grep -B2 "public const string $name = " "$TOPOLOGY" | grep -qi "direct queue"; then
             if ! grep -q "ListenToRabbitQueue(MessagingQueues\.$name)" "${PROGRAMS[@]}"; then
                 echo "TOPOLOGY GAP — direct queue MessagingQueues.$name has no ListenToRabbitQueue() declaring it"
