@@ -24,6 +24,15 @@ updates:
       wolverine:
         patterns:
           - "WolverineFx*"
+      fluent-validation:
+        patterns:
+          - "FluentValidation*"
+      grpc:
+        patterns:
+          - "Grpc.*"
+      testcontainers:
+        patterns:
+          - "Testcontainers*"
       aspire:
         patterns:
           - "Aspire.*"
@@ -50,12 +59,12 @@ updates:
     # paths still behave. Add majors back to the ignore list as they ship
     # breaking changes; remove when a dedicated migration PR has landed.
     ignore:
-      # Wolverine 6.0 split the runtime code generator into a separate
-      # WolverineFx.RuntimeCompilation package (GH-2876). Every integration
-      # test fails at host startup with "no IAssemblyGenerator registered"
-      # until production code either references the new package or pre-
-      # generates code via `dotnet run -- codegen write` + TypeLoadMode.Static.
-      # Stay on 5.x (Dependabot will still bump 5.x patches/minors).
+      # WolverineFx majors are deferred pending a dedicated migration PR — a
+      # major can break host startup or the saga/outbox/concurrency paths, and
+      # shouldn't land as an unreviewed weekly bump. The 5→6 migration already
+      # landed (#154; RuntimeCompilation split handled, family on 6.17.3), so
+      # this now defers 7.0+. Dependabot still bumps 6.x patches/minors (the
+      # `wolverine` group above keeps the whole family in step).
       - dependency-name: "WolverineFx*"
         update-types: ["version-update:semver-major"]
 
