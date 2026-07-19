@@ -41,9 +41,9 @@ Saga message spans (send/receive/handle) come from Wolverine's own `ActivitySour
 
 When a message handler throws, Wolverine applies its retry/error policy; a message that exhausts its retries is dead-lettered by Wolverine's RabbitMQ transport to a Wolverine-managed dead-letter queue on the broker. Dead-lettered messages are visible in the RabbitMQ management UI (`:15672`) and in Wolverine's message store (the `wolverine` schema in each service's database). See **[docs/observability.md#dead-letter-queue-dlq-handling](observability.md)** for the topology table and investigation steps.
 
-### The `messages.abandoned` Metric
+### The DLQ alarm signal
 
-The `messages.abandoned` counter is defined in `NextAuroraMetrics` (`"NextAurora"` meter) but is **not currently incremented by anything** — the processors that incremented it were deleted in the RabbitMQ/Wolverine migration. Re-wiring it into the Wolverine pipeline is a tracked follow-up; until then, monitor DLQ depth via the RabbitMQ management UI or the `wolverine` schema.
+Wolverine's own meter is registered in `ServiceDefaults` (`AddMeter("Wolverine*")`), so **`wolverine-dead-letter-queue`** is the metric to alert on — it rises as messages are dead-lettered. (A hand-rolled abandoned-message counter used to be documented here, but nothing incremented it once the old processors were deleted; it was removed in favour of Wolverine's native instruments.)
 
 ---
 
