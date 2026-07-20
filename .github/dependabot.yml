@@ -13,12 +13,15 @@ updates:
       - dependencies
       - nuget
     groups:
-      microsoft-extensions:
+      # Microsoft.AspNetCore.* transitively depends on Microsoft.EntityFrameworkCore.Relational,
+      # so AspNetCore and EF Core CANNOT bump independently — a solo AspNetCore bump pulls a newer
+      # EF.Relational and downgrades it against the pinned EF Core → NU1605. Kept as separate
+      # groups, this skewed twice (#155, #180) because the two group-PRs merged out of step. One
+      # group = one PR = they always move together. (Npgsql EF provider rides along — same cadence.)
+      microsoft-aspnet-ef:
         patterns:
           - "Microsoft.Extensions.*"
           - "Microsoft.AspNetCore.*"
-      entity-framework:
-        patterns:
           - "Microsoft.EntityFrameworkCore*"
           - "Npgsql.EntityFrameworkCore*"
       wolverine:
