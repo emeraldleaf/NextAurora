@@ -6,8 +6,11 @@ updates:
   - package-ecosystem: nuget
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      # Monthly, not weekly — batches a month of bumps into one wave instead of four,
+      # so the PR volume (one per group) lands 12×/year not 52×. Patch/minor auto-merge
+      # (see .github/workflows/dependabot-auto-merge.yml) clears the routine ones without
+      # a human; only majors wait for a person.
+      interval: monthly
     open-pull-requests-limit: 5
     labels:
       - dependencies

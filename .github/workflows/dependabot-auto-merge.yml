@@ -1,0 +1,50 @@
+name: Dependabot auto-merge
+
+# Auto-merges routine dependency bumps so version churn stops landing in a human's lap.
+# Patch + minor updates: approved and set to auto-merge (GitHub merges them once every
+# required check is green — the same CI gate a human would wait for). MAJOR updates are
+# left alone: a major can carry breaking API changes (FluentValidation 11→12 was one this
+# repo saw), so those still want a person to read the release notes.
+#
+# Scope: dependabot-authored PRs only. Nothing here can merge human PRs.
+#
+# NOTE on the review requirement: if the branch ruleset requires an approving review,
+# the `gh pr review --approve` step below (run as the github-actions bot) satisfies it —
+# BUT only if the org/repo setting "Allow GitHub Actions to create and approve pull
+# requests" is enabled (Settings → Actions → General). If that's off, the approve step
+# fails and auto-merge waits forever; either enable that setting or add `dependabot[bot]`
+# to the ruleset's bypass list.
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Fetch dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+
+      - name: Approve + enable auto-merge for patch/minor
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Flag majors for manual review
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        run: |
+          gh pr comment "$PR_URL" --body "🔎 **Major version bump — held for manual review.** \
+          Auto-merge covers patch/minor only; a major can carry breaking changes (read the release \
+          notes, check the saga/outbox/concurrency paths, then merge)."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
