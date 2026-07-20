@@ -65,6 +65,16 @@ updates:
     # paths still behave. Add majors back to the ignore list as they ship
     # breaking changes; remove when a dedicated migration PR has landed.
     ignore:
+      # Aspire minor/patch bumps can't land as a lone dependabot PR: dependabot updates the
+      # Aspire.Hosting.* PackageVersions but CANNOT touch the Aspire.AppHost.Sdk pin in
+      # NextAurora.AppHost.csproj (an MSBuild SDK ref, not a NuGet PackageReference), so the
+      # SDK/runtime skew fails at build/startup (CLAUDE.md "Aspire SDK and runtime packages
+      # must match"). Aspire bumps also drag MessagePack (via StreamJsonRpc), colliding with
+      # the security pin. So Aspire is a DELIBERATE, coordinated bump (Hosting packages + SDK +
+      # MessagePack, build-verified), not a weekly auto-PR. Ignore minor/patch; a major still
+      # shows up (it needs a migration PR anyway). Precedent: #189 closed for exactly this.
+      - dependency-name: "Aspire.*"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
       # WolverineFx majors are deferred pending a dedicated migration PR — a
       # major can break host startup or the saga/outbox/concurrency paths, and
       # shouldn't land as an unreviewed weekly bump. The 5→6 migration already
