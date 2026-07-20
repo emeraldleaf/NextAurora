@@ -83,6 +83,11 @@ updates:
       # `wolverine` group above keeps the whole family in step).
       - dependency-name: "WolverineFx*"
         update-types: ["version-update:semver-major"]
+      # NSubstitute 6.0 tightened Arg.Is<T> predicate nullability (CS8602 under
+      # TreatWarningsAsErrors); a test-mock major isn't worth a code change on a weekly
+      # bump. 5.x is stable. Take 6.x deliberately if there's a reason. #192 closed for this.
+      - dependency-name: "NSubstitute"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
