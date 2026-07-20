@@ -12,7 +12,7 @@
          that fails restore under NuGetAudit + TreatWarningsAsErrors (NU1903). Referenced
          directly in NextAurora.AppHost.csproj to force the patched version. Remove when
          StreamJsonRpc ships with MessagePack >= 2.5.301. -->
-    <PackageVersion Include="MessagePack" Version="2.5.301" />
+    <PackageVersion Include="MessagePack" Version="3.1.8" />
     <PackageVersion Include="Aspire.Hosting.Azure.ApplicationInsights" Version="13.3.0" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.3.0" />
     <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.3.0" />
