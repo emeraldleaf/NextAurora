@@ -3,6 +3,7 @@
     <PackageReference Include="Dapper" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.Tools" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <!-- Transitive-vulnerability override (NU1903) — see Directory.Packages.props Microsoft.OpenApi pin. -->
     <PackageReference Include="Microsoft.OpenApi" />
