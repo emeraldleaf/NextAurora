@@ -2,13 +2,13 @@
 
 > **Read this first when picking up work.** Entry-point doc: where the project is, how to run it, what's source-of-truth where. Keep it short (~100 lines). **Open work lives in [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues)**, not here.
 
-**Last updated:** 2026-07-19 (merge train landed through #173 durability + #152 retrospective; dead-artifact cleanup #170/#171 in review on #174)
+**Last updated:** 2026-08-22 (deployment plan D4 revised for a shared VPS; prior: merge train through #173, dead-artifact cleanup #174)
 
 ---
 
 ## Where we are
 
-Full microservices architecture (.NET 10, Aspire, Wolverine, EF Core, choreography saga across 5 services) built and mostly runtime-verified. CatalogService demo running on Fly.io at https://catalog-api-demo.fly.dev. Active multi-PR effort: full-saga Hetzner+Dokploy deployment (see [docs/full-saga-deployment-plan.md](full-saga-deployment-plan.md)). All five services share one VSA shape after the simplicity refactor + CatalogService Clean→VSA collapse.
+Full microservices architecture (.NET 10, Aspire, Wolverine, EF Core, choreography saga across 5 services) built and mostly runtime-verified. CatalogService demo running on Fly.io at https://catalog-api-demo.fly.dev. Active multi-PR effort: full-saga Dokploy deployment on a shared VPS — D4 revised 2026-08-22 to a lean profile (~3–3.5GB RAM, SQL Server kept + capped, Seq dropped); Phase 0 not started (see [docs/full-saga-deployment-plan.md](full-saga-deployment-plan.md)). All five services share one VSA shape after the simplicity refactor + CatalogService Clean→VSA collapse.
 
 **Test tier closed.** Integration coverage for all four services with non-trivial DB/outbox/IDOR behavior (Catalog, Order, Payment, Shipping) + a NetArchTest architecture-tests rung enforcing the dependency rule deterministically across all services' Domain layers. NotificationService stays unit-only (stateless, no DB).
 
