@@ -6,11 +6,12 @@
 > Hetzner VPS managed by Dokploy**, with the Stripe gateway stubbed. Pick up
 > here when resuming the work.
 
-**Last updated:** 2026-05-27 (rewritten around Hetzner + Dokploy; was Fly.io + AWS SQS)
+**Last updated:** 2026-08-22 (D4 revised: lean profile for a shared box — SQL Server kept and capped, Seq dropped, Postgres consolidated)
 
-**Current state:** planning. No new infrastructure provisioned yet. The existing
-CatalogService Fly.io demo is separate and predates this plan (see "What happens
-to the Fly demo" below).
+**Current state:** planning; a VPS exists (shared with another, heavier site —
+see D4 lean profile), but no NextAurora infra is provisioned on it yet. The
+existing CatalogService Fly.io demo is separate and predates this plan (see
+"What happens to the Fly demo" below).
 
 ---
 
@@ -50,7 +51,7 @@ The stack:
 
 **What this wins over the previous Fly.io + AWS SQS plan:**
 - **One box, one Docker network** — every service, database, the broker,
-  Keycloak, and Seq all talk over the internal network. No cross-cloud seam
+  Keycloak all talk over the internal network. No cross-cloud seam
   (the AWS-SQS-from-Fly awkwardness is gone), no AWS credentials on the compute
   layer, no per-message or egress billing surprises.
 - **Always-warm** — no Fly Machine cold start, no Keycloak 30-60s wake. Better
@@ -84,7 +85,7 @@ The stack:
 - Real messaging as a container (see D3)
 - Real Redis as a container
 - Keycloak as a container (see D2)
-- Real telemetry — Seq as a container (see Phase 3)
+- Real telemetry — deferred; Seq dropped in the lean profile (D4), Dokploy log view + Storefront saga timeline cover the demo (see Phase 3)
 - Storefront UI with a working checkout flow (minimum viable, not polished)
 - Stripe gateway stubbed; UI banner: *"Payments are stubbed for demo safety"*
 
@@ -214,30 +215,64 @@ opts.AddNextAuroraContextPropagation();              // correlation/user/session
 - The RabbitMQ container is provisioned in Phase 0 with its management UI; the
   service transport-config branch lands when each service deploys (Phase 1-2).
 
-### D4 — Cost ceiling → **~€16/mo VPS, $50/mo hard ceiling**
+### D4 — Cost ceiling + footprint → **lean profile on a shared box (~3–3.5GB idle RAM, ~15–20GB disk); $50/mo hard ceiling**
 
-Fixed VPS cost, not variable. Rough RAM math (both DB engines):
+**Revised 2026-08-22.** The original sizing (CX42, 16GB, ~5.5GB idle) assumed a
+dedicated box and maximum parity with the Aspire local stack. The target is now
+a VPS **shared with an existing heavy site**, so the footprint has to be as
+small as possible *without throwing away the SQL Server work* (the `RowVersion`
+concurrency token, the SQL Server outbox/Wolverine store, the two-engine
+Testcontainers suites, and the two-engine portfolio story are all load-bearing —
+reversing D1 would cost more than it saves). Everything below is **config and
+container tuning only; zero code changes.**
 
-| Component | ~RAM |
-|---|---|
-| 5 .NET services (~150MB each) | ~750MB |
-| SQL Server | ~2GB |
-| Postgres (app) + Postgres (Keycloak) | ~400MB |
-| Keycloak (JVM) | ~700MB |
-| RabbitMQ | ~150MB |
-| Redis | ~50MB |
-| Seq | ~512MB |
-| Dokploy + Traefik | ~200MB |
-| OS | ~300MB |
-| **Total (idle)** | **~5–5.5GB** |
+#### Lean profile
 
-- **Both engines:** Hetzner **CX42** (8 vCPU / 16GB) ~€16/mo — comfortable
-  headroom for SQL Server's appetite + load spikes.
-- **Postgres-only fallback:** CX32 (4 vCPU / 8GB) ~€7/mo — only if we drop SQL
-  Server (and do the provider-swap work, which negates the Hetzner parity win).
-- **Hard ceiling: $50/mo.** A single VPS won't approach this; the ceiling
-  mostly guards against accidental over-provisioning. Set a Hetzner billing
-  alert anyway.
+| Component | Idle RAM | Disk | How it got lean |
+|---|---|---|---|
+| SQL Server (orders-db, payments-db) | ~1.0–1.3GB | ~2–3GB | `MSSQL_PID=Express` + `MSSQL_MEMORY_LIMIT_MB=1024`; `SIMPLE` recovery on both DBs |
+| Keycloak | ~500–600MB | ~0.8GB | `JAVA_OPTS_APPEND=-Xmx512m`, `KC_CACHE=local`, state in the shared Postgres |
+| 5 .NET services | ~750MB | ~1.5GB | 256MB memory limit each |
+| Postgres — **one instance**, 3 DBs (catalog, shipping, keycloak) | ~200MB | <1GB | `shared_buffers=128MB` |
+| RabbitMQ | ~150MB | ~0.3GB | `vm_memory_high_watermark.relative=0.1` |
+| Redis | ~50MB | ~0.1GB | `maxmemory 64mb` |
+| Dokploy + Traefik | ~200MB | ~1.5GB | — |
+| ~~Seq~~ | — | — | **Dropped.** Dokploy's container log view covers the demo; OTLP export stays a local-dev (Aspire dashboard) thing. Revisit only if Phase 3 has runway. |
+| **Total** | **~3–3.5GB** | **~15–20GB** | vs. ~5.5GB / ~35GB in the original sizing |
+
+**Disk budget detail:** OS + Docker ~5–6GB, images ~7GB, DB data + volumes
+~2–4GB, headroom ~5GB. The two things that grow unbounded and must be capped
+on day one: (1) old image layers from webhook redeploys — weekly
+`docker image prune -af --filter "until=168h"` (or Dokploy's cleanup toggle);
+(2) SQL Server transaction logs — `SIMPLE` recovery model. Never build images
+on the box (no build cache, no SDK image): GitHub Actions → GHCR, the box only
+pulls.
+
+**Shared-box go/no-go.** Before Phase 0, run `free -h` and `df -h /var/lib/docker`
+on the box. Need **~4GB free RAM and ~20GB free disk** *after* the existing site's
+steady-state usage. Under that, the fallback is a separate small VPS (Hetzner
+CX22, 4GB/40GB, ~€4/mo) — same lean profile, still SQL Server, still no code
+changes. Do not try to squeeze below the profile by dropping SQL Server.
+
+**Per-container memory limits are mandatory on a shared box.** The real risk
+isn't total usage, it's one runaway container (a SQL Server checkpoint storm, a
+Keycloak GC spiral) starving the other site. Every container gets a Dokploy /
+compose `mem_limit`; the .NET services additionally get
+`DOTNET_GCHeapHardLimit` implied by the cgroup limit (the runtime reads it).
+
+**SQL Server gotcha — the cgroup check.** `sqlservr` refuses to start with
+`This program requires a machine with at least 2000 megabytes of memory` and it
+evaluates that against the **cgroup limit**, not host RAM. So the container's
+`mem_limit` must stay **≥ 2GB** even though the engine is capped to ~1GB via
+`MSSQL_MEMORY_LIMIT_MB`. The cgroup limit is a ceiling that's never reached;
+the env var is what actually bounds usage. Setting `mem_limit: 1g` to "be safe"
+makes SQL Server crash-loop at boot.
+
+**Cost.** The shared box's cost is already sunk; NextAurora's marginal cost is
+~€0 (plus ~€1/mo if a separate Hetzner Volume is used to make DB data
+separable from the box lifecycle — optional). Hard ceiling stays **$50/mo** as a
+guard against accidental over-provisioning if the fallback VPS path is taken.
+Set a Hetzner billing alert anyway.
 
 ---
 
@@ -249,24 +284,31 @@ phase that everything else builds on). Each phase is independently shippable.
 ### Phase 0 — Provision the box + Dokploy + infra containers
 
 **Goal.** Stand up the VPS, Dokploy, and every *non-application* container
-(databases, broker, Keycloak, Seq) before any .NET service deploys. This is the
+(databases, broker, Keycloak) before any .NET service deploys. This is the
 foundation; nothing application-level happens here.
 
 **Deliverables:**
-- [ ] Hetzner VPS provisioned (CX42 per D4) + Hetzner Cloud Firewall (allow 80/443/SSH only)
+- [ ] Shared-box go/no-go (per D4): `free -h` + `df -h /var/lib/docker` show ~4GB RAM / ~20GB disk free
+      after the existing site's steady state; otherwise fall back to a separate CX22
+- [ ] Hetzner Cloud Firewall (allow 80/443/SSH only) — confirm it doesn't break the existing site
 - [ ] SSH hardened — key-only, no root login, fail2ban
 - [ ] Dokploy installed + its dashboard reachable over HTTPS
-- [ ] Postgres container (app DBs: catalog-db, shipping-db) + persistent volume
-- [ ] SQL Server container (orders-db, payments-db) + persistent volume
-- [ ] Postgres container (or shared DB) for Keycloak state
-- [ ] Redis container
-- [ ] RabbitMQ container + management UI (per D3)
+- [ ] **One** Postgres container (catalog-db, shipping-db, keycloak-db) + persistent volume,
+      `shared_buffers=128MB`
+- [ ] SQL Server container (orders-db, payments-db) + persistent volume —
+      `MSSQL_PID=Express`, `MSSQL_MEMORY_LIMIT_MB=1024`, `mem_limit` ≥ 2GB (cgroup
+      gotcha, D4), both DBs set to `SIMPLE` recovery
+- [ ] Redis container (`maxmemory 64mb`)
+- [ ] RabbitMQ container + management UI (per D3), `vm_memory_high_watermark.relative=0.1`
 - [ ] Keycloak container — realm imported from `realms/nextaurora-realm.json`,
-      test users (buyer/seller/admin) present, two-stage health check green
-- [ ] Seq container + persistent volume (telemetry sink, wired in Phase 3)
+      test users (buyer/seller/admin) present, two-stage health check green,
+      `-Xmx512m` + `KC_CACHE=local`, state in the shared Postgres
+- [ ] Every container has a `mem_limit` (D4 — mandatory on a shared box)
+- [ ] Weekly `docker image prune -af --filter "until=168h"` cron (or Dokploy cleanup toggle)
+- [ ] ~~Seq container~~ — dropped in the lean profile (D4); Dokploy log view instead
 - [ ] All infra reachable on the internal Docker network; document the internal
       hostnames services will use
-- [ ] Cost ledger first entry — confirm VPS ≤ €16/mo
+- [ ] Cost ledger first entry — marginal cost on the shared box (~€0; ~€1 if a separate volume)
 
 **Risk callouts.**
 - SQL Server container RAM appetite — confirm the box doesn't OOM under the full
@@ -325,19 +367,20 @@ with stubbed Stripe.
 - Box load with all 5 services + infra running — watch RAM/CPU headroom.
 
 **Definition of done.** Place an order, watch it flow Payment (stubbed) →
-Shipping → Notification end-to-end. Visible in Seq.
+Shipping → Notification end-to-end. Visible in the Storefront saga timeline + Dokploy logs.
 
 ### Phase 3 — Polish (observability + ops + UX)
 
 **Goal.** Make it demoable to other humans.
 
 **Deliverables:**
-- [ ] Wire all services' OpenTelemetry OTLP export to the Seq container
-      (`http://seq:5341/ingest/otlp/v1/traces` on the internal network). Seq is
-      already running from Phase 0. **Gotcha:** pin `OpenTelemetry.Instrumentation.*`
+- [ ] *(Only if runway + RAM headroom — Seq was dropped in the D4 lean profile, ~512MB + growing disk)*
+      Wire all services' OpenTelemetry OTLP export to a Seq container
+      (`http://seq:5341/ingest/otlp/v1/traces` on the internal network). Seq would be
+      added then, not in Phase 0. **Gotcha:** pin `OpenTelemetry.Instrumentation.*`
       versions explicitly in `Directory.Packages.props` — non-stable RC versions
       (e.g. StackExchangeRedis) differ across major bumps.
-- [ ] Seq dashboards for the saga flow (one timeline per Order, CorrelationId-keyed)
+- [ ] *(Seq-conditional)* Seq dashboards for the saga flow (one timeline per Order, CorrelationId-keyed)
 - [ ] Storefront UX polished enough to live-demo (minimal, not feature-rich)
 - [ ] **(Enhancement candidate) Live order-status via Server-Sent Events.** The
       baseline order-status UX is polling `GET /api/v1/orders/{id}` — the natural
@@ -377,7 +420,7 @@ default here, so this is N/A unless we deliberately scale out.
   mitigation. Don't share the URL before it's done.
 
 **Definition of done.** Send the live URL to someone who's never seen the
-codebase; they place an order and watch the saga complete in Seq.
+codebase; they place an order and watch the saga complete in the Storefront saga timeline.
 
 ---
 
