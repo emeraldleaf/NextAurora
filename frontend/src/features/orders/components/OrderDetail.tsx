@@ -4,6 +4,7 @@ import { formatPrice } from '@/shared/format'
 
 import { orderByIdQuery } from '../api/orders'
 
+import { SagaCanvas } from './SagaCanvas'
 import { SagaTimeline } from './SagaTimeline'
 
 /**
@@ -35,6 +36,9 @@ export function OrderDetail({ orderId }: Readonly<{ orderId: string }>) {
         <h1 className="text-xl font-semibold">Order {data.orderId.slice(0, 8)}</h1>
         <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs">{data.status}</span>
       </div>
+      {/* key: TanStack Router preserves this component across orderId navigation — a
+          finished replay must not leak into the next order's canvas (CodeRabbit, #211). */}
+      <SagaCanvas key={data.orderId} status={data.status} />
       <SagaTimeline status={data.status} />
       <ul className="divide-y divide-zinc-200">
         {data.lines.map((line) => (
