@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
 import { CANVAS_EDGES, CANVAS_NODES, HOP_DURATION_MS, deriveHopPlan } from '../canvas'
 import type { OrderStatus } from '../saga'
@@ -14,6 +14,29 @@ import type { OrderStatus } from '../saga'
  * <style> block) — no graph/animation library for 7 nodes. prefers-reduced-motion renders
  * every reached hop lit, no movement.
  */
+
+// prefers-reduced-motion, read as an external store (frontend canon: useSyncExternalStore,
+// not addEventListener-in-effect). The CSS block already stills the drawing; this also skips
+// the pacing timers, so reduced-motion users get the whole story instantly instead of
+// waiting ~10s for captions to arrive (CodeRabbit finding on #211).
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+
+function subscribeToReducedMotion(onChange: () => void): () => void {
+  if (typeof window.matchMedia !== 'function') {
+    return () => {
+      /* matchMedia unavailable (jsdom) — nothing to unsubscribe */
+    }
+  }
+  const media = window.matchMedia(REDUCED_MOTION_QUERY)
+  media.addEventListener('change', onChange)
+  return () => {
+    media.removeEventListener('change', onChange)
+  }
+}
+
+function readReducedMotion(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia(REDUCED_MOTION_QUERY).matches
+}
 
 type EdgeState = 'idle' | 'playing' | 'done'
 type EdgeStates = Record<string, EdgeState>
@@ -35,16 +58,19 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
   const plan = deriveHopPlan(status)
   const failed = status === 'PaymentFailed'
   // How many hops have finished ANIMATING (may lag the real status — that's the point).
-  const [playedHops, setPlayedHops] = useState(0)
+  const [animatedHops, setAnimatedHops] = useState(0)
   const [replayKey, setReplayKey] = useState(0)
+  const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, readReducedMotion)
+  // Under reduced motion the replay is skipped entirely — every reached hop renders lit.
+  const playedHops = reducedMotion ? plan.length : animatedHops
 
   // Advance the replay one hop at a time toward what the order has really reached.
   // A timer IS the external system being synchronized with here (wall-clock pacing).
   useEffect(() => {
-    if (playedHops >= plan.length) return undefined
-    const timer = setTimeout(() => { setPlayedHops((played) => played + 1); }, HOP_DURATION_MS)
+    if (reducedMotion || animatedHops >= plan.length) return undefined
+    const timer = setTimeout(() => { setAnimatedHops((played) => played + 1); }, HOP_DURATION_MS)
     return () => { clearTimeout(timer); }
-  }, [playedHops, plan.length, replayKey])
+  }, [animatedHops, plan.length, reducedMotion, replayKey])
 
   const playingHop = playedHops < plan.length ? playedHops : -1
   const edges = edgeStates(playedHops, playingHop, plan)
@@ -60,12 +86,19 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
   litNodes.add('order')
 
   return (
-    <section aria-label="Live saga canvas" className="overflow-hidden rounded-lg border border-slate-700 bg-slate-900">
+    // Breaks out of the max-w-2xl article column on wide screens — SVG text scales with
+    // container width, and at 672px the labels were unreadably small (live-demo feedback).
+    <section
+      aria-label="Live saga canvas"
+      className="overflow-hidden rounded-lg border border-slate-700 bg-slate-900 lg:relative lg:left-1/2 lg:w-[min(1080px,calc(100vw-3rem))] lg:-translate-x-1/2"
+    >
       <style>{`
         @keyframes saga-draw { to { stroke-dashoffset: 0; } }
         @keyframes saga-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
         .saga-edge { stroke-dasharray: 100; stroke-dashoffset: 100; }
-        .saga-edge[data-state="playing"] { animation: saga-draw ${String(HOP_DURATION_MS * 0.55)}ms ease-out forwards; }
+        .saga-edge[data-state="playing"] { animation: saga-draw ${String(HOP_DURATION_MS * 0.35)}ms ease-out forwards; }
+        /* Fan edges wait for the publish edge to reach the exchange, so the hop reads left-to-right. */
+        .saga-edge[data-role="fan"][data-state="playing"] { animation-delay: ${String(HOP_DURATION_MS * 0.3)}ms; }
         .saga-edge[data-state="done"] { stroke-dashoffset: 0; }
         .saga-node-active rect, .saga-node-active path { animation: saga-pulse 1.4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {
@@ -77,22 +110,24 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
         <p className="text-sm font-semibold text-slate-200">
           Live saga canvas <span className="ml-2 font-normal text-slate-400">the real topology — exchanges, queues, and events under their production names</span>
         </p>
+        {!reducedMotion && (
         <button
           type="button"
           onClick={() => {
-            setPlayedHops(0)
+            setAnimatedHops(0)
             setReplayKey((key) => key + 1)
           }}
           className="rounded border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
         >
           ↺ Replay
         </button>
+        )}
       </div>
 
-      <svg viewBox="0 0 960 400" role="img" aria-label="Event flow between services" className="w-full">
+      <svg viewBox="0 0 1080 440" role="img" aria-label="Event flow between services" className="w-full">
         {/* RabbitMQ band behind the exchange diamonds */}
-        <rect x="210" y="86" width="692" height="68" rx="10" fill="#1e293b" opacity="0.5" />
-        <text x="212" y="80" fill="#64748b" fontSize="11">RabbitMQ — one fanout exchange per event family, one durable queue per consumer</text>
+        <rect x="238" y="92" width="792" height="76" rx="10" fill="#1e293b" opacity="0.5" />
+        <text x="240" y="84" fill="#64748b" fontSize="12.5">RabbitMQ — one fanout exchange per event family, one durable queue per consumer</text>
 
         {CANVAS_EDGES.map((edge) => {
           const state = edges[edge.id] ?? 'idle'
@@ -101,7 +136,7 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
             <g key={edge.id}>
               <path d={edge.d} fill="none" stroke="#334155" strokeWidth="1.5" />
               {state !== 'idle' && (
-                <path className="saga-edge" data-state={state} d={edge.d} pathLength={100} fill="none" stroke={stroke} strokeWidth="2.5" opacity={state === 'done' ? 0.5 : 1} />
+                <path className="saga-edge" data-state={state} data-role={edge.role} d={edge.d} pathLength={100} fill="none" stroke={stroke} strokeWidth="3" opacity={state === 'done' ? 0.5 : 1} />
               )}
               {edge.queue != null && state !== 'idle' && (
                 <QueueLabel edge={edge.id} queue={edge.queue} />
@@ -117,24 +152,24 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
             const engaged = Object.entries(edges).some(([id, s]) => s !== 'idle' && id.includes(node.id))
             return (
               <g key={node.id} transform={`translate(${String(node.x)} ${String(node.y)})`}>
-                <path d="M 0 -26 L 26 0 L 0 26 L -26 0 Z" fill={engaged ? '#f59e0b' : '#475569'} opacity={engaged ? 0.9 : 0.6} />
-                <text y="4" textAnchor="middle" fill="#0f172a" fontSize="9" fontWeight="700">⤨</text>
-                <text y="44" textAnchor="middle" fill="#94a3b8" fontSize="11">{node.label}</text>
+                <path d="M 0 -30 L 30 0 L 0 30 L -30 0 Z" fill={engaged ? '#f59e0b' : '#475569'} opacity={engaged ? 0.9 : 0.6} />
+                <text y="5" textAnchor="middle" fill="#0f172a" fontSize="11" fontWeight="700">⤨</text>
+                <text y="50" textAnchor="middle" fill="#94a3b8" fontSize="13" fontFamily="ui-monospace, monospace">{node.label}</text>
               </g>
             )
           }
           return (
             <g key={node.id} transform={`translate(${String(node.x)} ${String(node.y)})`} className={isPlayingConsumer ? 'saga-node-active' : undefined}>
-              <rect x="-46" y="-24" width="92" height="48" rx="8" fill={active ? '#0f766e' : '#1e293b'} stroke={active ? '#2dd4bf' : '#475569'} strokeWidth="1.5" />
-              <text y="-2" textAnchor="middle" fill="#e2e8f0" fontSize="11" fontWeight="600">{node.label}</text>
-              <text y="14" textAnchor="middle" fill="#94a3b8" fontSize="9">{node.sublabel}</text>
+              <rect x="-58" y="-28" width="116" height="56" rx="9" fill={active ? '#0f766e' : '#1e293b'} stroke={active ? '#2dd4bf' : '#475569'} strokeWidth="1.5" />
+              <text y="-3" textAnchor="middle" fill="#e2e8f0" fontSize="13.5" fontWeight="600">{node.label}</text>
+              <text y="16" textAnchor="middle" fill="#94a3b8" fontSize="11">{node.sublabel}</text>
             </g>
           )
         })}
 
         {/* The event currently in flight, shown at the publishing edge's exchange */}
         {activeHop != null && playingHop >= 0 && (
-          <text x="480" y="386" textAnchor="middle" fill={failed && activeHop.id === 'payment-failed' ? '#f87171' : '#34d399'} fontSize="13" fontWeight="600">
+          <text x="540" y="428" textAnchor="middle" fill={failed && activeHop.id === 'payment-failed' ? '#f87171' : '#34d399'} fontSize="16" fontWeight="600">
             ⚡ {activeHop.event} in flight
           </text>
         )}
@@ -155,20 +190,20 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
 
 /** Queue-name label positioned near the consuming end of a fan edge. */
 const QUEUE_LABEL_POSITIONS: Record<string, { x: number; y: number }> = {
-  'oe-payment': { x: 314, y: 108 },
-  'oe-notify': { x: 330, y: 260 },
-  'pe-shipping': { x: 626, y: 108 },
-  'pe-order': { x: 322, y: 44 },
-  'pe-notify': { x: 566, y: 260 },
-  'se-order': { x: 478, y: 22 },
-  'se-notify': { x: 792, y: 260 },
+  'oe-payment': { x: 351, y: 116 },
+  'oe-notify': { x: 348, y: 302 },
+  'pe-shipping': { x: 711, y: 116 },
+  'pe-order': { x: 375, y: 52 },
+  'pe-notify': { x: 648, y: 302 },
+  'se-order': { x: 535, y: 26 },
+  'se-notify': { x: 872, y: 302 },
 }
 
 function QueueLabel({ edge, queue }: Readonly<{ edge: string; queue: string }>) {
   const pos = QUEUE_LABEL_POSITIONS[edge]
   if (pos == null) return null
   return (
-    <text x={pos.x} y={pos.y} textAnchor="middle" fill="#7dd3fc" fontSize="9.5" fontFamily="ui-monospace, monospace">
+    <text x={pos.x} y={pos.y} textAnchor="middle" fill="#7dd3fc" fontSize="12" fontFamily="ui-monospace, monospace">
       {queue}
     </text>
   )

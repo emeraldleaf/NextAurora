@@ -25,6 +25,8 @@ export interface CanvasEdge {
   id: string
   /** SVG path d-string. All paths use pathLength=100 so dash animation is uniform. */
   d: string
+  /** publish = service→exchange; fan = exchange→consumer (starts after the publish draws). */
+  role: 'publish' | 'fan'
   /** Queue name shown at the consuming end (real names — {consumer}-{source}). */
   queue?: string
 }
@@ -42,64 +44,64 @@ export interface Hop {
 
 // Layout: chronological pipeline left→right (service → exchange → next service …),
 // Notification below collecting from every exchange, return edges arcing over the top back
-// to OrderService. Coordinates are viewBox units (0 0 960 400).
+// to OrderService. Coordinates are viewBox units (0 0 1080 440).
 export const CANVAS_NODES: readonly CanvasNode[] = [
-  { id: 'order', label: 'OrderService', sublabel: 'SQL Server + outbox', kind: 'service', x: 88, y: 120 },
-  { id: 'oe', label: 'order-events', sublabel: 'fanout', kind: 'exchange', x: 244, y: 120 },
-  { id: 'payment', label: 'PaymentService', sublabel: 'SQL Server + outbox', kind: 'service', x: 400, y: 120 },
-  { id: 'pe', label: 'payment-events', sublabel: 'fanout', kind: 'exchange', x: 556, y: 120 },
-  { id: 'shipping', label: 'ShippingService', sublabel: 'Postgres + outbox', kind: 'service', x: 712, y: 120 },
-  { id: 'se', label: 'shipping-events', sublabel: 'fanout', kind: 'exchange', x: 868, y: 120 },
-  { id: 'notify', label: 'NotificationService', sublabel: 'stateless consumer', kind: 'service', x: 478, y: 330 },
+  { id: 'order', label: 'OrderService', sublabel: 'SQL Server + outbox', kind: 'service', x: 95, y: 130 },
+  { id: 'oe', label: 'order-events', sublabel: 'fanout', kind: 'exchange', x: 275, y: 130 },
+  { id: 'payment', label: 'PaymentService', sublabel: 'SQL Server + outbox', kind: 'service', x: 455, y: 130 },
+  { id: 'pe', label: 'payment-events', sublabel: 'fanout', kind: 'exchange', x: 635, y: 130 },
+  { id: 'shipping', label: 'ShippingService', sublabel: 'Postgres + outbox', kind: 'service', x: 815, y: 130 },
+  { id: 'se', label: 'shipping-events', sublabel: 'fanout', kind: 'exchange', x: 995, y: 130 },
+  { id: 'notify', label: 'NotificationService', sublabel: 'stateless consumer', kind: 'service', x: 540, y: 368 },
 ]
 
 export const CANVAS_EDGES: readonly CanvasEdge[] = [
   // h0 — OrderPlaced
-  { id: 'order-oe', d: 'M 130 120 L 218 120' },
-  { id: 'oe-payment', d: 'M 270 120 L 358 120', queue: 'payment-orders' },
-  { id: 'oe-notify', d: 'M 244 142 Q 244 300 420 322', queue: 'notify-orders' },
+  { id: 'order-oe', d: 'M 153 130 L 245 130', role: 'publish' },
+  { id: 'oe-payment', d: 'M 305 130 L 397 130', role: 'fan', queue: 'payment-orders' },
+  { id: 'oe-notify', d: 'M 275 160 Q 275 330 482 360', role: 'fan', queue: 'notify-orders' },
   // h1 — PaymentCompleted (and the PaymentFailed variant reuses pe-order/pe-notify)
-  { id: 'payment-pe', d: 'M 442 120 L 530 120' },
-  { id: 'pe-shipping', d: 'M 582 120 L 670 120', queue: 'shipping-payments' },
-  { id: 'pe-order', d: 'M 556 98 Q 556 30 322 30 Q 88 30 88 96', queue: 'order-payments' },
-  { id: 'pe-notify', d: 'M 556 142 Q 556 300 536 322', queue: 'notify-payments' },
+  { id: 'payment-pe', d: 'M 513 130 L 605 130', role: 'publish' },
+  { id: 'pe-shipping', d: 'M 665 130 L 757 130', role: 'fan', queue: 'shipping-payments' },
+  { id: 'pe-order', d: 'M 635 100 Q 635 36 375 36 Q 115 36 115 102', role: 'fan', queue: 'order-payments' },
+  { id: 'pe-notify', d: 'M 635 160 Q 635 330 598 360', role: 'fan', queue: 'notify-payments' },
   // h2 — ShipmentDispatched
-  { id: 'shipping-se', d: 'M 754 120 L 842 120' },
-  { id: 'se-order', d: 'M 868 98 Q 868 8 478 8 Q 88 8 88 96', queue: 'order-shipping' },
-  { id: 'se-notify', d: 'M 868 142 Q 868 310 536 330', queue: 'notify-shipping' },
+  { id: 'shipping-se', d: 'M 873 130 L 965 130', role: 'publish' },
+  { id: 'se-order', d: 'M 995 100 Q 995 10 535 10 Q 75 10 75 102', role: 'fan', queue: 'order-shipping' },
+  { id: 'se-notify', d: 'M 995 160 Q 995 340 598 368', role: 'fan', queue: 'notify-shipping' },
 ]
 
 const PLACED_HOP: Hop = {
-    id: 'placed',
-    event: 'OrderPlacedEvent',
-    publishEdge: 'order-oe',
-    fanEdges: ['oe-payment', 'oe-notify'],
-    consumers: ['payment', 'notify'],
-    caption:
-      'OrderService committed the order row AND the event in one database transaction (transactional outbox), ' +
-      'then published to the order-events fanout exchange. Two queues each get their own copy.',
+  id: 'placed',
+  event: 'OrderPlacedEvent',
+  publishEdge: 'order-oe',
+  fanEdges: ['oe-payment', 'oe-notify'],
+  consumers: ['payment', 'notify'],
+  caption:
+    'OrderService committed the order row AND the event in one database transaction (transactional outbox), ' +
+    'then published to the order-events fanout exchange. Two queues each get their own copy.',
 }
 
 const PAID_HOP: Hop = {
-    id: 'paid',
-    event: 'PaymentCompletedEvent',
-    publishEdge: 'payment-pe',
-    fanEdges: ['pe-shipping', 'pe-order', 'pe-notify'],
-    consumers: ['shipping', 'order', 'notify'],
-    caption:
-      'PaymentService consumed OrderPlaced, processed payment, published PaymentCompleted. Delivery is ' +
-      'at-least-once — every consumer is idempotent, so a redelivery is a no-op, never a double charge.',
+  id: 'paid',
+  event: 'PaymentCompletedEvent',
+  publishEdge: 'payment-pe',
+  fanEdges: ['pe-shipping', 'pe-order', 'pe-notify'],
+  consumers: ['shipping', 'order', 'notify'],
+  caption:
+    'PaymentService consumed OrderPlaced, processed payment, published PaymentCompleted. Delivery is ' +
+    'at-least-once — every consumer is idempotent, so a redelivery is a no-op, never a double charge.',
 }
 
 const SHIPPED_HOP: Hop = {
-    id: 'shipped',
-    event: 'ShipmentDispatchedEvent',
-    publishEdge: 'shipping-se',
-    fanEdges: ['se-order', 'se-notify'],
-    consumers: ['order', 'notify'],
-    caption:
-      'ShippingService reacted to the SAME PaymentCompleted event on its own queue and dispatched the shipment. ' +
-      'No orchestrator told any service what to do — this is choreography.',
+  id: 'shipped',
+  event: 'ShipmentDispatchedEvent',
+  publishEdge: 'shipping-se',
+  fanEdges: ['se-order', 'se-notify'],
+  consumers: ['order', 'notify'],
+  caption:
+    'ShippingService reacted to the SAME PaymentCompleted event on its own queue and dispatched the shipment. ' +
+    'No orchestrator told any service what to do — this is choreography.',
 }
 
 export const HOPS: readonly Hop[] = [PLACED_HOP, PAID_HOP, SHIPPED_HOP]
@@ -133,5 +135,5 @@ export function deriveHopPlan(status: OrderStatus): readonly Hop[] {
   }
 }
 
-/** ms per hop when replaying — slow enough to read, fast enough to hold attention. */
-export const HOP_DURATION_MS = 1700
+/** ms per hop when replaying — slow enough to read every label, per live-demo feedback. */
+export const HOP_DURATION_MS = 3400

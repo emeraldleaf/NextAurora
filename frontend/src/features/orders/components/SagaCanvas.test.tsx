@@ -84,3 +84,26 @@ describe('SagaCanvas', () => {
     expect(screen.queryByText(/this is choreography/)).not.toBeInTheDocument()
   })
 })
+
+describe('SagaCanvas under prefers-reduced-motion', () => {
+  it('renders every reached hop immediately — no paced replay to wait through', () => {
+    // ARRANGE — a matchMedia stub reporting reduced motion. jsdom has no matchMedia, so
+    // the stub also exercises the component's availability guard.
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }))
+    try {
+      // ACT — a settled order, rendered fresh.
+      render(<SagaCanvas status="Shipped" />)
+
+      // ASSERT — the final caption is there at once (no timers), and the replay control
+      // is hidden because there is nothing it could meaningfully do.
+      expect(screen.getByText(/this is choreography/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /replay/i })).not.toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
