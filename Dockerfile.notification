@@ -1,0 +1,34 @@
+# Multi-stage build for NotificationService — same shape as Dockerfile.catalog (see its header
+# comments for the layer-caching and non-root rationale). Build context is the repo
+# root because NotificationService references NextAurora.ServiceDefaults and NextAurora.Contracts.
+#
+# Build:   docker build -f Dockerfile.notification -t notification-api .
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY .editorconfig Directory.Build.props Directory.Packages.props BannedSymbols.txt NextAurora.slnx ./
+
+COPY NotificationService/NotificationService.csproj                                           NotificationService/
+COPY NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj NextAurora.ServiceDefaults/
+COPY NextAurora.Contracts/NextAurora.Contracts.csproj             NextAurora.Contracts/
+
+RUN dotnet restore NotificationService/NotificationService.csproj
+
+COPY NotificationService/                     NotificationService/
+COPY NextAurora.ServiceDefaults/ NextAurora.ServiceDefaults/
+COPY NextAurora.Contracts/       NextAurora.Contracts/
+
+RUN dotnet publish NotificationService/NotificationService.csproj \
+    --configuration Release \
+    --output /app/publish \
+    --no-restore \
+    -p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+USER app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "NotificationService.dll"]
