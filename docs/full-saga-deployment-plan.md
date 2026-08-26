@@ -385,12 +385,19 @@ around three acts, in demo order:
   showing what Act 1 actually was — real event names as they flowed, which
   service handled each, the CorrelationId stitching them, the architecture
   diagram embedded. Makes the demo self-narrating for technical and
-  non-technical visitors alike.
+  non-technical visitors alike. **Each step carries a pattern caption naming the
+  machinery** (transactional outbox, at-least-once delivery, idempotent
+  consumers, inbox dedup) under the header: *exactly-once delivery is
+  impossible — this system achieves exactly-once processing: push all failures
+  toward duplication, then make duplication a no-op.*
 - **Act 3 — the kill switch** (#208): a "Kill PaymentService" button
   (DemoMode-gated pause of the Wolverine listener, auto-revive ~60s). Order
-  stalls at awaiting-payment; revive; saga completes. Caption: *no message was
-  lost* — the #168/#169 durability hardening turned into theater. This is the
-  closer; no tutorial portfolio has it.
+  stalls at awaiting-payment; revive; saga completes. The caption is the
+  exactly-once narration: while dead, *the event sits in a RabbitMQ durable
+  queue*; after revive, *processed once — a redelivery would have been a no-op
+  (idempotent handler + inbox dedup). No message lost, none double-processed.*
+  The #168/#169 durability hardening turned into theater. This is the closer;
+  no tutorial portfolio has it.
 
 **Deliverables:**
 - [ ] Act 2 — Storefront engineering view (#207)
