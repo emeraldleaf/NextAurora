@@ -35,6 +35,8 @@ export interface CanvasEdge {
 export interface Hop {
   id: string
   event: string
+  /** Service that published this hop's event — edges render in its color. */
+  publisher: 'order' | 'payment' | 'shipping'
   publishEdge: string
   fanEdges: string[]
   /** Nodes that light up as this hop's consumers. */
@@ -73,6 +75,7 @@ export const CANVAS_EDGES: readonly CanvasEdge[] = [
 const PLACED_HOP: Hop = {
   id: 'placed',
   event: 'OrderPlacedEvent',
+  publisher: 'order',
   publishEdge: 'order-oe',
   fanEdges: ['oe-payment', 'oe-notify'],
   consumers: ['payment', 'notify'],
@@ -84,6 +87,7 @@ const PLACED_HOP: Hop = {
 const PAID_HOP: Hop = {
   id: 'paid',
   event: 'PaymentCompletedEvent',
+  publisher: 'payment',
   publishEdge: 'payment-pe',
   fanEdges: ['pe-shipping', 'pe-order', 'pe-notify'],
   consumers: ['shipping', 'order', 'notify'],
@@ -95,6 +99,7 @@ const PAID_HOP: Hop = {
 const SHIPPED_HOP: Hop = {
   id: 'shipped',
   event: 'ShipmentDispatchedEvent',
+  publisher: 'shipping',
   publishEdge: 'shipping-se',
   fanEdges: ['se-order', 'se-notify'],
   consumers: ['order', 'notify'],
@@ -109,6 +114,7 @@ export const HOPS: readonly Hop[] = [PLACED_HOP, PAID_HOP, SHIPPED_HOP]
 export const FAILED_HOP: Hop = {
   id: 'payment-failed',
   event: 'PaymentFailedEvent',
+  publisher: 'payment',
   publishEdge: 'payment-pe',
   fanEdges: ['pe-order', 'pe-notify'],
   consumers: ['order', 'notify'],
@@ -132,6 +138,26 @@ export function deriveHopPlan(status: OrderStatus): readonly Hop[] {
     case 'Cancelled':
       return [PLACED_HOP]
   }
+}
+
+/**
+ * Per-service identity colors: nodes wear them, and every edge/queue-label/badge renders in
+ * the color of the service that PUBLISHED the event riding it — the choreography becomes
+ * legible by hue ("violet = Payment said something"). Failure branch overrides to red.
+ */
+export const SERVICE_COLORS: Record<string, string> = {
+  order: '#38bdf8',
+  payment: '#a78bfa',
+  shipping: '#34d399',
+  notify: '#fb7185',
+}
+
+/** Darker companion fills for an active node's body (accent goes on the border/text). */
+export const SERVICE_FILLS: Record<string, string> = {
+  order: '#0c4a6e',
+  payment: '#3b0764',
+  shipping: '#064e3b',
+  notify: '#4c0519',
 }
 
 /** ms per hop on auto-play. The viewer can also Pause or step with Next (live-demo feedback:

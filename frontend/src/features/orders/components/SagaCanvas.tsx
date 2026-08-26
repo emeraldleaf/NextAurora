@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 
-import { CANVAS_EDGES, CANVAS_NODES, HOP_DURATION_MS, deriveHopPlan } from '../canvas'
+import { CANVAS_EDGES, CANVAS_NODES, HOP_DURATION_MS, SERVICE_COLORS, SERVICE_FILLS, deriveHopPlan } from '../canvas'
 import type { OrderStatus } from '../saga'
 
 /**
@@ -52,9 +52,20 @@ function edgeStates(playedHops: number, playingHop: number, plan: ReturnType<typ
   return states
 }
 
+/** Each engaged edge renders in its publishing service's color (failure hop → red). */
+function edgeColors(plan: ReturnType<typeof deriveHopPlan>): Record<string, string> {
+  const colors: Record<string, string> = {}
+  for (const hop of plan) {
+    const color = hop.id === 'payment-failed' ? '#f87171' : (SERVICE_COLORS[hop.publisher] ?? '#34d399')
+    for (const edge of [hop.publishEdge, ...hop.fanEdges]) {
+      colors[edge] = color
+    }
+  }
+  return colors
+}
+
 export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
   const plan = deriveHopPlan(status)
-  const failed = status === 'PaymentFailed'
   // How many hops have finished ANIMATING (may lag the real status — that's the point).
   const [animatedHops, setAnimatedHops] = useState(0)
   const [paused, setPaused] = useState(false)
@@ -76,6 +87,7 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
 
   const playingHop = playedHops < plan.length ? playedHops : -1
   const edges = edgeStates(playedHops, playingHop, plan)
+  const hopColors = edgeColors(plan)
   const activeHop = playingHop >= 0 ? plan[playingHop] : plan[plan.length - 1]
   const litNodes = new Set<string>()
   plan.forEach((hop, index) => {
@@ -114,7 +126,10 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
         <p className="text-base font-semibold text-slate-200">
           Live saga canvas
           {activeHop != null && playingHop >= 0 ? (
-            <span className={`ml-3 font-semibold ${failed && activeHop.id === 'payment-failed' ? 'text-red-400' : 'text-emerald-400'}`}>
+            <span
+              className="ml-3 font-semibold"
+              style={{ color: activeHop.id === 'payment-failed' ? '#f87171' : (SERVICE_COLORS[activeHop.publisher] ?? '#34d399') }}
+            >
               ⚡ {activeHop.event} in flight
             </span>
           ) : (
@@ -167,14 +182,14 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
 
           {CANVAS_EDGES.map((edge) => {
             const state = edges[edge.id] ?? 'idle'
-            const stroke = state === 'idle' ? '#334155' : failed && (edge.id === 'pe-order' || edge.id === 'pe-notify') ? '#f87171' : '#34d399'
+            const stroke = state === 'idle' ? '#334155' : (hopColors[edge.id] ?? '#34d399')
             return (
               <g key={edge.id}>
                 <path d={edge.d} fill="none" stroke="#334155" strokeWidth="1.5" />
                 {state !== 'idle' && (
                   <path className="saga-edge" data-state={state} data-role={edge.role} d={edge.d} pathLength={100} fill="none" stroke={stroke} strokeWidth="3.5" opacity={state === 'done' ? 0.5 : 1} />
                 )}
-                {edge.queue != null && state !== 'idle' && <QueueLabel edge={edge.id} queue={edge.queue} />}
+                {edge.queue != null && state !== 'idle' && <QueueLabel edge={edge.id} queue={edge.queue} color={stroke} />}
               </g>
             )
           })}
@@ -195,8 +210,13 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
             }
             return (
               <g key={node.id} transform={`translate(${String(node.x)} ${String(node.y)})`} className={isPlayingConsumer ? 'saga-node-active' : undefined}>
-                <rect x="-130" y="-34" width="260" height="68" rx="10" fill={active ? '#0f766e' : '#1e293b'} stroke={active ? '#2dd4bf' : '#475569'} strokeWidth="1.5" />
-                <text y="-4" textAnchor="middle" fill="#e2e8f0" fontSize="19" fontWeight="600">{node.label}</text>
+                <rect
+                  x="-130" y="-34" width="260" height="68" rx="10"
+                  fill={active ? (SERVICE_FILLS[node.id] ?? '#0f766e') : '#1e293b'}
+                  stroke={active ? (SERVICE_COLORS[node.id] ?? '#2dd4bf') : '#475569'}
+                  strokeWidth="2"
+                />
+                <text y="-4" textAnchor="middle" fill={active ? (SERVICE_COLORS[node.id] ?? '#e2e8f0') : '#e2e8f0'} fontSize="19" fontWeight="600">{node.label}</text>
                 <text y="20" textAnchor="middle" fill="#94a3b8" fontSize="13.5">{node.sublabel}</text>
               </g>
             )
@@ -229,11 +249,11 @@ const QUEUE_LABEL_POSITIONS: Record<string, { x: number; y: number }> = {
   'se-notify': { x: 660, y: 508 },
 }
 
-function QueueLabel({ edge, queue }: Readonly<{ edge: string; queue: string }>) {
+function QueueLabel({ edge, queue, color }: Readonly<{ edge: string; queue: string; color: string }>) {
   const pos = QUEUE_LABEL_POSITIONS[edge]
   if (pos == null) return null
   return (
-    <text x={pos.x} y={pos.y} textAnchor="middle" fill="#7dd3fc" fontSize="15" fontFamily="ui-monospace, monospace">
+    <text x={pos.x} y={pos.y} textAnchor="middle" fill={color} fontSize="15" fontFamily="ui-monospace, monospace">
       {queue}
     </text>
   )
