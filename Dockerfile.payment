@@ -1,0 +1,34 @@
+# Multi-stage build for PaymentService — same shape as Dockerfile.catalog (see its header
+# comments for the layer-caching and non-root rationale). Build context is the repo
+# root because PaymentService references NextAurora.ServiceDefaults and NextAurora.Contracts.
+#
+# Build:   docker build -f Dockerfile.payment -t payment-api .
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY .editorconfig Directory.Build.props Directory.Packages.props BannedSymbols.txt NextAurora.slnx ./
+
+COPY PaymentService/PaymentService.csproj                                           PaymentService/
+COPY NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj NextAurora.ServiceDefaults/
+COPY NextAurora.Contracts/NextAurora.Contracts.csproj             NextAurora.Contracts/
+
+RUN dotnet restore PaymentService/PaymentService.csproj
+
+COPY PaymentService/                     PaymentService/
+COPY NextAurora.ServiceDefaults/ NextAurora.ServiceDefaults/
+COPY NextAurora.Contracts/       NextAurora.Contracts/
+
+RUN dotnet publish PaymentService/PaymentService.csproj \
+    --configuration Release \
+    --output /app/publish \
+    --no-restore \
+    -p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+USER app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "PaymentService.dll"]

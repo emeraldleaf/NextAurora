@@ -12,10 +12,6 @@ tests/
 SellerPortal/
 Storefront/
 NextAurora.AppHost/
-NotificationService/
-OrderService/
-PaymentService/
-ShippingService/
 **/*.user
 **/*.suo
 **/appsettings.*.json

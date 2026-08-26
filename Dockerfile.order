@@ -1,0 +1,41 @@
+# Multi-stage build for OrderService — same shape as Dockerfile.catalog (see its header
+# comments for the layer-caching and non-root rationale). Build context is the repo
+# root because OrderService references NextAurora.ServiceDefaults and NextAurora.Contracts.
+#
+# Build:   docker build --platform linux/amd64 -f Dockerfile.order -t order-api .
+#
+# The --platform pin matters on Apple Silicon: Grpc.Tools ships a linux_arm64 protoc
+# that segfaults (exit 139) in Debian-based .NET SDK containers, so the proto-compile
+# step only works on amd64 (the deploy target and CI platform anyway).
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY .editorconfig Directory.Build.props Directory.Packages.props BannedSymbols.txt NextAurora.slnx ./
+
+COPY OrderService/OrderService.csproj                                           OrderService/
+COPY NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj NextAurora.ServiceDefaults/
+COPY NextAurora.Contracts/NextAurora.Contracts.csproj             NextAurora.Contracts/
+# OrderService compiles the catalog gRPC client from the server's .proto (single
+# source of truth for the contract) — the proto must be in the build context.
+COPY CatalogService/Protos/catalog.proto                          CatalogService/Protos/
+
+RUN dotnet restore OrderService/OrderService.csproj
+
+COPY OrderService/                     OrderService/
+COPY NextAurora.ServiceDefaults/ NextAurora.ServiceDefaults/
+COPY NextAurora.Contracts/       NextAurora.Contracts/
+
+RUN dotnet publish OrderService/OrderService.csproj \
+    --configuration Release \
+    --output /app/publish \
+    --no-restore \
+    -p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+USER app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "OrderService.dll"]
