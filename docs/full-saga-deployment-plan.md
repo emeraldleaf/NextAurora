@@ -6,7 +6,7 @@
 > Hetzner VPS managed by Dokploy**, with the Stripe gateway stubbed. Pick up
 > here when resuming the work.
 
-**Last updated:** 2026-08-22 (D4 revised: lean profile for a shared box — SQL Server kept and capped, Seq dropped, Postgres consolidated)
+**Last updated:** 2026-08-25 (Phase 3 rewritten as the three-act demo storyline — #207 engineering view, #208 kill switch; prior: D4 lean profile)
 
 **Current state:** planning; a VPS exists (shared with another, heavier site —
 see D4 lean profile), but no NextAurora infra is provisioned on it yet. The
@@ -369,11 +369,42 @@ with stubbed Stripe.
 **Definition of done.** Place an order, watch it flow Payment (stubbed) →
 Shipping → Notification end-to-end. Visible in the Storefront saga timeline + Dokploy logs.
 
-### Phase 3 — Polish (observability + ops + UX)
+### Phase 3 — The demo storyline (what actually sells this)
 
-**Goal.** Make it demoable to other humans.
+**Goal.** Make the deployed system *demonstrate itself*. The positioning: nobody
+hiring is impressed by an e-commerce site — the differentiator is a
+**distributed system you can watch working, and watch surviving failure**. The
+pitch in one line: *"Place an order, watch five services coordinate it live —
+then kill one mid-flight and watch the system heal itself."* Phase 3 is built
+around three acts, in demo order:
+
+- **Act 1 — the saga, visible** (already built, #167): pre-filled demo login,
+  place an order, saga timeline animates Placed → Payment → Shipped in seconds
+  with the narrator explaining each hop. Free once Phases 1–2 deploy.
+- **Act 2 — under the hood** (#207): an *engineering view* in the Storefront
+  showing what Act 1 actually was — real event names as they flowed, which
+  service handled each, the CorrelationId stitching them, the architecture
+  diagram embedded. Makes the demo self-narrating for technical and
+  non-technical visitors alike. **Each step carries a pattern caption naming the
+  machinery** (transactional outbox, at-least-once delivery, idempotent
+  consumers, inbox dedup) under the header: *exactly-once delivery is
+  impossible — this system achieves exactly-once processing: push all failures
+  toward duplication, then make duplication a no-op.*
+- **Act 3 — the kill switch** (#208): a "Kill PaymentService" button
+  (DemoMode-gated pause of the Wolverine listener, auto-revive ~60s). Order
+  stalls at awaiting-payment; revive; saga completes. The caption is the
+  exactly-once narration: while dead, *the event sits in a RabbitMQ durable
+  queue*; after revive, *processed once — a redelivery would have been a no-op
+  (idempotent handler + inbox dedup). No message lost, none double-processed.*
+  The #168/#169 durability hardening turned into theater. This is the closer;
+  no tutorial portfolio has it.
 
 **Deliverables:**
+- [ ] Act 2 — Storefront engineering view (#207)
+- [ ] Act 3 — DemoMode kill switch + auto-revive guardrail (#208)
+- [ ] Pre-filled demo credentials on the login screen + "payments are stubbed" banner
+- [ ] README "Try the live demo" section with a ~90-second GIF of the three acts
+      (for visitors who won't click through)
 - [ ] *(Only if runway + RAM headroom — Seq was dropped in the D4 lean profile, ~512MB + growing disk)*
       Wire all services' OpenTelemetry OTLP export to a Seq container
       (`http://seq:5341/ingest/otlp/v1/traces` on the internal network). Seq would be
@@ -381,7 +412,6 @@ Shipping → Notification end-to-end. Visible in the Storefront saga timeline + 
       versions explicitly in `Directory.Packages.props` — non-stable RC versions
       (e.g. StackExchangeRedis) differ across major bumps.
 - [ ] *(Seq-conditional)* Seq dashboards for the saga flow (one timeline per Order, CorrelationId-keyed)
-- [ ] Storefront UX polished enough to live-demo (minimal, not feature-rich)
 - [ ] **(Enhancement candidate) Live order-status via Server-Sent Events.** The
       baseline order-status UX is polling `GET /api/v1/orders/{id}` — the natural
       client side of the 202 Accepted pattern. The upgrade: an SSE endpoint
@@ -403,7 +433,6 @@ Shipping → Notification end-to-end. Visible in the Storefront saga timeline + 
       required deliverables. (SSE is item #7 on the production-readiness checklist
       NextAurora was audited against — one of two gaps; the other, feature flags,
       is deferred — see "Considered and deferred" below.)
-- [ ] `README` "Try the live demo" section — URL, test credentials, expected flow
 - [ ] Security pass — the box is internet-facing; review every IDOR / JWT /
       rate-limit boundary against the live surface
 - [ ] Cost confirmation (fixed VPS; just confirm no surprise add-ons)
@@ -416,6 +445,11 @@ default here, so this is N/A unless we deliberately scale out.
 
 **Risk callouts.**
 - Storefront UX scope creep — keep it minimal, the demo is the architecture.
+  Explicitly out of scope for the demo: seller/admin UIs (#102), which add
+  surface but no wow.
+- The kill switch is a public, state-changing control — the #208 guardrails
+  (DemoMode gate, auto-revive, rate limit) are part of the security pass, not
+  optional polish.
 - Internet-exposed security surface — the explicit security pass is the
   mitigation. Don't share the URL before it's done.
 
