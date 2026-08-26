@@ -2,13 +2,13 @@
 
 > **Read this first when picking up work.** Entry-point doc: where the project is, how to run it, what's source-of-truth where. Keep it short (~100 lines). **Open work lives in [GitHub Issues](https://github.com/emeraldleaf/NextAurora/issues)**, not here.
 
-**Last updated:** 2026-08-22 (deployment plan D4 revised for a shared VPS; prior: merge train through #173, dead-artifact cleanup #174)
+**Last updated:** 2026-08-25 (Phase 3 demo storyline + local full-stack verified; prior: D4 lean profile, #204)
 
 ---
 
 ## Where we are
 
-Full microservices architecture (.NET 10, Aspire, Wolverine, EF Core, choreography saga across 5 services) built and mostly runtime-verified. CatalogService demo running on Fly.io at https://catalog-api-demo.fly.dev. Active multi-PR effort: full-saga Dokploy deployment on a shared VPS — D4 revised 2026-08-22 to a lean profile (~3–3.5GB RAM, SQL Server kept + capped, Seq dropped); Phase 0 not started (see [docs/full-saga-deployment-plan.md](full-saga-deployment-plan.md)). All five services share one VSA shape after the simplicity refactor + CatalogService Clean→VSA collapse.
+Full microservices architecture (.NET 10, Aspire, Wolverine, EF Core, choreography saga across 5 services) built and mostly runtime-verified. CatalogService demo running on Fly.io at https://catalog-api-demo.fly.dev. Active multi-PR effort: full-saga Dokploy deployment on a shared VPS — D4 revised to a lean profile (SQL Server kept + capped, Seq dropped); Phase 3 rewritten 2026-08-25 as the three-act demo storyline (#207 engineering view, #208 kill switch); Phase 0 not started. Full local stack verified 2026-08-25: smoke test green, saga → Shipped, frontend live (see [docs/full-saga-deployment-plan.md](full-saga-deployment-plan.md)). All five services share one VSA shape after the simplicity refactor + CatalogService Clean→VSA collapse.
 
 **Test tier closed.** Integration coverage for all four services with non-trivial DB/outbox/IDOR behavior (Catalog, Order, Payment, Shipping) + a NetArchTest architecture-tests rung enforcing the dependency rule deterministically across all services' Domain layers. NotificationService stays unit-only (stateless, no DB).
 
