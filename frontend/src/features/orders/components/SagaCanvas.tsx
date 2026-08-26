@@ -176,6 +176,23 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
           narrow window — wide content scrolls in its own container. */}
       <div className="overflow-x-auto">
         <svg viewBox="0 0 1000 560" role="img" aria-label="Event flow between services" className="w-full min-w-[760px]">
+          <defs>
+            {/* One arrowhead per palette color — markers can't inherit stroke color portably. */}
+            {['#334155', '#f87171', ...Object.values(SERVICE_COLORS)].map((color) => (
+              <marker
+                key={color}
+                id={`arrow-${color.slice(1)}`}
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
+              </marker>
+            ))}
+          </defs>
           {/* RabbitMQ band behind the exchange column */}
           <rect x="640" y="85" width="240" height="385" rx="12" fill="#1e293b" opacity="0.5" />
           <text x="760" y="72" textAnchor="middle" fill="#64748b" fontSize="16" fontWeight="600">RabbitMQ</text>
@@ -185,9 +202,20 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
             const stroke = state === 'idle' ? '#334155' : (hopColors[edge.id] ?? '#34d399')
             return (
               <g key={edge.id}>
-                <path d={edge.d} fill="none" stroke="#334155" strokeWidth="1.5" />
+                <path d={edge.d} fill="none" stroke="#334155" strokeWidth="1.5" markerEnd="url(#arrow-334155)" />
                 {state !== 'idle' && (
-                  <path className="saga-edge" data-state={state} data-role={edge.role} d={edge.d} pathLength={100} fill="none" stroke={stroke} strokeWidth="3.5" opacity={state === 'done' ? 0.5 : 1} />
+                  <path
+                    className="saga-edge"
+                    data-state={state}
+                    data-role={edge.role}
+                    d={edge.d}
+                    pathLength={100}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth="3.5"
+                    opacity={state === 'done' ? 0.5 : 1}
+                    markerEnd={`url(#arrow-${stroke.slice(1)})`}
+                  />
                 )}
                 {edge.queue != null && state !== 'idle' && <QueueLabel edge={edge.id} queue={edge.queue} color={stroke} />}
               </g>
