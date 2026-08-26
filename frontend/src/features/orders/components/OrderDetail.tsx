@@ -2,8 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 
 import { formatPrice } from '@/shared/format'
 
+import { listenerStatusQuery } from '../api/demo'
 import { orderByIdQuery } from '../api/orders'
 
+import { KillSwitchPanel } from './KillSwitchPanel'
 import { SagaCanvas } from './SagaCanvas'
 import { SagaTimeline } from './SagaTimeline'
 
@@ -14,6 +16,10 @@ import { SagaTimeline } from './SagaTimeline'
  */
 export function OrderDetail({ orderId }: Readonly<{ orderId: string }>) {
   const { data, isPending, isError, fetchStatus } = useQuery(orderByIdQuery(orderId))
+  // Kill-switch state feeds the canvas (dead node + held-in-queue caption). The query 404s
+  // and disables itself outside DemoMode deployments.
+  const listener = useQuery(listenerStatusQuery())
+  const paymentDown = listener.data != null && listener.data.status !== 'Accepting' && listener.data.status !== 'Unavailable'
 
   if (isPending && fetchStatus !== 'idle') {
     return (
@@ -38,7 +44,8 @@ export function OrderDetail({ orderId }: Readonly<{ orderId: string }>) {
       </div>
       {/* key: TanStack Router preserves this component across orderId navigation — a
           finished replay must not leak into the next order's canvas (CodeRabbit, #211). */}
-      <SagaCanvas key={data.orderId} status={data.status} />
+      <SagaCanvas key={data.orderId} status={data.status} paymentDown={paymentDown} />
+      <KillSwitchPanel />
       <SagaTimeline status={data.status} />
       <ul className="divide-y divide-zinc-200">
         {data.lines.map((line) => (

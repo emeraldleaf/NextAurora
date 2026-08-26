@@ -6,6 +6,7 @@
 export const env = {
   catalogApiUrl: (import.meta.env.VITE_CATALOG_API_URL as string | undefined) ?? 'http://localhost:5301',
   orderApiUrl: (import.meta.env.VITE_ORDER_API_URL as string | undefined) ?? 'http://localhost:5302',
+  paymentApiUrl: (import.meta.env.VITE_PAYMENT_API_URL as string | undefined) ?? 'http://localhost:5303',
   keycloakUrl: (import.meta.env.VITE_KEYCLOAK_URL as string | undefined) ?? 'http://localhost:8080',
   keycloakRealm: (import.meta.env.VITE_KEYCLOAK_REALM as string | undefined) ?? 'nextaurora',
   keycloakClientId: (import.meta.env.VITE_KEYCLOAK_CLIENT_ID as string | undefined) ?? 'storefront',
