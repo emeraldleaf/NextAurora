@@ -33,7 +33,8 @@ describe('SagaCanvas', () => {
     for (const label of ['OrderService', 'PaymentService', 'ShippingService', 'NotificationService']) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
-    expect(screen.getByText(/one fanout exchange per event family/)).toBeInTheDocument()
+    expect(screen.getByText('RabbitMQ')).toBeInTheDocument()
+    expect(screen.getByText('order-events')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /replay/i })).toBeInTheDocument()
   })
 
