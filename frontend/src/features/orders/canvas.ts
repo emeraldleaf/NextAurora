@@ -42,32 +42,32 @@ export interface Hop {
   caption: string
 }
 
-// Layout: Coordinates are viewBox units (0 0 1000 780): services stacked left, exchanges right —
-// a vertical layout gives every label a full column of room, so type stays large.
+// Layout: Coordinates are viewBox units (0 0 1000 560): services stacked left, exchanges right —
+// full column of room per label (type stays large) at a height that fits one screen.
 export const CANVAS_NODES: readonly CanvasNode[] = [
-  { id: 'order', label: 'OrderService', sublabel: 'SQL Server + outbox', kind: 'service', x: 170, y: 90 },
-  { id: 'payment', label: 'PaymentService', sublabel: 'SQL Server + outbox', kind: 'service', x: 170, y: 290 },
-  { id: 'shipping', label: 'ShippingService', sublabel: 'Postgres + outbox', kind: 'service', x: 170, y: 490 },
-  { id: 'notify', label: 'NotificationService', sublabel: 'stateless consumer', kind: 'service', x: 170, y: 690 },
-  { id: 'oe', label: 'order-events', sublabel: 'fanout', kind: 'exchange', x: 760, y: 190 },
-  { id: 'pe', label: 'payment-events', sublabel: 'fanout', kind: 'exchange', x: 760, y: 390 },
-  { id: 'se', label: 'shipping-events', sublabel: 'fanout', kind: 'exchange', x: 760, y: 590 },
+  { id: 'order', label: 'OrderService', sublabel: 'SQL Server + outbox', kind: 'service', x: 170, y: 70 },
+  { id: 'payment', label: 'PaymentService', sublabel: 'SQL Server + outbox', kind: 'service', x: 170, y: 205 },
+  { id: 'shipping', label: 'ShippingService', sublabel: 'Postgres + outbox', kind: 'service', x: 170, y: 340 },
+  { id: 'notify', label: 'NotificationService', sublabel: 'stateless consumer', kind: 'service', x: 170, y: 475 },
+  { id: 'oe', label: 'order-events', sublabel: 'fanout', kind: 'exchange', x: 760, y: 137 },
+  { id: 'pe', label: 'payment-events', sublabel: 'fanout', kind: 'exchange', x: 760, y: 272 },
+  { id: 'se', label: 'shipping-events', sublabel: 'fanout', kind: 'exchange', x: 760, y: 407 },
 ]
 
 export const CANVAS_EDGES: readonly CanvasEdge[] = [
   // h0 — OrderPlaced
-  { id: 'order-oe', d: 'M 300 90 Q 620 90 760 150', role: 'publish' },
-  { id: 'oe-payment', d: 'M 720 190 Q 480 220 300 272', role: 'fan', queue: 'payment-orders' },
-  { id: 'oe-notify', d: 'M 760 230 Q 930 460 302 682', role: 'fan', queue: 'notify-orders' },
+  { id: 'order-oe', d: 'M 300 70 Q 620 70 760 99', role: 'publish' },
+  { id: 'oe-payment', d: 'M 722 137 Q 480 155 300 190', role: 'fan', queue: 'payment-orders' },
+  { id: 'oe-notify', d: 'M 760 175 Q 950 330 302 468', role: 'fan', queue: 'notify-orders' },
   // h1 — PaymentCompleted (and the PaymentFailed variant reuses pe-order/pe-notify)
-  { id: 'payment-pe', d: 'M 300 308 Q 620 308 760 350', role: 'publish' },
-  { id: 'pe-shipping', d: 'M 720 390 Q 480 420 300 472', role: 'fan', queue: 'shipping-payments' },
-  { id: 'pe-order', d: 'M 722 382 Q 430 330 300 114', role: 'fan', queue: 'order-payments' },
-  { id: 'pe-notify', d: 'M 760 430 Q 900 570 302 692', role: 'fan', queue: 'notify-payments' },
+  { id: 'payment-pe', d: 'M 300 220 Q 620 220 760 234', role: 'publish' },
+  { id: 'pe-shipping', d: 'M 722 272 Q 480 292 300 325', role: 'fan', queue: 'shipping-payments' },
+  { id: 'pe-order', d: 'M 722 265 Q 430 220 300 90', role: 'fan', queue: 'order-payments' },
+  { id: 'pe-notify', d: 'M 760 310 Q 900 420 302 477', role: 'fan', queue: 'notify-payments' },
   // h2 — ShipmentDispatched
-  { id: 'shipping-se', d: 'M 300 508 Q 620 508 760 550', role: 'publish' },
-  { id: 'se-order', d: 'M 720 594 Q 10 470 168 122', role: 'fan', queue: 'order-shipping' },
-  { id: 'se-notify', d: 'M 760 630 Q 790 690 302 700', role: 'fan', queue: 'notify-shipping' },
+  { id: 'shipping-se', d: 'M 300 355 Q 620 355 760 369', role: 'publish' },
+  { id: 'se-order', d: 'M 722 412 Q 10 330 168 95', role: 'fan', queue: 'order-shipping' },
+  { id: 'se-notify', d: 'M 760 445 Q 790 490 302 487', role: 'fan', queue: 'notify-shipping' },
 ]
 
 const PLACED_HOP: Hop = {

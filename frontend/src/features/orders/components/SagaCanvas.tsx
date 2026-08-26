@@ -113,7 +113,13 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/60 px-4 py-2">
         <p className="text-base font-semibold text-slate-200">
           Live saga canvas
-          <span className="ml-2 hidden font-normal text-slate-400 sm:inline">the real topology, under production names</span>
+          {activeHop != null && playingHop >= 0 ? (
+            <span className={`ml-3 font-semibold ${failed && activeHop.id === 'payment-failed' ? 'text-red-400' : 'text-emerald-400'}`}>
+              ⚡ {activeHop.event} in flight
+            </span>
+          ) : (
+            <span className="ml-2 hidden font-normal text-slate-400 sm:inline">the real topology, under production names</span>
+          )}
         </p>
         {!reducedMotion && (
           <div className="flex items-center gap-2">
@@ -154,10 +160,10 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
       {/* min-width + sideways scroll: the diagram never shrinks below legibility on a
           narrow window — wide content scrolls in its own container. */}
       <div className="overflow-x-auto">
-        <svg viewBox="0 0 1000 780" role="img" aria-label="Event flow between services" className="w-full min-w-[760px]">
+        <svg viewBox="0 0 1000 560" role="img" aria-label="Event flow between services" className="w-full min-w-[760px]">
           {/* RabbitMQ band behind the exchange column */}
-          <rect x="640" y="120" width="240" height="550" rx="12" fill="#1e293b" opacity="0.5" />
-          <text x="760" y="105" textAnchor="middle" fill="#64748b" fontSize="16" fontWeight="600">RabbitMQ</text>
+          <rect x="640" y="85" width="240" height="385" rx="12" fill="#1e293b" opacity="0.5" />
+          <text x="760" y="72" textAnchor="middle" fill="#64748b" fontSize="16" fontWeight="600">RabbitMQ</text>
 
           {CANVAS_EDGES.map((edge) => {
             const state = edges[edge.id] ?? 'idle'
@@ -180,10 +186,10 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
               const engaged = Object.entries(edges).some(([id, s]) => s !== 'idle' && id.includes(node.id))
               return (
                 <g key={node.id} transform={`translate(${String(node.x)} ${String(node.y)})`}>
-                  <path d="M 0 -40 L 40 0 L 0 40 L -40 0 Z" fill={engaged ? '#f59e0b' : '#475569'} opacity={engaged ? 0.9 : 0.6} />
+                  <path d="M 0 -38 L 38 0 L 0 38 L -38 0 Z" fill={engaged ? '#f59e0b' : '#475569'} opacity={engaged ? 0.9 : 0.6} />
                   <text y="6" textAnchor="middle" fill="#0f172a" fontSize="15" fontWeight="700">⤨</text>
-                  <text y="64" textAnchor="middle" fill="#cbd5e1" fontSize="17" fontFamily="ui-monospace, monospace">{node.label}</text>
-                  <text y="82" textAnchor="middle" fill="#64748b" fontSize="13">{node.sublabel}</text>
+                  <text y="58" textAnchor="middle" fill="#cbd5e1" fontSize="17" fontFamily="ui-monospace, monospace">{node.label}</text>
+                  <text y="76" textAnchor="middle" fill="#64748b" fontSize="13">{node.sublabel}</text>
                 </g>
               )
             }
@@ -196,12 +202,6 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
             )
           })}
 
-          {/* The event currently in flight */}
-          {activeHop != null && playingHop >= 0 && (
-            <text x="500" y="762" textAnchor="middle" fill={failed && activeHop.id === 'payment-failed' ? '#f87171' : '#34d399'} fontSize="20" fontWeight="600">
-              ⚡ {activeHop.event} in flight
-            </text>
-          )}
         </svg>
       </div>
 
@@ -220,13 +220,13 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
 
 /** Queue-name label positioned along its fan edge, where the vertical layout has room. */
 const QUEUE_LABEL_POSITIONS: Record<string, { x: number; y: number }> = {
-  'oe-payment': { x: 490, y: 218 },
-  'oe-notify': { x: 902, y: 450 },
-  'pe-shipping': { x: 490, y: 418 },
-  'pe-order': { x: 452, y: 300 },
-  'pe-notify': { x: 878, y: 585 },
-  'se-order': { x: 120, y: 400 },
-  'se-notify': { x: 560, y: 720 },
+  'oe-payment': { x: 492, y: 148 },
+  'oe-notify': { x: 905, y: 320 },
+  'pe-shipping': { x: 492, y: 283 },
+  'pe-order': { x: 470, y: 190 },
+  'pe-notify': { x: 880, y: 430 },
+  'se-order': { x: 108, y: 300 },
+  'se-notify': { x: 660, y: 508 },
 }
 
 function QueueLabel({ edge, queue }: Readonly<{ edge: string; queue: string }>) {
