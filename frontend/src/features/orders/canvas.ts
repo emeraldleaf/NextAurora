@@ -57,18 +57,18 @@ export const CANVAS_NODES: readonly CanvasNode[] = [
 
 export const CANVAS_EDGES: readonly CanvasEdge[] = [
   // h0 — OrderPlaced
-  { id: 'order-oe', d: 'M 153 130 L 245 130', role: 'publish' },
-  { id: 'oe-payment', d: 'M 305 130 L 397 130', role: 'fan', queue: 'payment-orders' },
-  { id: 'oe-notify', d: 'M 275 160 Q 275 330 482 360', role: 'fan', queue: 'notify-orders' },
+  { id: 'order-oe', d: 'M 163 130 L 241 130', role: 'publish' },
+  { id: 'oe-payment', d: 'M 309 130 L 387 130', role: 'fan', queue: 'payment-orders' },
+  { id: 'oe-notify', d: 'M 275 164 Q 275 330 470 360', role: 'fan', queue: 'notify-orders' },
   // h1 — PaymentCompleted (and the PaymentFailed variant reuses pe-order/pe-notify)
-  { id: 'payment-pe', d: 'M 513 130 L 605 130', role: 'publish' },
-  { id: 'pe-shipping', d: 'M 665 130 L 757 130', role: 'fan', queue: 'shipping-payments' },
-  { id: 'pe-order', d: 'M 635 100 Q 635 36 375 36 Q 115 36 115 102', role: 'fan', queue: 'order-payments' },
-  { id: 'pe-notify', d: 'M 635 160 Q 635 330 598 360', role: 'fan', queue: 'notify-payments' },
+  { id: 'payment-pe', d: 'M 523 130 L 601 130', role: 'publish' },
+  { id: 'pe-shipping', d: 'M 669 130 L 747 130', role: 'fan', queue: 'shipping-payments' },
+  { id: 'pe-order', d: 'M 635 96 Q 635 30 375 30 Q 115 30 115 98', role: 'fan', queue: 'order-payments' },
+  { id: 'pe-notify', d: 'M 635 164 Q 635 320 608 352', role: 'fan', queue: 'notify-payments' },
   // h2 — ShipmentDispatched
-  { id: 'shipping-se', d: 'M 873 130 L 965 130', role: 'publish' },
-  { id: 'se-order', d: 'M 995 100 Q 995 10 535 10 Q 75 10 75 102', role: 'fan', queue: 'order-shipping' },
-  { id: 'se-notify', d: 'M 995 160 Q 995 340 598 368', role: 'fan', queue: 'notify-shipping' },
+  { id: 'shipping-se', d: 'M 883 130 L 961 130', role: 'publish' },
+  { id: 'se-order', d: 'M 995 96 Q 995 6 535 6 Q 75 6 75 98', role: 'fan', queue: 'order-shipping' },
+  { id: 'se-notify', d: 'M 995 164 Q 995 340 608 368', role: 'fan', queue: 'notify-shipping' },
 ]
 
 const PLACED_HOP: Hop = {
@@ -136,4 +136,4 @@ export function deriveHopPlan(status: OrderStatus): readonly Hop[] {
 }
 
 /** ms per hop when replaying — slow enough to read every label, per live-demo feedback. */
-export const HOP_DURATION_MS = 3400
+export const HOP_DURATION_MS = 5000

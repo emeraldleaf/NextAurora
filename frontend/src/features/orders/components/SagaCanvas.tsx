@@ -90,7 +90,7 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
     // container width, and at 672px the labels were unreadably small (live-demo feedback).
     <section
       aria-label="Live saga canvas"
-      className="overflow-hidden rounded-lg border border-slate-700 bg-slate-900 lg:relative lg:left-1/2 lg:w-[min(1080px,calc(100vw-3rem))] lg:-translate-x-1/2"
+      className="relative left-1/2 w-[min(1080px,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-lg border border-slate-700 bg-slate-900"
     >
       <style>{`
         @keyframes saga-draw { to { stroke-dashoffset: 0; } }
@@ -124,10 +124,13 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
         )}
       </div>
 
-      <svg viewBox="0 0 1080 440" role="img" aria-label="Event flow between services" className="w-full">
+      {/* min-width + sideways scroll: the diagram never shrinks below legibility on a
+          narrow window — wide content scrolls in its own container. */}
+      <div className="overflow-x-auto">
+      <svg viewBox="0 0 1080 440" role="img" aria-label="Event flow between services" className="w-full min-w-[880px]">
         {/* RabbitMQ band behind the exchange diamonds */}
-        <rect x="238" y="92" width="792" height="76" rx="10" fill="#1e293b" opacity="0.5" />
-        <text x="240" y="84" fill="#64748b" fontSize="12.5">RabbitMQ — one fanout exchange per event family, one durable queue per consumer</text>
+        <rect x="236" y="88" width="796" height="84" rx="10" fill="#1e293b" opacity="0.5" />
+        <text x="238" y="78" fill="#64748b" fontSize="14">RabbitMQ — one fanout exchange per event family, one durable queue per consumer</text>
 
         {CANVAS_EDGES.map((edge) => {
           const state = edges[edge.id] ?? 'idle'
@@ -152,28 +155,29 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
             const engaged = Object.entries(edges).some(([id, s]) => s !== 'idle' && id.includes(node.id))
             return (
               <g key={node.id} transform={`translate(${String(node.x)} ${String(node.y)})`}>
-                <path d="M 0 -30 L 30 0 L 0 30 L -30 0 Z" fill={engaged ? '#f59e0b' : '#475569'} opacity={engaged ? 0.9 : 0.6} />
-                <text y="5" textAnchor="middle" fill="#0f172a" fontSize="11" fontWeight="700">⤨</text>
-                <text y="50" textAnchor="middle" fill="#94a3b8" fontSize="13" fontFamily="ui-monospace, monospace">{node.label}</text>
+                <path d="M 0 -34 L 34 0 L 0 34 L -34 0 Z" fill={engaged ? '#f59e0b' : '#475569'} opacity={engaged ? 0.9 : 0.6} />
+                <text y="5" textAnchor="middle" fill="#0f172a" fontSize="12" fontWeight="700">⤨</text>
+                <text y="56" textAnchor="middle" fill="#94a3b8" fontSize="15" fontFamily="ui-monospace, monospace">{node.label}</text>
               </g>
             )
           }
           return (
             <g key={node.id} transform={`translate(${String(node.x)} ${String(node.y)})`} className={isPlayingConsumer ? 'saga-node-active' : undefined}>
-              <rect x="-58" y="-28" width="116" height="56" rx="9" fill={active ? '#0f766e' : '#1e293b'} stroke={active ? '#2dd4bf' : '#475569'} strokeWidth="1.5" />
-              <text y="-3" textAnchor="middle" fill="#e2e8f0" fontSize="13.5" fontWeight="600">{node.label}</text>
-              <text y="16" textAnchor="middle" fill="#94a3b8" fontSize="11">{node.sublabel}</text>
+              <rect x="-68" y="-32" width="136" height="64" rx="10" fill={active ? '#0f766e' : '#1e293b'} stroke={active ? '#2dd4bf' : '#475569'} strokeWidth="1.5" />
+              <text y="-4" textAnchor="middle" fill="#e2e8f0" fontSize="16" fontWeight="600">{node.label}</text>
+              <text y="18" textAnchor="middle" fill="#94a3b8" fontSize="12">{node.sublabel}</text>
             </g>
           )
         })}
 
         {/* The event currently in flight, shown at the publishing edge's exchange */}
         {activeHop != null && playingHop >= 0 && (
-          <text x="540" y="428" textAnchor="middle" fill={failed && activeHop.id === 'payment-failed' ? '#f87171' : '#34d399'} fontSize="16" fontWeight="600">
+          <text x="540" y="428" textAnchor="middle" fill={failed && activeHop.id === 'payment-failed' ? '#f87171' : '#34d399'} fontSize="19" fontWeight="600">
             ⚡ {activeHop.event} in flight
           </text>
         )}
       </svg>
+      </div>
 
       <div className="border-t border-slate-700/60 px-4 py-3">
         <p className="text-sm leading-relaxed text-slate-300" aria-live="polite">
@@ -190,20 +194,20 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
 
 /** Queue-name label positioned near the consuming end of a fan edge. */
 const QUEUE_LABEL_POSITIONS: Record<string, { x: number; y: number }> = {
-  'oe-payment': { x: 351, y: 116 },
-  'oe-notify': { x: 348, y: 302 },
-  'pe-shipping': { x: 711, y: 116 },
-  'pe-order': { x: 375, y: 52 },
-  'pe-notify': { x: 648, y: 302 },
-  'se-order': { x: 535, y: 26 },
-  'se-notify': { x: 872, y: 302 },
+  'oe-payment': { x: 348, y: 114 },
+  'oe-notify': { x: 344, y: 300 },
+  'pe-shipping': { x: 708, y: 114 },
+  'pe-order': { x: 375, y: 48 },
+  'pe-notify': { x: 655, y: 300 },
+  'se-order': { x: 535, y: 24 },
+  'se-notify': { x: 875, y: 305 },
 }
 
 function QueueLabel({ edge, queue }: Readonly<{ edge: string; queue: string }>) {
   const pos = QUEUE_LABEL_POSITIONS[edge]
   if (pos == null) return null
   return (
-    <text x={pos.x} y={pos.y} textAnchor="middle" fill="#7dd3fc" fontSize="12" fontFamily="ui-monospace, monospace">
+    <text x={pos.x} y={pos.y} textAnchor="middle" fill="#7dd3fc" fontSize="14" fontFamily="ui-monospace, monospace">
       {queue}
     </text>
   )
