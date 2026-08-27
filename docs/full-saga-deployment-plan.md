@@ -253,13 +253,13 @@ container tuning only; zero code changes.**
 |---|---|---|---|
 | SQL Server (orders-db, payments-db) | ~1.0–1.3GB | ~2–3GB | `MSSQL_PID=Express` + `MSSQL_MEMORY_LIMIT_MB=1024`; `SIMPLE` recovery on both DBs |
 | Keycloak | ~500–600MB | ~0.8GB | `JAVA_OPTS_APPEND=-Xmx512m`, `KC_CACHE=local`, state in the shared Postgres |
-| 5 .NET services | ~750MB | ~1.5GB | 256MB memory limit each |
+| 5 .NET services | **~500MB measured** (est. ~750MB) | ~1.5GB | Workstation GC (`DOTNET_gcServer=0`) — Server GC pinned Payment at a 300MB cap on the first deploy; caps now 448–512MB each, sized from `docker stats` (see performance doc "Container memory") |
 | Postgres — **one instance**, 3 DBs (catalog, shipping, keycloak) | ~200MB | <1GB | `shared_buffers=128MB` |
 | RabbitMQ | ~150MB | ~0.3GB | `vm_memory_high_watermark.relative=0.1` |
 | Redis | ~50MB | ~0.1GB | `maxmemory 64mb` |
-| Dokploy + Traefik | ~200MB | ~1.5GB | — |
+| ~~Dokploy + Traefik~~ | — | — | **Dropped** (revision 2026-08-27): compose + the box's existing Caddy |
 | ~~Seq~~ | — | — | **Dropped.** Dokploy's container log view covers the demo; OTLP export stays a local-dev (Aspire dashboard) thing. Revisit only if Phase 3 has runway. |
-| **Total** | **~3–3.5GB** | **~15–20GB** | vs. ~5.5GB / ~35GB in the original sizing |
+| **Total** | **~2.3GB measured** (est. ~3–3.5GB) | **~15–20GB** | vs. ~5.5GB / ~35GB in the original sizing; infra tier ≈1.1GB + services ≈1.2GB incl. Order's ~250MB |
 
 **Disk budget detail:** OS + Docker ~5–6GB, images ~7GB, DB data + volumes
 ~2–4GB, headroom ~5GB. The two things that grow unbounded and must be capped

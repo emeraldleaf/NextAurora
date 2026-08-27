@@ -246,6 +246,41 @@ NextAurora has no such hot path today — its string work is incidental (log tem
 
 ---
 
+### Container memory: workstation GC, and caps from measurement
+
+**Rule:** every containerized .NET service sets `DOTNET_gcServer=0` (workstation GC) and
+`DOTNET_GCConserveMemory=5`, and its `mem_limit` is at least 1.5× the steady-state RSS
+*measured* with `docker stats` after a real workload — never a round number picked up front.
+See CLAUDE.md.
+
+**Why.** The .NET runtime selects *Server* GC automatically when it sees more than one
+logical core — and inside a container it sees the host's cores unless `--cpus` says
+otherwise. Server GC allocates one heap per core and grows each toward the cgroup memory
+limit (the runtime reads the limit and treats ~75% of it as its budget), so a service under a
+tight cap doesn't "use less"; it fills the cap and lives there, with the GC working harder the
+closer it gets. The symptom is a container pinned at 99% of its limit with no leak, and — on
+a box with real memory pressure — the runtime being restarted.
+
+**Measured, first VPS deploy (2026-08-27, shared 4-vCPU box):** with Server GC and 300 MiB caps,
+PaymentService sat at **299.8 / 300 MiB** and OrderService restarted under pressure; the
+storefront rendered "Order not found" for the seconds it was down. Switching to workstation GC
+(no code change — one env var) took Payment to **85 MiB**, Catalog to 67 MiB, Shipping to 76
+MiB; Order settles around 250 MiB (it holds the gRPC client, Wolverine's durable inbox/outbox
+agents, and the SQL Server connection pool). Caps are now 448–512 MiB per service. The whole
+five-service tier costs ~1.9 GB, not the ~3 GB the plan had budgeted.
+
+**When Server GC *is* right:** a dedicated multi-core host where throughput matters more than
+footprint (the classic high-RPS API box). It is the default for a reason; it is just the wrong
+default for a memory-constrained shared host, and it's silent — nothing warns you that the
+runtime picked it.
+
+**Related observation from the same night — the inbox doing its job.** OrderService logged a
+`DuplicateIncomingEnvelopeException` for a redelivered `ShipmentDispatchedEvent` on the
+`order-shipping` queue. That is not an error to fix: RabbitMQ redelivered (at-least-once) and
+Wolverine's durable inbox (#169) rejected the duplicate before the handler ran — the mechanism
+behind "exactly-once *processing*" in CLAUDE.md, observed in production on day one. Wolverine
+logs it at `fail` level; read it as a counter of absorbed duplicates, not a fault.
+
 ## Decision: optimistic concurrency tokens
 
 ### Problem
