@@ -89,7 +89,11 @@ var app = builder.Build();
 
 app.MapDefaultEndpoints();
 
-if (!app.Environment.IsDevelopment())
+var isDemoMode = app.Configuration.GetValue<bool>("DemoMode");
+
+// Skip HTTPS redirection in DemoMode — TLS terminates at the edge proxy (Caddy), which
+// forwards plain HTTP; redirection here would loop (and logs a failed-port warning).
+if (!app.Environment.IsDevelopment() && !isDemoMode)
 {
     app.UseHttpsRedirection();
 }
@@ -98,12 +102,14 @@ if (!app.Environment.IsDevelopment())
 // demo runs as Production behind Caddy with DemoMode=true; gating on Development alone
 // left the EF tables missing on first deploy while Wolverine's own store migrated fine
 // ("Invalid object name 'Orders'" on the first live POST /orders — 2026-08-27).
-if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("DemoMode"))
+if (app.Environment.IsDevelopment() || isDemoMode)
 {
     await app.Services.MigrateDatabaseAsync<OrderDbContext>();
 }
 
-if (app.Environment.IsDevelopment())
+// API docs ship in DemoMode too (mirrors CatalogService) — the deployed demo's Scalar
+// explorer at /scalar/v1 is part of the demo surface.
+if (app.Environment.IsDevelopment() || isDemoMode)
 {
     app.MapOpenApi();
     app.MapOpenApi("/openapi/{documentName}.yaml");
