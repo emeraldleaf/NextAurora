@@ -4,11 +4,30 @@
 [![CodeQL](https://github.com/emeraldleaf/NextAurora/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/emeraldleaf/NextAurora/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/emeraldleaf/NextAurora/branch/main/graph/badge.svg)](https://codecov.io/gh/emeraldleaf/NextAurora)
 
-A microservices-based e-commerce platform built with .NET 10, Blazor, and .NET Aspire.
+A microservices-based e-commerce platform built with .NET 10, React, and .NET Aspire.
 
 NextAurora demonstrates a production-style distributed system with event-driven architecture, CQRS, domain-driven design, and gRPC for inter-service communication.
 
-> **Live demo:** [catalog-api-demo.fly.dev/scalar/v1](https://catalog-api-demo.fly.dev/scalar/v1) — CatalogService deployed to Fly.io with an interactive Scalar API explorer. Try `GET /api/v1/products` for the 7 seeded products. Auto-stops when idle, so the first request after a quiet period takes ~10s to wake the machine. *Scope: Catalog only — the full Order → Payment → Shipping → Notification saga runs locally via Aspire (see [Getting Started](#getting-started)).*
+## 🛒 Try the live demo — [shop.emeraldleaf.dev](https://shop.emeraldleaf.dev)
+
+Log in as **`buyer1` / `buyer1`** and run the three acts (~2 minutes):
+
+1. **Place an order.** Add a product to the cart and check out. `POST /orders` returns **202
+   Accepted** — placement is asynchronous; the order row is the tracking record.
+2. **Watch the saga run.** The order page draws the **live saga canvas** — the real RabbitMQ
+   topology (three fanout exchanges, seven consumer queues, production names) with your
+   order's events replayed hop by hop: transactional outbox commit → fanout → idempotent
+   consumers. Placed → Paid → Shipped in seconds, each hop captioned with the pattern it
+   demonstrates.
+3. **Kill PaymentService.** The *Failure injection* panel stops the real payment consumer.
+   Place another order: it holds at *Placed* while `OrderPlacedEvent` sits in the durable
+   `payment-orders` queue — then revive (or wait: it self-revives in 60 s) and watch the saga
+   drain through. **No message lost.** Exactly-once delivery is impossible; this system
+   demonstrates exactly-once *processing* live.
+
+The APIs are public too — see [Try the API](#try-the-live-api) for tokens, `curl`, and the
+interactive Scalar explorers. Prefer a guided source walk? **[docs/TOUR.md](docs/TOUR.md)**
+follows one order through the codebase, stop by stop.
 
 > **About this repo:**
 > - **Monorepo, single architectural shape.** All five services use **Vertical Slice Architecture** — single Web SDK project, `Features/<UseCase>.cs` co-locating command/query + validator + handler, aggregates in `Domain/`. CatalogService originally used Clean Architecture (4 projects); it was collapsed to VSA in the [simplicity refactor](docs/STATUS.md) once the layer split stopped earning its keep at this scale. Handlers take `DbContext` directly — no `IFooRepository` wrappers — and integration tests with Testcontainers replace mocked-repository unit tests. See [CLAUDE.md "Project Structure"](CLAUDE.md#project-structure) for the promotion signal (5+ aggregates with cross-cutting rules → consider Clean). The original shape is preserved at the **[`v1-repository-pattern`](https://github.com/emeraldleaf/NextAurora/releases/tag/v1-repository-pattern)** tag — `git checkout v1-repository-pattern` browses a textbook EF Repository pattern across all 5 services for comparison.
@@ -24,7 +43,7 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 
 *Full system in one view — services, RabbitMQ messaging topology, databases, and the 10-step order-placement saga. Click to view full-size.*
 
-**Drill down into specific subsystems:** [service request lifecycle](#service-request-lifecycle) · [HybridCache flow](#hybridcache-flow) · [transactional outbox](#transactional-outbox) · [EF Core read and write](#ef-core-read-and-write) · [EF Core migrations](#ef-core-migrations) — all six diagrams in the [Reference diagrams](#reference-diagrams) section below.
+**Guided source walk:** [docs/TOUR.md](docs/TOUR.md) — one order, end to end, with the diagrams. **Drill down into specific subsystems:** [service request lifecycle](#service-request-lifecycle) · [HybridCache flow](#hybridcache-flow) · [transactional outbox](#transactional-outbox) · [EF Core read and write](#ef-core-read-and-write) · [EF Core migrations](#ef-core-migrations) — all six diagrams in the [Reference diagrams](#reference-diagrams) section below.
 
 ## Architecture Overview
 
@@ -33,7 +52,7 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 |                   FRONTEND LAYER                     |
 |                                                      |
 |   Storefront            SellerPortal                 |
-|   (Blazor WASM)         (scaffold)              |
+|   (React SPA, Vite)     (scaffold)                   |
 +-------+--------------------+-------------------------+
         |  REST              |  REST
         v                    v
@@ -88,14 +107,14 @@ Orchestrated by .NET Aspire (service discovery, health checks, OpenTelemetry)
 | **PaymentService** | SQL Server | Payment processing (Stripe integration) |
 | **ShippingService** | PostgreSQL | Shipment creation, tracking |
 | **NotificationService** | Stateless | Email notifications (order confirmations, shipping updates) |
-| **Storefront** | - | Customer-facing Blazor WASM SPA (scaffold) |
+| **Storefront** | - | Customer-facing React SPA (Vite + TanStack Query/Router) — live at [shop.emeraldleaf.dev](https://shop.emeraldleaf.dev) |
 | **SellerPortal** | - | Merchant dashboard (scaffold — currently a static-file ASP.NET Core host, no UI framework chosen) |
 
 ## Tech Stack
 
 - **.NET 10** / C# 13
 - **ASP.NET Core** Minimal APIs
-- **Blazor WebAssembly** (Storefront, scaffolded — no business logic yet)
+- **React 19 + Vite + TypeScript** (Storefront SPA — TanStack Query/Router, Tailwind v4, oidc-client-ts → Keycloak PKCE; canon in [frontend/CLAUDE.md](frontend/CLAUDE.md))
 - **ASP.NET Core static-file host** (SellerPortal scaffold — no UI framework chosen yet, currently serves a placeholder `index.html`)
 - **Entity Framework Core 10** (PostgreSQL + SQL Server) with EF migrations
 - **RabbitMQ** for async event-driven messaging (fanout exchanges + queue per consumer, via Wolverine's `WolverineFx.RabbitMQ` transport)
@@ -161,6 +180,37 @@ This starts all services, databases (PostgreSQL, SQL Server), Redis, and RabbitM
    - Run `GET /api/v1/products` — you should see 7 seeded products
    - For the full saga walk (auth → place order → payment → ship → notify): see [scripts/smoke-test.sh](scripts/smoke-test.sh)
 
+## Try the live API
+
+Everything below works against the deployed demo. Interactive **Scalar explorers** (OpenAPI):
+[catalog-api](https://catalog-api.emeraldleaf.dev/scalar/v1) ·
+[order-api](https://order-api.emeraldleaf.dev/scalar/v1) ·
+[payment-api](https://payment-api.emeraldleaf.dev/scalar/v1)
+
+```bash
+# 1. Get a token (public demo credentials; Keycloak authorization-code+PKCE is what the SPA
+#    uses — password grant here is for curl convenience)
+TOKEN=$(curl -s -X POST "https://auth.emeraldleaf.dev/realms/nextaurora/protocol/openid-connect/token" \
+  -d client_id=storefront -d username=buyer1 -d password=buyer1 -d grant_type=password \
+  | python3 -c "import json,sys;print(json.load(sys.stdin)['access_token'])")
+
+# 2. Browse the catalog (public)
+curl -s https://catalog-api.emeraldleaf.dev/api/v1/products | python3 -m json.tool | head
+
+# 3. Read your orders (JWT-scoped: you only ever see your own — try another id and get a 404)
+SUB=$(python3 -c "import base64,json;p='$TOKEN'.split('.')[1];print(json.loads(base64.urlsafe_b64decode(p+'='*(-len(p)%4)))['sub'])")
+curl -s -H "Authorization: Bearer $TOKEN" "https://order-api.emeraldleaf.dev/api/v1/orders/buyer/$SUB" | python3 -m json.tool | head -30
+
+# 4. Poll the kill switch's state
+curl -s -H "Authorization: Bearer $TOKEN" https://payment-api.emeraldleaf.dev/api/v1/demo/listener
+```
+
+**Why `POST /orders` from curl returns 403:** order placement and the kill-switch controls
+are Turnstile-protected — the browser widget produces a single-use `X-Turnstile-Token` that
+curl can't mint. That's deliberate (the demo credentials are public, so JWT alone is not a
+bot gate); place orders through [the storefront](https://shop.emeraldleaf.dev). Every *read*
+endpoint works from curl.
+
 ## API Endpoints
 
 🔒 = requires JWT Bearer authentication. Pagination params apply to list endpoints (`?page=1&pageSize=50`, server cap 100).
@@ -222,7 +272,7 @@ NextAurora/
     Features/                     # SendNotification.cs (record + port + handler), NotificationEventHandlers.cs
     Infrastructure/               # ConsoleNotificationSender, DI
     Program.cs
-  Storefront/                 # Blazor WASM customer app (scaffold)
+  frontend/                   # React SPA storefront (Vite; see frontend/CLAUDE.md)
   SellerPortal/               # ASP.NET Core static-file host scaffold (UI framework TBD)
 ```
 
@@ -390,7 +440,9 @@ This is documented as a hard rule in [CLAUDE.md "Communication Patterns → Wolv
 | [Observability](docs/observability.md) | Correlation/user/session ID propagation, distributed tracing, Wolverine handler logging, DLQ handling, metrics |
 | [Event Replay](docs/event-replay.md) | Wolverine outbox state, where to inspect outgoing/dead-letter envelopes, `IMessageStore` API |
 | [Business Requirements](docs/BRD.md) | Functional requirements, implementation status, business processes, glossary |
-| [Demo Deployment (recipe)](docs/demo-deployment.md) | One-time setup checklist for deploying CatalogService to Fly.io or AWS App Runner with Scalar exposed |
+| [Full-saga deployment plan](docs/full-saga-deployment-plan.md) | How the live demo is deployed (compose + Caddy on a shared VPS, pull-based deploys) — decisions D1–D4 with revision history |
+| [Guided tour](docs/TOUR.md) | One order followed through the codebase — outbox, fanout, idempotent consumers, IDOR-scoped reads, kill switch |
+| [Demo Deployment (recipe)](docs/demo-deployment.md) | *(superseded by the VPS deploy)* One-time checklist for the earlier Fly.io Catalog-only demo |
 | [Demo Deployment (story)](docs/demo-deployment-story.md) | Narrative of what we actually did to deploy live at https://catalog-api-demo.fly.dev — decisions, gotchas, EF migration trade-offs |
 | [Project Status](docs/STATUS.md) | Cross-session entry point — recently landed, next, open issues |
 
