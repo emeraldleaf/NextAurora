@@ -46,6 +46,9 @@ services:
     image: ghcr.io/emeraldleaf/nextaurora-order:latest
     environment:
       <<: *common-env
+      # Bot gate (fail-closed): public demo creds make JWT a non-gate for scripts.
+      Turnstile__Enabled: "true"
+      Turnstile__SecretKey: ${TURNSTILE_SECRET}
       ConnectionStrings__orders-db: Server=mssql,1433;Database=orders;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
       # Aspire service-discovery key the gRPC client reads (OrderService DependencyInjection).
       services__catalog-service__http__0: http://catalog:8081
@@ -56,6 +59,9 @@ services:
     image: ghcr.io/emeraldleaf/nextaurora-payment:latest
     environment:
       <<: *common-env
+      # Bot gate (fail-closed): public demo creds make JWT a non-gate for scripts.
+      Turnstile__Enabled: "true"
+      Turnstile__SecretKey: ${TURNSTILE_SECRET}
       ConnectionStrings__payments-db: Server=mssql,1433;Database=payments;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
     mem_limit: 512m
 

@@ -73,4 +73,5 @@ jobs:
             VITE_ORDER_API_URL=https://order-api.emeraldleaf.dev
             VITE_PAYMENT_API_URL=https://payment-api.emeraldleaf.dev
             VITE_KEYCLOAK_URL=https://auth.emeraldleaf.dev
+            VITE_TURNSTILE_SITE_KEY=0x4AAAAAAEdYD-Sg868Yp0hr
 

@@ -12,6 +12,7 @@ using Wolverine.RabbitMQ;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
 using Wolverine.SqlServer;
+using NextAurora.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,6 +82,8 @@ builder.Services.AddOrderInfrastructure(builder.Configuration);
 builder.Services.AddResourceSetupOnStartup();
 
 builder.Services.AddOpenApi();
+
+builder.Services.AddTurnstileVerification(builder.Configuration);
 
 var app = builder.Build();
 

@@ -1,5 +1,6 @@
 using NextAurora.Contracts.Messaging;
 using Wolverine.Runtime;
+using NextAurora.ServiceDefaults;
 
 namespace PaymentService.Endpoints;
 
@@ -49,7 +50,7 @@ public static class DemoEndpoints
             // Wolverine's own mechanism, not a timer we could forget to fire.
             await agent.PauseAsync(AutoReviveAfter);
             return Results.Ok(CurrentStatus(runtime));
-        }).RequireRateLimiting("payments").RequireAuthorization();
+        }).RequireRateLimiting("payments").RequireAuthorization().RequireTurnstile();
 
         group.MapPost("/listener/resume", async (IWolverineRuntime runtime) =>
         {
@@ -59,7 +60,7 @@ public static class DemoEndpoints
 
             await agent.StartAsync();
             return Results.Ok(CurrentStatus(runtime));
-        }).RequireRateLimiting("payments").RequireAuthorization();
+        }).RequireRateLimiting("payments").RequireAuthorization().RequireTurnstile();
     }
 
     private static DemoListenerStatus CurrentStatus(IWolverineRuntime runtime)
