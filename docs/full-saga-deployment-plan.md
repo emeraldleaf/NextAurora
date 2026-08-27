@@ -47,9 +47,11 @@ instead of re-deriving the plan.
 > at 1.3 GB, Keycloak 26 with realm import + `KC_HOSTNAME=https://auth.emeraldleaf.dev`,
 > RabbitMQ 4, Redis; Caddy imports `/root/nextaurora/caddy/*.caddy`). Hostnames:
 > `shop` / `auth` / `catalog-api` / `order-api` / `payment-api` `.emeraldleaf.dev`.
-> **Next (Turnstile):** the public demo credentials make JWT auth a non-gate against bots, so
-> Cloudflare Turnstile (as riparian uses) goes on `POST /orders` and the kill switch — server-
-> verified, fail-closed behind an explicit `Turnstile:Enabled`, off in dev/tests.
+> **Turnstile (landed 2026-08-27):** the public demo credentials make JWT auth a non-gate against
+> bots, so Cloudflare Turnstile guards `POST /orders` and the kill switch — invisible widget on
+> `shop.emeraldleaf.dev`, `X-Turnstile-Token` header, server-side `siteverify` in ServiceDefaults
+> (`RequireTurnstile()`), fail-closed behind an explicit `Turnstile:Enabled` (off in dev/tests;
+> secret lives only in the box's `.env` as `TURNSTILE_SECRET`).
 
 
 NextAurora is **already designed as a pile of containers orchestrated by

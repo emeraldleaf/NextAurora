@@ -10,4 +10,7 @@ export const env = {
   keycloakUrl: (import.meta.env.VITE_KEYCLOAK_URL as string | undefined) ?? 'http://localhost:8080',
   keycloakRealm: (import.meta.env.VITE_KEYCLOAK_REALM as string | undefined) ?? 'nextaurora',
   keycloakClientId: (import.meta.env.VITE_KEYCLOAK_CLIENT_ID as string | undefined) ?? 'storefront',
+  // Optional: unset (local dev) disables the Turnstile widget entirely — the backend's
+  // Turnstile:Enabled is off in dev too, so the pair degrades together.
+  turnstileSiteKey: import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined,
 }

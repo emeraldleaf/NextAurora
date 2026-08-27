@@ -1,5 +1,6 @@
 import { env } from '@/core/env'
 import { postJsonAuthed } from '@/shared/api/http'
+import { TurnstileHeader, getTurnstileToken } from '@/shared/turnstile'
 
 import type { CartLine } from '../cart-store'
 
@@ -33,7 +34,18 @@ export async function placeOrder(
     })),
   }
 
+  // Bot gate first: the deployed backend fails closed without this header (demo creds are
+  // public, so JWT alone is no gate against scripts). Null (dev, no site key) = no header.
+  const turnstileToken = await getTurnstileToken()
+
   // 202 Accepted — the order row IS the tracking record; the saga proceeds async on the bus.
-  const { data, correlationId } = await postJsonAuthed<PlacedOrder>(env.orderApiUrl, '/api/v1/orders', command, accessToken)
+  const { data, correlationId } = await postJsonAuthed<PlacedOrder>(
+    env.orderApiUrl,
+    '/api/v1/orders',
+    command,
+    accessToken,
+    undefined,
+    turnstileToken == null ? undefined : { [TurnstileHeader]: turnstileToken },
+  )
   return { orderId: data.id, correlationId }
 }

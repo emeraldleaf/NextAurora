@@ -6,6 +6,7 @@ import { queryOptions } from '@tanstack/react-query'
 import { userManager } from '@/core/auth'
 import { env } from '@/core/env'
 import { ApiError, getJsonAuthed, postJsonAuthed } from '@/shared/api/http'
+import { TurnstileHeader, getTurnstileToken } from '@/shared/turnstile'
 
 export interface ListenerStatus {
   /** Wolverine ListeningStatus name ('Accepting' when healthy) or 'Unavailable'. */
@@ -39,12 +40,17 @@ export function listenerStatusQuery() {
   })
 }
 
+async function turnstileHeaders(): Promise<Record<string, string> | undefined> {
+  const t = await getTurnstileToken()
+  return t == null ? undefined : { [TurnstileHeader]: t }
+}
+
 export async function pauseListener(): Promise<ListenerStatus> {
-  const { data } = await postJsonAuthed<ListenerStatus>(env.paymentApiUrl, '/api/v1/demo/listener/pause', {}, await token())
+  const { data } = await postJsonAuthed<ListenerStatus>(env.paymentApiUrl, '/api/v1/demo/listener/pause', {}, await token(), undefined, await turnstileHeaders())
   return data
 }
 
 export async function resumeListener(): Promise<ListenerStatus> {
-  const { data } = await postJsonAuthed<ListenerStatus>(env.paymentApiUrl, '/api/v1/demo/listener/resume', {}, await token())
+  const { data } = await postJsonAuthed<ListenerStatus>(env.paymentApiUrl, '/api/v1/demo/listener/resume', {}, await token(), undefined, await turnstileHeaders())
   return data
 }

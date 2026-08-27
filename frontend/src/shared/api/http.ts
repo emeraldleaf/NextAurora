@@ -46,10 +46,17 @@ export function getJsonAuthed<T>(baseUrl: string, path: string, accessToken: str
   return request<T>(baseUrl, path, { signal, headers: authHeader(accessToken) })
 }
 
-export function postJsonAuthed<T>(baseUrl: string, path: string, body: unknown, accessToken: string, signal?: AbortSignal): Promise<ApiResponse<T>> {
+export function postJsonAuthed<T>(
+  baseUrl: string,
+  path: string,
+  body: unknown,
+  accessToken: string,
+  signal?: AbortSignal,
+  extraHeaders?: Record<string, string>,
+): Promise<ApiResponse<T>> {
   return request<T>(baseUrl, path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeader(accessToken) },
+    headers: { 'Content-Type': 'application/json', ...authHeader(accessToken), ...extraHeaders },
     body: JSON.stringify(body),
     signal,
   })

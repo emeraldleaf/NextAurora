@@ -2,6 +2,7 @@ using System.Security.Claims;
 using NextAurora.Contracts.DTOs;
 using OrderService.Features;
 using Wolverine;
+using NextAurora.ServiceDefaults;
 
 namespace OrderService.Endpoints;
 
@@ -63,7 +64,7 @@ public static class OrderEndpoints
 
             var orderId = await bus.InvokeAsync<Guid>(command, ct);
             return Results.Accepted($"/api/v1/orders/{orderId}", new { Id = orderId });
-        });
+        }).RequireTurnstile();
     }
 
     private static (int page, int pageSize) ClampPaging(int page, int pageSize) =>
