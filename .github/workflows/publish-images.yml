@@ -1,7 +1,9 @@
-# Builds and pushes the five service images + the storefront to GHCR, then deploys: an SSH
-# step on the VPS runs `docker compose pull && up -d` (docs/full-saga-deployment-plan.md,
-# Phase 1 — compose + the box's existing Caddy, revised from Dokploy 2026-08-27). The
-# storefront's VITE_* URLs are baked at build time, hence the build-args below.
+# Builds and pushes the five service images + the storefront to GHCR. Deployment is
+# PULL-based: a systemd timer on the VPS (/root/nextaurora/deploy.sh, every 3 min) runs
+# `docker compose pull && up -d` — the box's SSH allowlist does not (and should not) admit
+# GitHub Actions runner IPs, so a push-style SSH deploy job times out. See
+# docs/full-saga-deployment-plan.md Phase 1 (revised 2026-08-27). The storefront's VITE_*
+# URLs are baked at build time, hence the build-args below.
 name: PUBLISH_IMAGES
 
 on:
@@ -72,19 +74,3 @@ jobs:
             VITE_PAYMENT_API_URL=https://payment-api.emeraldleaf.dev
             VITE_KEYCLOAK_URL=https://auth.emeraldleaf.dev
 
-  deploy:
-    needs: publish
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    concurrency: deploy-vps
-    steps:
-      - name: Roll the services tier on the VPS
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes root@204.168.183.115 \
-            'cd /root/nextaurora && docker compose -f docker-compose.services.yml pull -q && docker compose -f docker-compose.services.yml up -d --remove-orphans && docker image prune -f >/dev/null && docker compose -f docker-compose.services.yml ps --format "{{.Name}} {{.Status}}"'

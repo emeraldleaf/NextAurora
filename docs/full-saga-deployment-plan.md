@@ -37,8 +37,9 @@ instead of re-deriving the plan.
 > hardening. Dokploy's installer needs 80/443 and Docker Swarm mode, and its own
 > Postgres/Redis/Traefik cost ~500 MB of the RAM we'd just recovered (Ollama idle-unload,
 > ~2.3 GB). Every job the sections below credit to Dokploy is covered on this box without it:
-> reverse proxy + automatic HTTPS → Caddy (already doing it); webhook deploys → a `deploy` job
-> in `publish-images.yml` that SSHes in and runs `compose pull && up -d`; container templates →
+> reverse proxy + automatic HTTPS → Caddy (already doing it); webhook deploys → **pull-based**: a
+> systemd timer on the box (`/root/nextaurora/deploy.sh`, every 3 min) runs `compose pull && up -d`
+> (a push-style SSH job from Actions times out on the box's SSH allowlist — by design); container templates →
 > `docker-compose.{infra,services}.yml` under `/root/nextaurora/`; log view → `docker compose
 > logs` (Dozzle if a UI is ever wanted). The headline argument — one box, one Docker network,
 > deployed shape ≈ Aspire shape — holds unchanged. Read "Dokploy" below as "the compose stack";
