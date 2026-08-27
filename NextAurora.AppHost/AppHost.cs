@@ -115,7 +115,11 @@ var orderService = WithMessaging(WithOptionalAppInsights(
 WithMessaging(WithOptionalAppInsights(
     builder.AddProject<Projects.PaymentService>("payment-service")
         .WithReference(paymentsDb).WaitFor(paymentsDb), appInsights)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm));
+    .WithReference(realm, configurationPrefix: keycloakConfigPrefix).WaitFor(realm)
+    // Kill-switch demo (#208): browser calls the demo endpoints directly, so Payment needs
+    // the SPA CORS origins; DemoMode gates the endpoints on (local dev = always demo).
+    .WithEnvironment("Frontend__AllowedOrigins", SpaDevOrigin)
+    .WithEnvironment("DemoMode", "true"));
 
 WithMessaging(WithOptionalAppInsights(
     builder.AddProject<Projects.ShippingService>("shipping-service")

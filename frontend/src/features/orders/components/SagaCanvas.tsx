@@ -64,7 +64,7 @@ function edgeColors(plan: ReturnType<typeof deriveHopPlan>): Record<string, stri
   return colors
 }
 
-export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
+export function SagaCanvas({ status, paymentDown = false }: Readonly<{ status: OrderStatus; paymentDown?: boolean }>) {
   const plan = deriveHopPlan(status)
   // How many hops have finished ANIMATING (may lag the real status — that's the point).
   const [animatedHops, setAnimatedHops] = useState(0)
@@ -223,7 +223,8 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
           })}
 
           {CANVAS_NODES.map((node) => {
-            const active = node.kind !== 'exchange' && litNodes.has(node.id)
+            const dead = paymentDown && node.id === 'payment'
+            const active = !dead && node.kind !== 'exchange' && litNodes.has(node.id)
             const isPlayingConsumer = playingHop >= 0 && plan[playingHop]?.consumers.includes(node.id)
             if (node.kind === 'exchange') {
               const engaged = Object.entries(edges).some(([id, s]) => s !== 'idle' && id.includes(node.id))
@@ -240,12 +241,14 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
               <g key={node.id} transform={`translate(${String(node.x)} ${String(node.y)})`} className={isPlayingConsumer ? 'saga-node-active' : undefined}>
                 <rect
                   x="-130" y="-34" width="260" height="68" rx="10"
-                  fill={active ? (SERVICE_FILLS[node.id] ?? '#0f766e') : '#1e293b'}
-                  stroke={active ? (SERVICE_COLORS[node.id] ?? '#2dd4bf') : '#475569'}
+                  fill={dead ? '#450a0a' : active ? (SERVICE_FILLS[node.id] ?? '#0f766e') : '#1e293b'}
+                  stroke={dead ? '#f87171' : active ? (SERVICE_COLORS[node.id] ?? '#2dd4bf') : '#475569'}
                   strokeWidth="2"
                 />
-                <text y="-4" textAnchor="middle" fill={active ? (SERVICE_COLORS[node.id] ?? '#e2e8f0') : '#e2e8f0'} fontSize="19" fontWeight="600">{node.label}</text>
-                <text y="20" textAnchor="middle" fill="#94a3b8" fontSize="13.5">{node.sublabel}</text>
+                <text y="-4" textAnchor="middle" fill={dead ? '#f87171' : active ? (SERVICE_COLORS[node.id] ?? '#e2e8f0') : '#e2e8f0'} fontSize="19" fontWeight="600">
+                  {dead ? '💀 ' : ''}{node.label}
+                </text>
+                <text y="20" textAnchor="middle" fill={dead ? '#f87171' : '#94a3b8'} fontSize="13.5">{dead ? 'consumer stopped' : node.sublabel}</text>
               </g>
             )
           })}
@@ -255,7 +258,9 @@ export function SagaCanvas({ status }: Readonly<{ status: OrderStatus }>) {
 
       <div className="border-t border-slate-700/60 px-4 py-3">
         <p className="text-base leading-relaxed text-slate-200" aria-live="polite">
-          {activeHop?.caption}
+          {paymentDown && status === 'Placed'
+            ? 'PaymentService is down — OrderPlacedEvent is sitting in the durable payment-orders queue. The broker holds it until the consumer acks; nothing is lost. Revive the consumer and watch the saga drain through.'
+            : activeHop?.caption}
         </p>
         <p className="mt-1.5 text-sm text-slate-500">
           Exactly-once delivery is impossible in a distributed system — this achieves exactly-once <em>processing</em>: every failure mode is

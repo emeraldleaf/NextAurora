@@ -113,4 +113,5 @@ if (app.Environment.IsDevelopment())
 
 app.UseRateLimiter();
 app.MapPaymentEndpoints();
+app.MapDemoEndpoints(); // kill switch — mapped only when DemoMode=true (see DemoEndpoints)
 await app.RunAsync();
