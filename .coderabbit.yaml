@@ -585,6 +585,16 @@ reviews:
         (or repo) shows nothing emits/reads it — a documented-but-dead signal is
         worse than none.
 
+        FACT-MOVE DISCIPLINE (CLAUDE.md "Fact-move discipline"). Durable docs must
+        not carry mutable STATE as inline claims — "Status: planning", "not yet
+        deployed", "currently we run X", "today the demo is Y". State belongs in
+        docs/STATUS.md or docs/deployed-demo.md; durable docs point there. Flag
+        temporal/status language in any doc other than those two, unless it is
+        explicitly framed as historical narrative or an unimplemented alternative
+        sketch. When a PR changes what is deployed/live, flag it if
+        docs/deployed-demo.md, STATUS.md, or architecture.md "Deployment" are not
+        in the diff (or the PR body defers them to a named issue).
+
     - path: "**"
       instructions: |
         FILE-MOVE DISCIPLINE (CLAUDE.md "File-move discipline"). When this PR's

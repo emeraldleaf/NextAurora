@@ -41,3 +41,9 @@ messages\.abandoned
 MessagesAbandoned
 NextAuroraMetrics
 NextAurora\.Messaging
+
+[stale-deployment-claims]
+# Fact-move discipline (CLAUDE.md): the full-stack deploy shipped 2026-08-27; these phrases
+# asserted the OLD fact (nothing deployed) and survived it in docs/architecture.md.
+planning, not implemented
+status: planning
