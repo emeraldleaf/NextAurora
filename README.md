@@ -27,7 +27,9 @@ Log in as **`buyer1` / `buyer1`** and run the three acts (~2 minutes):
 
 The APIs are public too — see [Try the API](#try-the-live-api) for tokens, `curl`, and the
 interactive Scalar explorers. Prefer a guided source walk? **[docs/TOUR.md](docs/TOUR.md)**
-follows one order through the codebase, stop by stop.
+follows one order through the codebase, stop by stop. How the deployment itself works — and
+which parts are deliberately demo-grade — is documented in
+**[docs/deployed-demo.md](docs/deployed-demo.md)**.
 
 > **About this repo:**
 > - **Monorepo, single architectural shape.** All five services use **Vertical Slice Architecture** — single Web SDK project, `Features/<UseCase>.cs` co-locating command/query + validator + handler, aggregates in `Domain/`. CatalogService originally used Clean Architecture (4 projects); it was collapsed to VSA in the [simplicity refactor](docs/STATUS.md) once the layer split stopped earning its keep at this scale. Handlers take `DbContext` directly — no `IFooRepository` wrappers — and integration tests with Testcontainers replace mocked-repository unit tests. See [CLAUDE.md "Project Structure"](CLAUDE.md#project-structure) for the promotion signal (5+ aggregates with cross-cutting rules → consider Clean). The original shape is preserved at the **[`v1-repository-pattern`](https://github.com/emeraldleaf/NextAurora/releases/tag/v1-repository-pattern)** tag — `git checkout v1-repository-pattern` browses a textbook EF Repository pattern across all 5 services for comparison.
@@ -440,7 +442,8 @@ This is documented as a hard rule in [CLAUDE.md "Communication Patterns → Wolv
 | [Observability](docs/observability.md) | Correlation/user/session ID propagation, distributed tracing, Wolverine handler logging, DLQ handling, metrics |
 | [Event Replay](docs/event-replay.md) | Wolverine outbox state, where to inspect outgoing/dead-letter envelopes, `IMessageStore` API |
 | [Business Requirements](docs/BRD.md) | Functional requirements, implementation status, business processes, glossary |
-| [Full-saga deployment plan](docs/full-saga-deployment-plan.md) | How the live demo is deployed (compose + Caddy on a shared VPS, pull-based deploys) — decisions D1–D4 with revision history |
+| [The deployed demo — as built](docs/deployed-demo.md) | What's live and how it works: request flow, the pull-based deploy pipeline, what `DemoMode` gates, and the demo-grade-vs-production table |
+| [Full-saga deployment plan](docs/full-saga-deployment-plan.md) | How the live demo came to be deployed (compose + Caddy on a shared VPS) — decisions D1–D4 with revision history |
 | [Guided tour](docs/TOUR.md) | One order followed through the codebase — outbox, fanout, idempotent consumers, IDOR-scoped reads, kill switch |
 | [Demo Deployment (recipe)](docs/demo-deployment.md) | *(superseded by the VPS deploy)* One-time checklist for the earlier Fly.io Catalog-only demo |
 | [Demo Deployment (story)](docs/demo-deployment-story.md) | Narrative of what we actually did to deploy live at https://catalog-api-demo.fly.dev — decisions, gotchas, EF migration trade-offs |

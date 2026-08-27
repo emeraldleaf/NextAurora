@@ -558,7 +558,7 @@ Read paths never load tracked entities (would over-read columns + materialize en
 
 ## Deployment
 
-> **Status: planning, not implemented.** The codebase currently runs on **RabbitMQ** in every environment (local dev, CI, and the active Hetzner deployment plan — see [full-saga-deployment-plan.md](full-saga-deployment-plan.md)). All five services use `WolverineFx.RabbitMQ`; AppHost wires `AddRabbitMQ("messaging")`. **No AWS code is in the repo yet.** This section sketches an *alternative* AWS (SNS + SQS) target; the active plan is Hetzner + RabbitMQ. ASB-era swap examples below are illustrative of Wolverine's transport-agnosticism (the "from" is RabbitMQ today).
+> **Status: deployed (2026-08-27).** The full stack runs publicly at **https://shop.emeraldleaf.dev** — one shared Hetzner box, `docker compose` + Caddy, RabbitMQ as the broker in every environment, pull-based deploys (merge to main = deploy). **As-built documentation: [deployed-demo.md](deployed-demo.md)** (request flow, deploy pipeline, what `DemoMode` gates, and the demo-grade-vs-production honesty table); decision history: [full-saga-deployment-plan.md](full-saga-deployment-plan.md). The remainder of this section sketches an *alternative* AWS (SNS + SQS) target to show the transport's portability — none of it is implemented, and the examples are illustrative of Wolverine's transport-agnosticism (the "from" is RabbitMQ today).
 
 NextAurora is built transport-agnostic via Wolverine — handlers depend on `IMessageBus` and `Envelope`, not on transport-specific types. So the broker choice (RabbitMQ today) does not lock the app in. One possible production target is **Amazon Web Services**, with **SNS + SQS** as the messaging backbone (the active plan, however, is Hetzner + RabbitMQ).
 
