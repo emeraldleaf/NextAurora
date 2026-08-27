@@ -31,6 +31,26 @@ instead of re-deriving the plan.
 
 ## Why Hetzner + Dokploy (the headline decision)
 
+> **Revision 2026-08-27 — Dokploy → `docker compose` + the box's existing Caddy.** Phase 0's
+> go/no-go found the target is a *shared* box (`ubuntu-8gb-hel1-1`, 4 vCPU / 7.6 GB) already
+> running the riparian stack under plain compose, with **Caddy owning 80/443** and fail2ban/ufw
+> hardening. Dokploy's installer needs 80/443 and Docker Swarm mode, and its own
+> Postgres/Redis/Traefik cost ~500 MB of the RAM we'd just recovered (Ollama idle-unload,
+> ~2.3 GB). Every job the sections below credit to Dokploy is covered on this box without it:
+> reverse proxy + automatic HTTPS → Caddy (already doing it); webhook deploys → a `deploy` job
+> in `publish-images.yml` that SSHes in and runs `compose pull && up -d`; container templates →
+> `docker-compose.{infra,services}.yml` under `/root/nextaurora/`; log view → `docker compose
+> logs` (Dozzle if a UI is ever wanted). The headline argument — one box, one Docker network,
+> deployed shape ≈ Aspire shape — holds unchanged. Read "Dokploy" below as "the compose stack";
+> Phase 0 is done as of this revision (infra tier up: Postgres ×3 DBs, SQL Server Express capped
+> at 1.3 GB, Keycloak 26 with realm import + `KC_HOSTNAME=https://auth.emeraldleaf.dev`,
+> RabbitMQ 4, Redis; Caddy imports `/root/nextaurora/caddy/*.caddy`). Hostnames:
+> `shop` / `auth` / `catalog-api` / `order-api` / `payment-api` `.emeraldleaf.dev`.
+> **Next (Turnstile):** the public demo credentials make JWT auth a non-gate against bots, so
+> Cloudflare Turnstile (as riparian uses) goes on `POST /orders` and the kill switch — server-
+> verified, fail-closed behind an explicit `Turnstile:Enabled`, off in dev/tests.
+
+
 NextAurora is **already designed as a pile of containers orchestrated by
 Aspire** locally — Postgres, SQL Server, Redis, the message broker, Keycloak
 all spin up as containers on the dev machine. A Hetzner VPS running

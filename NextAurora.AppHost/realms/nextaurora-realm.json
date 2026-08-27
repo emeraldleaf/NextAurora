@@ -10,9 +10,18 @@
   "refreshTokenMaxReuse": 0,
   "roles": {
     "realm": [
-      { "name": "buyer", "description": "Can browse products, place orders, and view own orders" },
-      { "name": "seller", "description": "Can manage products in the catalog" },
-      { "name": "admin", "description": "Full access to all endpoints" }
+      {
+        "name": "buyer",
+        "description": "Can browse products, place orders, and view own orders"
+      },
+      {
+        "name": "seller",
+        "description": "Can manage products in the catalog"
+      },
+      {
+        "name": "admin",
+        "description": "Full access to all endpoints"
+      }
     ]
   },
   "clients": [
@@ -26,9 +35,25 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:5173##http://127.0.0.1:5173/*##http://127.0.0.1:5173"
       },
-      "redirectUris": ["http://localhost:5173/*", "http://localhost:5173", "http://127.0.0.1:5173/*", "http://127.0.0.1:5173"],
-      "webOrigins": ["http://localhost:5173", "http://127.0.0.1:5173"],
-      "defaultClientScopes": ["basic", "profile", "email", "roles"],
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173/*",
+        "http://127.0.0.1:5173",
+        "https://shop.emeraldleaf.dev/*",
+        "https://shop.emeraldleaf.dev"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://shop.emeraldleaf.dev"
+      ],
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles"
+      ],
       "protocolMappers": [
         {
           "name": "realm-roles",
@@ -60,9 +85,19 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "redirectUris": ["http://localhost:*/*", "https://localhost:*/*"],
-      "webOrigins": ["http://localhost:*", "https://localhost:*"],
-      "defaultClientScopes": ["openid", "profile", "email"]
+      "redirectUris": [
+        "http://localhost:*/*",
+        "https://localhost:*/*"
+      ],
+      "webOrigins": [
+        "http://localhost:*",
+        "https://localhost:*"
+      ],
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email"
+      ]
     },
     {
       "clientId": "nextaurora-api",
@@ -70,7 +105,11 @@
       "bearerOnly": true,
       "publicClient": false,
       "secret": "dev-secret-change-in-production",
-      "defaultClientScopes": ["openid", "profile", "email"]
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email"
+      ]
     }
   ],
   "users": [
@@ -80,8 +119,16 @@
       "email": "buyer1@test.local",
       "firstName": "Test",
       "lastName": "Buyer",
-      "credentials": [{ "type": "password", "value": "buyer1", "temporary": false }],
-      "realmRoles": ["buyer"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "buyer1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "buyer"
+      ]
     },
     {
       "username": "seller1",
@@ -89,8 +136,16 @@
       "email": "seller1@test.local",
       "firstName": "Test",
       "lastName": "Seller",
-      "credentials": [{ "type": "password", "value": "seller1", "temporary": false }],
-      "realmRoles": ["seller"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "seller1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "seller"
+      ]
     },
     {
       "username": "admin",
@@ -98,8 +153,18 @@
       "email": "admin@test.local",
       "firstName": "Admin",
       "lastName": "User",
-      "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
-      "realmRoles": ["admin", "buyer", "seller"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin",
+        "buyer",
+        "seller"
+      ]
     }
   ]
 }
