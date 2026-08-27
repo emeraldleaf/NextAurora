@@ -1,0 +1,8 @@
+[Unit]
+Description=Poll GHCR for new NextAurora images
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3min
+RandomizedDelaySec=30
+[Install]
+WantedBy=timers.target
