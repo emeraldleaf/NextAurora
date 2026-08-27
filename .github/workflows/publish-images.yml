@@ -1,7 +1,7 @@
-# Builds and pushes the five service images to GHCR. Dokploy on the VPS pulls these
-# (webhook-triggered) — see docs/full-saga-deployment-plan.md Phases 1-2. The frontend
-# image is deferred to Phase 1 (its VITE_* URLs are baked at build time and need the
-# deployed environment's hostnames).
+# Builds and pushes the five service images + the storefront to GHCR, then deploys: an SSH
+# step on the VPS runs `docker compose pull && up -d` (docs/full-saga-deployment-plan.md,
+# Phase 1 — compose + the box's existing Caddy, revised from Dokploy 2026-08-27). The
+# storefront's VITE_* URLs are baked at build time, hence the build-args below.
 name: PUBLISH_IMAGES
 
 on:
@@ -13,6 +13,7 @@ on:
       - "PaymentService/**"
       - "ShippingService/**"
       - "NotificationService/**"
+      - "frontend/**"
       - "NextAurora.ServiceDefaults/**"
       - "NextAurora.Contracts/**"
       - "Dockerfile.*"
@@ -32,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [catalog, order, payment, shipping, notification]
+        service: [catalog, order, payment, shipping, notification, frontend]
     steps:
       - uses: actions/checkout@v6
 
@@ -64,3 +65,26 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          # Only the frontend consumes these; the .NET images ignore unknown build-args.
+          build-args: |
+            VITE_CATALOG_API_URL=https://catalog-api.emeraldleaf.dev
+            VITE_ORDER_API_URL=https://order-api.emeraldleaf.dev
+            VITE_PAYMENT_API_URL=https://payment-api.emeraldleaf.dev
+            VITE_KEYCLOAK_URL=https://auth.emeraldleaf.dev
+
+  deploy:
+    needs: publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: deploy-vps
+    steps:
+      - name: Roll the services tier on the VPS
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes root@204.168.183.115 \
+            'cd /root/nextaurora && docker compose -f docker-compose.services.yml pull -q && docker compose -f docker-compose.services.yml up -d --remove-orphans && docker image prune -f >/dev/null && docker compose -f docker-compose.services.yml ps --format "{{.Name}} {{.Status}}"'

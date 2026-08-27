@@ -19,3 +19,8 @@ NextAurora.AppHost/
 **/node_modules/
 **/.env
 **/.env.*
+
+# Frontend build context hygiene (Dockerfile.frontend copies frontend/ wholesale)
+frontend/node_modules
+frontend/dist
+frontend/.env.local
