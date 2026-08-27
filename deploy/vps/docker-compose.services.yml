@@ -1,0 +1,79 @@
+# NextAurora services tier — five .NET services + the storefront, pulled from GHCR
+# (publish-images.yml builds them on every main push). Joins the `nextaurora` network
+# created by docker-compose.infra.yml; Caddy (the box's edge proxy) routes the public
+# hostnames to these containers by name. Hard memory caps on every container (shared box).
+name: nextaurora-services
+
+networks:
+  nextaurora:
+    external: true
+
+x-common: &common
+  restart: unless-stopped
+  networks: [nextaurora]
+  environment: &common-env
+    ASPNETCORE_ENVIRONMENT: Production
+    ASPNETCORE_URLS: http://+:8080
+    # Workstation GC: ~40% less resident memory than Server GC on a 4-vCPU shared box, and
+    # the .NET GC sizes itself to the cgroup limit — caps below are hard limits (first
+    # deploy pinned Payment at a 300 MiB cap and restarted Order under pressure).
+    DOTNET_gcServer: "0"
+    DOTNET_GCConserveMemory: "5"
+    DemoMode: "true"
+    # Issued-token `iss` must equal this (Keycloak KC_HOSTNAME); fetched over public HTTPS
+    # through Caddy so RequireHttpsMetadata stays fail-closed (CLAUDE.md).
+    Authentication__Authority: https://auth.emeraldleaf.dev/realms/nextaurora
+    Frontend__AllowedOrigins: https://shop.emeraldleaf.dev
+    ConnectionStrings__messaging: amqp://nextaurora:${RABBITMQ_PASSWORD}@rabbitmq:5672
+
+services:
+  catalog:
+    <<: *common
+    image: ghcr.io/emeraldleaf/nextaurora-catalog:latest
+    environment:
+      <<: *common-env
+      # Two Kestrel endpoints: HTTP/1.1 for REST (Caddy), a dedicated h2c endpoint for gRPC —
+      # Kestrel only speaks cleartext HTTP/2 on an endpoint pinned to Protocols=Http2.
+      Kestrel__Endpoints__Http__Url: http://+:8080
+      Kestrel__Endpoints__Grpc__Url: http://+:8081
+      Kestrel__Endpoints__Grpc__Protocols: Http2
+      ConnectionStrings__catalog-db: Host=postgres;Database=catalog;Username=nextaurora;Password=${PG_PASSWORD}
+      ConnectionStrings__cache: redis:6379
+    mem_limit: 512m
+
+  order:
+    <<: *common
+    image: ghcr.io/emeraldleaf/nextaurora-order:latest
+    environment:
+      <<: *common-env
+      ConnectionStrings__orders-db: Server=mssql,1433;Database=orders;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+      # Aspire service-discovery key the gRPC client reads (OrderService DependencyInjection).
+      services__catalog-service__http__0: http://catalog:8081
+    mem_limit: 512m
+
+  payment:
+    <<: *common
+    image: ghcr.io/emeraldleaf/nextaurora-payment:latest
+    environment:
+      <<: *common-env
+      ConnectionStrings__payments-db: Server=mssql,1433;Database=payments;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True
+    mem_limit: 512m
+
+  shipping:
+    <<: *common
+    image: ghcr.io/emeraldleaf/nextaurora-shipping:latest
+    environment:
+      <<: *common-env
+      ConnectionStrings__shipping-db: Host=postgres;Database=shipping;Username=nextaurora;Password=${PG_PASSWORD}
+    mem_limit: 448m
+
+  notification:
+    <<: *common
+    image: ghcr.io/emeraldleaf/nextaurora-notification:latest
+    mem_limit: 320m
+
+  frontend:
+    image: ghcr.io/emeraldleaf/nextaurora-frontend:latest
+    restart: unless-stopped
+    networks: [nextaurora]
+    mem_limit: 48m

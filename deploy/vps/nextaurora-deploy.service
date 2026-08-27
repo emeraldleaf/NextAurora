@@ -1,0 +1,6 @@
+[Unit]
+Description=NextAurora pull-based deploy (compose pull && up)
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/root/nextaurora/deploy.sh

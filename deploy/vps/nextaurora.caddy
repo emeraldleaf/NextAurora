@@ -1,0 +1,37 @@
+# NextAurora demo — imported by riparian's Caddyfile.full. Caddy provisions Let's Encrypt
+# certificates for each host automatically once its DNS A record resolves to this box.
+(nextaurora_common) {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+shop.emeraldleaf.dev {
+	import nextaurora_common
+	header X-Frame-Options "DENY"
+	reverse_proxy frontend:80
+}
+
+auth.emeraldleaf.dev {
+	import nextaurora_common
+	reverse_proxy keycloak:8080
+}
+
+catalog-api.emeraldleaf.dev {
+	import nextaurora_common
+	reverse_proxy catalog:8080
+}
+
+order-api.emeraldleaf.dev {
+	import nextaurora_common
+	reverse_proxy order:8080
+}
+
+payment-api.emeraldleaf.dev {
+	import nextaurora_common
+	reverse_proxy payment:8080
+}

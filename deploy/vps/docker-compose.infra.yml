@@ -1,0 +1,109 @@
+# NextAurora infra tier — lean profile (docs/full-saga-deployment-plan.md D4).
+# Shared box: every container carries a hard memory cap so a runaway here can only
+# OOM-kill itself, never the other workloads on the machine. No public ports: Caddy
+# (the box's existing edge proxy) reaches Keycloak over the nextaurora network; the
+# databases and broker are internal-only.
+name: nextaurora
+
+networks:
+  nextaurora:
+    name: nextaurora
+
+volumes:
+  pg-data:
+  mssql-data:
+  rabbitmq-data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nextaurora
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    networks: [nextaurora]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nextaurora -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Express
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      # Cap inside the engine too, below the container cap, so SQL Server throttles its
+      # buffer pool instead of getting OOM-killed at the cgroup boundary.
+      MSSQL_MEMORY_LIMIT_MB: "1024"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    networks: [nextaurora]
+    mem_limit: 1300m
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: nextaurora
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks: [nextaurora]
+    mem_limit: 320m
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    networks: [nextaurora]
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    restart: unless-stopped
+    command: ["start", "--import-realm"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: nextaurora
+      KC_DB_PASSWORD: ${PG_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      # Behind Caddy (TLS terminated at the edge): plain HTTP inside, trust X-Forwarded-*.
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      # Public hostname: issued token `iss` + OIDC discovery URLs are built from this, so it
+      # must match the Authentication:Authority every service validates against.
+      KC_HOSTNAME: https://auth.emeraldleaf.dev
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: "-Xms128m -Xmx400m"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    networks: [nextaurora]
+    mem_limit: 700m
