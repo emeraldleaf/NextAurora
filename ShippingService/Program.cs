@@ -73,12 +73,20 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+// Migrate on startup in Development AND DemoMode (mirrors CatalogService). The deployed
+// demo runs as Production behind Caddy with DemoMode=true; gating on Development alone
+// left the EF tables missing on first deploy while Wolverine's own store migrated fine
+// ("Invalid object name 'Orders'" on the first live POST /orders — 2026-08-27).
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("DemoMode"))
+{
+    await app.Services.MigrateDatabaseAsync<ShippingDbContext>();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapOpenApi("/openapi/{documentName}.yaml");
     app.MapScalarApiReference();
-    await app.Services.MigrateDatabaseAsync<ShippingDbContext>();
 }
 
 app.MapShippingEndpoints();
