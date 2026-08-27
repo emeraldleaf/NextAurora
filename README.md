@@ -10,6 +10,9 @@ NextAurora demonstrates a production-style distributed system with event-driven 
 
 ## 🛒 Try the live demo — [shop.emeraldleaf.dev](https://shop.emeraldleaf.dev)
 
+![The three-act demo: place an order, watch the saga replay on the live canvas, kill PaymentService and watch the durable queue hold the event until revive](docs/demo.gif)
+
+
 Log in as **`buyer1` / `buyer1`** and run the three acts (~2 minutes):
 
 1. **Place an order.** Add a product to the cart and check out. `POST /orders` returns **202
