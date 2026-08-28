@@ -10,7 +10,6 @@ docs/
 benchmarks/
 tests/
 SellerPortal/
-Storefront/
 NextAurora.AppHost/
 **/*.user
 **/*.suo
