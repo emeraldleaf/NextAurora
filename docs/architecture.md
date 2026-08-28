@@ -391,8 +391,9 @@ OrderService    -> orders-db, messaging, catalog-service (gRPC), insights
 PaymentService  -> payments-db, messaging, insights
 ShippingService -> shipping-db, messaging, insights
 NotificationService -> messaging, insights
-Storefront      -> catalog-service, order-service
 SellerPortal    -> catalog-service, order-service
+// The React storefront (frontend/) is not an Aspire resource — it runs under Vite on :5173
+// and calls the services over REST via SpaDevOrigin CORS.
 ```
 
 #### Messaging transport — RabbitMQ

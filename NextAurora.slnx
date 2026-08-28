@@ -18,7 +18,6 @@
   <Project Path="NextAurora.Contracts/NextAurora.Contracts.csproj" />
   <Project Path="NextAurora.ServiceDefaults/NextAurora.ServiceDefaults.csproj" />
   <Project Path="SellerPortal/SellerPortal.csproj" />
-  <Project Path="Storefront/Storefront.csproj" />
   <Folder Name="/Tests/">
     <Project Path="tests/OrderService.Tests.Unit/OrderService.Tests.Unit.csproj" />
     <Project Path="tests/PaymentService.Tests.Unit/PaymentService.Tests.Unit.csproj" />

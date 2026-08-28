@@ -100,7 +100,7 @@ Community skills (curated, security-audited before install):
 
 | Skill | Why skipped |
 |---|---|
-| webapp-testing, frontend-design, shadcn/ui, web-artifacts-builder | Storefront/SellerPortal are static scaffolds — no frontend work |
+| webapp-testing, frontend-design, shadcn/ui, web-artifacts-builder | SellerPortal is a static scaffold; the React storefront in `frontend/` has its own canon (`frontend/CLAUDE.md`) |
 | mcp-builder | Not building an MCP server. Canon-in-repo (CLAUDE.md + paired docs + every-session auto-load) already gives Claude Code persistent decision context; an MCP bridge converges in the wrong direction. See [docs/dev-loop.md "What we deliberately don't use"](../docs/dev-loop.md). |
 | ci-cd-pipeline-builder | Existing CI works; adding another generator is anti-pragmatic |
 | github-ops | `gh` CLI is fine |

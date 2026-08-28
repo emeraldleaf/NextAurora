@@ -497,7 +497,7 @@ reviews:
         silently. When client `redirectUris`, `webOrigins`, `post.logout.redirect.uris`,
         or client/host ports change here, verify the mirrors move in the same PR:
           - AppHost.cs: `SpaDevOrigin` (CORS origins injected into services) and the
-            pinned Keycloak/Storefront/SellerPortal ports (redirect URIs are exact-match).
+            pinned Keycloak/SellerPortal ports (redirect URIs are exact-match).
           - `frontend/.env*` / `frontend/src/core/env.ts`: VITE_KEYCLOAK_URL + client id.
         Also: token-policy fields (accessTokenLifespan, revokeRefreshToken,
         refreshTokenMaxReuse, ssoSession*) are pinned EXPLICITLY per CLAUDE.md

@@ -49,6 +49,6 @@ planning, not implemented
 status: planning
 
 [blazor-storefront]
-# The storefront is the React 19 + Vite SPA in frontend/ (deployed 2026-08-27). The Blazor
-# scaffold in Storefront/ is legacy; docs must not present "Blazor WASM" as the storefront.
+# The storefront is the React 19 + Vite SPA in frontend/ (deployed 2026-08-27). The legacy
+# Blazor scaffold project was deleted 2026-08-28; docs must not present it as the storefront.
 blazor wasm

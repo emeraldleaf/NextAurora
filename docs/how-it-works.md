@@ -47,7 +47,6 @@ NextAurora/
   NotificationService/          # VSA (stateless, no database)
 
   frontend/          # React 19 + Vite SPA — the customer storefront (deployed at shop.emeraldleaf.dev)
-  Storefront/        # legacy Blazor scaffold, superseded by frontend/ (still wired in AppHost; removal pending)
   SellerPortal/      # static-file host scaffold (UI framework not yet chosen)
 
   tests/

@@ -132,17 +132,11 @@ WithMessaging(WithOptionalAppInsights(
     builder.AddProject<Projects.NotificationService>("notification-service"), appInsights));
 
 // --- Frontend ---
-// Storefront and SellerPortal reference the API services so service-discovery resolves
-// `https+http://catalog-service` etc. at runtime. WithExternalHttpEndpoints() exposes them
+// The customer storefront is the React 19 + Vite SPA in frontend/ — run separately
+// (`npm run dev` on :5173, see SpaDevOrigin above); it is not an Aspire resource.
+// SellerPortal references the API services so service-discovery resolves
+// `https+http://catalog-service` etc. at runtime. WithExternalHttpEndpoints() exposes it
 // outside the Aspire-internal network.
-builder.AddProject<Projects.Storefront>("storefront")
-    .WithExternalHttpEndpoints()
-    .WithHttpEndpoint(port: 5079, targetPort: 5079, isProxied: false)
-    .WithHttpsEndpoint(port: 7088, targetPort: 7088, isProxied: false)
-    .WithReference(catalogService)
-    .WithReference(orderService)
-    .WithReference(realm, configurationPrefix: keycloakConfigPrefix);
-
 builder.AddProject<Projects.SellerPortal>("seller-portal")
     .WithExternalHttpEndpoints()
     .WithHttpEndpoint(port: 5177, targetPort: 5177, isProxied: false)
