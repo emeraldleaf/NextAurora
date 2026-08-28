@@ -49,3 +49,6 @@ stale-deployment-claims       .claude/tombstones-allowlist.txt
 stale-deployment-claims       .claude/scripts/check-tombstones.sh
 # .coderabbit.yaml quotes the phrases as REVIEW GUIDANCE (examples of what to flag) — meta-mention, not a claim.
 stale-deployment-claims       .coderabbit.yaml
+
+# The tombstone file itself carries the pattern (and the rationale comment).
+blazor-storefront .claude/tombstones.txt

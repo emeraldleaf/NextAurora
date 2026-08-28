@@ -624,7 +624,7 @@ Concurrency bugs surface under load, not in dev — by the time symptoms appear,
 | 4 | `Task.WaitAll`, `Task.WaitAny`, `Parallel.For`, `Parallel.ForEach`, `Thread.Sleep` | **`Microsoft.CodeAnalysis.BannedApiAnalyzers` rule RS0030** via [`BannedSymbols.txt`](../BannedSymbols.txt) | Each banned API has a custom error message pointing at the right replacement (e.g. `await Task.WhenAll`, `Parallel.ForEachAsync`, `await Task.Delay`). |
 | 5 | Shared static mutable collections (`static List<T>`, `static Dictionary<K,V>` written across threads) | **Pre-merge grep** (no analyzer covers it cleanly — see below) | Static collections that are *immutable after type-init* are fine and common. Distinguishing requires reading the surrounding code. |
 | 6 | Missing `CancellationToken` propagation | **Meziantou MA0032 / MA0040** | Forces forwarding the token to overloads that accept one. Framework-standard hits where the token comes from `HttpContext.RequestAborted`, `ServerCallContext.CancellationToken`, or `EndpointFilterInvocationContext` are recognized. |
-| 7 | UI-thread violations (`Dispatcher.Invoke`, `Control.Invoke`) | **N/A — no UI yet** | Storefront is Blazor WASM (no UI thread issues outside WebWorkers); SellerPortal is a static-file scaffold. Add WPF/WinForms-aware analyzers when reactive UI lands. |
+| 7 | UI-thread violations (`Dispatcher.Invoke`, `Control.Invoke`) | **N/A — no UI yet** | Storefront is a browser SPA (React/Vite — no UI thread issues outside WebWorkers); SellerPortal is a static-file scaffold. Add WPF/WinForms-aware analyzers when reactive UI lands. |
 
 ### What the build catches today
 
