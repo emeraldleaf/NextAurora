@@ -27,7 +27,7 @@ NextAurora is a distributed e-commerce platform built as a microservices archite
 ```
                          +-------------------+     +-------------------+
                          |    Storefront     |     |   SellerPortal    |
-                         |  (Blazor WASM)    |     |   (scaffold)      |
+                         | (React/Vite SPA)  |     |   (scaffold)      |
                          +--------+----------+     +--------+----------+
                                   |                         |
                            REST API (HTTP)            REST API (HTTP)

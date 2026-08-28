@@ -288,7 +288,7 @@ The system is built as a set of independently deployable microservices to suppor
 ## 9. Assumptions & Constraints
 
 ### Assumptions
-1. Customers have a stable internet connection for the Blazor WASM storefront
+1. Customers have a stable internet connection for the web storefront
 2. RabbitMQ is available for event processing (Aspire-managed container in every environment)
 3. Payment gateway is reachable for order processing
 4. Single currency per order (multi-currency across orders is supported)
