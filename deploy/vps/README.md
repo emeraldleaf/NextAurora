@@ -10,7 +10,7 @@ Source of truth for `/root/nextaurora/` on the shared Hetzner box (`ubuntu-8gb-h
 | `docker-compose.infra.yml` | `/root/nextaurora/` | Postgres (catalog/shipping/keycloak DBs), SQL Server Express (1.3 GB cap), Keycloak 26 + realm import, RabbitMQ 4, Redis — all hard memory caps |
 | `docker-compose.services.yml` | `/root/nextaurora/` | five services + storefront from GHCR, workstation GC, caps |
 | `postgres-init/01-databases.sh` | `/root/nextaurora/postgres-init/` | creates the three databases on first init |
-| `nextaurora.caddy` | `/root/nextaurora/caddy/` | public site blocks; imported by riparian's `Caddyfile.full` (`import /etc/caddy/nextaurora/*.caddy`) |
+| `nextaurora.caddy` | `/root/nextaurora/caddy/` | public site blocks; imported by riparian's `Caddyfile.full` (`import /etc/caddy/nextaurora/*.caddy`) and mounted by its compose file — **both lines must be committed in the Riparian repo** (a live-only edit was clobbered by a redeploy on 2026-08-28; see [deployed-demo.md → Incidents](../../docs/deployed-demo.md#incidents)) |
 | `deploy.sh` + `.service` + `.timer` | `/root/nextaurora/`, `/etc/systemd/system/` | **pull-based deploy**: every 3 min `compose pull && up -d`; the box's SSH allowlist blocks Actions runners by design |
 | *(not here)* `.env` | `/root/nextaurora/.env` (0600) | `PG_PASSWORD`, `MSSQL_SA_PASSWORD`, `RABBITMQ_PASSWORD`, `KEYCLOAK_ADMIN_PASSWORD` — generated on the box, never committed |
 | *(not here)* realm | `/root/nextaurora/keycloak/` | copy of `NextAurora.AppHost/realms/nextaurora-realm.json`; re-import with `compose run --rm keycloak import --dir /opt/keycloak/data/import --override true` (stop keycloak first) |

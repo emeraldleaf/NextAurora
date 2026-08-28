@@ -97,3 +97,32 @@ repo's [doc-and-diagram discipline](../CLAUDE.md#debugging-discipline).
 - **Deploy history:** `journalctl -u nextaurora-deploy.service` — one line per roll.
 - Memory/caps: `docker stats` — every container is hard-capped (shared box; see the
   workstation-GC rule in CLAUDE.md "Performance Rules").
+
+## Incidents
+
+Kept here (not STATUS.md) because the lessons are durable.
+
+### 2026-08-28 — all NextAurora hostnames lost TLS for ~12 h
+
+**Symptom:** `shop`, `auth`, and the three `*-api` hosts failed the TLS handshake (`tlsv1 alert
+internal error` = Caddy had no certificate for the SNI); `riparian.emeraldleaf.dev` on the same
+box was fine. Port 80 still answered with a 308, which looks healthy but is only Caddy's generic
+redirect.
+
+**Cause:** Caddy is *owned by the Riparian deployment* (`/root/riparian-rag-harness/deploy/`);
+NextAurora contributes only `caddy/nextaurora.caddy`, which Riparian's `Caddyfile.full` imports
+and its compose file mounts. Those two lines had been added as **live-only edits** on 2026-08-27
+and never committed to the Riparian repo. A Riparian redeploy re-synced the files without them
+and recreated Caddy with only the Riparian site. Nothing alerted; a link check on the portfolio
+site found it 12 hours later.
+
+**Fix:** commit the import + mount in the Riparian repo (`fix/caddy-nextaurora-import`), re-sync,
+`docker compose -f docker-compose.full.yml up -d caddy`. Caddy re-listed all six domains and
+reused the certificates already in the `deploy_caddy_data` volume — no re-issuance, no rate-limit
+exposure.
+
+**Prevention:** (1) `.github/workflows/uptime.yml` probes every public hostname every 30 minutes
+and opens/updates an `uptime` issue on failure. (2) Rule: **anything NextAurora needs from the
+shared Caddy must be committed in the Riparian repo, never edited live** — the box's copy is
+overwritten by every Riparian push. (3) After any Riparian redeploy, the Caddy log must list the
+NextAurora domains under `enabling automatic TLS certificate management`.
