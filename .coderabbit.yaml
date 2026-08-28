@@ -499,6 +499,10 @@ reviews:
           - AppHost.cs: `SpaDevOrigin` (CORS origins injected into services) and the
             pinned Keycloak/SellerPortal ports (redirect URIs are exact-match).
           - `frontend/.env*` / `frontend/src/core/env.ts`: VITE_KEYCLOAK_URL + client id.
+          - `post.logout.redirect.uris` must list EVERY origin in `redirectUris` — the storefront
+            logs out with `post_logout_redirect_uri = window.location.origin`, and Keycloak 26
+            answers "Invalid redirect uri" on logout when a host is in one list but not the
+            other (shop.emeraldleaf.dev, 2026-08-28). Realm edits need a re-import on the box.
         Also: token-policy fields (accessTokenLifespan, revokeRefreshToken,
         refreshTokenMaxReuse, ssoSession*) are pinned EXPLICITLY per CLAUDE.md
         "Keycloak token policy" — flag a PR that removes them (falling back to
