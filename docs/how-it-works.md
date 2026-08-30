@@ -176,24 +176,26 @@ public class PlaceOrderCommandValidator : AbstractValidator<PlaceOrderCommand>
 // Features/PlaceOrder.cs
 // No interface to implement. Wolverine discovers public classes whose
 // public *Async method matches a known message type as the parameter.
-public class PlaceOrderHandler(IOrderRepository repo, ICatalogClient catalog, /* ... */)
+public class PlaceOrderHandler(OrderDbContext context, /* ... */)
 {
-    public async Task<Guid> HandleAsync(PlaceOrderCommand request, CancellationToken ct)
+    // IMessageContext is a METHOD parameter: only the method-injected context is enlisted in the
+    // handler's outbox transaction. A constructor-injected IMessageBus publishes inline under Wolverine 6.
+    public async Task<Guid> HandleAsync(PlaceOrderCommand request, IMessageContext messageContext, CancellationToken ct)
     {
         // 1. Validate products via gRPC
         // 2. Reserve stock
-        // 3. Create Order aggregate
-        // 4. Persist to database (Wolverine's AutoApplyTransactions wraps this)
-        // 5. Stage OrderPlacedEvent into the outbox via cascading return
+        // 3. Create Order aggregate and add it to the tracked DbContext
+        // 4. Publish OrderPlacedEvent through messageContext — staged in the outbox, not sent
+        // 5. SaveChangesAsync — the Order row and the staged envelope commit in ONE transaction
         return order.Id;
     }
 }
 ```
 
 Conventions:
-- Handlers live in `*.Application/Handlers/`, named `*Handler` with a public `HandleAsync` method.
+- Handlers live in `{Service}/Features/`, one file per feature slice, named `*Handler` with a public `HandleAsync` method.
 - The first parameter is the message; subsequent parameters are dependencies injected by Wolverine from the DI container.
-- For commands that return a value, `HandleAsync` returns it directly; for events, it returns nothing (or returns a *cascading* event that Wolverine publishes after the handler).
+- For commands that return a value, `HandleAsync` returns it directly; for events, it returns nothing. A publish that must commit with an entity write goes through a method-injected `IMessageContext` before `SaveChangesAsync` — never a constructor-injected `IMessageBus`, which dispatches inline under Wolverine 6 (see [the war story](war-story-wolverine6-outbox-atomicity.md)).
 - Tests instantiate the handler with mocks (NSubstitute) and call `HandleAsync` directly — no Wolverine bus needed in unit tests.
 
 ### The Wolverine pipeline (runs around every handler)
@@ -327,21 +329,23 @@ await orderRepository.AddAsync(order, cancellationToken);
 ### Step 5 — Stage the Event into the Outbox
 
 ```csharp
-// Inside PlaceOrderHandler.HandleAsync
-await orderRepository.AddAsync(order, ct);
-OrdersPlaced.Add(1); // OpenTelemetry metric
+// Inside PlaceOrderHandler.HandleAsync — messageContext is the METHOD-injected IMessageContext
+await context.Orders.AddAsync(order, ct);
 
-// Cascading return: Wolverine sees the event and stages it into the outbox
-// in the same transaction as the order insert. No bus.PublishAsync call needed.
-return new HandlerResult<Guid>(order.Id, new OrderPlacedEvent
+// PUBLISH BEFORE SAVE. The enlisted messageContext stages the envelope; SaveChangesAsync then
+// flushes BOTH the Order row and the staged envelope in the same DB transaction.
+await messageContext.PublishAsync(new OrderPlacedEvent
 {
     OrderId = order.Id,
     BuyerId = order.BuyerId,
     /* ... */
 });
+await context.SaveChangesAsync(ct);
+
+OrdersPlaced.Add(1); // OpenTelemetry metric
 ```
 
-**Why no `bus.PublishAsync(...)` call** — `opts.Policies.AutoApplyTransactions()` wraps the handler chain in an EF transaction, and `opts.Policies.UseDurableOutboxOnAllSendingEndpoints()` makes Wolverine stage outgoing messages to the `wolverine.outgoing_envelopes` table. The entity write and the outbox row commit *together*. A background dispatcher then forwards the staged messages to RabbitMQ with retry. This eliminates the dual-write problem (entity saved but event publish crashed, or vice versa). Full rationale: [docs/performance-and-data-correctness.md "Resolved: transactional outbox via Wolverine"](performance-and-data-correctness.md#resolved-transactional-outbox-via-wolverine).
+**Why `messageContext`, and why before `SaveChangesAsync`** — `opts.Policies.AutoApplyTransactions()` wraps the handler chain in an EF transaction, and `opts.Policies.UseDurableOutboxOnAllSendingEndpoints()` makes Wolverine stage outgoing messages to the `wolverine.outgoing_envelopes` table. Only the method-injected `IMessageContext` is enlisted in that transaction; a constructor-injected `IMessageBus` publishes inline under Wolverine 6, which is the regression [the war story](war-story-wolverine6-outbox-atomicity.md) records. The entity write and the outbox row commit *together*. A background dispatcher then forwards the staged messages to RabbitMQ with retry. This eliminates the dual-write problem (entity saved but event publish crashed, or vice versa). Full rationale: [docs/performance-and-data-correctness.md "Resolved: transactional outbox via Wolverine"](performance-and-data-correctness.md#resolved-transactional-outbox-via-wolverine).
 
 ### Step 6 — HTTP Response
 
@@ -390,7 +394,7 @@ Aspire resolves `catalog-service` to the running instance automatically — no h
 
 Used for the order fulfillment pipeline where immediate response isn't required. **Wolverine handles everything** — there is no hand-rolled `BasicPublish` call, no `EventingBasicConsumer` callback, no manual `BasicAck` / `BasicNack` logic. Every concern below is configured once in `Program.cs` and the handler code is just a class with `HandleAsync`.
 
-**Publishing.** A handler returns the event (cascading message) or calls `bus.PublishAsync(@event)`. The outbox-aware sending endpoint stages it into `wolverine.outgoing_envelopes` in the same DB transaction as the entity write; a background dispatcher forwards it to RabbitMQ with retry. Each event family publishes to a **fanout exchange** (`order-events`, `payment-events`, `shipping-events`) via `opts.PublishMessage<X>().ToRabbitExchange("order-events")`. Headers (`X-Correlation-Id`, `X-User-Id`, `X-Session-Id`) are stamped onto outgoing envelopes by `OutgoingContextMiddleware` reading from `Activity` baggage — handler code stays clean.
+**Publishing.** A handler publishes through its method-injected `IMessageContext` (`messageContext.PublishAsync(@event)`) before `SaveChangesAsync`; a constructor-injected `IMessageBus` is not enlisted under Wolverine 6 and is reserved for fire-and-forget re-publishes with no entity write to bind to. The outbox-aware sending endpoint stages it into `wolverine.outgoing_envelopes` in the same DB transaction as the entity write; a background dispatcher forwards it to RabbitMQ with retry. Each event family publishes to a **fanout exchange** (`order-events`, `payment-events`, `shipping-events`) via `opts.PublishMessage<X>().ToRabbitExchange("order-events")`. Headers (`X-Correlation-Id`, `X-User-Id`, `X-Session-Id`) are stamped onto outgoing envelopes by `OutgoingContextMiddleware` reading from `Activity` baggage — handler code stays clean.
 
 **Consuming.** Each consumer binds its own queue to the fanout exchange and listens to it, declared in `Program.cs`:
 
@@ -658,7 +662,7 @@ All tests in the solution run. Each test project targets the unit tests for one 
 | Add validation for a command | `{Service}.Application/Validators/` |
 | Change a domain business rule | `{Service}.Domain/Entities/` |
 | Add a new event type | `NextAurora.Contracts/Events/` |
-| Change which events a service publishes | Return them as cascading messages from the handler, or `bus.PublishAsync` |
+| Change which events a service publishes | Publish through the handler's method-injected `IMessageContext` before `SaveChangesAsync` — see [Step 5](#step-5--stage-the-event-into-the-outbox) |
 | Change which events a service consumes | Add a handler class for the event in the service's `Features/` folder, plus an `opts.ListenToRabbitQueue(...)` + `rabbit.BindExchange(...).ToQueue(...)` line in `{Service}.Api/Program.cs` |
 | Inspect outgoing events / outbox state | Each event-publishing service's DB has a `wolverine` schema; `outgoing_envelopes` is the staged-but-not-yet-flushed queue, `dead_letters` the DLQ. See [event-replay.md](./event-replay.md) |
 | Add a new gRPC method to CatalogService | `CatalogService.Api/Protos/catalog.proto` + `CatalogService.Api/Services/CatalogGrpcService.cs` (regenerate clients in OrderService) |

@@ -78,7 +78,7 @@ These are in [CLAUDE.md "Performance Rules"](../CLAUDE.md#performance-rules). Be
 
 **Caveat:** runs outside the change tracker. Don't mix with `SaveChanges` on the same entities in the same unit of work — you'll get stale tracked data.
 
-**Where it applies:** Outbox cleanup (delete published rows older than X), bulk status flips (e.g. soft-delete sweeps), backfills. Not currently in use anywhere; relevant once the outbox is fixed (see [open issue](#open-issue-the-outbox-is-broken)).
+**Where it applies:** Outbox cleanup (delete published rows older than X), bulk status flips (e.g. soft-delete sweeps), backfills. Not currently in use anywhere; the first real candidate is outbox cleanup, now that the outbox is in place (see [Resolved: transactional outbox via Wolverine](#resolved-transactional-outbox-via-wolverine)).
 
 ### 6. Optimistic concurrency tokens
 
@@ -716,22 +716,13 @@ The three failure modes from before are now handled:
 - **Process crash between save and publish** — same fix. The outbox row is durable on disk; on restart, Wolverine's dispatcher picks it up and sends.
 - **Bus publish succeeds, save commit fails** — can't happen anymore. With `AutoApplyTransactions()`, the publish is staged into the outbox table inside the same transaction. Either both commit or both roll back.
 
-### What still needs attention
+### What was still open at the time, and how it closed
 
-**Runtime verification.** Build passes and all 133 unit tests pass — but the outbox semantics aren't covered by unit tests. We don't have integration tests yet (architecture doc lists them as "Not Yet Implemented"). Verifying that Wolverine actually wraps each handler in a transaction and stages messages requires either:
+Written before the integration slices existed; kept as the record of what the rollout left unverified, with how each item resolved.
 
-- An integration test that simulates a bus failure mid-handler and asserts no event leaks
-- Manual verification by running the app, triggering a publish, and inspecting the `wolverine.*` schema during the request
+**Runtime verification — resolved.** The outbox semantics are covered by integration tests against real engines in Testcontainers, not by unit tests: `tests/OrderService.Tests.Integration/OrderSagaTests.cs` (`PlaceOrder_does_not_dispatch_OrderPlacedEvent_when_the_commit_rolls_back` forces `SaveChanges` to throw after the publish and asserts no `OrderPlacedEvent` was sent and no `Order` row persisted) and `tests/PaymentService.Tests.Integration/PaymentRecoveryAtomicityTests.cs` (the same guarantee for the non-handler recovery sweep). The first of those is the test that caught the Wolverine 5 → 6 regression — see [the war story](war-story-wolverine6-outbox-atomicity.md).
 
-Until that verification lands, treat this as "configured correctly per docs, behavior unverified at runtime."
-
-**Handler signature design.** The current handlers depend on `IEventPublisher` which wraps `IMessageBus.PublishAsync()`. This works because Wolverine's `AutoApplyTransactions()` walks the dependency graph and detects EF DbContexts transitively through repositories. If runtime testing shows that detection isn't reliable for our setup, the fallback is to refactor handlers to one of:
-
-1. Take `IMessageBus` directly (drop the `IEventPublisher` wrapper).
-2. Take `IDbContextOutbox<TDbContext>` for explicit outbox semantics.
-3. Use cascading return values (`Task<(TResponse, TEvent)>`) — Wolverine auto-publishes the second value after `SaveChanges`.
-
-We deferred this refactor because it's a bigger change across all command handlers and unit tests, and `AutoApplyTransactions` may handle our pattern correctly without it. If verification fails, option 3 (cascading) is the most idiomatic and the smallest behavioral change per handler.
+**Handler signature design — resolved, and not by any of the three fallbacks proposed at the time** (taking `IMessageBus` directly, `IDbContextOutbox<TDbContext>`, or cascading return values). A publish that must commit with an entity write goes through an `IMessageContext` injected as a `HandleAsync` *method* parameter, called before `SaveChangesAsync`, so the staged envelope and the entity flush in one transaction (`OrderService/Features/PlaceOrder.cs`, `PaymentService/Features/ProcessPayment.cs`). The `IEventPublisher` shim over `IMessageBus` still exists, but only for fire-and-forget publishes with no entity write to bind to, such as re-publishing a terminal event on a duplicate request; under Wolverine 6 that path dispatches inline, and the shim's own summary says so. Before/after in [the war story, §7](war-story-wolverine6-outbox-atomicity.md#7-the-fix).
 
 **SQL Server schema for outbox tables.** The outbox tables are in a `wolverine` schema. SQL Server creates schemas on demand if you have permissions; in dev (Aspire-spun containers, full sysadmin) this is fine. In production with restricted DB users, the `wolverine` schema and the user's CREATE permission within it must be provisioned ahead of time.
 
