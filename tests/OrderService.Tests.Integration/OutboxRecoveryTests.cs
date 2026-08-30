@@ -33,7 +33,7 @@ public sealed class OutboxRecoveryTests(OrderApiFactory factory) : IClassFixture
     private readonly OrderApiFactory _factory = factory;
 
     [Fact]
-    public async Task Orphaned_outgoing_envelope_is_forwarded_by_the_durability_agent()
+    public async Task DurabilityAgent_forwards_the_orphaned_envelope_when_no_node_owns_it()
     {
         // ARRANGE — Build the envelope as PlaceOrderHandler's publish would: routed by the app's
         // subscription rules (OrderPlacedEvent → the order-events exchange, a stub in this
@@ -57,7 +57,7 @@ public sealed class OutboxRecoveryTests(OrderApiFactory factory) : IClassFixture
         // send is captured. The session must be open BEFORE the row is stored: the recovery job
         // could run between the store and the session start, and the send would go unrecorded.
         var recoveredInTime = false;
-        async Task StoreOrphanAndWaitForRecovery(IMessageContext _)
+        async Task StoreOrphanAndWaitForRecoveryAsync(IMessageContext _)
         {
             // Persist the orphan. Owner 0 = no live node claims it.
             await runtime.Storage.Outbox.StoreOutgoingAsync(envelope, TransportConstants.AnyNode);
@@ -74,7 +74,7 @@ public sealed class OutboxRecoveryTests(OrderApiFactory factory) : IClassFixture
 
         var session = await host.TrackActivity()
             .Timeout(TimeSpan.FromSeconds(90))
-            .ExecuteAndWaitAsync(StoreOrphanAndWaitForRecovery);
+            .ExecuteAndWaitAsync(StoreOrphanAndWaitForRecoveryAsync);
 
         // ASSERT — Four invariants:
         //  1) The recovery happened within the window. A false here with the row still present

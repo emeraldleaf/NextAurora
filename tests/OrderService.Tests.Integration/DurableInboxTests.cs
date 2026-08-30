@@ -43,7 +43,7 @@ public sealed class DurableInboxTests(OrderApiRabbitFactory factory) : IClassFix
     private readonly OrderApiRabbitFactory _factory = factory;
 
     [Fact]
-    public async Task Redelivered_envelope_is_rejected_by_the_durable_inbox_before_the_handler()
+    public async Task DurableInbox_rejects_the_redelivered_envelope_before_the_handler()
     {
         // ARRANGE — A Placed order, and a PaymentCompletedEvent for it built as PaymentService
         // would build it: the app's default serializer and default message-type alias (the short

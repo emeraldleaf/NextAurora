@@ -8,14 +8,14 @@ namespace OrderService.Tests.Integration;
 /// </summary>
 internal static class Polling
 {
-    public static async Task<bool> UntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
+    public static async Task<bool> UntilAsync(Func<Task<bool>> condition, TimeSpan timeout, CancellationToken ct = default)
     {
         var deadline = DateTimeOffset.UtcNow + timeout;
         while (DateTimeOffset.UtcNow < deadline)
         {
             if (await condition())
                 return true;
-            await Task.Delay(TimeSpan.FromMilliseconds(500));
+            await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
         }
 
         return await condition();

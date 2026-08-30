@@ -53,6 +53,8 @@ public sealed class OrderAuthorizationTests(OrderApiFactory factory) : IClassFix
             "a non-owner must get the same answer as for an order that does not exist");
         var body = await response.Content.ReadAsStringAsync();
         body.Should().NotContain(ownerBuyerId.ToString(), "the response must not leak the owner");
+        body.Should().NotContain(orderId.ToString(), "the response must not echo the order id back");
+        body.Should().NotContain("Seed Product", "the response must not leak the order's contents");
 
         await using var scope = _factory.CreateDbScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
@@ -87,7 +89,7 @@ public sealed class OrderAuthorizationTests(OrderApiFactory factory) : IClassFix
         // existence a 403 could reveal. This pins that contract so a future refactor doesn't
         // quietly start returning another buyer's list.
         var otherBuyerId = Guid.NewGuid();
-        await SeedOrderAsync(otherBuyerId);
+        var otherOrderId = await SeedOrderAsync(otherBuyerId);
         var client = _factory.CreateClient();
 
         // ACT — Ask for someone else's order list.
@@ -97,6 +99,8 @@ public sealed class OrderAuthorizationTests(OrderApiFactory factory) : IClassFix
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         var body = await response.Content.ReadAsStringAsync();
         body.Should().NotContain(otherBuyerId.ToString());
+        body.Should().NotContain(otherOrderId.ToString(), "a 403 must not leak which orders exist");
+        body.Should().NotContain("Seed Product");
     }
 
     private async Task<Guid> SeedOrderAsync(Guid buyerId)
