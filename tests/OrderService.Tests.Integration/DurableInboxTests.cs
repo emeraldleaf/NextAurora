@@ -7,6 +7,7 @@ using NextAurora.Contracts.Messaging;
 using OrderService.Domain;
 using OrderService.Infrastructure.Data;
 using RabbitMQ.Client;
+using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
@@ -45,8 +46,8 @@ public sealed class DurableInboxTests(OrderApiRabbitFactory factory) : IClassFix
     public async Task Redelivered_envelope_is_rejected_by_the_durable_inbox_before_the_handler()
     {
         // ARRANGE — A Placed order, and a PaymentCompletedEvent for it built as PaymentService
-        // would build it: routed to the order-payments queue OrderService listens on, serialized
-        // by the app's serializer, AMQP properties (MessageId = envelope id, Type = message type)
+        // would build it: the app's default serializer and default message-type alias (the short
+        // type name, which the listener resolves), an explicit envelope id, AMQP properties (MessageId = envelope id, Type = message type)
         // written by the same mapper the RabbitMQ transport uses.
         var orderId = await SeedPlacedOrderAsync();
         var runtime = _factory.Services.GetRequiredService<IWolverineRuntime>();
@@ -62,8 +63,17 @@ public sealed class DurableInboxTests(OrderApiRabbitFactory factory) : IClassFix
         };
 
         var queueUri = new Uri($"rabbitmq://queue/{MessagingQueues.OrderPayments}");
-        var envelope = runtime.RoutingFor(typeof(PaymentCompletedEvent)).RouteToDestination(paymentCompleted, queueUri, null);
-        var body = envelope.Data ?? envelope.Serializer!.Write(envelope);
+        var serializer = runtime.Options.DefaultSerializer;
+        var envelope = new Envelope
+        {
+            Id = Guid.NewGuid(),
+            Message = paymentCompleted,
+            Serializer = serializer,
+            ContentType = serializer.ContentType,
+            Data = serializer.WriteMessage(paymentCompleted),
+        };
+        envelope.SetMessageType(typeof(PaymentCompletedEvent));
+        var body = envelope.Data;
         var properties = new BasicProperties();
         var listener = runtime.Endpoints.EndpointFor(queueUri)
             ?? throw new InvalidOperationException($"OrderService declares no endpoint for {queueUri} — is the ListenToRabbitQueue line still in Program.cs?");
