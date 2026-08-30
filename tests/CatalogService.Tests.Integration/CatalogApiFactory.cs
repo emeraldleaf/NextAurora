@@ -17,7 +17,7 @@ namespace CatalogService.Tests.Integration;
 /// <b>What this exercises that unit tests can't:</b> EF Core migrations applying against a real
 /// Postgres, the actual <c>HybridProductCache</c> over a real Redis, the <c>xmin</c> concurrency
 /// token, Wolverine command/query dispatch, and the DI composition root from
-/// <c>CatalogService.Api/Program.cs</c> end to end. Unit tests substitute all of that.
+/// <c>CatalogService/Program.cs</c> end to end. Unit tests substitute all of that.
 /// </para>
 /// <para>
 /// <b>Lifecycle:</b> implements xunit's <see cref="IAsyncLifetime"/> so the containers start once

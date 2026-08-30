@@ -78,7 +78,7 @@ app.MapScalarApiReference();                        // /scalar/v1 — interactiv
 
 **What it is**: Endpoint registration without MVC controllers — direct `MapGet`/`MapPost`/etc. on routes — combined with `Asp.Versioning.Http` for URL-segment versioning (`/api/v1/...`).
 
-**Where**: Every service's `Endpoints/*.cs`. Example: [CatalogService.Api/Endpoints/CatalogEndpoints.cs](../CatalogService/Endpoints/CatalogEndpoints.cs).
+**Where**: Every service's `Endpoints/*.cs`. Example: [CatalogService/Endpoints/CatalogEndpoints.cs](../CatalogService/Endpoints/CatalogEndpoints.cs).
 
 The `MapV1ApiGroup(tag, resource)` helper in [NextAurora.ServiceDefaults/Extensions.cs](../NextAurora.ServiceDefaults/Extensions.cs) is the canonical entry — returns a `RouteGroupBuilder` rooted at `/api/v1/resource` with version + OpenAPI tag applied in one call. Stops drift across services.
 
@@ -153,7 +153,7 @@ Full deep-dive: [docs/ef-core.md](ef-core.md).
 
 **What it is**: Middleware that trusts proxy-forwarded headers (`X-Forwarded-For`, `X-Forwarded-Proto`) so ASP.NET Core sees the original client IP + scheme instead of the proxy's.
 
-**Where**: [CatalogService.Api/Program.cs](../CatalogService/Program.cs) — DemoMode-gated, configured before `Build()` and used early in the middleware pipeline.
+**Where**: [CatalogService/Program.cs](../CatalogService/Program.cs) — DemoMode-gated, configured before `Build()` and used early in the middleware pipeline.
 
 **Why**: PaaS hosts (Fly.io, AWS App Runner, Azure App Service) terminate TLS at the edge and forward HTTP to your container. Without trusting `X-Forwarded-Proto: https`, ASP.NET Core sees the request as HTTP, and OpenAPI emits `http://...` server URLs — which the browser blocks as mixed content when Scalar tries to make try-it-out requests.
 

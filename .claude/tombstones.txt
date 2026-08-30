@@ -52,3 +52,23 @@ status: planning
 # The storefront is the React 19 + Vite SPA in frontend/ (deployed 2026-08-27). The legacy
 # Blazor scaffold project was deleted 2026-08-28; docs must not present it as the storefront.
 blazor wasm
+
+[clean-architecture-layout]
+# Removed in #31 — every service collapsed to a single project (VSA). The old {Service}.Api /
+# {Service}.Application project names and Application/* folder paths kept teaching the retired
+# layout for months (14 findings in the 2026-08-30 drift sweep). NOTE: .Infrastructure/.Domain
+# are NOT tombstoned — they survive as folder-derived namespaces (OrderService.Infrastructure).
+[a-z]+service\.api\b
+[a-z]+service\.application\b
+application/(commands|interfaces|handlers)
+
+[retired-repositories]
+# Repository wrappers and the recipient resolver, removed when handlers moved to
+# DbContext-direct data access (CLAUDE.md "Data access: DbContext directly"). 10 findings in
+# the 2026-08-30 sweep still narrated them as current.
+iorderrepository
+ipaymentrepository
+ishipmentrepository
+getbyorderidasync
+recipientresolver
+orderrepository\.

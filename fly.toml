@@ -1,4 +1,4 @@
-# Fly.io config for CatalogService.Api demo deploy.
+# Fly.io config for the legacy single-service CatalogService demo deploy.
 #
 # First-time provision (from your machine, once you have flyctl installed + auth'd):
 #   fly launch --copy-config --no-deploy --name catalog-api-demo

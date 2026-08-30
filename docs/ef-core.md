@@ -443,8 +443,8 @@ Doing all three steps in one migration is the classic "we shipped at 3pm and the
 The default rule for queries: **`AsNoTracking()` + `.Select(... new Dto ...)`**.
 
 ```csharp
-// Application/Handlers/GetAllProductsHandler.cs (returns DTOs, not entities)
-var products = await repository.GetAllAsync(request.Page, request.PageSize, cancellationToken);
+// CatalogService/Features/GetAllProducts.cs (returns DTOs, not entities)
+var products = await context.Products.AsNoTracking() .OrderBy(p => p.Id) .Skip((int)skipOffset).Take(safePageSize) .Select(p => new ProductDto { Id = p.Id, Name = p.Name, Description = p.Description, Price = p.Price, Currency = p.Currency, Category = p.Category != null ? p.Category.Name : "", SellerId = p.SellerId, StockQuantity = p.StockQuantity, IsAvailable = p.IsAvailable }) .ToListAsync(cancellationToken);
 return products.Select(p => new ProductDto
 {
     Id = p.Id, Name = p.Name, Description = p.Description,

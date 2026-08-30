@@ -244,6 +244,13 @@ jobs:
       # removed transport as current, found by review instead of mechanically.
       # Patterns: .claude/tombstones.txt; historical/comparative exemptions:
       # .claude/tombstones-allowlist.txt. See CLAUDE.md "Identifier-move discipline".
+      # Doc-path audit: backtick-quoted repo paths + #L line anchors in markdown must
+      # resolve. The broken-link audit above only sees [md](links); the 2026-08-30 drift
+      # sweep found 15 inline-path and 8 line-anchor rots that sailed past it. Historical
+      # records opt out via .claude/doc-paths-allowlist.txt.
+      - name: Doc-path audit — inline paths and line anchors must resolve
+        run: .claude/scripts/check-doc-paths.sh
+
       - name: Tombstone audit — removed identifiers must not resurface
         run: .claude/scripts/check-tombstones.sh
 

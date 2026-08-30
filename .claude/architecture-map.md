@@ -91,7 +91,7 @@ VSA services keep ports in `Domain/` (where the interface lives next to the aggr
 operates on); the Clean service splits them between Domain and Application.
 
 ### OrderService — `OrderService/Domain/`
-- `IOrderRepository` — load/save Order aggregate
+- (no repository interface — handlers take `OrderDbContext` directly, CLAUDE.md "Data access")
 - `IEventPublisher` — publish events (Wolverine-backed)
 - `ICatalogClient` — gRPC client for CatalogService (product validation, stock reservation)
 
@@ -153,35 +153,28 @@ the failure mode.
 
 ---
 
-## CatalogService internals (Clean Architecture detail)
+## CatalogService internals (single-project VSA, same as the other services)
 
 ```
-CatalogService.Api              ← Composition root: endpoints, DI, gRPC, OpenAPI/Scalar, middleware
-    │
-    ├── depends on Application + Infrastructure + Domain
-    │
-CatalogService.Application      ← Commands, queries, validators, handlers, mappers
-    │
-    ├── depends on Domain only
-    │
-CatalogService.Infrastructure   ← EF Core (ProductDbContext), repositories, HybridCache impl
-    │
-    ├── depends on Domain + Application
-    │
-CatalogService.Domain           ← Entities, value objects, enums, port interfaces
-    │
-    └── depends on nothing
+CatalogService/
+├── Program.cs            ← Composition root: DI, Wolverine, gRPC, OpenAPI/Scalar, middleware
+├── Endpoints/            ← Minimal API endpoint registrations
+├── Features/             ← One file per slice: command + validator + handler co-located
+├── Domain/               ← Entities, enums, port interfaces (IProductCache)
+├── Infrastructure/       ← EF Core (CatalogDbContext), HybridCache impl, migrations
+├── Grpc/                 ← CatalogGrpcService (server for OrderService's client)
+└── Protos/               ← catalog.proto contract
 ```
 
-The build-time layer enforcement (project references in `.csproj`) is what makes this
-shape earn its keep. Trying to `using CatalogService.Infrastructure;` from a Domain
-file is a compile error, not a code-review nit.
+Layer boundaries are folder + namespace conventions enforced by
+`tests/NextAurora.ArchitectureTests` (NetArchTest: Domain references no EF/Wolverine/etc.),
+not by project references — the multi-project split was collapsed in PR #31.
 
 ---
 
 ## Demo deployment
 
-CatalogService.Api is deployed to Fly.io at https://catalog-api-demo.fly.dev. Single Fly
+A legacy single-service Catalog demo is deployed to Fly.io at https://catalog-api-demo.fly.dev (the full-stack demo lives on the VPS — see docs/deployed-demo.md). Single Fly
 Machine in `lax` region, auto-stops when idle. `DemoMode` config flag gates Scalar UI,
 OpenAPI exposure, skip-HTTPS-redirect, and migrate-on-startup in non-Development
 environments. Redis registration is conditional on a `cache` connection string so
