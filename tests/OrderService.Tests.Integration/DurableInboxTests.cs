@@ -72,7 +72,7 @@ public sealed class DurableInboxTests(OrderApiRabbitFactory factory) : IClassFix
             ContentType = serializer.ContentType,
             Data = serializer.WriteMessage(paymentCompleted),
         };
-        envelope.SetMessageType(typeof(PaymentCompletedEvent));
+        envelope.SetMessageType<PaymentCompletedEvent>();
         var body = envelope.Data;
         var properties = new BasicProperties();
         var listener = runtime.Endpoints.EndpointFor(queueUri)
