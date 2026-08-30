@@ -468,6 +468,12 @@ the emulator's required MSSQL sidecar (the service DBs the saga harness needs
 are unchanged), and AutoProvision works against it. Still gate it as a
 nightly/manual job rather than per-PR until its runtime cost is measured.
 
+**Status — first slice landed.** `OrderApiRabbitFactory` boots OrderService against a
+RabbitMQ Testcontainer with AutoProvision on, and `DurableInboxTests` publishes a byte-exact
+redelivery over AMQP to prove the durable inbox rejects it before the handler. It runs in the
+per-PR OrderService integration job; the container adds seconds, not minutes. The
+cross-service round-trip (`OrderPlacedEvent` → PaymentService) is still the open part of this gap.
+
 ### Gap 2 — No production performance baselines
 
 **What's missing:** BenchmarkDotNet + k6 harness exists but has never run
