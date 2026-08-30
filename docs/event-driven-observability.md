@@ -27,7 +27,7 @@ Every request, message, and log line carries three identifiers that link the ent
 | User ID | `X-User-Id` | `X-User-Id` | `UserId` |
 | Session ID | `X-Session-Id` | `X-Session-Id` | `SessionId` |
 
-`CorrelationIdMiddleware` (HTTP entry) stamps all three into `Activity` baggage; `OutgoingContextMiddleware` writes them onto outgoing Wolverine envelope headers (RabbitMQ message headers on the wire); `ContextPropagationMiddleware` restores them from the envelope headers into `Activity` baggage and a `logger.BeginScope()` on the consuming side. See **[docs/context-propagation.md](context-propagation.md)** for the full developer guide (per-component breakdown, new-service checklist, pitfalls) and **[docs/observability.md](observability.md)** for the technical reference and code patterns.
+`CorrelationIdMiddleware` (HTTP entry) stamps all three into `Activity` baggage; `OutgoingContextMiddleware` writes `UserId`/`SessionId` onto outgoing Wolverine envelope headers (RabbitMQ message headers on the wire) — correlation rides Wolverine's own envelope `CorrelationId`, set from the W3C traceparent; `ContextPropagationMiddleware` restores them from the envelope headers into `Activity` baggage and a `logger.BeginScope()` on the consuming side. See **[docs/context-propagation.md](context-propagation.md)** for the full developer guide (per-component breakdown, new-service checklist, pitfalls) and **[docs/observability.md](observability.md)** for the technical reference and code patterns.
 
 ---
 
@@ -96,8 +96,8 @@ All event handlers guard against duplicate delivery (retries, replays):
 |---|---|
 | `PaymentCompletedHandler` | Checks `order.Status != OrderStatus.Placed` before calling `MarkAsPaid()` |
 | `PaymentFailedHandler` | Checks `order.Status != OrderStatus.Placed` before calling `MarkAsPaymentFailed()` |
-| `ProcessPaymentHandler` | Calls `GetByOrderIdAsync` — returns existing payment if already created |
-| `CreateShipmentHandler` | Calls `GetByOrderIdAsync` — skips if shipment already exists |
+| `ProcessPaymentHandler` | Queries the DbContext by `OrderId` (`FirstOrDefaultAsync`) — returns existing payment if already created |
+| `CreateShipmentHandler` | Queries the DbContext by `OrderId` (`FirstOrDefaultAsync`) — skips if shipment already exists |
 
 ---
 

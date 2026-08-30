@@ -6,8 +6,8 @@
 |-------|-------|
 | Project Name | NextAurora |
 | Version | 1.0 |
-| Status | In Development |
-| Last Updated | March 2026 |
+| Status | Deployed (public demo) |
+| Last Updated | August 2026 |
 
 ---
 
@@ -108,12 +108,12 @@ The system is built as a set of independently deployable microservices to suppor
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| SF-01 | Product listing page with search | High | Not implemented (scaffold only) |
+| SF-01 | Product listing page with search | High | Implemented (React storefront, deployed) |
 | SF-02 | Product detail page | High | Not implemented |
-| SF-03 | Shopping cart | High | Not implemented |
-| SF-04 | Checkout flow | High | Not implemented |
-| SF-05 | Order history and tracking | Medium | Not implemented |
-| SF-06 | User registration and login | Medium | Not implemented |
+| SF-03 | Shopping cart | High | Implemented (React storefront, deployed) |
+| SF-04 | Checkout flow | High | Implemented (React storefront, deployed) |
+| SF-05 | Order history and tracking | Medium | Implemented (React storefront, deployed) |
+| SF-06 | User registration and login | Medium | Implemented (Keycloak PKCE login) |
 | SF-07 | Responsive design (mobile-friendly) | Medium | Not implemented |
 
 ### 4.7 Seller Portal (Merchant UI)
@@ -184,13 +184,13 @@ The system is built as a set of independently deployable microservices to suppor
 
 | ID | Requirement | Status |
 |----|-------------|--------|
-| CQ-01 | Static code analysis on build | Implemented (3 analyzers) |
+| CQ-01 | Static code analysis on build | Implemented (4 analyzers incl. BannedApiAnalyzers) |
 | CQ-02 | Warnings treated as errors | Implemented |
 | CQ-03 | Centralized package version management | Implemented (CPM) |
 | CQ-04 | Consistent coding standards | Implemented (.editorconfig) |
 | CQ-05 | CI/CD pipeline | Implemented (GitHub Actions) |
-| CQ-06 | Unit test coverage | Not implemented |
-| CQ-07 | Integration test coverage | Not implemented |
+| CQ-06 | Unit test coverage | Implemented (xUnit + NSubstitute; coverage via Coverlet/Codecov, not gated) |
+| CQ-07 | Integration test coverage | Implemented (Testcontainers per DB-touching service) |
 
 ---
 

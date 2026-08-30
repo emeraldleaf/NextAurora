@@ -18,7 +18,7 @@ lifecycle can be correlated:
 - `user.id` — from the `ClaimTypes.NameIdentifier` JWT claim (`sub`); null when unauthenticated.
 - `session.id` — from the `X-Session-Id` request header (client-generated browser/app session UUID); null if not provided.
 
-All three are set by `CorrelationIdMiddleware` (HTTP entry point) and by `ContextPropagationMiddleware` (Wolverine incoming-message middleware, async entry point). All three are propagated onto outgoing Wolverine messages by `OutgoingContextMiddleware`. Both middlewares are wired via the `opts.AddNextAuroraContextPropagation()` extension in each service's `Program.cs`.
+All three are set by `CorrelationIdMiddleware` (HTTP entry point) and by `ContextPropagationMiddleware` (Wolverine incoming-message middleware, async entry point). `UserId` and `SessionId` are propagated onto outgoing Wolverine messages by `OutgoingContextMiddleware`; `CorrelationId` is not stamped by it — it travels via Wolverine's envelope `CorrelationId` (set from the W3C traceparent), falling back to the current trace ID on receive. Both middlewares are wired via the `opts.AddNextAuroraContextPropagation()` extension in each service's `Program.cs`.
 
 ## HTTP middleware order — strict
 
@@ -28,6 +28,8 @@ Canonical order in `MapDefaultEndpoints`:
 
 ```csharp
 app.UseExceptionHandler();                          // wraps every error below
+if (frontendOriginsConfigured)                      // only when Frontend:AllowedOrigins is set
+    app.UseCors("frontend");                        // preflights answered before auth
 app.UseAuthentication();                            // populates context.User
 app.UseMiddleware<CorrelationIdMiddleware>();       // reads User, opens log scope
 app.UseAuthorization();                             // 401/403 attributed to UserId

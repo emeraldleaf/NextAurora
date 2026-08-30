@@ -30,7 +30,10 @@ public static class PaymentEndpoints
         // validates + persists Payment(Pending) + publishes PaymentProcessingRequested and
         // returns the ID in milliseconds — NO gateway call on this code path. The Stripe
         // call lives in PaymentProcessingRequestedHandler, which runs on a Wolverine worker.
-        // The Location header points at /api/v1/payments/{id} for the caller to poll status.
+        // The 202's Location header points at /api/v1/payments/{id}, but no GET endpoint
+        // exists at that route yet (the only GET in this service is the demo /listener route),
+        // so status polling is not implemented. Add GET /api/v1/payments/{id:guid} with the
+        // buyer-scoped 404 pattern before treating Location as a poll contract.
         // See CLAUDE.md "Performance Rules → Long-running work belongs on the message bus".
         //
         // BuyerId is derived from the JWT NameIdentifier claim, NOT the request body.

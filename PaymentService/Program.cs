@@ -22,8 +22,8 @@ builder.AddServiceDefaults();
 
 // Fixed-window limiter for the manual /payments/process endpoint: 10 requests / 10s.
 // Counter is in-process (ASP.NET Core's built-in `AddFixedWindowLimiter`). Correct here
-// today — PaymentService isn't deployed yet, and the deployment plan starts it as
-// single-instance. **If/when this service scales to 2+ Machines** for resilience, the
+// today — PaymentService is deployed single-replica (docker compose on the shared box,
+// one container per service). **If/when this service scales to 2+ Machines** for resilience, the
 // in-memory counter silently multiplies the effective limit by N (each Machine enforces
 // its own; a client hitting any Machine gets a fresh 10-allowance). Fix at that point:
 // swap to a Redis-backed limiter, with the increment + TTL pair wrapped in a Lua `EVAL`

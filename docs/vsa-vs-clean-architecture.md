@@ -195,9 +195,8 @@ saga). It applies this guide as follows:
   once you test EF-touching code with Testcontainers.
 - **Integration-default testing** — handler tests run against real Postgres /
   SQL Server / Redis via Testcontainers; unit tests are reserved for pure domain
-  logic (aggregate invariants, validators, idempotency guards). (Honest gap: only
-  2 of 5 services have integration projects so far — the philosophy is settled,
-  the buildout is partial.)
+  logic (aggregate invariants, validators, idempotency guards). (4 of 5 services have
+  integration projects; NotificationService is stateless and unit-only.)
 
 Net: **VSA for organization + Clean's dependency rule throughout + the lightest
 enforcement that holds + integration-default tests.** The 4-project structure is

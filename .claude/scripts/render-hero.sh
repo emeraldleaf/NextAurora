@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # Render the encoding-loop hero infographic from HTML source to PNG via
-# headless Chromium (Playwright). Edit docs/encoding-loop-hero.html with
-# any text/CSS tweak, then run this script — re-render takes ~3 seconds
-# and is fully deterministic (same source → identical PNG byte-for-byte).
+# headless Chromium (Playwright). NOTE: the HTML source is NOT committed —
+# only the rendered docs/encoding-loop-hero.jpg is — so the default source
+# path below does not exist and the no-argument form fails its existence
+# check ("source HTML not found"). Pass the path to a local HTML file.
+# Re-render takes ~3 seconds and is fully deterministic (same source →
+# identical PNG byte-for-byte).
 #
 # This is the human-readable counterpart to the .excalidraw → .svg + .png
 # pipeline in rebuild-diagrams.sh. Both render artifacts that ship in the
 # repo from a source-of-truth file you can edit directly.
 #
 # Usage:
-#   .claude/scripts/render-hero.sh                    # render docs/encoding-loop-hero.html
-#   .claude/scripts/render-hero.sh path/to/file.html  # render any HTML file
+#   .claude/scripts/render-hero.sh path/to/file.html  # render an HTML file (an explicit
+#                                                     # path is required — the default
+#                                                     # docs/encoding-loop-hero.html is
+#                                                     # not in the repo)
 #
 # Requires: uv (https://docs.astral.sh/uv/) — manages Playwright + Chromium.
 

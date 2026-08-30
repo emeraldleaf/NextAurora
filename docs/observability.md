@@ -23,20 +23,20 @@ Every request or event in NextAurora now carries a **Correlation ID** that flows
 
 ### Propagation Through RabbitMQ
 
-When a service publishes an event, `OutgoingContextMiddleware` (Wolverine outgoing-envelope middleware) reads the IDs from `Activity` baggage and stamps them onto the Wolverine envelope, which the RabbitMQ transport carries as message headers:
+When a service publishes an event, `OutgoingContextMiddleware` (Wolverine outgoing-envelope middleware) reads `UserId` and `SessionId` from `Activity` baggage and stamps them onto the Wolverine envelope, which the RabbitMQ transport carries as message headers. `CorrelationId` is deliberately not stamped as a custom header — it rides on Wolverine's own `envelope.CorrelationId` / W3C `traceparent` propagation:
 
 ```csharp
-envelope.Headers["X-Correlation-Id"] = correlationId;
-envelope.Headers["X-User-Id"]        = userId;      // only when present
-envelope.Headers["X-Session-Id"]     = sessionId;   // only when present
+envelope.Headers["X-User-Id"]    = userId;      // only when present
+envelope.Headers["X-Session-Id"] = sessionId;   // only when present
 ```
 
-When a message arrives, `ContextPropagationMiddleware` (Wolverine incoming middleware) reads the envelope headers back into `Activity` baggage and opens a logging scope before the handler runs:
+When a message arrives, `ContextPropagationMiddleware` (Wolverine incoming middleware) reads the envelope headers back into `Activity` baggage (for correlation it falls back to `envelope.CorrelationId`, then the active trace ID) and opens a logging scope before the handler runs:
 
 ```csharp
 using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
 {
     ["CorrelationId"] = correlationId,
+    ["MessageId"]     = envelope.Id.ToString(),
     ["UserId"]        = userId,      // added only when present
     ["SessionId"]     = sessionId    // added only when present
 });
@@ -83,7 +83,7 @@ A single trace for an order placement will show spans across:
 ```
 [OrderService] POST /orders
   └─ [OrderService] PlaceOrderCommand handler
-       └─ [CatalogService gRPC] GetProduct / ReserveStock
+       └─ [CatalogService gRPC] ValidateLines / ReserveLines
        └─ [Wolverine] Send → order-events
             ├─ [NotificationService] OrderPlaced handler
             └─ [PaymentService] OrderPlaced handler
@@ -100,12 +100,12 @@ A single trace for an order placement will show spans across:
 Every command and query in Order, Payment, Catalog, and Shipping services passes through the Wolverine middleware pipeline. Two components handle observability:
 
 - **`Policies.LogMessageStarting(LogLevel.Information)`** — Wolverine built-in; logs handler name and elapsed time automatically.
-- **`ContextPropagationMiddleware`** (in `ServiceDefaults`) — runs before every handler; reads the three IDs from `Activity.Current` baggage and opens a `logger.BeginScope()` for the duration of the handler.
+- **`ContextPropagationMiddleware`** (in `ServiceDefaults`) — runs before every handler; reads the IDs from the envelope headers (falling back to `envelope.CorrelationId`, then the active trace ID, for correlation), restores them into `Activity` baggage, and opens a `logger.BeginScope()` carrying `CorrelationId`, `MessageId`, `UserId`, `SessionId` for the duration of the handler.
 
 For each handler execution it logs:
 
 - **Start**: handler name + elapsed (Wolverine built-in)
-- **Scope**: every log line inside the handler automatically carries `CorrelationId`, `UserId`, `SessionId`
+- **Scope**: every log line inside the handler automatically carries `CorrelationId`, `MessageId`, `UserId`, `SessionId`
 
 Example log output:
 
@@ -214,10 +214,9 @@ A failing database health check returns HTTP 503, allowing Kubernetes or Aspire 
 | `Directory.Packages.props` | Added `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore 10.0.2` |
 | `OutgoingContextMiddleware` (Wolverine) + handler publishing via the enlisted `IMessageContext` / `IDbContextOutbox` | Context propagation on outgoing messages; Wolverine EF Core outbox for delivery guarantees (publish enlisted in the entity transaction — see the Wolverine 5→6 upgrade notes) |
 | `{Order,Payment,Shipping,Notification}Service` (Wolverine handlers) | Context extraction + structured logging scope via `ContextPropagationMiddleware`; failed messages dead-lettered by Wolverine's retry/error policy |
-| `{Order,Payment,Catalog,Shipping}Service.Infrastructure/DependencyInjection.cs` | Added `AddDbContextCheck<T>()` |
-| `{Order,Payment,Catalog,Shipping}Service.Infrastructure/*.csproj` | Added EF Core health checks package reference |
-| `{Payment,Catalog,Shipping}Service.Application/*.csproj` | Added `Microsoft.Extensions.Logging.Abstractions` |
-| `{Order,Payment,Catalog,Shipping}Service.Api/Program.cs` | Registered `ContextPropagationMiddleware` + `Policies.LogMessageStarting()` in Wolverine pipeline |
+| `{Order,Payment,Catalog,Shipping}Service/Infrastructure/DependencyInjection.cs` | Added `AddDbContextCheck<T>()` |
+| `{Order,Payment,Catalog,Shipping}Service/{Service}.csproj` | Added EF Core health checks package reference |
+| `{Order,Payment,Catalog,Shipping}Service/Program.cs` | Registered `ContextPropagationMiddleware` + `Policies.LogMessageStarting()` in Wolverine pipeline |
 | `OrderService/Features/PlaceOrder.cs` | Increments `orders.placed` counter |
 | `PaymentService/Features/ProcessPayment.cs` | Increments `payments.processed` counter with outcome tag |
 | `ShippingService/Features/CreateShipment.cs` | Increments `shipments.dispatched` counter |

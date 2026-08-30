@@ -12,8 +12,9 @@
 ## Stack (decided — don't relitigate per-PR)
 
 Vite + React 19 + TypeScript (strict), CSR SPA. TanStack Query v5 (server state), TanStack
-Router, Zustand (small session/UI globals only), Tailwind v4 + shadcn/ui, oidc-client-ts →
-Keycloak (auth-code + PKCE). React Compiler enabled. Rationale: [docs/frontend-plan.md](../docs/frontend-plan.md).
+Router, Zustand (small session/UI globals only), Tailwind v4 (shadcn/ui chosen, not yet
+adopted — no component copied in yet), oidc-client-ts → Keycloak (auth-code + PKCE).
+React Compiler enabled. Rationale: [docs/frontend-plan.md](../docs/frontend-plan.md).
 
 ## Architecture rules
 
@@ -22,7 +23,10 @@ Keycloak (auth-code + PKCE). React Compiler enabled. Rationale: [docs/frontend-p
   singletons (query client, router, auth). `src/app/` is thin shell — no business logic.
 - **Feature boundaries are enforced, not conventional.** Features never import from another
   feature's internals — only via its `index.ts` public API. `shared/` never imports from
-  features. ESLint `import/no-restricted-paths` makes violations build errors.
+  features. ESLint `import/no-restricted-paths` makes violations build errors — but today
+  its zones only protect `catalog`'s internals; the other features are still convention
+  (`OrderList.test.tsx` already imports `@/features/auth/auth-context` directly).
+  Generalizing the zones to every feature is open work.
 - **Barrel files are intentional.** A feature's `index.ts` exports its public surface
   explicitly. Everywhere else, import directly — wildcard re-export barrels defeat
   tree-shaking and bloat chunks (`bundle-barrel-imports`).
@@ -72,7 +76,8 @@ Keycloak (auth-code + PKCE). React Compiler enabled. Rationale: [docs/frontend-p
   client-side N+1.
 - **Route-level code splitting is the default**; heavy below-the-fold components load via
   dynamic import. Third-party scripts (analytics) load after hydration. Initial bundle budget:
-  ≤ 200 KB gz, CI-checked.
+  ≤ 200 KB gz — not yet enforced in CI (the frontend job runs lint, typecheck, test, build
+  only; no size gate exists yet).
 - **Virtualize lists past ~50 items** (product grids, order history).
 - **`startTransition`/`useDeferredValue` for non-urgent updates** (search-as-you-type filters)
   — keep input latency flat.
@@ -82,8 +87,9 @@ Keycloak (auth-code + PKCE). React Compiler enabled. Rationale: [docs/frontend-p
 - **Auth flow: authorization code + PKCE, full stop.** The OAuth Browser-Based Apps BCP makes
   PKCE a MUST for SPA public clients and formally deprecates the implicit flow — no
   `response_type=token` anywhere, ever.
-- **Tokens live in memory (oidc-client-ts session), never `localStorage`** — XSS that can read
-  storage steals tokens; in-memory + silent renew limits blast radius. **Known, documented
+- **Tokens live in the oidc-client-ts session (`sessionStorage`), never `localStorage`** — an
+  XSS payload can read either store, so this only scopes stolen-token exposure to the tab's
+  lifetime; short token lifetimes + silent renew do the rest. **Known, documented
   trade-off:** the BCP ranks browser-held tokens as the *least* secure of its three patterns
   and strongly recommends a BFF (tokens server-side, browser gets only an HttpOnly cookie) for
   sensitive/business apps. For this demo storefront (fake data, no real PII/payments) the
@@ -108,8 +114,9 @@ Keycloak (auth-code + PKCE). React Compiler enabled. Rationale: [docs/frontend-p
   handlers per service, mirroring real response shapes (including error and slow cases).
 - **Every feature ships with: happy path + error path + loading/empty state tests.** The
   backend's "coverage for the contract" rule.
-- **Playwright E2E for the saga walk-through** runs against the real Aspire stack — it is both
-  the regression gate and the demo script.
+- **Playwright E2E for the saga walk-through** (against the real Aspire stack) is the planned
+  regression gate and demo script — not yet built: no `@playwright/test` dependency or e2e
+  suite exists. See [docs/frontend-plan.md](../docs/frontend-plan.md).
 
 ## Conventions
 

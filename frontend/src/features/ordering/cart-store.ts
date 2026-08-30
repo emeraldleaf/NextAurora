@@ -19,7 +19,7 @@ interface CartState {
 }
 
 // Cart is client-only UI state (Zustand, the one sanctioned small global per
-// frontend/CLAUDE.md "Client state") — it is NOT server state, so it does not belong in
+// frontend/CLAUDE.md "Stack": small session/UI globals only) — it is NOT server state, so it does not belong in
 // TanStack Query. Note: unitPrice here is for DISPLAY only. The server recomputes the
 // authoritative price from the catalog during placement (CLAUDE.md "Server-controlled
 // fields") — the cart total is a preview, never the source of truth.

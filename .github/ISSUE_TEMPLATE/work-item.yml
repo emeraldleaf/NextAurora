@@ -9,7 +9,7 @@ body:
       label: What
       description: One paragraph. The work to do. If a fix, what's broken. If a decision, what's the question.
       placeholder: |
-        e.g. Align the Promotion Signal table in docs/dev-loop.md with the canonical 4-row version in CLAUDE.md (added in #50). dev-loop.md currently has the 3-row pre-#50 version.
+        e.g. (hypothetical — since resolved) Align the Promotion Signal table in docs/dev-loop.md with the canonical 4-row version in CLAUDE.md (added in #50); dev-loop.md had the 3-row pre-#50 version.
     validations:
       required: true
 

@@ -79,7 +79,8 @@ just reacts to events. That's the choreography saga; the trade-offs vs orchestra
 
 `ShipmentDispatchedEvent` closes the loop: the order's state machine steps to `Shipped`
 (states enforced by the aggregate, not by whoever calls it). NotificationService consumed
-every event along the way from its `notify-*` queues
+the placed and shipped events (and would consume a payment failure) from its `notify-*`
+queues — it has no `PaymentCompletedEvent` handler, so that message is received and ignored
 ([`NotificationEventHandlers.cs`](../NotificationService/Features/NotificationEventHandlers.cs)) —
 stateless, duplicate-tolerant, no database.
 

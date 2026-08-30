@@ -6,14 +6,14 @@ disable-model-invocation: true
 
 # /new-feature-slice
 
-Scaffold a new vertical-slice feature in one of the VSA services (Order, Payment, Shipping, Notification).
+Scaffold a new vertical-slice feature in one of the five VSA services (Order, Payment, Shipping, Notification, Catalog).
 
 ## Inputs
 $ARGUMENTS — expected as two words: `<ServiceName> <FeatureName>` (e.g. `OrderService CancelOrder`).
 
 ## What to do
 
-1. **Validate the service is VSA.** Per CLAUDE.md "Project Structure", VSA applies to OrderService, PaymentService, ShippingService, NotificationService. CatalogService is Clean Architecture — refuse and tell the user to put it under `CatalogService.Application/Commands/` or `Queries/` instead.
+1. **Validate the service name.** Per CLAUDE.md "Project Structure", VSA applies to all five services — OrderService, PaymentService, ShippingService, NotificationService, and CatalogService. New CatalogService slices go in `CatalogService/Features/` like the rest.
 
 2. **Read the canonical example** at [OrderService/Features/PlaceOrder.cs](../../OrderService/Features/PlaceOrder.cs) to match the existing style:
    - file-scoped namespace
@@ -38,8 +38,7 @@ $ARGUMENTS — expected as two words: `<ServiceName> <FeatureName>` (e.g. `Order
 
 ## Why this command exists
 
-The four VSA services share an almost-mechanical feature-slice shape. Hand-scaffolding it
+The five VSA services share an almost-mechanical feature-slice shape. Hand-scaffolding it
 risks drift (forgetting `CancellationToken`, calling it `Handle` instead of `HandleAsync`,
 missing the Tier-1 comment block). This command bakes the convention into a single
-keystroke — and explicitly refuses for CatalogService because the layered shape is
-different there on purpose.
+keystroke.

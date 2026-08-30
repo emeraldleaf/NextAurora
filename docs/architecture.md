@@ -173,13 +173,13 @@ Used for frontend-to-service communication. ASP.NET Core Minimal APIs with OpenA
 | SellerPortal | CatalogService | REST | Manage products |
 | SellerPortal | OrderService | REST | View orders |
 | OrderService | CatalogService | **gRPC** | Validate products during order placement |
-| OrderService | PaymentService | **Service Bus** | OrderPlacedEvent triggers payment |
-| PaymentService | OrderService | **Service Bus** | PaymentCompletedEvent updates order |
-| PaymentService | ShippingService | **Service Bus** | PaymentCompletedEvent triggers shipment |
-| PaymentService | NotificationService | **Service Bus** | PaymentFailedEvent triggers buyer notification |
-| ShippingService | OrderService | **Service Bus** | ShipmentDispatchedEvent updates order |
-| OrderService | NotificationService | **Service Bus** | OrderPlacedEvent triggers notification |
-| ShippingService | NotificationService | **Service Bus** | ShipmentDispatchedEvent triggers notification |
+| OrderService | PaymentService | **RabbitMQ** | OrderPlacedEvent triggers payment |
+| PaymentService | OrderService | **RabbitMQ** | PaymentCompletedEvent updates order |
+| PaymentService | ShippingService | **RabbitMQ** | PaymentCompletedEvent triggers shipment |
+| PaymentService | NotificationService | **RabbitMQ** | PaymentFailedEvent triggers buyer notification |
+| ShippingService | OrderService | **RabbitMQ** | ShipmentDispatchedEvent updates order |
+| OrderService | NotificationService | **RabbitMQ** | OrderPlacedEvent triggers notification |
+| ShippingService | NotificationService | **RabbitMQ** | ShipmentDispatchedEvent triggers notification |
 
 ---
 
@@ -382,8 +382,8 @@ The AppHost project orchestrates the entire distributed system for local develop
 PostgreSQL  -> catalog-db, shipping-db
 SQL Server  -> orders-db, payments-db
 Redis       -> cache (CatalogService)
-Service Bus -> messaging (all topics, subscriptions, queues)
-App Insights -> observability
+RabbitMQ    -> messaging (exchanges, queues, bindings auto-provisioned by Wolverine)
+App Insights -> observability (publish mode only; no local App Insights resource in dev)
 
 // Service references
 CatalogService  -> catalog-db, cache, insights
@@ -431,7 +431,7 @@ All services inherit shared infrastructure configuration:
 
 ### Observability
 - **Tracing:** OpenTelemetry distributed traces across all services (ASP.NET Core, HTTP client, gRPC client, `Wolverine`). Wolverine's own ActivitySource emits the message send/receive/handle spans for the saga — transport-agnostic — so the full event chain is visible in the Aspire dashboard and any OTLP backend.
-- **Context Propagation:** Every HTTP request and RabbitMQ message carries three identifiers — `CorrelationId`, `UserId`, `SessionId` — stamped by `CorrelationIdMiddleware` (HTTP) or each processor (Service Bus) into `Activity` baggage and `logger.BeginScope()`. All log lines produced by any handler automatically include these fields. See [docs/context-propagation.md](context-propagation.md).
+- **Context Propagation:** Every HTTP request and RabbitMQ message carries three identifiers — `CorrelationId`, `UserId`, `SessionId` — stamped by `CorrelationIdMiddleware` (HTTP) or `ContextPropagationMiddleware` (Wolverine, incoming RabbitMQ messages) into `Activity` baggage and `logger.BeginScope()`. All log lines produced by any handler automatically include these fields. See [docs/context-propagation.md](context-propagation.md).
 - **Wolverine Pipeline Logging:** Wolverine's built-in `Policies.LogMessageStarting()` logs handler name and elapsed time. `ContextPropagationMiddleware` (in ServiceDefaults) opens a `logger.BeginScope()` so all handler log lines carry `CorrelationId`/`UserId`/`SessionId`.
 - **Metrics:** Business counters on the `Meter("NextAurora")`, declared in the handlers that emit them: `orders.placed`, `payments.processed` (tag: `outcome`), `shipments.dispatched`, `notifications.sent` (tag: `channel`). Wolverine's own meter is registered too (`AddMeter("Wolverine*")` — the meter is named `Wolverine:{ServiceName}`, so the wildcard is required): `wolverine-dead-letter-queue`, `wolverine-execution-failure`, `wolverine-messages-sent`/`-received`, inbox depth. Exported via OTLP; visible in the Aspire Metrics dashboard.
 - **Logging:** Structured logging with OpenTelemetry export
@@ -486,7 +486,7 @@ Query handlers (6 total across Catalog, Order, and Shipping) map domain entities
 ### Command Path
 
 ```
-HTTP Request or Service Bus Message → IMessageBus.InvokeAsync<TResult>(command)
+HTTP Request or RabbitMQ Message → IMessageBus.InvokeAsync<TResult>(command)
   → CommandHandler.Handle() → DbContext (load tracked) → Domain Entity → SaveChanges → Event Published
 ```
 
@@ -538,19 +538,20 @@ Read paths never load tracked entities (would over-read columns + materialize en
 - **Encapsulated Aggregates** - `IReadOnlyList` collections, private backing fields
 - **HTTPS Redirection** - Enforced in production
 - **Idempotent Event Handling** - Status guards in all event handlers; GetByOrderId checks prevent duplicate processing
-- **Transactional Outbox** - Wolverine transactional outbox in Order, Payment, Shipping. Outgoing events persist to a `wolverine` schema in the same DB transaction as the entity write; background dispatcher flushes to Service Bus. Concurrency-retry policy on `DbUpdateConcurrencyException` (3 attempts, 50/100/250ms backoff). See [docs/performance-and-data-correctness.md](performance-and-data-correctness.md).
+- **Transactional Outbox** - Wolverine transactional outbox in Order, Payment, Shipping. Outgoing events persist to a `wolverine` schema in the same DB transaction as the entity write; background dispatcher flushes to RabbitMQ. Concurrency-retry policy on `DbUpdateConcurrencyException` (3 attempts, 50/100/250ms backoff). See [docs/performance-and-data-correctness.md](performance-and-data-correctness.md).
 - **Optimistic Concurrency Tokens** - Postgres `xmin` (Catalog Product/Category, Shipping Shipment) and SQL Server `RowVersion` (Order, Payment, Refund) shadow properties. Last-write-wins is no longer possible.
 - **EF Core Migrations** - Initial migrations for all four DB services (Catalog, Order, Payment, Shipping). `IDesignTimeDbContextFactory<T>` per context for `dotnet ef` tooling. `MigrateDatabaseAsync<T>()` runs at app startup in development; production should run as a separate deploy step.
 - **Authentication & Authorization** - JWT Bearer authentication wired in `NextAurora.ServiceDefaults` (`AddDefaultAuthentication()`); identity provider is **Keycloak** (Aspire-managed container, `nextaurora-realm` imported from `realms/nextaurora-realm.json`). `AddJwtBearer` validates issuer, audience, lifetime; claim mapping uses `preferred_username` → name and `realm_access.roles` → role. `.RequireAuthorization()` on every state-changing endpoint and buyer-scoped reads (Catalog write endpoints, all of `/api/v1/orders`, `/api/v1/payments/process`, all of `/api/v1/shipments`). Buyer-scope endpoints additionally verify the JWT `sub` claim matches the route/body buyer ID. `GET /api/v1/products` remains anonymous.
 - **API Versioning** - URL-segment versioning via `Asp.Versioning.Http`. Routes follow `/api/v{version:apiVersion}/...` with the version required in the URL (`AssumeDefaultVersionWhenUnspecified = false`). Default version is `1.0`; `Asp.Versioning.Mvc.ApiExplorer` integrates with OpenAPI so versioned endpoints show up under group `v1` in the OpenAPI spec (rendered in Scalar). Configured globally in `AddServiceDefaults()` so every service inherits the same policy. gRPC is versioned separately via `.proto` `package` (out of scope here).
 - **Dead Letter Queue Processing** - Wolverine dead-letters retry-exhausted messages; the `wolverine-dead-letter-queue` counter is the alarm signal. Replay/audit available via Wolverine's `IMessageStore` API or by querying the `wolverine` schema directly.
 - **Distributed Caching (Catalog)** - `IProductCache` (read-side, factory-based `GetOrLoadAsync` + `InvalidateAsync`) backed by `Microsoft.Extensions.Caching.Hybrid` 10.5.0: **L1 in-process MemoryCache + L2 Redis**, stampede protection (concurrent misses for the same key invoke the factory once), and tag-based invalidation that clears both layers atomically. `GetProductByIdHandler` reads through the cache; `UpdateProductHandler` and `ReserveStockHandler` call `InvalidateAsync` in the write path. 5-min absolute TTL on both tiers as the safety net for missed invalidations. Cache stores the `ProductDto` projection (not the EF entity) — see [IProductCache.cs](../CatalogService/Domain/IProductCache.cs) and [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs). List queries (`GetAllProducts`, `SearchProducts`) are intentionally not cached — paginated reads are less hot than single-product lookups, and cross-page invalidation is harder. Full rationale and trade-offs: [docs/performance-and-data-correctness.md "Decision: distributed read caching with HybridCache"](performance-and-data-correctness.md#decision-distributed-read-caching-with-hybridcache).
-- **OpenAPI Output (JSON + YAML) + Scalar UI** - All five services emit OpenAPI specs at `/openapi/v1.json` and `/openapi/v1.yaml` in development. Built on `Microsoft.AspNetCore.OpenApi`'s extension-driven format selection — same `MapOpenApi(pattern)` call, different file extension. **Interactive API documentation UI** at `/scalar/v1` via `Scalar.AspNetCore` — reads the same OpenAPI doc and renders it as a polished, searchable reference with try-it-out support. Dev-only (gated on `IsDevelopment()`).
+- **OpenAPI Output (JSON + YAML) + Scalar UI** - All five services emit OpenAPI specs at `/openapi/v1.json` and `/openapi/v1.yaml` in Development; Catalog, Order, Payment and Shipping serve them in DemoMode too. Built on `Microsoft.AspNetCore.OpenApi`'s extension-driven format selection — same `MapOpenApi(pattern)` call, different file extension. **Interactive API documentation UI** at `/scalar/v1` via `Scalar.AspNetCore` — reads the same OpenAPI doc and renders it as a polished, searchable reference with try-it-out support. Gated on `IsDevelopment()` or `DemoMode` in those four services — the deployed demo exposes them at `https://{catalog,order,payment}-api.emeraldleaf.dev/scalar/v1`; NotificationService and SellerPortal remain dev-only.
+- **Storefront (React SPA)** - Deployed at [shop.emeraldleaf.dev](https://shop.emeraldleaf.dev): catalog browse and search, cart, checkout, order list, order detail with live saga canvas and kill switch, Keycloak sign-in. See [docs/deployed-demo.md](deployed-demo.md).
 
 ### Not Yet Implemented
 - **API Gateway** - Centralized routing, rate limiting, auth
 - **Saga Compensation** - Rollback logic for failed payments/shipments
-- **Frontend Implementation** - Storefront and SellerPortal business logic
+- **SellerPortal Implementation** - SellerPortal business logic (still a static placeholder)
 - **Cross-service integration tests over the real wire** - Single-service slices exist for all four DB-touching services (`tests/{CatalogService,OrderService,PaymentService,ShippingService}.Tests.Integration` — Testcontainers Postgres+Redis for Catalog, SQL Server for Order + Payment, Postgres for Shipping, Wolverine transports stubbed in each). The remaining gap is an end-to-end `OrderPlacedEvent → PaymentService → PaymentCompletedEvent` test over a real RabbitMQ Testcontainer — wire-level cross-service coverage is still pending (the saga is verified manually end-to-end on the live RabbitMQ stack). See [docs/dev-loop.md Gap 1](dev-loop.md) + issue #68.
 - **Order Cancellation Flow** - Cancel event and compensation logic
 - **Production migration deployment step** - In dev, `MigrateDatabaseAsync<T>()` runs at startup; production should run migrations as a separate deploy step (not in-process) to avoid races between replicas. Tooling exists; deploy automation does not.

@@ -1,6 +1,6 @@
 # OrderService — code flow walkthrough
 
-> **What this is.** A walk through the code paths a new contributor will hit first in [OrderService](../../OrderService/). OrderService is the **saga orchestrator** — every order placed here triggers a multi-step workflow that fans out to PaymentService, ShippingService, and NotificationService over RabbitMQ, then comes back through three event handlers that mutate the Order aggregate. The diagrams below show *which files, classes, and interfaces* get touched at each step, in the order they actually execute.
+> **What this is.** A walk through the code paths a new contributor will hit first in [OrderService](../../OrderService/). OrderService is the **saga's entry point and final state holder** — the saga itself is choreographed, with no orchestrator: every order placed here publishes `OrderPlacedEvent`, each downstream service (PaymentService, ShippingService, NotificationService) reacts on its own RabbitMQ queue, and the results come back through three event handlers that mutate the Order aggregate. The diagrams below show *which files, classes, and interfaces* get touched at each step, in the order they actually execute.
 >
 > **Architecture style:** Vertical Slice Architecture (single csproj). Folders: [`Endpoints/`](../../OrderService/Endpoints), [`Features/`](../../OrderService/Features), [`Domain/`](../../OrderService/Domain), [`Infrastructure/`](../../OrderService/Infrastructure). Composition root: [`Program.cs`](../../OrderService/Program.cs).
 >
@@ -34,20 +34,16 @@ sequenceDiagram
     Bus->>MW: opens logger scope<br/>(CorrelationId, UserId, SessionId)<br/>FluentValidation runs
     MW->>H: HandleAsync(command, ct)<br/>(wrapped by AutoApplyTransactions)
 
-    par for each line — validate
-        H->>gRPC: GetProductAsync(productId)
-        gRPC->>Cat: gRPC call
-        Cat-->>gRPC: ProductDto
-        gRPC-->>H: ProductDto
-    end
+    H->>gRPC: ValidateLinesAsync(productIds)
+    gRPC->>Cat: gRPC call — ONE round-trip<br/>for every line
+    Cat-->>gRPC: ProductDto[]
+    gRPC-->>H: ProductDto[]
     Note over H: throw InvalidOperationException<br/>if missing / unavailable /<br/>insufficient stock
 
-    par for each line — reserve
-        H->>gRPC: ReserveStockAsync(productId, qty)
-        gRPC->>Cat: gRPC call (writes Catalog DB)
-        Cat-->>gRPC: bool
-        gRPC-->>H: bool
-    end
+    H->>gRPC: ReserveLinesAsync(lines)
+    gRPC->>Cat: gRPC call (writes Catalog DB —<br/>all lines in ONE transaction)
+    Cat-->>gRPC: bool
+    gRPC-->>H: bool
 
     H->>Agg: Order.Create(buyerId, currency, lines)
     Note over Agg: factory validates invariants —<br/>uses CatalogService prices,<br/>NEVER client-submitted prices
@@ -202,7 +198,7 @@ The handler's *code shape* is the contract — load-then-mutate-then-save is a w
 | [Features/ShipmentDispatchedHandler.cs](../../OrderService/Features/ShipmentDispatchedHandler.cs) | Saga step 3: shipment dispatched → mark shipped |
 | [Domain/Order.cs](../../OrderService/Domain/Order.cs) | Aggregate root + state transitions + invariants |
 | [Domain/OrderLine.cs](../../OrderService/Domain/OrderLine.cs) | Line-item entity, owned by Order |
-| [Domain/OrderStatus.cs](../../OrderService/Domain/OrderStatus.cs) | Enum: Placed / Paid / PaymentFailed / Shipped |
+| [Domain/OrderStatus.cs](../../OrderService/Domain/OrderStatus.cs) | Enum: Placed / Paid / Shipped / Delivered / Cancelled / PaymentFailed — Delivered and Cancelled (plus `Order.Cancel()`) have no handler driving them yet |
 | [Domain/ICatalogClient.cs](../../OrderService/Domain/ICatalogClient.cs) | gRPC client port (substituted in tests) |
 | [Infrastructure/GrpcCatalogClient.cs](../../OrderService/Infrastructure/GrpcCatalogClient.cs) | gRPC adapter to CatalogService |
 | [Infrastructure/Data/OrderDbContext.cs](../../OrderService/Infrastructure/Data/OrderDbContext.cs) | EF Core context; SQL Server `RowVersion` concurrency token |

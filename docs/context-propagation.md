@@ -69,7 +69,8 @@ Browser / App Client
       ▼
    Wolverine Handler (via ContextPropagationMiddleware)
       │
-      │  ContextPropagationMiddleware reads baggage, opens logger scope
+      │  ContextPropagationMiddleware reads envelope headers,
+      │  sets baggage, opens logger scope
       │  → Every log line in the handler now carries all three IDs
       │
       ▼
@@ -128,8 +129,9 @@ if (sessionId is not null) Activity.Current?.SetBaggage("session.id",  sessionId
 
 Wolverine's middleware pipeline lets you run cross-cutting code around every command and query handler. `ContextPropagationMiddleware` sits in that pipeline and:
 
-1. Reads the three IDs from `Activity.Current` baggage.
-2. Opens a `logger.BeginScope()` for the duration of the handler.
+1. Reads the three IDs from `Envelope.Headers` (`X-Correlation-Id` falls back to Wolverine's built-in `envelope.CorrelationId`, then the current trace ID).
+2. Restores them into `Activity.Current` baggage.
+3. Opens a `logger.BeginScope()` — the three IDs plus `MessageId` — for the duration of the handler.
 
 Because of the `BeginScope`, **every single log line** produced anywhere inside the handler — including lines from repositories, domain services, or anything else called transitively — automatically carries `CorrelationId`, `UserId`, and `SessionId` without those classes needing to know about them.
 
@@ -147,13 +149,12 @@ Request arrives
 
 **File:** `NextAurora.ServiceDefaults/Messaging/ContextPropagationMiddleware.cs` (same file as `ContextPropagationMiddleware`).
 
-When a service publishes an event, context would normally be lost — the message is fire-and-forget. `OutgoingContextMiddleware` runs on every outgoing Wolverine envelope and reads the three IDs from `Activity.Current` baggage, writing them onto `Envelope.Headers`:
+When a service publishes an event, context would normally be lost — the message is fire-and-forget. `OutgoingContextMiddleware` runs on every outgoing Wolverine envelope and reads `user.id` and `session.id` from `Activity.Current` baggage, writing them onto `Envelope.Headers` when present. `CorrelationId` is deliberately **not** stamped here — Wolverine already carries it on the envelope via W3C trace-context propagation, and the receiving `ContextPropagationMiddleware` reads it as its fallback:
 
 ```csharp
 // Conceptual view — the middleware writes onto Envelope.Headers, which
 // Wolverine maps to the underlying transport (RabbitMQ message headers
 // today; each transport maps the envelope headers to its native equivalent).
-envelope.Headers["X-Correlation-Id"] = correlationId;
 if (userId    is not null) envelope.Headers["X-User-Id"]    = userId;
 if (sessionId is not null) envelope.Headers["X-Session-Id"] = sessionId;
 ```
@@ -215,7 +216,7 @@ If you add a fifth or sixth service, here is the checklist:
 - Call `opts.AddNextAuroraContextPropagation()` inside `UseWolverine()` — it's in `ServiceDefaults` and registers both `ContextPropagationMiddleware` and `OutgoingContextMiddleware`.
 
 **Outgoing events:**
-- Register `WolverineEventPublisher` as `IEventPublisher` in Infrastructure DI. `OutgoingContextMiddleware` stamps the three IDs onto every outgoing envelope automatically.
+- Publish via a method-parameter `IMessageContext` inside the handler (see `OrderService/Features/PlaceOrder.cs`) so the envelope enlists in the handler's transaction. `OutgoingContextMiddleware` stamps `X-User-Id`/`X-Session-Id` onto every outgoing envelope automatically.
 
 **Incoming RabbitMQ messages:**
 - Wolverine + `ContextPropagationMiddleware` handles context extraction for all async message handlers automatically. No per-handler boilerplate needed.

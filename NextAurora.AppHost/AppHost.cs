@@ -32,8 +32,7 @@ var paymentsDb = builder.AddSqlServer("payments-sql")
 var shippingDb = builder.AddPostgres("shipping-pg")
     .AddDatabase("shipping-db");
 
-// Redis: currently only Catalog has a cache reference, used for distributed product caching
-// once we wire it (architecture.md "Future Considerations").
+// Redis: L2 tier of Catalog's HybridCache (see HybridProductCache); only Catalog references it today.
 var redis = builder.AddRedis("cache");
 
 // --- Messaging broker: RabbitMQ ---

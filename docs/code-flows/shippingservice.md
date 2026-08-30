@@ -131,7 +131,7 @@ stateDiagram-v2
     end note
 ```
 
-**Idempotency by throw.** `Shipment.Dispatch()` throws `InvalidOperationException` if status isn't `Created` — same pattern as `Payment.MarkAsX`. Because `CreateShipmentHandler` does the existence check (`GetByOrderIdAsync`) before reaching `Dispatch()`, hitting `Dispatch()` on a non-Created shipment means a serious bug, not a duplicate event. At-least-once delivery is handled at the handler level via the existence check, not at the aggregate level via a no-op.
+**Idempotency by throw.** `Shipment.Dispatch()` throws `InvalidOperationException` if status isn't `Created` — same pattern as `Payment.MarkAsX`. Because `CreateShipmentHandler` does the existence check (`context.Shipments.FirstOrDefaultAsync` on `OrderId`) before reaching `Dispatch()`, hitting `Dispatch()` on a non-Created shipment means a serious bug, not a duplicate event. At-least-once delivery is handled at the handler level via the existence check, not at the aggregate level via a no-op.
 
 ---
 
@@ -148,10 +148,10 @@ There's no `IShipmentRepository` wrapper. Both handlers take `ShippingDbContext`
 | [Endpoints/ShippingEndpoints.cs](../../ShippingService/Endpoints/ShippingEndpoints.cs) | HTTP surface: `GET /shipments/order/{orderId}` (only public route — shipments are created by the saga, not directly) |
 | [Features/PaymentCompletedHandler.cs](../../ShippingService/Features/PaymentCompletedHandler.cs) | Static event translator → `CreateShipmentCommand` (Wolverine cascading) |
 | [Features/CreateShipment.cs](../../ShippingService/Features/CreateShipment.cs) | Command + handler: existence check + create + dispatch + publish |
-| [Features/GetShipmentByOrder.cs](../../ShippingService/Features/GetShipmentByOrder.cs) | Read query + handler with IDOR null → 404 check on DTO |
+| [Features/GetShipmentByOrder.cs](../../ShippingService/Features/GetShipmentByOrder.cs) | Read query + handler — buyer-ownership predicate in the EF `Where` clause; null → 404 |
 | [Domain/Shipment.cs](../../ShippingService/Domain/Shipment.cs) | Aggregate root + tracking-number generation + `Dispatch()` state guard |
 | [Domain/TrackingEvent.cs](../../ShippingService/Domain/TrackingEvent.cs) | Audit row owned by Shipment (1-to-many) |
-| [Domain/ShipmentStatus.cs](../../ShippingService/Domain/ShipmentStatus.cs) | Enum: Created / Dispatched / Delivered |
+| [Domain/ShipmentStatus.cs](../../ShippingService/Domain/ShipmentStatus.cs) | Enum: Created / Dispatched / InTransit / Delivered (nothing writes `InTransit` yet) |
 | [Infrastructure/Data/ShippingDbContext.cs](../../ShippingService/Infrastructure/Data/ShippingDbContext.cs) | EF context — Postgres `xmin` concurrency token, unique index on `OrderId` |
 | `IMessageContext` (method-injected) | Wolverine's enlisted publish context — `ShipmentDispatchedEvent` is staged in the handler's outbox transaction (no project file; Wolverine framework type) |
 | [Program.cs](../../ShippingService/Program.cs) | Composition root — Wolverine + EF + auth + transports |

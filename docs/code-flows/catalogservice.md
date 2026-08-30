@@ -7,7 +7,7 @@
 > **Three flows to understand:**
 > 1. **GET product by ID** — HTTP read through `HybridCache` (stampede-protected).
 > 2. **PUT product** — HTTP write with seller-scope IDOR check (null → 404), DB write, then cache invalidation in the same handler.
-> 3. **gRPC ReserveStock** — synchronous call from OrderService during order placement; mutates `StockQuantity` under an optimistic-concurrency token.
+> 3. **gRPC ReserveLines** — synchronous batch call from OrderService during order placement; mutates `StockQuantity` for every line atomically under an optimistic-concurrency token (`ReserveStock` is the legacy per-product RPC).
 
 ---
 
@@ -60,7 +60,7 @@ sequenceDiagram
 
 **Why projection-in-EF.** The factory runs an inline `context.Products.AsNoTracking().Where(...).Select(p => new ProductDto { ... }).FirstOrDefaultAsync(ct)` — projects directly to `ProductDto` inside the `IQueryable` with no entity materialization and no in-memory mapper. The cache stores the DTO, so on hit there's literally nothing to map. See [docs/cqrs-data-access.md](../cqrs-data-access.md) for the rule.
 
-**Negative caching.** If `GetByIdAsync` returns `null`, the cache stores `null`. Subsequent lookups for that ID skip the DB. Safe here because product IDs are server-generated GUIDs — a "not found now, exists later" race is effectively impossible.
+**Negative caching.** If the factory returns `null`, the cache stores `null`. Subsequent lookups for that ID skip the DB. Safe here because product IDs are server-generated GUIDs — a "not found now, exists later" race is effectively impossible.
 
 ---
 
@@ -129,15 +129,15 @@ sequenceDiagram
 
 ---
 
-## Flow 3 — gRPC ReserveStock (called by OrderService)
+## Flow 3 — gRPC ReserveLines (called by OrderService)
 
-This is the synchronous server-side of the cross-service path you saw in OrderService's `PlaceOrderHandler`. OrderService calls the batch `ReserveLines` once per order (atomic all-or-nothing across every line); the per-product `ReserveStock` RPC shares the same concurrency story and remains on the contract.
+This is the synchronous server-side of the cross-service path you saw in OrderService's `PlaceOrderHandler`. OrderService calls the batch `ReserveLines` once per order (atomic all-or-nothing across every line); the per-product `ReserveStock` RPC shares the same concurrency story and remains on the contract. The diagram below traces the simpler per-product `ReserveStock`; `ReserveLinesHandler` runs the same load → check → `AdjustStock` → save shape across all lines in one transaction.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Order as OrderService<br/>(GrpcCatalogClient)
-    participant gRPC as CatalogGrpcService<br/>Api/Services/CatalogGrpcService.cs
+    participant gRPC as CatalogGrpcService<br/>Grpc/CatalogGrpcService.cs
     participant Bus as IMessageBus
     participant H as ReserveStockHandler<br/>Features/ReserveStock.cs
     participant Ctx as CatalogDbContext
@@ -150,8 +150,8 @@ sequenceDiagram
     gRPC->>Bus: bus.InvokeAsync<bool>(ReserveStockCommand)
     Bus->>H: HandleAsync(command, ct)
 
-    H->>Ctx: Products.Include(Category).FirstOrDefaultAsync(p=>p.Id==id)
-    Ctx->>DB: SELECT * FROM products<br/>JOIN categories<br/>WHERE id = @id (tracked)
+    H->>Ctx: Products.FirstOrDefaultAsync(p=>p.Id==id)
+    Ctx->>DB: SELECT * FROM products<br/>WHERE id = @id (tracked)
     DB-->>Ctx: Product (tracked) + xmin
     Ctx-->>H: Product
 
@@ -197,8 +197,8 @@ graph LR
     end
 
     subgraph Features["Features/"]
-        Readers["Read handlers<br/>GetProductByIdHandler<br/>GetAllProductsHandler<br/>SearchProductsHandler"]
-        Writers["Write handlers<br/>CreateProductHandler<br/>UpdateProductHandler<br/>ReserveStockHandler"]
+        Readers["Read handlers<br/>GetProductByIdHandler<br/>GetAllProductsHandler<br/>SearchProductsHandler<br/>ValidateLinesHandler"]
+        Writers["Write handlers<br/>CreateProductHandler<br/>UpdateProductHandler<br/>ReserveStockHandler<br/>ReserveLinesHandler"]
     end
 
     subgraph Infra["Infrastructure/"]
@@ -228,11 +228,13 @@ The handler's code shape is the contract: `AsNoTracking().Select(DTO)` is a read
 |---|---|
 | [Endpoints/CatalogEndpoints.cs](../../CatalogService/Endpoints/CatalogEndpoints.cs) | HTTP surface: GET (public), POST/PUT (seller-scoped with two-tier check) |
 | [Grpc/CatalogGrpcService.cs](../../CatalogService/Grpc/CatalogGrpcService.cs) | gRPC server — translates to Wolverine commands/queries (same handlers as HTTP) |
-| [Protos/catalog.proto](../../CatalogService/Protos/catalog.proto) | gRPC contract for `GetProduct`, `GetProducts`, `ReserveStock` |
+| [Protos/catalog.proto](../../CatalogService/Protos/catalog.proto) | gRPC contract for `GetProduct`, `GetProducts`, `ReserveStock`, `ValidateLines`, `ReserveLines` |
 | [Program.cs](../../CatalogService/Program.cs) | Composition root: Wolverine, EF, HybridCache, gRPC, OpenAPI/Scalar |
 | [Features/CreateProduct.cs](../../CatalogService/Features/CreateProduct.cs) | Command + validator + handler: create product (seller-scoped at endpoint) |
 | [Features/UpdateProduct.cs](../../CatalogService/Features/UpdateProduct.cs) | Write + IDOR seller-scope check + cache invalidation |
-| [Features/ReserveStock.cs](../../CatalogService/Features/ReserveStock.cs) | Stock mutation under xmin token + cache invalidation |
+| [Features/ReserveStock.cs](../../CatalogService/Features/ReserveStock.cs) | Per-product stock mutation under xmin token + cache invalidation (legacy RPC) |
+| [Features/ValidateLines.cs](../../CatalogService/Features/ValidateLines.cs) | Batch availability + price check for an order's lines (one `WHERE id IN` query; bypasses the cache on purpose) |
+| [Features/ReserveLines.cs](../../CatalogService/Features/ReserveLines.cs) | Batch, atomic all-or-nothing stock reservation across every order line + cache invalidation |
 | [Features/GetProductById.cs](../../CatalogService/Features/GetProductById.cs) | Cache-aside read; factory runs the inline EF projection on miss |
 | [Features/GetAllProducts.cs](../../CatalogService/Features/GetAllProducts.cs) | Paginated list (no cache); inline `AsNoTracking().Select(ProductDto)` |
 | [Features/SearchProducts.cs](../../CatalogService/Features/SearchProducts.cs) | ILIKE search via inline projection (Postgres `EF.Functions.ILike`) |
@@ -262,7 +264,7 @@ The band-aid mitigation (dropping `LocalCacheExpiration` to 60s) is what [STATUS
 
 ## See also
 
-- [docs/code-flows/orderservice.md](orderservice.md) — OrderService is the caller for `gRPC ReserveStock`
+- [docs/code-flows/orderservice.md](orderservice.md) — OrderService calls `ValidateLines` / `ReserveLines` during placement
 - [docs/cqrs-data-access.md](../cqrs-data-access.md) — read/write split rule (handlers take `DbContext` directly across all services)
 - [docs/hybridcache-flow.svg](../hybridcache-flow.svg) — diagram of the L1/L2/stampede/tag-invalidation mechanics
 - [docs/performance-and-data-correctness.md](../performance-and-data-correctness.md) — full perf rationale incl. caching decisions

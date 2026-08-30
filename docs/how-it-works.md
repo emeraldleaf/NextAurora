@@ -159,7 +159,7 @@ All business operations are expressed as either a **Command** (changes state, re
 ### Command Example
 
 ```csharp
-// Application/Commands/PlaceOrderCommand.cs
+// Features/PlaceOrder.cs
 public record PlaceOrderCommand(Guid BuyerId, string Currency, List<OrderLineItem> Lines);
 
 // Features/PlaceOrder.cs
@@ -648,7 +648,7 @@ Integration tests (Testcontainers-based) are listed as a future item in the BRD.
 dotnet test
 ```
 
-All tests in the solution run. Each test project targets the unit tests for one service.
+All tests in the solution run: a unit-test project per service, four Testcontainers integration projects (Docker must be running), and the NextAurora.ArchitectureTests suite.
 
 ---
 
@@ -656,16 +656,16 @@ All tests in the solution run. Each test project targets the unit tests for one 
 
 | I want to... | Look here |
 |--------------|-----------|
-| Add a new API endpoint | `{Service}.Api/Endpoints/` (use `MapV1ApiGroup(...)` so the route lives under `/api/v1/...`) |
-| Add a new command or query | `{Service}.Application/Commands/` or `Queries/` |
-| Add a handler for a command/event | `{Service}.Application/Handlers/` (Wolverine discovers by convention — no interface to implement) |
-| Add validation for a command | `{Service}.Application/Validators/` |
-| Change a domain business rule | `{Service}.Domain/Entities/` |
+| Add a new API endpoint | `{Service}/Endpoints/` (use `MapV1ApiGroup(...)` so the route lives under `/api/v1/...`) |
+| Add a new command or query | `{Service}/Features/{Feature}.cs` — the command/query record lives in the same file as its validator and handler |
+| Add a handler for a command/event | The feature file in `{Service}/Features/` (Wolverine discovers by convention — no interface to implement) |
+| Add validation for a command | The `AbstractValidator` co-located in `{Service}/Features/{Feature}.cs` |
+| Change a domain business rule | `{Service}/Domain/` |
 | Add a new event type | `NextAurora.Contracts/Events/` |
 | Change which events a service publishes | Publish through the handler's method-injected `IMessageContext` before `SaveChangesAsync` — see [Step 5](#step-5--stage-the-event-into-the-outbox) |
-| Change which events a service consumes | Add a handler class for the event in the service's `Features/` folder, plus an `opts.ListenToRabbitQueue(...)` + `rabbit.BindExchange(...).ToQueue(...)` line in `{Service}.Api/Program.cs` |
+| Change which events a service consumes | Add a handler class for the event in the service's `Features/` folder, plus an `opts.ListenToRabbitQueue(...)` + `rabbit.BindExchange(...).ToQueue(...)` line in `{Service}/Program.cs` |
 | Inspect outgoing events / outbox state | Each event-publishing service's DB has a `wolverine` schema; `outgoing_envelopes` is the staged-but-not-yet-flushed queue, `dead_letters` the DLQ. See [event-replay.md](./event-replay.md) |
-| Add a new gRPC method to CatalogService | `CatalogService.Api/Protos/catalog.proto` + `CatalogService.Api/Services/CatalogGrpcService.cs` (regenerate clients in OrderService) |
+| Add a new gRPC method to CatalogService | `CatalogService/Protos/catalog.proto` + `CatalogService/Grpc/CatalogGrpcService.cs` (regenerate clients in OrderService) |
 | Add a cached read query in Catalog | `IProductCache.GetOrLoadAsync(id, factory)` — see [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs) |
 | Reach for raw SQL via Dapper | `ctx.Database.GetDbConnection()` so it shares the EF transaction — see [Dapper escape hatch](performance-and-data-correctness.md#decision-when-to-reach-past-ef-core-dapper-escape-hatch) |
 | Understand the full order lifecycle | This guide, [architecture.md](./architecture.md), the [architecture diagram](./nextaurora-architecture.svg) ([source](./nextaurora-architecture.excalidraw)), and the event flow diagram in [README.md](../README.md) |

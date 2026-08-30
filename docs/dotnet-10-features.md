@@ -24,7 +24,7 @@ Every entry is anchored to a real file. If you can't point at code, you don't ac
 
 **What it is**: Microsoft's built-in OpenAPI document generator that **replaced Swashbuckle** as the ASP.NET Core web template default in .NET 9. Reads endpoint signatures + minimal-API metadata and emits the spec at build/runtime. Source-generated when AOT is on.
 
-**Where**: Every service's `Program.cs`. Example: [CatalogService.Api/Program.cs](../CatalogService/Program.cs#L72).
+**Where**: Every service's `Program.cs`. Example: [CatalogService/Program.cs](../CatalogService/Program.cs#L131-L133).
 
 ```csharp
 builder.Services.AddOpenApi();
@@ -64,7 +64,7 @@ app.MapScalarApiReference();                        // /scalar/v1 — interactiv
 
 **Where**:
 - [CatalogService.Domain/Entities/Category.cs:20](../CatalogService/Domain/Category.cs#L20) — `public List<Product> Products { get; private set; } = [];`
-- [ShippingService.Domain/Entities/Shipment.cs:30](../ShippingService/Domain/Shipment.cs#L30) — `public List<TrackingEvent> TrackingEvents { get; private set; } = [];`
+- [ShippingService.Domain/Entities/Shipment.cs:43](../ShippingService/Domain/Shipment.cs#L43) — `public List<TrackingEvent> TrackingEvents { get; private set; } = [];`
 - [NextAurora.Contracts/Events/OrderPlacedEvent.cs:10](../NextAurora.Contracts/Events/OrderPlacedEvent.cs#L10) — `public List<OrderLineContract> Lines { get; init; } = [];`
 - Tests pass empty collections via `Lines = []`
 
@@ -98,7 +98,7 @@ The `MapV1ApiGroup(tag, resource)` helper in [NextAurora.ServiceDefaults/Extensi
 
 **What it is**: Built-in rate limiting middleware introduced in .NET 7, matured through 10. Strategies include `FixedWindow`, `SlidingWindow`, `TokenBucket`, `Concurrency`.
 
-**Where**: [CatalogService.Api/Program.cs:18-27](../CatalogService/Program.cs#L18-L27) — fixed-window limiter for product search (30 requests / 10s).
+**Where**: [CatalogService/Program.cs:27-37](../CatalogService/Program.cs#L27-L37) — fixed-window limiter for product search (30 requests / 10s).
 
 ```csharp
 builder.Services.AddRateLimiter(options =>
@@ -137,7 +137,7 @@ builder.Services.AddRateLimiter(options =>
 
 **`AsNoTracking()` + projection on every read**: [CatalogService/Features/GetProductById.cs](../CatalogService/Features/GetProductById.cs) (`.AsNoTracking().Where(...).Select(p => new ProductDto { ... })`). Read handlers project to the DTO inline — no `Include`, no entity materialization, no change-tracker entry. SQL emits only the columns the DTO needs.
 
-**`ExecuteUpdateAsync` / `ExecuteDeleteAsync`**: Bulk operations as single SQL statements. Example in [tests](../tests/CatalogService.Tests.Integration/ProductCachingTests.cs#L58): `await db.Products.Where(p => p.Id == productId).ExecuteDeleteAsync();`.
+**`ExecuteUpdateAsync` / `ExecuteDeleteAsync`**: Bulk operations as single SQL statements. Example in [tests](../tests/CatalogService.Tests.Integration/ProductCachingTests.cs#L75): `await db.Products.Where(p => p.Id == productId).ExecuteDeleteAsync();`.
 
 **`xmin` concurrency token (Postgres-specific)**: [CatalogService.Infrastructure/Data/CatalogDbContext.cs:63](../CatalogService/Infrastructure/Data/CatalogDbContext.cs#L63) — shadow property bound to Postgres's system column. EF includes `WHERE xmin = N` on every UPDATE. Second writer's WHERE matches zero rows → `DbUpdateConcurrencyException` → handler returns 409. No schema column needed.
 
@@ -187,7 +187,7 @@ Lets log aggregators index by `UserId` and `OrderId` — searchable, not text-gr
 
 **What it is**: Single library that handles in-process CQRS (the MediatR slot), message-broker dispatch (the MassTransit slot), AND the transactional outbox pattern across both.
 
-**Where**: Every service's `Program.cs` has `builder.Host.UseWolverine(opts => ...)`. Example: [CatalogService.Api/Program.cs:29-35](../CatalogService/Program.cs#L29-L35).
+**Where**: Every service's `Program.cs` has `builder.Host.UseWolverine(opts => ...)`. Example: [CatalogService/Program.cs:39](../CatalogService/Program.cs#L39).
 
 **Why we picked Wolverine over MediatR + MassTransit**:
 - **MediatR went commercial in 2024** (sponsorware via Jimmy Bogard's company). v12 is the last free version.

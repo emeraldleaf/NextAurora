@@ -173,8 +173,8 @@ This starts all services, databases (PostgreSQL, SQL Server), Redis, and RabbitM
 
 | Application | URL |
 |-------------|-----|
-| Aspire Dashboard | https://localhost:17225 |
-| Storefront | Shown in Aspire Dashboard |
+| Aspire Dashboard | https://localhost:17222 |
+| Storefront | http://localhost:5173 (run `npm run dev` in `frontend/`) |
 | SellerPortal | Shown in Aspire Dashboard |
 | CatalogService API | Shown in Aspire Dashboard |
 | OrderService API | Shown in Aspire Dashboard |
