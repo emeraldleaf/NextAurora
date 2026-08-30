@@ -630,6 +630,8 @@ if (!reserved) throw new InvalidOperationException("...");
 
 ### 12.3 Azure Service Bus (Wolverine) — async event-driven workflows
 
+> **Superseded by the RabbitMQ swap (#159).** The saga runs on RabbitMQ in every environment. Azure Service Bus was evaluated and removed: its local emulator can't run the saga and there is no Azure deployment today, so carrying a second wiring earned nothing. This section is kept as written, as the record of the original decision; the current transport rules are in [CLAUDE.md → Package Management](../CLAUDE.md#package-management) and [messaging-transport-selection.md](messaging-transport-selection.md).
+
 For **the order fulfillment saga** — events fan out to multiple subscribers. Configured per service via Wolverine; topology mapped 1:1 in [architecture.md](architecture.md).
 
 Why async events:
