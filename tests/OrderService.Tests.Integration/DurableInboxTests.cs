@@ -74,7 +74,10 @@ public sealed class DurableInboxTests(OrderApiRabbitFactory factory) : IClassFix
         };
         envelope.SetMessageType<PaymentCompletedEvent>();
         var body = envelope.Data;
-        var properties = new BasicProperties();
+        // RabbitMQ.Client v7 leaves BasicProperties.Headers null; Wolverine's mapper writes
+        // the sent-at header into it and NREs without this. Wolverine's own send path
+        // pre-creates the dictionary — reproduce that here.
+        var properties = new BasicProperties { Headers = new Dictionary<string, object?>(StringComparer.Ordinal) };
         var listener = runtime.Endpoints.EndpointFor(queueUri)
             ?? throw new InvalidOperationException($"OrderService declares no endpoint for {queueUri} — is the ListenToRabbitQueue line still in Program.cs?");
         new RabbitMqEnvelopeMapper(listener, runtime).MapEnvelopeToOutgoing(envelope, properties);
