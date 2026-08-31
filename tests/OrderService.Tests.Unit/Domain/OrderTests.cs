@@ -74,7 +74,8 @@ public class OrderTests
     public void Create_CalculatesTotalAmount_FromLines()
     {
         // ARRANGE — TotalAmount is derived server-side from the lines, never trusted from
-        // the client (CLAUDE.md "Order.Create" comment). If we accepted a client-submitted
+        // the client (`Order.Create` in Order.cs; CLAUDE.md "Security Requirements →
+        // Server-controlled fields"). If we accepted a client-submitted
         // total, anyone could place a $999 order for $0.01. Two lines: 2×$10 + 3×$5 = $35.
         var lines = new List<OrderLine>
         {
@@ -196,7 +197,7 @@ public class OrderTests
     {
         // ARRANGE — Cancelling a paid order. Known gap: this currently does NOT trigger
         // a refund — the domain accepts the transition but no compensating action runs.
-        // Future work (see STATUS.md "Saga compensation") will wire a RefundRequiredEvent.
+        // Future work (compensation gap, tracked in #101) will wire a RefundRequiredEvent.
         // Locking in current behaviour so the gap is testable + obvious.
         var order = OrderBuilder.Default().Build();
         order.MarkAsPaid();

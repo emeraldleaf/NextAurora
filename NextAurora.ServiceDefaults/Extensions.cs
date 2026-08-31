@@ -442,8 +442,8 @@ public static class Extensions
     /// scope, calls <c>Database.MigrateAsync</c>, returns.
     ///
     /// <para>
-    /// <b>Dev-only by convention:</b> this is called inside <c>if (app.Environment.IsDevelopment())</c>
-    /// in every service's Program.cs. Why not production? With multiple replicas behind a load
+    /// <b>Dev/demo-only by convention:</b> this is called inside
+    /// <c>if (app.Environment.IsDevelopment() || isDemoMode)</c> in every DB service's Program.cs. Why not production? With multiple replicas behind a load
     /// balancer, all replicas would race to apply migrations on startup — the first wins, the
     /// rest see history-table conflicts. In production, migrations should run as a separate
     /// pre-deploy step, then app pods start without migration at all.

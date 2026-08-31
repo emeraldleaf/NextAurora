@@ -1,4 +1,6 @@
-# Demo Deployment — CatalogService
+# Demo Deployment — CatalogService (legacy single-service demo)
+
+> **Superseded.** The full saga — all five services plus the storefront — is deployed on the shared VPS behind Caddy; see [deployed-demo.md](deployed-demo.md). This document covers the older Catalog-only demo, kept because the DemoMode/ForwardedHeaders machinery it documents is still in the code.
 
 One-time setup to get [CatalogService](../CatalogService/) running on a public URL with the Scalar UI exposed for a public demo.
 
@@ -8,7 +10,7 @@ Two paths are documented below — pick one:
 
 | Path | Setup time | Cost | When to pick |
 |---|---|---|---|
-| **[Fly.io](#flyio-path-recommended)** (primary) | ~15 min | ~$0-$5/mo | Fastest, fewest moving parts, accepts almost any payment method |
+| **[Fly.io](#flyio-path-recommended)** (legacy Catalog-only) | ~15 min | ~$0-$5/mo | Fastest, fewest moving parts, accepts almost any payment method |
 | **[AWS App Runner](#aws-app-runner-path-alternative)** | ~30 min | ~$5/mo (RDS free tier first 12 mo) | If you want the AWS knowledge surface on your walkthrough, and AWS billing accepts your card |
 
 Both deploy the same artifact (`Dockerfile.catalog`) with `DemoMode=true`, talk to a managed Postgres, and produce a public HTTPS URL like `https://xxx.fly.dev/scalar/v1` or `https://xxx.awsapprunner.com/scalar/v1`.
@@ -21,7 +23,7 @@ The demo scaffolding is fully additive. Local Aspire development, the test suite
 
 | Surface | When `DemoMode` is absent | Why |
 |---|---|---|
-| `dotnet run --project NextAurora.AppHost` (local Aspire) | Unchanged | All three `DemoMode` branches in [Program.cs](../CatalogService/Program.cs) short-circuit: `IsDevelopment() \|\| false` → `IsDevelopment()`. |
+| `dotnet run --project NextAurora.AppHost` (local Aspire) | Unchanged | Every `DemoMode` branch in [Program.cs](../CatalogService/Program.cs) is skipped — each is gated on `DemoMode` alone or `IsDevelopment() \|\| DemoMode`, so an unset flag changes nothing. |
 | Redis registration | Unchanged | Aspire's `WithReference(cache)` sets `ConnectionStrings__cache`, so the new conditional still registers `AddStackExchangeRedisCache`. Skipping only triggers when no `cache` conn string is wired at all. |
 | `dotnet build` | Unchanged | Zero new warnings under `TreatWarningsAsErrors`. |
 | Integration tests | Unchanged | Testcontainers provides Redis via the same `ConnectionStrings__cache` path. |
@@ -54,7 +56,7 @@ You ──[fly deploy]──> Fly remote builder
                             ▼
                     Fly Machine (catalog-api-demo)
                             │  ┌─ env: DemoMode=true
-                            │  └─ secret: ConnectionStrings__catalog-db
+                            │  └─ secret: CATALOG_DB_CONNECTION_STRING
                             ▼
                     Fly Postgres (catalog-demo-db)
 ```
@@ -74,12 +76,12 @@ Fly requires a payment method but the hobby tier costs ~$0 if the app sleeps whe
 From the repo root:
 
 ```bash
-fly launch --copy-config --no-deploy --name catalog-api-demo --region iad
+fly launch --copy-config --no-deploy --name catalog-api-demo --region lax
 ```
 
 - `--copy-config` uses the existing [fly.toml](../fly.toml) (don't let it overwrite)
 - `--no-deploy` skips the first deploy (we don't have a Postgres yet)
-- `--region iad` picks Ashburn, VA. Other options: `ord` (Chicago), `lax` (LA), `lhr` (London), `fra` (Frankfurt)
+- `--region lax` picks Los Angeles — it must match `primary_region` in [fly.toml](../fly.toml). Other options: `ord` (Chicago), `iad` (Ashburn), `lhr` (London), `fra` (Frankfurt)
 
 If it asks "Would you like to copy its configuration to the new app?" → **yes**.
 If it asks about a Postgres or Redis cluster → **no** (we create the Postgres separately).
@@ -89,7 +91,7 @@ If it asks about a Postgres or Redis cluster → **no** (we create the Postgres 
 ```bash
 fly postgres create \
   --name catalog-demo-db \
-  --region iad \
+  --region lax \
   --vm-size shared-cpu-1x \
   --volume-size 1 \
   --initial-cluster-size 1
@@ -103,9 +105,11 @@ Fly Postgres exposes itself on Fly's internal network. The hostname format is `<
 
 ```bash
 fly secrets set \
-  "ConnectionStrings__catalog-db=Host=catalog-demo-db.flycast;Port=5432;Database=catalog;Username=postgres;Password=<paste-password-here>" \
+  "CATALOG_DB_CONNECTION_STRING=Host=catalog-demo-db.flycast;Port=5432;Database=catalog;Username=postgres;Password=<paste-password-here>;SSL Mode=Disable" \
   -a catalog-api-demo
 ```
+
+Why not `ConnectionStrings__catalog-db`? Fly rejects hyphens in secret names, so a `DemoMode`-gated bridge in [Program.cs](../CatalogService/Program.cs) copies `CATALOG_DB_CONNECTION_STRING` into the `ConnectionStrings:catalog-db` slot; `SSL Mode=Disable` is required because flycast is a private overlay that doesn't speak SSL (see [demo-deployment-story.md](demo-deployment-story.md), step 7).
 
 The database `catalog` is auto-created by EF Core migrations on first boot (because `DemoMode=true` runs `MigrateDatabaseAsync<CatalogDbContext>()` at startup). Note: the default Fly Postgres user is `postgres`, not the role we'd use in real prod.
 

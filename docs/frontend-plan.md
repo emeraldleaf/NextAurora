@@ -6,7 +6,8 @@
 > The frontend is itself a portfolio artifact — it must demonstrate the same engineering rigor
 > as the backend: encoded canon, enforced rules, tests that prove behavior.
 
-**Status:** planned — epic tracks the build. Canon lives in [frontend/CLAUDE.md](../frontend/CLAUDE.md) (written before the scaffold, same encode-first method as the backend).
+**Status:** complete through Phase 4; build and deployment state live in
+[docs/STATUS.md](STATUS.md) and [docs/deployed-demo.md](deployed-demo.md). Canon lives in [frontend/CLAUDE.md](../frontend/CLAUDE.md) (written before the scaffold, same encode-first method as the backend).
 
 ---
 
@@ -15,7 +16,7 @@
 Most demo frontends are CRUD skins. This one has two distinguishing features:
 
 1. **The saga narrator.** Placing an order walks the user through the choreography saga *as it
-   happens*: Order placed (outbox → ASB) → Payment processed → Shipment dispatched → Notification
+   happens*: Order placed (outbox → RabbitMQ) → Payment processed → Shipment dispatched → Notification
    sent. Each step shows a "behind the scenes" panel explaining the mechanism (transactional
    outbox, idempotent consumers, batch gRPC validation, optimistic concurrency) with links into
    the repo. The app teaches its own architecture — the same teaching-grade ethos as the
@@ -81,9 +82,9 @@ backend. The symmetry is the portfolio story: **vertical slices on both sides of
 | Place order | ✅ `POST /api/v1/orders` (202-style: returns ID, saga proceeds async) |
 | Order status / saga timeline | ✅ `GET /api/v1/orders/{id}` (poll); ⚠️ consider an SSE endpoint later — **don't build until polling proves insufficient** |
 | Shipment by order | ✅ `GET /api/v1/shipments/order/{orderId}` |
-| Correlation ID on responses | ✅ `CorrelationIdMiddleware` — verify header is exposed via CORS `Access-Control-Expose-Headers` |
-| CORS for the SPA origin | ⚠️ explicit policy per service — needs the SPA's origin added |
-| Keycloak SPA client | ⚠️ new public client (auth-code + PKCE) in realm config |
+| Correlation ID on responses | ✅ `CorrelationIdMiddleware`; `AddFrontendCors` exposes `X-Correlation-Id` ([Extensions.cs](../NextAurora.ServiceDefaults/Extensions.cs)) |
+| CORS for the SPA origin | ✅ `AddFrontendCors` in ServiceDefaults — origins injected via `Frontend__AllowedOrigins` (AppHost + compose) |
+| Keycloak SPA client | ✅ `storefront` public client (auth-code + PKCE) in `nextaurora-realm.json` |
 
 ## Phases (each = one PR, demoable increment)
 
@@ -99,8 +100,9 @@ backend. The symmetry is the portfolio story: **vertical slices on both sides of
 5. **Phase 4 — Observability surface.** Correlation-ID chip on every mutation, Aspire trace
    deep-links (dev), query-cache devtools panel, failure-path demo (payment failure → saga
    compensation visible in UI).
-6. **Phase 5 — Deploy + polish.** Static hosting (Fly.io static app or Vercel), demo dataset
-   seed, README walkthrough with screenshots, Lighthouse CI gate.
+6. **Phase 5 — Deploy + polish.** Superseded by the as-built deployment
+   ([docs/deployed-demo.md](deployed-demo.md)). Still open from this phase:
+   Lighthouse CI gate and bundle visualizer in CI.
 
 ## Sources the canon distills
 

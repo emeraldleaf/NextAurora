@@ -87,6 +87,11 @@ For a learning/portfolio project where the *patterns themselves* are the deliver
 
 ## 3. Per-service shape: Clean Architecture *or* Vertical Slice Architecture
 
+> **Superseded by the simplicity refactor (PR #31).** All five services are single-project
+> VSA today — CatalogService collapsed to the same `Features/` + `Domain/` +
+> `Infrastructure/` + `Endpoints/` shape as the rest. This section is kept as written, as
+> the record of the original decision.
+
 **Originally**: every service used the same 4-project Clean Architecture split. **Now**: only
 CatalogService keeps that shape. The other four services collapsed to single-project Vertical
 Slice Architecture (VSA) after an audit found the layered split was costing more than it paid
@@ -197,7 +202,7 @@ We don't have any of those needs, so Minimal APIs are unambiguous.
 
 ### The `MapV1ApiGroup` helper
 
-Defined in [NextAurora.ServiceDefaults/Extensions.cs:254](../NextAurora.ServiceDefaults/Extensions.cs#L254):
+Defined in [NextAurora.ServiceDefaults/Extensions.cs:347](../NextAurora.ServiceDefaults/Extensions.cs#L347):
 
 ```csharp
 public static RouteGroupBuilder MapV1ApiGroup(this WebApplication app, string tag, string template)
@@ -221,7 +226,7 @@ public static RouteGroupBuilder MapV1ApiGroup(this WebApplication app, string ta
 
 ## 5. URL-segment versioning (`/api/v1/...`)
 
-Configured globally in [`AddNextAuroraApiVersioning`](../NextAurora.ServiceDefaults/Extensions.cs#L209), called from `AddServiceDefaults`:
+Configured globally in [`AddNextAuroraApiVersioning`](../NextAurora.ServiceDefaults/Extensions.cs#L304), called from `AddServiceDefaults`:
 
 ```csharp
 builder.Services
@@ -609,13 +614,16 @@ URL-segment versioned (`/api/v1/...`), JSON request/response, RFC 7807 errors. *
 
 For **real-time queries between services** where the caller needs a definitive answer before continuing. Versioned separately via `.proto` `package` declarations.
 
-Example: `PlaceOrderHandler` (OrderService) calls `CatalogGrpcService` (CatalogService) for each line item to validate the product exists and reserve stock — see [PlaceOrder.cs:79](../OrderService/Features/PlaceOrder.cs#L79):
+Example: `PlaceOrderHandler` (OrderService) makes two batched calls to `CatalogGrpcService` (CatalogService) per order — one `ValidateLinesAsync` over every product ID, then one `ReserveLinesAsync` over every line — see [PlaceOrder.cs:95](../OrderService/Features/PlaceOrder.cs#L95-L126):
 
 ```csharp
-var product = await catalogClient.GetProductAsync(lineItem.ProductId, cancellationToken);
-if (product is null) throw new InvalidOperationException("...");
-var reserved = await catalogClient.ReserveStockAsync(lineItem.ProductId, lineItem.Quantity, cancellationToken);
-if (!reserved) throw new InvalidOperationException("...");
+var productIds = request.Lines.Select(l => l.ProductId).Distinct().ToList();
+var products = (await catalogClient.ValidateLinesAsync(productIds, cancellationToken))
+    .ToDictionary(p => p.Id);
+// ...per-line availability and stock checks against the returned snapshot...
+var reserved = await catalogClient.ReserveLinesAsync(
+    request.Lines.Select(l => new CatalogReserveLine(l.ProductId, l.Quantity)).ToList(),
+    cancellationToken);
 ```
 
 #### Why gRPC for sync inter-service
@@ -1132,7 +1140,7 @@ A condensed walkthrough of the key decisions, each mapped to a section above. Us
 
 ### "What's your testing strategy?"
 
-> xUnit + AwesomeAssertions + NSubstitute for unit tests on domain logic and handlers — those mock the repository and bus. Integration tests use `Microsoft.AspNetCore.Mvc.Testing`'s `WebApplicationFactory<Program>` to boot the real API in-process against Testcontainers — real Postgres, real Redis, real SQL Server. That's the only way to verify EF migrations, real concurrency tokens, and real cache behavior. Two integration slices today: Catalog and Order. The cross-service saga over the real ASB wire is the next slice — deferred because it requires the ASB emulator container which is heavier.
+> xUnit + AwesomeAssertions + NSubstitute for unit tests on domain logic and validators — mocks are reserved for real ports (payment gateway, catalog client); handlers take DbContext directly, so IO-shaped behavior is covered by the integration slices instead. Integration tests use `Microsoft.AspNetCore.Mvc.Testing`'s `WebApplicationFactory<Program>` to boot the real API in-process against Testcontainers — real Postgres, real Redis, real SQL Server. That's the only way to verify EF migrations, real concurrency tokens, and real cache behavior. Four integration slices today — Catalog, Order, Payment, and Shipping — each running as its own CI step. The remaining gap is the cross-service saga round-trip over the real RabbitMQ wire ([dev-loop.md](dev-loop.md) Gap 1).
 
 ### "How does observability work?"
 
@@ -1140,7 +1148,7 @@ A condensed walkthrough of the key decisions, each mapped to a section above. Us
 
 ### "How do you enforce coding standards?"
 
-> `TreatWarningsAsErrors=true` + `AnalysisMode=All` makes every analyzer warning a build error. Five analyzer packages: built-in CA*, Meziantou (cancellation token propagation), SonarAnalyzer (cognitive complexity, sync-in-async), Roslynator (style/perf micro-optimizations), and BannedApiAnalyzers with a repo-root `BannedSymbols.txt` that compile-rejects `Task.WaitAll`, `Parallel.For`, `Thread.Sleep`, etc. with custom error messages pointing at the right replacement. One concurrency hazard the analyzers can't catch — shared static mutable collections — is enforced by a CI grep step.
+> `TreatWarningsAsErrors=true` + `AnalysisMode=All` makes every analyzer warning a build error. Four analyzer packages plus the SDK's built-in CA* rules (via `AnalysisMode=All`): Meziantou (cancellation token propagation), SonarAnalyzer (cognitive complexity, sync-in-async), Roslynator (style/perf micro-optimizations), and BannedApiAnalyzers with a repo-root `BannedSymbols.txt` that compile-rejects `Task.WaitAll`, `Parallel.For`, `Thread.Sleep`, etc. with custom error messages pointing at the right replacement. One concurrency hazard the analyzers can't catch — shared static mutable collections — is enforced by a CI grep step.
 
 ### "Why not Dapr?"
 

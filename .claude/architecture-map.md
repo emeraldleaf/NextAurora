@@ -14,7 +14,7 @@ this map (the build commands at the bottom show how).
 
 | Service | Shape | Database | Project layout |
 |---|---|---|---|
-| **CatalogService** | Clean Architecture | Postgres | 4 projects: `Api`, `Application`, `Domain`, `Infrastructure` |
+| **CatalogService** | VSA | Postgres | Single project, `Features/` + `Domain/` + `Infrastructure/` + `Endpoints/` + `Grpc/` |
 | **OrderService** | VSA | SQL Server | Single project, `Features/` + `Domain/` + `Infrastructure/` + `Endpoints/` |
 | **PaymentService** | VSA | SQL Server | Single project, `Features/` + `Domain/` + `Infrastructure/` + `Endpoints/` |
 | **ShippingService** | VSA | Postgres | Single project, `Features/` + `Domain/` + `Infrastructure/` + `Endpoints/` |
@@ -107,7 +107,7 @@ operates on); the Clean service splits them between Domain and Application.
 ### NotificationService
 - No ports — stateless event-to-email pump. No persistence, no aggregates, no Domain folder.
 
-### CatalogService — `CatalogService.Domain/` (interfaces) + `CatalogService.Application/` (handlers)
+### CatalogService — `CatalogService/Domain/` (interfaces) + `CatalogService/Features/` (handlers)
 - `IProductRepository`, `ICategoryRepository`
 - `IProductCache` (HybridCache-backed: L1 in-process + L2 Redis)
 - `IEventPublisher`
@@ -136,8 +136,7 @@ constructors. Private setters. State changes go through methods (e.g. `Order.Mar
 
 ## Endpoints
 
-VSA services register endpoints in `Endpoints/{Service}Endpoints.cs`. Catalog registers
-in `CatalogService.Api/Endpoints/`.
+All five services register endpoints in `Endpoints/{Service}Endpoints.cs`.
 
 All endpoints use `MapV1ApiGroup("Tag", "resource")` from ServiceDefaults — that returns
 a `RouteGroupBuilder` rooted at `/api/v1/resource` with the version + tag applied. Never

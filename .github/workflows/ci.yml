@@ -243,8 +243,7 @@ jobs:
       # nothing catches them in prose — the RabbitMQ swap left 15+ docs teaching the
       # removed transport as current, found by review instead of mechanically.
       # Patterns: .claude/tombstones.txt; historical/comparative exemptions:
-      # .claude/tombstones-allowlist.txt. See CLAUDE.md "File-and-identifier-move
-      # discipline".
+      # .claude/tombstones-allowlist.txt. See CLAUDE.md "Identifier-move discipline".
       - name: Tombstone audit — removed identifiers must not resurface
         run: .claude/scripts/check-tombstones.sh
 

@@ -52,8 +52,8 @@ main is deploying* (~10 min end to end: image build ≈ 7, poll ≤ 3).
 
 ## What `DemoMode=true` gates (and what it doesn't)
 
-One explicit flag, set only in the deployed compose file and local Aspire runs — never a
-default. Everything it changes is a *posture* switch, not a feature flag:
+One explicit flag, set in three places — the deployed compose file, [fly.toml](../fly.toml),
+and (payment-service only) the local Aspire AppHost — never a default. Everything it changes is a *posture* switch, not a feature flag:
 
 | With `DemoMode=true` | Why it's a demo posture, not the production one |
 |---|---|

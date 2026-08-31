@@ -18,6 +18,8 @@ One **fanout exchange** per event family; one queue per consumer bound to it (na
 | `shipping-events` | ShippingService | `order-shipping` | OrderService |
 | `shipping-events` | ShippingService | `notify-shipping` | NotificationService |
 
+> `notify-payments` is bound to the whole `payment-events` exchange, but NotificationService only has a handler for `PaymentFailedEvent` — `PaymentCompletedEvent` arrives on that queue and is ignored.
+
 ---
 
 ## Events
@@ -44,13 +46,14 @@ One **fanout exchange** per event family; one queue per consumer bound to it (na
 
 **Exchange:** `payment-events`  
 **Subject header:** `PaymentCompletedEvent`  
-**Producer:** PaymentService (`ProcessPaymentHandler`)  
+**Producer:** PaymentService (`PaymentProcessingRequestedHandler`, after the gateway call; `ProcessPaymentHandler` re-publishes only on the idempotent retry of an already-completed payment)  
 **Consumers:** OrderService → marks order as `Paid`; ShippingService → creates shipment
 
 | Field | Type | Description |
 |---|---|---|
 | `PaymentId` | `Guid` | Payment record identifier |
 | `OrderId` | `Guid` | Associated order |
+| `BuyerId` | `Guid` | Buyer who placed the order (set from `payment.BuyerId`) |
 | `Amount` | `decimal` | Amount charged |
 | `Provider` | `string` | Payment gateway name (e.g. `"Stripe"`) |
 | `CompletedAt` | `DateTime` | UTC timestamp of successful charge |
@@ -61,7 +64,7 @@ One **fanout exchange** per event family; one queue per consumer bound to it (na
 
 **Exchange:** `payment-events`  
 **Subject header:** `PaymentFailedEvent`  
-**Producer:** PaymentService (`ProcessPaymentHandler`)  
+**Producer:** PaymentService (`PaymentProcessingRequestedHandler` on gateway failure; `ProcessPaymentHandler` on the idempotent retry of an already-failed payment; `PaymentRecoveryJob` for stuck `Pending` payments, skipped for legacy rows with no `BuyerId`)  
 **Consumers:** OrderService → marks order as `PaymentFailed`; NotificationService → sends "Payment Failed" email
 
 | Field | Type | Description |
@@ -96,15 +99,15 @@ One **fanout exchange** per event family; one queue per consumer bound to it (na
 
 ## Observability Headers
 
-All messages carry these headers on every RabbitMQ message envelope:
+Messages can carry these headers on the RabbitMQ envelope (a header is absent when its value is unknown — system events, for example, have no user):
 
 | Property | Description |
 |---|---|
-| `X-Correlation-Id` | Chain ID linking all events in a single user transaction |
+| `X-Correlation-Id` | Chain ID linking all events in a single user transaction (optional; honoured on receive) |
 | `X-User-Id` | Authenticated user who initiated the chain (null for system events) |
 | `X-Session-Id` | Browser/app session ID (null for system events) |
 
-These are stamped by `OutgoingContextMiddleware` (in `ServiceDefaults`) onto every outgoing Wolverine envelope, and restored by `ContextPropagationMiddleware` in each receiving handler. See `docs/context-propagation.md` for the full propagation guide.
+`X-User-Id` and `X-Session-Id` are stamped by `OutgoingContextMiddleware` (in `ServiceDefaults`) when the values are present in Activity baggage. `X-Correlation-Id` is not stamped on outgoing envelopes: correlation travels via Wolverine's built-in envelope `CorrelationId` (from the W3C traceparent). The receiving `ContextPropagationMiddleware` honours an explicit `X-Correlation-Id` header first, then falls back to `envelope.CorrelationId`, then the current trace ID, and restores everything into baggage and the logger scope. See `docs/context-propagation.md` for the full propagation guide.
 
 ---
 
@@ -123,4 +126,4 @@ Wolverine's RabbitMQ transport dead-letters exhausted messages to a Wolverine-ma
 
 Messages land there after exhausting Wolverine's retry policy. Wolverine's own `wolverine-dead-letter-queue` OTel counter is the alarm signal — its meter is registered in `ServiceDefaults`.
 
-Replay is available through Wolverine's transactional outbox tables (`wolverine` schema in each service's database) and its `IMessageStore` API. See [docs/event-replay.md](event-replay.md).
+Replay is available through Wolverine's transactional outbox tables (`wolverine` schema in each publishing service's database — Order, Payment, Shipping) and its `IMessageStore` API. NotificationService has no message store; its listeners run `ProcessInline` with no durable inbox, so there is no outbox or replay there. See [docs/event-replay.md](event-replay.md).

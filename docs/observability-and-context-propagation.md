@@ -18,7 +18,7 @@ lifecycle can be correlated:
 - `user.id` — from the `ClaimTypes.NameIdentifier` JWT claim (`sub`); null when unauthenticated.
 - `session.id` — from the `X-Session-Id` request header (client-generated browser/app session UUID); null if not provided.
 
-All three are set by `CorrelationIdMiddleware` (HTTP entry point) and by `ContextPropagationMiddleware` (Wolverine incoming-message middleware, async entry point). All three are propagated onto outgoing Wolverine messages by `OutgoingContextMiddleware`. Both middlewares are wired via the `opts.AddNextAuroraContextPropagation()` extension in each service's `Program.cs`.
+All three are set by `CorrelationIdMiddleware` (HTTP entry point) and by `ContextPropagationMiddleware` (Wolverine incoming-message middleware, async entry point). `UserId` and `SessionId` are propagated onto outgoing Wolverine messages by `OutgoingContextMiddleware`; `CorrelationId` is not stamped by it — it travels via Wolverine's envelope `CorrelationId` (set from the W3C traceparent), falling back to the current trace ID on receive. Both middlewares are wired via the `opts.AddNextAuroraContextPropagation()` extension in each service's `Program.cs`.
 
 ## HTTP middleware order — strict
 
@@ -28,6 +28,8 @@ Canonical order in `MapDefaultEndpoints`:
 
 ```csharp
 app.UseExceptionHandler();                          // wraps every error below
+if (frontendOriginsConfigured)                      // only when Frontend:AllowedOrigins is set
+    app.UseCors("frontend");                        // preflights answered before auth
 app.UseAuthentication();                            // populates context.User
 app.UseMiddleware<CorrelationIdMiddleware>();       // reads User, opens log scope
 app.UseAuthorization();                             // 401/403 attributed to UserId
@@ -77,19 +79,17 @@ opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 
 The trap: `IMessageBus.PublishAsync(...)` stages an envelope into the `wolverine.outgoing_envelopes` tracker, but **the envelope is only persisted when `SaveChangesAsync` runs after the publish call**. Wolverine's `UseEntityFrameworkCoreTransactions` intercepts `SaveChanges` to bridge the staged envelope into the DB transaction. If your wrapper does `BeginTransactionAsync` → entity write + publish → `Commit` *without an explicit `SaveChangesAsync` between the publish and the commit*, the envelope stays in the tracker, the transaction commits without it, and the event is silently dropped.
 
-The canonical safe wrapper:
+The canonical safe form is Wolverine's own non-handler outbox, `IDbContextOutbox` — it owns the
+transaction, so there is no hand-rolled wrap to get wrong:
 
 ```csharp
-public async Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default)
-{
-    await using var tx = await context.Database.BeginTransactionAsync(ct);
-    await work(ct);                          // entity write + PublishAsync inside here
-    await context.SaveChangesAsync(ct);      // flushes Wolverine's staged envelope
-    await tx.CommitAsync(ct);
-}
+outbox.Enroll(context);                              // bind this DbContext to the outbox
+payment.MarkAsFailed(reason);                        // entity work
+await outbox.PublishAsync(new PaymentFailedEvent { ... });
+await outbox.SaveChangesAndFlushMessagesAsync(ct);   // entity + staged envelope in ONE tx, then flush
 ```
 
-Reference: [PaymentRecoveryJob](../PaymentService/Infrastructure/PaymentRecoveryJob.cs) — the canonical inline implementation of this wrapper (the previous `IPaymentRepository.ExecuteInTransactionAsync` wrapper was deleted in the simplicity refactor; the pattern is unchanged, just inlined). When adding a non-handler code path that publishes events, **either** wrap it in this pattern **or** factor the publish back into a Wolverine handler triggered by an internal scheduled message.
+Reference: [PaymentRecoveryJob.RecoverOneAsync](../PaymentService/Infrastructure/PaymentRecoveryJob.cs) — the canonical implementation. It previously used a hand-rolled `BeginTransactionAsync` → publish → `SaveChangesAsync` → `CommitAsync` wrap (itself replacing a deleted `IPaymentRepository.ExecuteInTransactionAsync`); that shape is correct only if the explicit `SaveChangesAsync` sits between publish and commit, which is exactly the step that silently went missing. When adding a non-handler code path that publishes events, **either** use `IDbContextOutbox` **or** factor the publish back into a Wolverine handler triggered by an internal scheduled message.
 
 ## Event Replay
 

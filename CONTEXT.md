@@ -172,7 +172,7 @@ designed to prevent.
 
 The claim that each rule encoded once stays encoded forever, so quality
 *accumulates* over time rather than resetting per-session. Currently
-intuition, not measurement — see `docs/post-ideas/measuring-the-encoding-loop.md`.
+intuition, not measurement — a measurement write-up is not yet written.
 
 ### Feedback loop
 

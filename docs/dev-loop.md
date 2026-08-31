@@ -200,6 +200,13 @@ This is where most code originates. The tooling here shapes proposed edits
 | [block-sync-over-async.sh](../.claude/scripts/block-sync-over-async.sh) | `PreToolUse` (Edit\|Write on .cs) | Rejects `.Result` / `.Wait()` / `.GetAwaiter().GetResult()` *in proposed edits*. Build-time net (BannedSymbols.txt) catches the same patterns later — this hook catches them earlier so the bad diff never lands. |
 | [inject-status.sh](../.claude/scripts/inject-status.sh) | `SessionStart` | Injects top of STATUS.md + current branch + last commit so sessions don't start cold. |
 | [check-claude-md-refs.sh](../.claude/scripts/check-claude-md-refs.sh) | `PostToolUse` (Edit\|Write on CLAUDE.md) | Implements the `See CLAUDE.md.` cross-reference convention. When CLAUDE.md changes, lists every paraphrase site so drift can be reviewed in the same session. |
+| [remind-architecture-review.sh](../.claude/scripts/remind-architecture-review.sh) | `PreToolUse` (Bash) | When the command opens a PR (`gh pr create`), surfaces a non-blocking reminder to run the architecture-reviewer agent first for architecturally-significant changes. |
+| [check-file-moves.sh](../.claude/scripts/check-file-moves.sh) | `PostToolUse` (Bash) | After a `git mv` / `git rm`, greps the repo for references to the moved path and surfaces the worklist in the same session, so doc/comment drift is caught the moment it is created. |
+
+Note: `.claude/settings.json` currently registers all five hooks by absolute
+path (`/Users/joshuadell/NovaCraft/.claude/scripts/...`), so the wiring only
+works in a checkout at that exact location — repo-relative paths would be
+portable.
 
 ### Slash commands ([.claude/commands/](../.claude/commands/))
 | Command | Purpose |
@@ -217,7 +224,7 @@ This is where most code originates. The tooling here shapes proposed edits
 
 ### Skills ([.claude/skills/](../.claude/skills/))
 
-Ten skills are installed. Honest framing: they fall into three usage tiers,
+Eleven skills are installed. Honest framing: they fall into three usage tiers,
 not one. The dev-loop is **load-bearing on three of them**; the rest are
 either ambient (discipline absorbed into CLAUDE.md rules and behavior without
 formal invocation) or dormant (fire only on specific triggers that don't
@@ -228,6 +235,7 @@ happen often). Listed accurately so the table doesn't overclaim.
 | Skill | Source | What "actively used" means here |
 |---|---|---|
 | **dotnet-performance** | **this repo (project-authored)** | Load-bearing as the *deeper-guidance target* for CLAUDE.md Performance Rules — the preamble points at it explicitly, [architecture-reviewer.md](../.claude/agents/architecture-reviewer.md) routes profiling work to it, [.github/AI_WORKFLOW.md](../.github/AI_WORKFLOW.md) names it as the canonical reference. Used as a reference surface, not an auto-fired procedure. |
+| **vercel-react-best-practices** | [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices) | The frontend counterpart to dotnet-performance — [frontend/CLAUDE.md](../frontend/CLAUDE.md) points at it as the deeper-guidance target for React performance patterns. Used as a reference surface, not an auto-fired procedure. |
 | excalidraw-diagram | this repo | Fires when diagrams change. Three lesson-encoding commits (text-overlap + GitHub-SVG fixes); [`.claude/scripts/rebuild-diagrams.sh`](../.claude/scripts/rebuild-diagrams.sh) regenerates [dev-loop.svg](dev-loop.svg) from it. |
 | writing-plans + executing-plans | [obra/superpowers](https://github.com/obra/superpowers) | Fires on explicit multi-step planning work. Canonical use: the Hetzner + Dokploy deployment plan rewrites in [docs/full-saga-deployment-plan.md](full-saga-deployment-plan.md). |
 
@@ -309,7 +317,7 @@ on; zero warnings allowed.
 | **PaymentService** | SQL Server (Wolverine stubbed) | Acceptor→Gateway split (long-running-work-on-the-bus pattern), outbox staging, idempotency, `RowVersion` concurrency |
 | **ShippingService** | Postgres (Wolverine stubbed) | IDOR-safe read predicate, saga consume-side handler, `xmin` concurrency, idempotency under at-least-once delivery |
 
-Wire-level coverage (ASB round-trip) is intentionally not part of this rung —
+Wire-level coverage (RabbitMQ round-trip) is intentionally not part of this rung —
 see Gap 1.
 
 ### Required-test patterns
@@ -333,7 +341,11 @@ suggestions. Every PR-review pass checks for them.
 | [.github/workflows/ci.yml](../.github/workflows/ci.yml) | Build + unit tests (with Codecov upload) + concurrency-audit grep + integration tests (with Codecov upload). NuGet cache. `concurrency: cancel-in-progress` on the workflow. |
 | [.github/workflows/codeql.yml](../.github/workflows/codeql.yml) | CodeQL SAST. `security-and-quality` query set. Weekly + on PR. |
 | [.github/dependabot.yml](../.github/dependabot.yml) | NuGet weekly (grouped per ecosystem), GitHub Actions monthly. |
-| [.github/workflows/deploy-catalog-demo-fly.yml](../.github/workflows/deploy-catalog-demo-fly.yml) | Deploy CatalogService.Api to Fly.io (primary path). |
+| [.github/workflows/gitleaks.yml](../.github/workflows/gitleaks.yml) | Secret scanning (gitleaks) on every push/PR to main, over full history. |
+| [.github/workflows/vulnerable-packages.yml](../.github/workflows/vulnerable-packages.yml) | Weekly `dotnet list package --vulnerable --include-transitive`; fails on any hit. |
+| [.github/workflows/publish-images.yml](../.github/workflows/publish-images.yml) | Builds + pushes the five service images and the storefront image to GHCR; the VPS deploy timer pulls them. |
+| [.github/workflows/uptime.yml](../.github/workflows/uptime.yml) | Every-30-minutes uptime check against the deployed demo. |
+| [.github/workflows/deploy-catalog-demo-fly.yml](../.github/workflows/deploy-catalog-demo-fly.yml) | Deploy CatalogService to Fly.io — legacy path; the demo now ships via publish-images.yml + the VPS deploy timer. |
 | [.github/workflows/deploy-catalog-demo.yml](../.github/workflows/deploy-catalog-demo.yml) | AWS App Runner alternative (scaffolded, not actively used). |
 
 ### PR-side configuration
@@ -343,6 +355,7 @@ suggestions. Every PR-review pass checks for them.
 | [.github/AI_WORKFLOW.md](../.github/AI_WORKFLOW.md) | Companion to README's "How it was built" — exact tools, guardrails, what's deliberately NOT used. |
 | [.github/copilot-instructions.md](../.github/copilot-instructions.md) | Copilot-side conventions. |
 | [.coderabbit.yaml](../.coderabbit.yaml) | CodeRabbit per-path instructions encoding THIS project's conventions. Requires CodeRabbit GitHub App installed. |
+| [codecov.yml](../codecov.yml) | Coverage gate — `project` status (target auto, 1% threshold) blocks PRs that drop total coverage; `patch` is informational by design. |
 
 ### `.coderabbit.yaml` `path_instructions` — surface #2 of the encoding loop
 
@@ -357,8 +370,8 @@ re-deriving it. Today's glob set (~12 entries) covers:
 - `**/Endpoints/**` — `MapV1ApiGroup`, `.RequireAuthorization()` on
   non-public endpoints, 404-not-403 for IDOR, rate-limiting on
   search/payment endpoints.
-- `**/*RecoveryJob*.cs` — the outbox-outside-handler atomicity trap (explicit
-  `BeginTransactionAsync` → `PublishAsync` → `SaveChangesAsync` → `CommitAsync`).
+- `**/*RecoveryJob*.cs` — the outbox-outside-handler atomicity trap (Wolverine's
+  `IDbContextOutbox`: `Enroll` → `PublishAsync` → `SaveChangesAndFlushMessagesAsync`).
 - `**/*Migration*.cs` — migrations are immutable once applied.
 - `**/*Test*.cs` — AAA narrative comments, IDOR test required, AwesomeAssertions
   fluent style.
@@ -372,7 +385,7 @@ When a new rule earns surface #2, add a glob if no existing one fits.
 | Reviewer | Strengths | Limits |
 |---|---|---|
 | **CodeRabbit** | LLM-based, reads diffs, picks up cross-file consistency, missing tests, naming drift. Project-specific via `path_instructions`. | Not deterministic — same diff can produce different findings. Profile "assertive" surfaces more findings than "chill". |
-| **Codecov** | Coverage trend, per-file deltas, PR-level coverage report. Free OSS tier. | Doesn't *gate* PRs without explicit threshold config (currently no gate — see Gaps). |
+| **Codecov** | Coverage trend, per-file deltas, PR-level coverage report. Free OSS tier. | Project-status gate configured in [codecov.yml](../codecov.yml); patch coverage is informational by design. |
 | **CodeQL** | Static security analysis. Hosted by GitHub. | C# rule set is broad but generic — not project-specific. |
 | **dorny/test-reporter** | Surfaces TRX test results as a PR check run instead of buried in job logs. | Just reporting; no analysis. |
 | **architecture-reviewer agent** | Project-specific, applies CLAUDE.md rules. Invoked manually for non-trivial architectural changes. Prompts for encodings as Step 7. | Doesn't auto-fire on PR. |
@@ -387,11 +400,11 @@ different cadence, different lens.**
 
 | Tool | Role |
 |---|---|
-| **.NET Aspire** | Local dev orchestration. `dotnet run --project NextAurora.AppHost` brings up all services + Postgres + SQL Server + RabbitMQ + Redis + Keycloak in one command. Aspire dashboard at http://localhost:18888. |
-| **OpenTelemetry** | Traces + metrics + logs throughout. Aspire ingests in dev; Application Insights ingests in prod. |
+| **.NET Aspire** | Local dev orchestration. `dotnet run --project NextAurora.AppHost` brings up all services + Postgres + SQL Server + RabbitMQ + Redis + Keycloak in one command. Aspire dashboard at https://localhost:17222. |
+| **OpenTelemetry** | Traces + metrics + logs throughout. Aspire ingests in dev; the deployed demo's telemetry posture is recorded in [docs/deployed-demo.md](deployed-demo.md). |
 | **Wolverine** | In-process message bus + transactional outbox. RabbitMQ transport for cross-service events. |
-| **Scalar UI** | Interactive API docs at `/scalar/v1` per service (dev-only). |
-| **Fly.io** | CatalogService demo at https://catalog-api-demo.fly.dev. Single Machine, auto-stops when idle. |
+| **Scalar UI** | Interactive API docs at `/scalar/v1` per service — mapped in Development *or* DemoMode (current exposure: [docs/deployed-demo.md](deployed-demo.md)). |
+| **Fly.io** | Legacy single-service Catalog demo — superseded by the VPS deploy ([docs/deployed-demo.md](deployed-demo.md)). |
 | **CorrelationId middleware** (in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/)) | Correlation/User/Session ID propagation across HTTP + RabbitMQ boundaries. |
 
 ---
@@ -494,14 +507,12 @@ within ~24h). If higher assurance is needed, run
 SHA-pin everything in a single hardening PR — *all six actions* at once.
 Inconsistent pinning is the worst of both worlds.
 
-### Gap 5 — No coverage gate
+### Gap 5 — No coverage gate *(closed)*
 
-**What's missing:** Codecov shows the badge + trend, but doesn't fail PRs
-when coverage drops.
-
-**Pragmatic solution:** Add `codecov.yml` at repo root with
-`coverage.status.project: target: auto, threshold: 1%`. Lets normal PRs
-through but fails ones that drop coverage by >1%. Don't set absolute
+**Closed:** [codecov.yml](../codecov.yml) at repo root sets
+`coverage.status.project: target: auto, threshold: 1%` — normal PRs pass,
+PRs that drop total coverage by more than 1% fail. Patch coverage stays
+informational (the rationale is written up in the file itself). No absolute
 thresholds (they create perverse incentives — delete uncovered code
 instead of testing it).
 
@@ -516,21 +527,20 @@ self-hosted runner — heavy). Skip per-PR; trigger nightly via `schedule:`
 cron OR manually when investigating a deployment regression. Aspire boot is
 60+ seconds — not worth per-PR.
 
-### Gap 7 — No secret scanning beyond CodeQL
+### Gap 7 — No secret scanning beyond CodeQL *(closed)*
 
-**What's missing:** CodeQL covers SAST but doesn't dedicated-scan for
-hardcoded secrets, leaked keys, or known-vulnerable dependency CVEs beyond
-what Dependabot catches.
-
-**Pragmatic solution:** Add one GitHub Action:
-[`gitleaks/gitleaks-action@v2`](https://github.com/gitleaks/gitleaks-action).
-Five-line workflow, free for public repos. Pair with a quarterly run of
-`dotnet list package --vulnerable` (5-line shell script) for CVE deps.
+**Closed:** [gitleaks.yml](../.github/workflows/gitleaks.yml) scans every
+push/PR to main for leaked secrets (full-history checkout), and
+[vulnerable-packages.yml](../.github/workflows/vulnerable-packages.yml) runs
+`dotnet list package --vulnerable --include-transitive` weekly, failing on
+any hit. Both appear in the Stage 4 workflow table.
 
 ### Gap 8 — Production migration deploy step not automated
 
-**What's missing:** `MigrateDatabaseAsync` only runs in `Development`.
-Production migrations require manual `dotnet ef database update`.
+**What's missing:** `MigrateDatabaseAsync` runs under `Development` *or*
+`DemoMode` (deployment posture: [docs/deployed-demo.md](deployed-demo.md)).
+A non-demo production deploy would still need a separate
+`dotnet ef database update` step, and that step is not automated.
 
 **Pragmatic solution:** This is the *right* design — auto-migrating on prod
 startup is dangerous (one bad migration takes down all replicas
@@ -546,8 +556,8 @@ with required reviewers). Solves the automation gap without losing safety.
 `AddFixedWindowLimiter`. Once any service runs 2+ instances, the effective
 rate is N× the limit.
 
-**Pragmatic solution:** NextAurora is single-instance everywhere today
-(Catalog deployed; the rest local), so the in-memory limiter is correct
+**Pragmatic solution:** NextAurora is single-replica (deployment shape:
+[docs/deployed-demo.md](deployed-demo.md)), so the in-memory limiter is correct
 *for now*. When the saga-deployed services scale out, swap affected
 endpoints to a Redis-backed limiter using the project's existing Redis
 (present for HybridCache). Critical: use a Lua `EVAL` for the
@@ -582,7 +592,7 @@ for the curation rationale.)
 | **SonarCloud** (hosted dashboard) | Overlap with existing SonarAnalyzer.CSharp at build time. Codecov badge gives the trend signal; SonarCloud would add a dashboard without much new detection. |
 | **DependenSee** (project dep graph SVG) | The architecture map serves the same purpose for AI consumption. May add later if a human-facing diagram becomes useful. |
 | **SonarQube** (self-hosted) | Self-hosting infrastructure overhead doesn't pay back at this project size. |
-| **Frontend testing tools** (Playwright, etc.) | Storefront + SellerPortal are static-file scaffolds — no frontend to test. |
+| **Playwright E2E** | Browser-level E2E isn't wired up. Unit/component tests for the React SPA already run via Vitest + RTL + MSW in ci.yml's `frontend` job; a Playwright suite hasn't earned its keep yet. |
 | **MCP servers** | Canon in `CLAUDE.md` + paired `docs/*.md` + every-session auto-load + greppable surfaces already gives Claude Code persistent decision context. An MCP server adds an external tool layer on top of decisions that already live in the repo where the code does — convergence in the wrong direction. Tools live near the decisions, not vice versa. See `.claude/audits/2026-06-07-miro-mcp-shared-context.md` (`../.claude/audits/2026-06-07-miro-mcp-shared-context.md`) for the worked comparison (canon-in-repo vs Miro+MCP). |
 | **CI/CD pipeline generator skills** | Existing CI works; adding a generator is anti-pragmatic. |
 | **Differential-review skill** (trailofbits) | Direct overlap with architecture-reviewer agent + CodeRabbit. |

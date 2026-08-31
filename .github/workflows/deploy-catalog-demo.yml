@@ -5,7 +5,7 @@ name: DEPLOY_CATALOG_DEMO
 # GitHub's OIDC provider to assume an AWS role — no long-lived AWS keys live in repo secrets.
 #
 # Manually triggered (workflow_dispatch) so demo deploys don't happen on every push.
-# See docs/STATUS.md "Demo deployment" for the one-time AWS setup checklist.
+# See docs/demo-deployment.md "AWS App Runner path" for the one-time AWS setup checklist.
 
 on:
   workflow_dispatch:

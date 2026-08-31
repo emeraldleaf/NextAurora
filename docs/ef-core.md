@@ -215,7 +215,7 @@ EF then includes `WHERE xmin = @originalXmin` on every UPDATE. If another transa
 
 SQL Server's equivalent is the `rowversion` (a.k.a. `timestamp`) type. It's a real column the engine auto-increments on insert/update. Unlike `xmin`, this requires a column add.
 
-From [OrderDbContext.cs:58](../OrderService/Infrastructure/Data/OrderDbContext.cs#L58):
+From [OrderDbContext.cs:51](../OrderService/Infrastructure/Data/OrderDbContext.cs#L51):
 
 ```csharp
 entity.Property<byte[]>("RowVersion").IsRowVersion();
@@ -328,7 +328,7 @@ Each Infrastructure project has:
 
 3. **`Migrations/` folder** — see [§6.2](#62-what-lives-where).
 
-4. **`MigrateDatabaseAsync<TContext>` extension** in [NextAurora.ServiceDefaults/Extensions.cs:328](../NextAurora.ServiceDefaults/Extensions.cs#L328) — opens a scope, resolves the context, calls `Database.MigrateAsync(ct)`. Called from each service's `Program.cs` inside `if (app.Environment.IsDevelopment()) { ... }`.
+4. **`MigrateDatabaseAsync<TContext>` extension** in [NextAurora.ServiceDefaults/Extensions.cs:452](../NextAurora.ServiceDefaults/Extensions.cs#L452) — opens a scope, resolves the context, calls `Database.MigrateAsync(ct)`. Called from each service's `Program.cs` inside `if (app.Environment.IsDevelopment()) { ... }`.
 
 ### 6.4 Dev round-trip
 
@@ -835,17 +835,20 @@ What each line does:
 
 ### 15.3 What a handler looks like
 
-From [PlaceOrder.cs:140-146](../OrderService/Features/PlaceOrder.cs#L140-L146):
+From [PlaceOrder.cs:144-179](../OrderService/Features/PlaceOrder.cs#L144-L179):
 
 ```csharp
 // Order saved
 var order = Order.Create(request.BuyerId, request.Currency, lines);
-await orderRepository.AddAsync(order, cancellationToken);
+await context.Orders.AddAsync(order, cancellationToken);
 
-// Event published — Wolverine stages this to wolverine.outgoing_envelopes
-// in the SAME transaction as the Order insert above.
 var @event = new OrderPlacedEvent { /* ... */ };
-await eventPublisher.PublishAsync(@event, cancellationToken);
+
+// PUBLISH BEFORE SAVE — messageContext stages this to wolverine.outgoing_envelopes;
+// SaveChangesAsync then flushes the Order row AND the staged envelope in the
+// SAME DB transaction.
+await messageContext.PublishAsync(@event);
+await context.SaveChangesAsync(cancellationToken);
 return order.Id;
 ```
 

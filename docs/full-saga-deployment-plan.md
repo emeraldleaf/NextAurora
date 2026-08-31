@@ -8,10 +8,11 @@
 
 **Last updated:** 2026-08-25 (Phase 3 rewritten as the three-act demo storyline — #207 engineering view, #208 kill switch; prior: D4 lean profile)
 
-**Current state:** planning; a VPS exists (shared with another, heavier site —
-see D4 lean profile), but no NextAurora infra is provisioned on it yet. The
-existing CatalogService Fly.io demo is separate and predates this plan (see
-"What happens to the Fly demo" below).
+**Current state:** deployed on the shared box (compose + Caddy, per the
+2026-08-27 revision below). The as-built picture, live URLs, and current phase
+progress are in [deployed-demo.md](deployed-demo.md) and
+[STATUS.md](STATUS.md) — this plan records the decisions, not the state. The existing CatalogService Fly.io demo is separate and predates
+this plan (see "What happens to the Fly demo" below).
 
 ---
 
@@ -168,9 +169,10 @@ internal Docker network as the services.
 - Two-stage readiness (Keycloak serves HTTP before realm import finishes) —
   Dokploy health check needs to wait for both.
 - ServiceDefaults JWT config is already config-driven; deployed
-  `Authentication:Authority` points at the internal Keycloak container URL (or
-  its Traefik-routed hostname for the browser-facing auth-code flow). Zero
-  service code change.
+  `Authentication:Authority` points at the public Keycloak hostname
+  (`https://auth.emeraldleaf.dev/realms/nextaurora`, routed through Caddy) so
+  the token issuer matches in the browser and in every service and
+  `RequireHttpsMetadata` stays fail-closed. Zero service code change.
 
 ### D3 — Messaging transport → **RabbitMQ in every environment (Azure Service Bus evaluated and removed)**
 
@@ -306,6 +308,10 @@ phase that everything else builds on). Each phase is independently shippable.
 
 ### Phase 0 — Provision the box + Dokploy + infra containers
 
+**Status: done** (2026-08-27 revision) — delivered as compose + the box's
+existing Caddy rather than Dokploy; the checklist below is kept as written for
+the decision history.
+
 **Goal.** Stand up the VPS, Dokploy, and every *non-application* container
 (databases, broker, Keycloak) before any .NET service deploys. This is the
 foundation; nothing application-level happens here.
@@ -344,6 +350,9 @@ the internal network, Keycloak serving the imported realm. No .NET services yet.
 
 ### Phase 1 — Order saga visible (Catalog + Order + Storefront)
 
+**Status: done** — live; see [deployed-demo.md](deployed-demo.md) (compose +
+Caddy stand in for the Dokploy/Traefik items below).
+
 **Goal.** Deploy the first application services. Show an Order placed,
 persisted, and **stalling at payment because PaymentService isn't deployed yet**
 — a teaching demo of "what does the saga look like when downstream is absent?"
@@ -371,6 +380,9 @@ persisted, and **stalling at payment because PaymentService isn't deployed yet**
 payment, all on the Hetzner box.
 
 ### Phase 2 — Full saga (Payment + Shipping + Notification)
+
+**Status: done** — the saga completes end-to-end on the box; see
+[deployed-demo.md](deployed-demo.md).
 
 **Goal.** Deploy the remaining three services so the saga completes end-to-end
 with stubbed Stripe.
@@ -545,7 +557,7 @@ is the baseline; SSE is scoped only if Phase 3 has runway.
 
 | Date | Phase | Component | Plan | Monthly cost | Cumulative |
 |---|---|---|---|---|---|
-| (none yet) | | | | | |
+| 2026-08-27 | 0–2 | Full stack on the shared Hetzner box (compose + Caddy) | Shared VPS — cost already sunk (D4) | ~€0 marginal | ~€0 |
 
 Existing CatalogService Fly demo (separate ledger): ~$0–$5/mo (scale-to-zero, $25 prepaid cap).
 
@@ -556,8 +568,8 @@ Existing CatalogService Fly demo (separate ledger): ~$0–$5/mo (scale-to-zero, 
 - [x] D3 resolved (2026-06-17): RabbitMQ in every environment (dev/CI/Hetzner);
       Azure Service Bus evaluated and removed
 - [ ] Hetzner account + billing alert set
-- [ ] GHCR access token for Dokploy's image pulls
-- [ ] Domain/subdomain for the demo (for Traefik routing + Let's Encrypt)
+- [x] GHCR access token for the box's image pulls (`deploy.sh` compose pull)
+- [x] Domain/subdomain for the demo (Caddy routing + automatic HTTPS)
 - [ ] Branch convention: `deploy/phase-0-vps-infra`, `deploy/phase-1-order-saga`, etc.
 
 ---
@@ -565,8 +577,9 @@ Existing CatalogService Fly demo (separate ledger): ~$0–$5/mo (scale-to-zero, 
 ## Related docs
 
 - [docs/demo-deployment.md](demo-deployment.md) — Recipe for the existing
-  single-service (CatalogService) Fly.io deployment. The `DemoMode` +
-  `ForwardedHeaders` machinery carries over to the Hetzner Traefik setup.
+  single-service (CatalogService) Fly.io deployment. The `DemoMode` machinery
+  carries over to the Hetzner Caddy setup (`ForwardedHeaders` is wired in
+  CatalogService only).
 - [docs/demo-deployment-story.md](demo-deployment-story.md) — Narrative of the
   single-service Fly deployment, gotchas, decisions. Context for what to expect.
 - [docs/STATUS.md](STATUS.md) — Cross-session entry point. Has a one-line

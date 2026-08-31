@@ -34,6 +34,8 @@ if (existing is not null)
 - `CatalogService/CatalogService.Application/Handlers/ReserveStockHandler.cs` -- handler that calls `Product.AdjustStock()`
 - `CatalogService/CatalogService.Api/Services/CatalogGrpcService.cs` -- gRPC service method
 
+> **Paths since moved:** CatalogService was flattened — the command and handler are now co-located in `CatalogService/Features/ReserveStock.cs`, the proto is `CatalogService/Protos/catalog.proto`, and the gRPC service is `CatalogService/Grpc/CatalogGrpcService.cs`.
+
 ---
 
 ## Issue 3: Hardcoded Empty Email and BuyerId (High)
@@ -54,6 +56,8 @@ A `StubRecipientResolver` is registered in infrastructure for development. In pr
 - `NotificationService/Infrastructure/DependencyInjection.cs` -- DI registration
 - `NotificationService/Features/OrderPlacedNotificationHandler.cs` -- uses `IRecipientResolver`
 - `NotificationService/Features/ShipmentDispatchedNotificationHandler.cs` -- uses `IRecipientResolver`
+
+> **Superseded:** the `IRecipientResolver` abstraction was later removed, and the event handlers were merged into `NotificationService/Features/NotificationEventHandlers.cs`.
 
 ---
 
@@ -108,6 +112,8 @@ if (existing is not null)
 - `PaymentService/Domain/Refund.cs`
 - `ShippingService/Domain/Shipment.cs`
 - `NotificationService/Domain/NotificationRequest.cs`
+
+> **Since deleted:** `Refund` (and its table — migration `DropRefunds`) and `NotificationRequest` no longer exist; the notification type is now the `SendNotificationRequest` record in `NotificationService/Features/SendNotification.cs`.
 
 ### Refund validation added:
 ```csharp

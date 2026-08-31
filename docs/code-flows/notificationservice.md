@@ -31,7 +31,7 @@ sequenceDiagram
 
     alt invalid email shape
         SH-->>W: throw ArgumentException
-        Note over W: GlobalExceptionHandler returns 400<br/>(if dispatched via HTTP) or<br/>Wolverine retries → DLQ (if via bus)
+        Note over W: Wolverine retries → DLQ —<br/>requests only ever arrive via the bus<br/>(no HTTP endpoint dispatches this)
     else valid
         SH->>Send: SendAsync(email, subject, body, channel, ct)
         Send->>CS: dispatch

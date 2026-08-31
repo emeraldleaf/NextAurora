@@ -318,13 +318,16 @@ reviews:
         BackgroundService sweepers + recovery jobs run OUTSIDE Wolverine's handler pipeline,
         so AutoApplyTransactions does NOT wrap them. The outbox-atomicity trap: PublishAsync
         stages an envelope to the tracker, but it's only persisted when SaveChangesAsync runs.
-        If a wrapper does BeginTransactionAsync → entity write + publish → Commit *without*
-        an explicit SaveChangesAsync between publish and commit, the staged envelope never
-        reaches wolverine.outgoing_envelopes — event is silently dropped, saga stalls.
+        The current safe form is Wolverine's non-handler outbox: outbox.Enroll(context) →
+        entity work → outbox.PublishAsync(...) → outbox.SaveChangesAndFlushMessagesAsync(ct),
+        which owns the transaction so there is no ordering to get wrong. A hand-rolled
+        BeginTransactionAsync → entity write + publish → Commit *without* an explicit
+        SaveChangesAsync between publish and commit leaves the staged envelope out of
+        wolverine.outgoing_envelopes — event silently dropped, saga stalls.
 
-        Flag any non-handler code path that publishes events without an explicit
-        SaveChangesAsync after the publish and before the transaction commit. Reference:
-        PaymentRepository.ExecuteInTransactionAsync (canonical safe wrapper).
+        Flag any non-handler code path that publishes events outside IDbContextOutbox, or a
+        hand-rolled wrap missing the SaveChangesAsync between publish and commit. Reference:
+        PaymentRecoveryJob.RecoverOneAsync (canonical implementation).
 
         Also: BackgroundService sweepers should create a fresh DI scope per iteration of
         their sweep loop, NOT reuse one scope across the whole sweep — change tracker
