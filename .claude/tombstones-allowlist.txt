@@ -81,3 +81,10 @@ retired-repositories  ShippingService/Infrastructure/DependencyInjection.cs
 retired-repositories  .claude/tombstones.txt
 retired-repositories  .claude/tombstones-allowlist.txt
 retired-repositories  .claude/scripts/check-tombstones.sh
+
+# --- clean-architecture-layout: the doc-path audit's own allowlist must name the dead
+#     path verbatim to exempt it (same by-construction case as the control files above).
+#     NOTE: this violation only appeared after the file was committed — `git grep` sees
+#     tracked files only, so an untracked new control file passes the audit locally and
+#     fails on the next run. Run the audit after `git add` when adding control files.
+clean-architecture-layout  .claude/doc-paths-allowlist.txt
