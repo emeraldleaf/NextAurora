@@ -191,7 +191,7 @@ If a write path would take more than ~1s (multi-step external API chain, aggrega
 
 **The synchronous parts commit atomically two ways:**
 - (a) when the endpoint dispatches via `bus.InvokeAsync<T>(command, ct)`, `AutoApplyTransactions` wraps the handler — `SaveChanges` flushes the entity write and Wolverine's staged envelope in one DB transaction
-- (b) when the endpoint persists + publishes inline (no handler dispatch), use the `BeginTransactionAsync` → work + `PublishAsync` → `SaveChangesAsync` → `CommitAsync` wrap from the Outbox-outside-handler trap (see [observability-and-context-propagation.md "Outbox outside a Wolverine handler"](observability-and-context-propagation.md#outbox-outside-a-wolverine-handler--atomicity-trap)). Skipping `SaveChangesAsync` after `PublishAsync` and before `Commit` silently drops the staged envelope
+- (b) when the endpoint persists + publishes inline (no handler dispatch), use Wolverine's non-handler outbox — `IDbContextOutbox.Enroll(context)` → work + `outbox.PublishAsync` → `outbox.SaveChangesAndFlushMessagesAsync(ct)` — from the Outbox-outside-handler trap (see [observability-and-context-propagation.md "Outbox outside a Wolverine handler"](observability-and-context-propagation.md#outbox-outside-a-wolverine-handler--atomicity-trap)). Skipping `SaveChangesAsync` after `PublishAsync` and before `Commit` silently drops the staged envelope
 
 **Why it matters:** the HTTP request holds a thread, a DB connection, and a concurrency-budget slot for the full duration of the handler — a small spike on a slow endpoint can starve the rest of the API. Response time and work duration are different things; the rule is to keep response time bounded.
 

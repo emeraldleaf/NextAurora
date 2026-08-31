@@ -8,10 +8,10 @@
 
 **Last updated:** 2026-08-25 (Phase 3 rewritten as the three-act demo storyline — #207 engineering view, #208 kill switch; prior: D4 lean profile)
 
-**Current state:** deployed — Phases 0–2 are live on the shared box (compose +
-Caddy, per the 2026-08-27 revision below); the as-built picture and live URLs
-are in [deployed-demo.md](deployed-demo.md). Phase 3's demo-storyline acts are
-in progress. The existing CatalogService Fly.io demo is separate and predates
+**Current state:** deployed on the shared box (compose + Caddy, per the
+2026-08-27 revision below). The as-built picture, live URLs, and current phase
+progress are in [deployed-demo.md](deployed-demo.md) and
+[STATUS.md](STATUS.md) — this plan records the decisions, not the state. The existing CatalogService Fly.io demo is separate and predates
 this plan (see "What happens to the Fly demo" below).
 
 ---

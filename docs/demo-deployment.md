@@ -1,4 +1,6 @@
-# Demo Deployment — CatalogService
+# Demo Deployment — CatalogService (legacy single-service demo)
+
+> **Superseded.** The full saga — all five services plus the storefront — is deployed on the shared VPS behind Caddy; see [deployed-demo.md](deployed-demo.md). This document covers the older Catalog-only demo, kept because the DemoMode/ForwardedHeaders machinery it documents is still in the code.
 
 One-time setup to get [CatalogService](../CatalogService/) running on a public URL with the Scalar UI exposed for a public demo.
 
@@ -8,7 +10,7 @@ Two paths are documented below — pick one:
 
 | Path | Setup time | Cost | When to pick |
 |---|---|---|---|
-| **[Fly.io](#flyio-path-recommended)** (primary) | ~15 min | ~$0-$5/mo | Fastest, fewest moving parts, accepts almost any payment method |
+| **[Fly.io](#flyio-path-recommended)** (legacy Catalog-only) | ~15 min | ~$0-$5/mo | Fastest, fewest moving parts, accepts almost any payment method |
 | **[AWS App Runner](#aws-app-runner-path-alternative)** | ~30 min | ~$5/mo (RDS free tier first 12 mo) | If you want the AWS knowledge surface on your walkthrough, and AWS billing accepts your card |
 
 Both deploy the same artifact (`Dockerfile.catalog`) with `DemoMode=true`, talk to a managed Postgres, and produce a public HTTPS URL like `https://xxx.fly.dev/scalar/v1` or `https://xxx.awsapprunner.com/scalar/v1`.

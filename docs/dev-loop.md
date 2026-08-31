@@ -370,8 +370,8 @@ re-deriving it. Today's glob set (~12 entries) covers:
 - `**/Endpoints/**` — `MapV1ApiGroup`, `.RequireAuthorization()` on
   non-public endpoints, 404-not-403 for IDOR, rate-limiting on
   search/payment endpoints.
-- `**/*RecoveryJob*.cs` — the outbox-outside-handler atomicity trap (explicit
-  `BeginTransactionAsync` → `PublishAsync` → `SaveChangesAsync` → `CommitAsync`).
+- `**/*RecoveryJob*.cs` — the outbox-outside-handler atomicity trap (Wolverine's
+  `IDbContextOutbox`: `Enroll` → `PublishAsync` → `SaveChangesAndFlushMessagesAsync`).
 - `**/*Migration*.cs` — migrations are immutable once applied.
 - `**/*Test*.cs` — AAA narrative comments, IDOR test required, AwesomeAssertions
   fluent style.
