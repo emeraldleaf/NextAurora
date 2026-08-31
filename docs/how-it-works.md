@@ -50,11 +50,9 @@ NextAurora/
   SellerPortal/      # static-file host scaffold (UI framework not yet chosen)
 
   tests/
-    OrderService.Tests.Unit
-    CatalogService.Tests.Unit
-    PaymentService.Tests.Unit
-    ShippingService.Tests.Unit
-    NotificationService.Tests.Unit
+    {Order,Catalog,Payment,Shipping,Notification}Service.Tests.Unit
+    {Order,Catalog,Payment,Shipping}Service.Tests.Integration   # Testcontainers; Docker required
+    NextAurora.ArchitectureTests                                # NetArchTest dependency rules
 ```
 
 ---
