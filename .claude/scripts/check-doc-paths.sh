@@ -45,12 +45,17 @@ EXTS = ("cs csproj props targets md yml yaml json sh proto svg excalidraw ts tsx
 BAD_CHARS = set("{}$*<>()?~\"' ")
 
 def resolves(tok, mddir):
-    for cand in (tok, os.path.normpath(os.path.join(mddir, tok))):
-        if os.path.exists(cand):
+    # TRACKED files only, never os.path.exists: a gitignored file (e.g. .claude/audits/*,
+    # where only INDEX.md is committed) exists locally and not in CI, so a filesystem check
+    # passes on a laptop and fails on the runner. Matching what git has keeps them in step.
+    bare = os.path.normpath(tok.rstrip("/"))          # "./scripts/x.sh" -> "scripts/x.sh"
+    for cand in (bare, os.path.normpath(os.path.join(mddir, tok)).rstrip("/")):
+        if cand in tracked_set:
             return True
-    # suffix match against tracked files (service-relative mentions like Features/PlaceOrder.cs)
-    suffix = "/" + tok.rstrip("/")
-    return any(t.endswith(suffix) or t == tok.rstrip("/") for t in tracked)
+        if tok.endswith("/") and any(t.startswith(cand + "/") for t in tracked):
+            return True   # a directory resolves when git tracks anything under it
+    suffix = "/" + bare
+    return any(t.endswith(suffix) for t in tracked)
 
 fail = 0
 seen = set()
