@@ -269,7 +269,7 @@ it's the best free option AND it supports 2K. Alternatives, only if needed:
 
 Tell the user:
 
-- The file path (e.g. `./encoding-loop-hero.jpg`)
+- The file path (e.g. `docs/encoding-loop-hero.jpg`)
 - Backend used + cost + dimensions
 - A summary of what landed (was the spine correct? did all callouts render?
   any visible glitches?)

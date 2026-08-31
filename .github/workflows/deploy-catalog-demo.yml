@@ -1,6 +1,6 @@
 name: DEPLOY_CATALOG_DEMO
 
-# Demo-only deployment pipeline: builds the CatalogService.Api Docker image, pushes it to
+# Demo-only deployment pipeline: builds the CatalogService Docker image, pushes it to
 # Amazon ECR, and triggers App Runner to roll the service to the new image. Auth uses
 # GitHub's OIDC provider to assume an AWS role — no long-lived AWS keys live in repo secrets.
 #

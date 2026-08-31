@@ -52,3 +52,39 @@ stale-deployment-claims       .coderabbit.yaml
 
 # The tombstone file itself carries the pattern (and the rationale comment).
 blazor-storefront .claude/tombstones.txt
+
+# --- clean-architecture-layout: historical records + the canon's own cautionary examples ---
+clean-architecture-layout  CLAUDE.md
+clean-architecture-layout  docs/code-review-fixes.md
+clean-architecture-layout  docs/project-decisions.md
+clean-architecture-layout  docs/performance-and-data-correctness.md
+clean-architecture-layout  .claude/tombstones.txt
+clean-architecture-layout  .claude/tombstones-allowlist.txt
+clean-architecture-layout  .claude/scripts/check-tombstones.sh
+
+# --- retired-repositories: negative-teaching mentions ("there is no X wrapper") that teach
+#     the removal by name, plus historical records and the reviewer checklist ---
+retired-repositories  CLAUDE.md
+retired-repositories  .coderabbit.yaml
+retired-repositories  .claude/architecture-map.md
+retired-repositories  .claude/agents/architecture-reviewer.md
+retired-repositories  docs/code-review-fixes.md
+retired-repositories  docs/project-decisions.md
+retired-repositories  docs/observability-and-context-propagation.md
+retired-repositories  docs/code-flows/notificationservice.md
+retired-repositories  docs/code-flows/orderservice.md
+retired-repositories  docs/code-flows/shippingservice.md
+retired-repositories  NotificationService/Features/NotificationEventHandlers.cs
+retired-repositories  OrderService/Infrastructure/DependencyInjection.cs
+retired-repositories  PaymentService/Infrastructure/DependencyInjection.cs
+retired-repositories  ShippingService/Infrastructure/DependencyInjection.cs
+retired-repositories  .claude/tombstones.txt
+retired-repositories  .claude/tombstones-allowlist.txt
+retired-repositories  .claude/scripts/check-tombstones.sh
+
+# --- clean-architecture-layout: the doc-path audit's own allowlist must name the dead
+#     path verbatim to exempt it (same by-construction case as the control files above).
+#     NOTE: this violation only appeared after the file was committed — `git grep` sees
+#     tracked files only, so an untracked new control file passes the audit locally and
+#     fails on the next run. Run the audit after `git add` when adding control files.
+clean-architecture-layout  .claude/doc-paths-allowlist.txt

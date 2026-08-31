@@ -254,7 +254,7 @@ services.AddScoped<GetOrdersByBuyerHandler>();
 
 `AddScoped<T>()` (single-type overload) registers the concrete type as both service-key and implementation. Scoped lifetime matches `DbContext`, which keeps the change tracker shared correctly. No interface is needed — there's nothing to substitute.
 
-**How to spot whether you need this:** if you wrote a test calling `GetRequiredService<*Handler>()` for a handler that wasn't there before, also add the `AddScoped<*Handler>()` in the same diff. Reference: [CLAUDE.md "Communication Patterns → Wolverine handler discovery is NOT DI registration"](../CLAUDE.md). The failure mode that surfaced this rule was `OrderReadProjectionTests` breaking in CI after the repository-wrapper drop: pre-refactor the tests resolved `IOrderRepository` (which *was* registered), and the conversion to handler-resolved tests missed the equivalent registration. CI's `No service for type 'OrderService.Features.GetOrderByIdHandler' has been registered` was the first signal.
+**How to spot whether you need this:** if you wrote a test calling `GetRequiredService<*Handler>()` for a handler that wasn't there before, also add the `AddScoped<*Handler>()` in the same diff. Reference: [CLAUDE.md "Communication Patterns → Wolverine handler discovery is NOT DI registration"](../CLAUDE.md). The failure mode that surfaced this rule was `OrderReadProjectionTests` breaking in CI after the repository-wrapper drop: pre-refactor the tests resolved a repository interface (which *was* registered), and the conversion to handler-resolved tests missed the equivalent registration. CI's `No service for type 'OrderService.Features.GetOrderByIdHandler' has been registered` was the first signal.
 
 ---
 
@@ -319,10 +319,10 @@ foreach (var lineItem in request.Lines)
 
 ```csharp
 var order = Order.Create(request.BuyerId, request.Currency, lines);
-await orderRepository.AddAsync(order, cancellationToken);
+await context.Orders.AddAsync(order, cancellationToken);
 ```
 
-`Order.Create()` enforces domain invariants (non-empty buyer, at least one line). `IOrderRepository` is an interface in the Domain layer; the EF Core implementation is in Infrastructure.
+`Order.Create()` enforces domain invariants (non-empty buyer, at least one line). The handler takes `OrderDbContext` directly — no repository wrapper (CLAUDE.md "Data access: DbContext directly"); the tracked insert becomes SQL at `SaveChangesAsync`.
 
 ### Step 5 — Stage the Event into the Outbox
 
@@ -360,13 +360,13 @@ The system uses two different communication patterns depending on whether the ca
 Used when `PlaceOrderHandler` needs to validate products and reserve stock in real time.
 
 ```
-OrderService  →  GrpcCatalogClient  →  (gRPC over HTTP/2)  →  CatalogService.Api  →  CatalogGrpcService
+OrderService  →  GrpcCatalogClient  →  (gRPC over HTTP/2)  →  CatalogService  →  CatalogGrpcService
 ```
 
 **CatalogService** defines the contract in a `.proto` file and implements the gRPC server:
 
 ```protobuf
-// CatalogService.Api/Protos/catalog.proto
+// CatalogService/Protos/catalog.proto
 service CatalogGrpc {
   rpc GetProduct (GetProductRequest) returns (ProductResponse);
   rpc ReserveStock (ReserveStockRequest) returns (ReserveStockResponse);
@@ -466,8 +466,9 @@ if (order.Status != OrderStatus.Placed) return;  // already processed, skip
 order.MarkAsPaid();
 
 // ProcessPaymentHandler — idempotency guard
-var existing = await repository.GetByOrderIdAsync(request.OrderId, cancellationToken);
-if (existing is not null) return existing.Id;     // already processed, return existing ID
+var existing = await context.Payments
+    .FirstOrDefaultAsync(p => p.OrderId == request.OrderId, cancellationToken);
+if (existing is not null) { /* re-publish terminal event */ return existing.Id; }
 ```
 
 ### Two correctness guarantees that aren't visible in the code

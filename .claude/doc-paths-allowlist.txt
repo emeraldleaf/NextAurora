@@ -1,0 +1,25 @@
+# Doc-path-audit exemptions. See .claude/scripts/check-doc-paths.sh.
+#
+# FORMAT: `<file>` exempts a whole file (historical records whose old paths are the point);
+# `<file> <token>` exempts ONE backtick token in one file. Prefer token entries — a
+# whole-file exemption can re-drift invisibly. Prefer fixing the reference over either.
+
+# Historical record: every "files changed" list describes the codebase at review time,
+# with superseded notes where the code moved on.
+docs/code-review-fixes.md
+
+# Cautionary examples that need the dead path verbatim.
+CLAUDE.md CatalogService/CatalogService.Api/CatalogService.Api.csproj
+
+# Explicit "what was removed" list (EventLog deletion record).
+docs/performance-and-data-correctness.md OrderService/Infrastructure/EventLog/
+docs/performance-and-data-correctness.md PaymentService/Infrastructure/EventLog/
+docs/performance-and-data-correctness.md ShippingService/Infrastructure/EventLog/
+
+# Paths in OTHER repos or explicitly not-yet-created.
+docs/decisions/2026-07-17-sixth-surface-okl.md seed/novacraft-defects.json
+docs/dev-loop.md docs/perf-baselines.md
+
+# Placeholder patterns and other-tool examples.
+docs/skill-bucket-organization.md command-name/REFERENCE.md
+.claude/commands/grid-infographic.md .openhands/microagents/

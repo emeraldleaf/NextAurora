@@ -1,6 +1,6 @@
 name: DEPLOY_CATALOG_DEMO_FLY
 
-# Demo-only deployment pipeline (Fly.io): builds the CatalogService.Api Docker image on Fly's
+# Demo-only deployment pipeline (Fly.io): builds the CatalogService Docker image on Fly's
 # remote builders and rolls the app to the new revision. Auth uses a Fly deploy token scoped
 # to this single app (created with `fly tokens create deploy -a catalog-api-demo`).
 #

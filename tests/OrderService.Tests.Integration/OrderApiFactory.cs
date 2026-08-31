@@ -21,7 +21,7 @@ namespace OrderService.Tests.Integration;
 /// transaction as the entity write, the FluentValidation + AutoApplyTransactions +
 /// ContextPropagation middleware chain, EF migrations applying against real SQL Server, the
 /// <c>RowVersion</c> concurrency token, and the saga consume-side handlers
-/// (<see cref="OrderService.Application.EventHandlers.PaymentCompletedHandler"/> etc.) running
+/// (<see cref="OrderService.Features.PaymentCompletedHandler"/> etc.) running
 /// over an actual database.
 /// </para>
 /// <para>

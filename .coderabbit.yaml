@@ -31,6 +31,15 @@ reviews:
   # Tell CodeRabbit what THIS project values. The instructions here are the bridge between
   # CLAUDE.md (which CodeRabbit doesn't load automatically) and the review pass.
   path_instructions:
+    - path: "**/*.md"
+      instructions: |
+        Drift guards (CLAUDE.md "Identifier-move discipline"; encoded after the 2026-08-30
+        137-finding sweep). Flag: (1) bare counts about the codebase ("8 features",
+        "2 of 5 slices") — prefer phrasing that cannot drift; (2) enforcement claims
+        ("CI-checked", "runs in CI", "build error") that do not name the workflow/step or
+        analyzer rule; (3) paths in the retired multi-project layout ({Service}.Api/,
+        {Service}.Application/); (4) status claims ("not implemented", "planned", "today")
+        in a PR that does not update them — ask whether they are still true.
     - path: "**/*.cs"
       instructions: |
         Apply CLAUDE.md "Architecture Principles" (SOLID, DDD, layer dependencies) and

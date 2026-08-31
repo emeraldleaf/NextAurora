@@ -91,29 +91,32 @@ VSA services keep ports in `Domain/` (where the interface lives next to the aggr
 operates on); the Clean service splits them between Domain and Application.
 
 ### OrderService — `OrderService/Domain/`
-- `IOrderRepository` — load/save Order aggregate
-- `IEventPublisher` — publish events (Wolverine-backed)
 - `ICatalogClient` — gRPC client for CatalogService (product validation, stock reservation)
+- No repository and no `IEventPublisher`: handlers take `OrderDbContext` directly and publish
+  through a method-injected `IMessageContext` (enlisted in the outbox transaction).
 
 ### PaymentService — `PaymentService/Domain/`
-- `IPaymentRepository` — load/save Payment aggregate
-- `IEventPublisher` — publish events
-- `IPaymentGateway` — external payment provider port (currently a stub)
+- `IPaymentGateway` — external payment provider port (Stripe stub today)
+- `IEventPublisher` — thin Wolverine shim, used only for fire-and-forget re-publishes with no
+  entity write to bind to; transactional publishes go through `IMessageContext`.
+- No repository: handlers take `PaymentDbContext` directly.
 
-### ShippingService — `ShippingService/Domain/`
-- `IShipmentRepository` — load/save Shipment aggregate
-- `IEventPublisher` — publish events
+### ShippingService — `ShippingService/`
+- No ports. Handlers take `ShippingDbContext` directly and publish through `IMessageContext`.
 
-### NotificationService
-- No ports — stateless event-to-email pump. No persistence, no aggregates, no Domain folder.
+### NotificationService — `NotificationService/Features/`
+- `INotificationSender` — declared beside its consumer in `SendNotification.cs`; console
+  implementation today, substituted in unit tests. No persistence, no aggregates, no Domain folder.
 
 ### CatalogService — `CatalogService/Domain/` (interfaces) + `CatalogService/Features/` (handlers)
-- `IProductRepository`, `ICategoryRepository`
-- `IProductCache` (HybridCache-backed: L1 in-process + L2 Redis)
-- `IEventPublisher`
+- `IProductCache` — read-side cache port (HybridCache-backed: L1 in-process + L2 Redis)
+- No repositories: handlers take `CatalogDbContext` directly.
 
-Per CLAUDE.md "Interfaces earn their keep through consumer substitution": every port
-above is substituted in tests (NSubstitute) or has multiple implementations today.
+Per CLAUDE.md "Interfaces earn their keep through consumer substitution": `ICatalogClient`,
+`IPaymentGateway`, and `INotificationSender` are substituted in tests today. `IProductCache`
+and `IEventPublisher` are not — each has exactly one implementation and no test double, so
+both are open items under that rule rather than examples of it (CLAUDE.md "Interfaces earn
+their keep").
 Speculative interfaces have been deleted (see the deleted `IRecipientResolver` /
 `StubRecipientResolver` in NotificationService — kept here as a cautionary footnote).
 
@@ -153,35 +156,28 @@ the failure mode.
 
 ---
 
-## CatalogService internals (Clean Architecture detail)
+## CatalogService internals (single-project VSA, same as the other services)
 
 ```
-CatalogService.Api              ← Composition root: endpoints, DI, gRPC, OpenAPI/Scalar, middleware
-    │
-    ├── depends on Application + Infrastructure + Domain
-    │
-CatalogService.Application      ← Commands, queries, validators, handlers, mappers
-    │
-    ├── depends on Domain only
-    │
-CatalogService.Infrastructure   ← EF Core (ProductDbContext), repositories, HybridCache impl
-    │
-    ├── depends on Domain + Application
-    │
-CatalogService.Domain           ← Entities, value objects, enums, port interfaces
-    │
-    └── depends on nothing
+CatalogService/
+├── Program.cs            ← Composition root: DI, Wolverine, gRPC, OpenAPI/Scalar, middleware
+├── Endpoints/            ← Minimal API endpoint registrations
+├── Features/             ← One file per slice: command + validator + handler co-located
+├── Domain/               ← Entities, enums, port interfaces (IProductCache)
+├── Infrastructure/       ← EF Core (CatalogDbContext), HybridCache impl, migrations
+├── Grpc/                 ← CatalogGrpcService (server for OrderService's client)
+└── Protos/               ← catalog.proto contract
 ```
 
-The build-time layer enforcement (project references in `.csproj`) is what makes this
-shape earn its keep. Trying to `using CatalogService.Infrastructure;` from a Domain
-file is a compile error, not a code-review nit.
+Layer boundaries are folder + namespace conventions enforced by
+`tests/NextAurora.ArchitectureTests` (NetArchTest: Domain references no EF/Wolverine/etc.),
+not by project references — the multi-project split was collapsed in PR #31.
 
 ---
 
 ## Demo deployment
 
-CatalogService.Api is deployed to Fly.io at https://catalog-api-demo.fly.dev. Single Fly
+A legacy single-service Catalog demo is deployed to Fly.io at https://catalog-api-demo.fly.dev (the full-stack demo lives on the VPS — see docs/deployed-demo.md). Single Fly
 Machine in `lax` region, auto-stops when idle. `DemoMode` config flag gates Scalar UI,
 OpenAPI exposure, skip-HTTPS-redirect, and migrate-on-startup in non-Development
 environments. Redis registration is conditional on a `cache` connection string so

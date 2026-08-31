@@ -192,8 +192,8 @@ reviewing write handlers" checklists.
 | Catalog | `UpdateProductCommand` | `UpdateProductHandler` | `context.Products.Include(Category).FirstOrDefaultAsync` → `UpdateDetails()` → `SaveChangesAsync` → `cache.InvalidateAsync` |
 | Catalog | `ReserveStockCommand` | `ReserveStockHandler` | `context.Products.FirstOrDefaultAsync` → `AdjustStock()` → `SaveChangesAsync` → `cache.InvalidateAsync` |
 | Order | `PlaceOrderCommand` | `PlaceOrderHandler` | gRPC validation → `AddAsync` → publish `OrderPlacedEvent` |
-| Payment | `ProcessPaymentCommand` | `ProcessPaymentHandler` | `IPaymentRepository.GetByOrderIdAsync` → gateway → `AddAsync`/`UpdateAsync` → publish event |
-| Shipping | `CreateShipmentCommand` | `CreateShipmentHandler` | `IShipmentRepository.GetByOrderIdAsync` (idempotency check) → `AddAsync` → publish `ShipmentDispatchedEvent` |
+| Payment | `ProcessPaymentCommand` | `ProcessPaymentHandler` | `context.Payments.FirstOrDefaultAsync` (by OrderId, idempotency) → gateway → add/update → publish event |
+| Shipping | `CreateShipmentCommand` | `CreateShipmentHandler` | `context.Shipments.FirstOrDefaultAsync` (by OrderId, idempotency) → `AddAsync` → publish `ShipmentDispatchedEvent` |
 
 ### Event/saga handlers (load tracked entities, mutate, save)
 
