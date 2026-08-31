@@ -89,7 +89,9 @@ public sealed class DurableInboxTests(OrderApiRabbitFactory factory) : IClassFix
             .Timeout(TimeSpan.FromSeconds(60))
             .WaitForMessageToBeReceivedAt<PaymentCompletedEvent>(host)
             .ExecuteAndWaitAsync(_ => PublishRawAsync(properties, body));
-        var paidInTime = await Polling.UntilAsync(async () => await GetOrderStatusAsync(orderId) == OrderStatus.Paid, TimeSpan.FromSeconds(15));
+        var paidInTime = await Polling.UntilAsync(
+            async token => await GetOrderStatusAsync(orderId, token) == OrderStatus.Paid,
+            TimeSpan.FromSeconds(15));
 
         // ASSERT 1 — Three preconditions, each guarding the second half against a false pass:
         //  1) The first delivery reached the handler. If it didn't, a "rejection" of the second
@@ -107,7 +109,7 @@ public sealed class DurableInboxTests(OrderApiRabbitFactory factory) : IClassFix
         // ACT 2 — The redelivery: the same bytes, the same MessageId, onto the same queue.
         await PublishRawAsync(properties, body);
         var rejectedInTime = await Polling.UntilAsync(
-            () => Task.FromResult(_factory.Logs.Entries.Any(e => IsInboxRejection(e, envelope.Id))),
+            _ => Task.FromResult(_factory.Logs.Entries.Any(e => IsInboxRejection(e, envelope.Id))),
             TimeSpan.FromSeconds(20));
 
         // ASSERT 2 — The listener rejected the envelope id against the inbox table and logged the
@@ -155,10 +157,10 @@ public sealed class DurableInboxTests(OrderApiRabbitFactory factory) : IClassFix
         return order.Id;
     }
 
-    private async Task<OrderStatus> GetOrderStatusAsync(Guid orderId)
+    private async Task<OrderStatus> GetOrderStatusAsync(Guid orderId, CancellationToken ct = default)
     {
         await using var scope = _factory.CreateDbScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
-        return await db.Orders.AsNoTracking().Where(o => o.Id == orderId).Select(o => o.Status).SingleAsync();
+        return await db.Orders.AsNoTracking().Where(o => o.Id == orderId).Select(o => o.Status).SingleAsync(ct);
     }
 }

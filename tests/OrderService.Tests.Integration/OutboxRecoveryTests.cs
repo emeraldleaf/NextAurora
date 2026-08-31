@@ -68,7 +68,7 @@ public sealed class OutboxRecoveryTests(OrderApiFactory factory) : IClassFixture
             // (≈4 s) and every ScheduledJobPollingTime (5 s) after that. Wolverine deletes an
             // outgoing row only after the send succeeded, so "row gone" is the completion signal.
             recoveredInTime = await Polling.UntilAsync(
-                async () => !(await runtime.Storage.Admin.AllOutgoingAsync()).Any(e => e.Id == envelope.Id),
+                async _ => !(await runtime.Storage.Admin.AllOutgoingAsync()).Any(e => e.Id == envelope.Id),
                 TimeSpan.FromSeconds(60));
         }
 
