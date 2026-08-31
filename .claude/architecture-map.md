@@ -91,29 +91,32 @@ VSA services keep ports in `Domain/` (where the interface lives next to the aggr
 operates on); the Clean service splits them between Domain and Application.
 
 ### OrderService — `OrderService/Domain/`
-- (no repository interface — handlers take `OrderDbContext` directly, CLAUDE.md "Data access")
-- `IEventPublisher` — publish events (Wolverine-backed)
 - `ICatalogClient` — gRPC client for CatalogService (product validation, stock reservation)
+- No repository and no `IEventPublisher`: handlers take `OrderDbContext` directly and publish
+  through a method-injected `IMessageContext` (enlisted in the outbox transaction).
 
 ### PaymentService — `PaymentService/Domain/`
-- `IPaymentRepository` — load/save Payment aggregate
-- `IEventPublisher` — publish events
-- `IPaymentGateway` — external payment provider port (currently a stub)
+- `IPaymentGateway` — external payment provider port (Stripe stub today)
+- `IEventPublisher` — thin Wolverine shim, used only for fire-and-forget re-publishes with no
+  entity write to bind to; transactional publishes go through `IMessageContext`.
+- No repository: handlers take `PaymentDbContext` directly.
 
-### ShippingService — `ShippingService/Domain/`
-- `IShipmentRepository` — load/save Shipment aggregate
-- `IEventPublisher` — publish events
+### ShippingService — `ShippingService/`
+- No ports. Handlers take `ShippingDbContext` directly and publish through `IMessageContext`.
 
-### NotificationService
-- No ports — stateless event-to-email pump. No persistence, no aggregates, no Domain folder.
+### NotificationService — `NotificationService/Features/`
+- `INotificationSender` — declared beside its consumer in `SendNotification.cs`; console
+  implementation today, substituted in unit tests. No persistence, no aggregates, no Domain folder.
 
 ### CatalogService — `CatalogService/Domain/` (interfaces) + `CatalogService/Features/` (handlers)
-- `IProductRepository`, `ICategoryRepository`
-- `IProductCache` (HybridCache-backed: L1 in-process + L2 Redis)
-- `IEventPublisher`
+- `IProductCache` — read-side cache port (HybridCache-backed: L1 in-process + L2 Redis)
+- No repositories: handlers take `CatalogDbContext` directly.
 
-Per CLAUDE.md "Interfaces earn their keep through consumer substitution": every port
-above is substituted in tests (NSubstitute) or has multiple implementations today.
+Per CLAUDE.md "Interfaces earn their keep through consumer substitution": `ICatalogClient`,
+`IPaymentGateway`, and `INotificationSender` are substituted in tests today. `IProductCache`
+and `IEventPublisher` are not — each has exactly one implementation and no test double, so
+both are open items under that rule rather than examples of it (CLAUDE.md "Interfaces earn
+their keep").
 Speculative interfaces have been deleted (see the deleted `IRecipientResolver` /
 `StubRecipientResolver` in NotificationService — kept here as a cautionary footnote).
 
