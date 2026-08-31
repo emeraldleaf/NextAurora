@@ -30,3 +30,21 @@ M:System.Threading.Tasks.Parallel.ForEach``1(System.Collections.Generic.IEnumera
 # threadpool worker. Use 'await Task.Delay(...)' (with CancellationToken).
 M:System.Threading.Thread.Sleep(System.Int32);Use 'await Task.Delay(ms, ct)' instead — Thread.Sleep blocks the thread.
 M:System.Threading.Thread.Sleep(System.TimeSpan);Use 'await Task.Delay(timespan, ct)' instead — Thread.Sleep blocks the thread.
+
+# --- Sync-over-async: blocking on a Task ---
+# .Result / .Wait() / GetAwaiter().GetResult() park a threadpool thread on async work, which
+# starves the pool under load and deadlocks under a synchronization context. Sonar S4462 and
+# Meziantou MA0042 already fail the build on these inside async methods; these rows make the
+# ban explicit in the one place the concurrency audit points at, and they hold even if either
+# analyzer is tuned down or the call sits in a synchronous method. 'await' instead.
+P:System.Threading.Tasks.Task`1.Result;Use 'await' instead — .Result blocks the thread (sync-over-async).
+M:System.Threading.Tasks.Task.Wait;Use 'await' instead — Task.Wait() blocks the thread (sync-over-async).
+M:System.Threading.Tasks.Task.Wait(System.Int32);Use 'await task.WaitAsync(timeout)' instead (it throws TimeoutException where Wait returned false — translate if the caller needs the bool). Task.Wait blocks the thread.
+M:System.Threading.Tasks.Task.Wait(System.Threading.CancellationToken);Use 'await task.WaitAsync(ct)' instead — Task.Wait blocks the thread.
+M:System.Threading.Tasks.Task.Wait(System.Int32,System.Threading.CancellationToken);Use 'await task.WaitAsync(timeout, ct)' instead (TimeoutException replaces the false result — translate if needed). Task.Wait blocks the thread.
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan);Use 'await task.WaitAsync(timespan)' instead (TimeoutException replaces the false result — translate if needed). Task.Wait blocks the thread.
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan,System.Threading.CancellationToken);Use 'await task.WaitAsync(timespan, ct)' instead (TimeoutException replaces the false result — translate if needed). Task.Wait blocks the thread.
+M:System.Runtime.CompilerServices.TaskAwaiter.GetResult;Use 'await' instead — GetAwaiter().GetResult() blocks the thread (sync-over-async).
+M:System.Runtime.CompilerServices.TaskAwaiter`1.GetResult;Use 'await' instead — GetAwaiter().GetResult() blocks the thread (sync-over-async).
+M:System.Runtime.CompilerServices.ConfiguredTaskAwaitable.ConfiguredTaskAwaiter.GetResult;Use 'await task.ConfigureAwait(false)' instead — ConfigureAwait(false).GetAwaiter().GetResult() still blocks the thread (sync-over-async).
+M:System.Runtime.CompilerServices.ConfiguredTaskAwaitable`1.ConfiguredTaskAwaiter.GetResult;Use 'await task.ConfigureAwait(false)' instead — ConfigureAwait(false).GetAwaiter().GetResult() still blocks the thread (sync-over-async).

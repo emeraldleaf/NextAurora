@@ -618,7 +618,7 @@ Concurrency bugs surface under load, not in dev — by the time symptoms appear,
 
 | # | Hazard | Enforced by | Notes |
 |---|---|---|---|
-| 1 | Sync-over-async (`.Result`, `.Wait()`, `.GetAwaiter().GetResult()`) | **Sonar S4462** + Meziantou MA0042 (build error via `TreatWarningsAsErrors`) | Fires inside async methods. Synchronous entry points use `await app.RunAsync()` so it never appears legitimately. |
+| 1 | Sync-over-async (`.Result`, `.Wait()`, `.GetAwaiter().GetResult()`) | **Sonar S4462** + Meziantou MA0042 (build error via `TreatWarningsAsErrors`), plus RS0030 rows in [`BannedSymbols.txt`](../BannedSymbols.txt) | The analyzers fire inside async methods; the banned-symbol rows hold in synchronous ones too, and survive either analyzer being tuned down. Synchronous entry points use `await app.RunAsync()` so it never appears legitimately. |
 | 2 | `lock(this)`, `lock` on string, `lock` on type | **Sonar S2445 / S2444** + CA2002 | General `lock(privateObject)` is allowed — it's sometimes correct. The dangerous shapes are banned. |
 | 3 | `async void` outside event handlers | **Sonar S3168** + Meziantou MA0040 | Fires unconditionally on void async methods. UI event handlers (none today) would need a per-method suppression with justification. |
 | 4 | `Task.WaitAll`, `Task.WaitAny`, `Parallel.For`, `Parallel.ForEach`, `Thread.Sleep` | **`Microsoft.CodeAnalysis.BannedApiAnalyzers` rule RS0030** via [`BannedSymbols.txt`](../BannedSymbols.txt) | Each banned API has a custom error message pointing at the right replacement (e.g. `await Task.WhenAll`, `Parallel.ForEachAsync`, `await Task.Delay`). |

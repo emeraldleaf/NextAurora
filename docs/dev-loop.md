@@ -465,8 +465,14 @@ adapter — the fragile last mile, not the architecture. When this slice does
 land, a **RabbitMQ Testcontainer** makes it far cheaper than the old
 ASB-emulator plan: the broker is a single self-contained container, so it drops
 the emulator's required MSSQL sidecar (the service DBs the saga harness needs
-are unchanged), and AutoProvision works against it. Still gate it as a
-nightly/manual job rather than per-PR until its runtime cost is measured.
+are unchanged), and AutoProvision works against it. Gate it per its measured
+runtime cost (tracked in [docs/STATUS.md](STATUS.md)) rather than by assumption.
+
+**Status — first slice landed** (`OrderApiRabbitFactory` + `DurableInboxTests`: OrderService
+against a RabbitMQ Testcontainer, AutoProvision on, byte-exact AMQP redelivery rejected by
+the durable inbox before the handler). Where and how it currently runs — and its measured
+cost — live in [docs/STATUS.md](STATUS.md), not here. The cross-service round-trip
+(`OrderPlacedEvent` → PaymentService) is still the open part of this gap.
 
 ### Gap 2 — No production performance baselines
 
