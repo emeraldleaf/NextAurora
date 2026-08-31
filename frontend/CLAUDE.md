@@ -21,7 +21,7 @@ React Compiler enabled. Rationale: [docs/frontend-plan.md](../docs/frontend-plan
 - **Feature folders mirror the backend's VSA.** `src/features/<capability>/` owns its
   components, hooks, api calls, and types. `src/shared/` is domain-agnostic; `src/core/` is
   singletons (query client, router, auth). `src/app/` is thin shell — no business logic.
-- **Feature boundaries are enforced, not conventional.** Features never import from another
+- **Feature boundaries are the rule; enforcement is partial today.** Features never import from another
   feature's internals — only via its `index.ts` public API. `shared/` never imports from
   features. ESLint `import/no-restricted-paths` makes violations build errors — but today
   its zones only protect `catalog`'s internals; the other features are still convention
@@ -88,8 +88,9 @@ React Compiler enabled. Rationale: [docs/frontend-plan.md](../docs/frontend-plan
   PKCE a MUST for SPA public clients and formally deprecates the implicit flow — no
   `response_type=token` anywhere, ever.
 - **Tokens live in the oidc-client-ts session (`sessionStorage`), never `localStorage`** — an
-  XSS payload can read either store, so this only scopes stolen-token exposure to the tab's
-  lifetime; short token lifetimes + silent renew do the rest. **Known, documented
+  XSS payload can read either store — and can exfiltrate a token while the tab lives, which
+  `sessionStorage` does nothing to stop; it only limits browser-side persistence (per-tab,
+  gone on restart). Short token lifetimes + silent renew shrink the abuse window. **Known, documented
   trade-off:** the BCP ranks browser-held tokens as the *least* secure of its three patterns
   and strongly recommends a BFF (tokens server-side, browser gets only an HttpOnly cookie) for
   sensitive/business apps. For this demo storefront (fake data, no real PII/payments) the

@@ -6,8 +6,8 @@
 > The frontend is itself a portfolio artifact — it must demonstrate the same engineering rigor
 > as the backend: encoded canon, enforced rules, tests that prove behavior.
 
-**Status:** built and deployed — phases 0–4 shipped; the SPA is containerized
-(`Dockerfile.frontend`, nginx) and live at https://shop.emeraldleaf.dev. Canon lives in [frontend/CLAUDE.md](../frontend/CLAUDE.md) (written before the scaffold, same encode-first method as the backend).
+**Status:** complete through Phase 4; build and deployment state live in
+[docs/STATUS.md](STATUS.md) and [docs/deployed-demo.md](deployed-demo.md). Canon lives in [frontend/CLAUDE.md](../frontend/CLAUDE.md) (written before the scaffold, same encode-first method as the backend).
 
 ---
 
@@ -100,9 +100,9 @@ backend. The symmetry is the portfolio story: **vertical slices on both sides of
 5. **Phase 4 — Observability surface.** Correlation-ID chip on every mutation, Aspire trace
    deep-links (dev), query-cache devtools panel, failure-path demo (payment failure → saga
    compensation visible in UI).
-6. **Phase 5 — Deploy + polish.** As built: the SPA ships as an nginx image
-   (`Dockerfile.frontend`) on the Hetzner box behind Caddy at shop.emeraldleaf.dev — not
-   static hosting. Still open: Lighthouse CI gate and bundle visualizer in CI.
+6. **Phase 5 — Deploy + polish.** Superseded by the as-built deployment
+   ([docs/deployed-demo.md](deployed-demo.md)). Still open from this phase:
+   Lighthouse CI gate and bundle visualizer in CI.
 
 ## Sources the canon distills
 

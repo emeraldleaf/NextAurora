@@ -486,7 +486,8 @@ Query handlers (6 total across Catalog, Order, and Shipping) map domain entities
 ### Command Path
 
 ```
-HTTP Request or RabbitMQ Message → IMessageBus.InvokeAsync<TResult>(command)
+HTTP or gRPC caller  → IMessageBus.InvokeAsync<TResult>(command)  ─┐
+RabbitMQ message     → Wolverine dispatches straight to the handler ─┤
   → CommandHandler.Handle() → DbContext (load tracked) → Domain Entity → SaveChanges → Event Published
 ```
 
@@ -546,15 +547,12 @@ Read paths never load tracked entities (would over-read columns + materialize en
 - **Dead Letter Queue Processing** - Wolverine dead-letters retry-exhausted messages; the `wolverine-dead-letter-queue` counter is the alarm signal. Replay/audit available via Wolverine's `IMessageStore` API or by querying the `wolverine` schema directly.
 - **Distributed Caching (Catalog)** - `IProductCache` (read-side, factory-based `GetOrLoadAsync` + `InvalidateAsync`) backed by `Microsoft.Extensions.Caching.Hybrid` 10.5.0: **L1 in-process MemoryCache + L2 Redis**, stampede protection (concurrent misses for the same key invoke the factory once), and tag-based invalidation that clears both layers atomically. `GetProductByIdHandler` reads through the cache; `UpdateProductHandler` and `ReserveStockHandler` call `InvalidateAsync` in the write path. 5-min absolute TTL on both tiers as the safety net for missed invalidations. Cache stores the `ProductDto` projection (not the EF entity) — see [IProductCache.cs](../CatalogService/Domain/IProductCache.cs) and [HybridProductCache.cs](../CatalogService/Infrastructure/Caching/HybridProductCache.cs). List queries (`GetAllProducts`, `SearchProducts`) are intentionally not cached — paginated reads are less hot than single-product lookups, and cross-page invalidation is harder. Full rationale and trade-offs: [docs/performance-and-data-correctness.md "Decision: distributed read caching with HybridCache"](performance-and-data-correctness.md#decision-distributed-read-caching-with-hybridcache).
 - **OpenAPI Output (JSON + YAML) + Scalar UI** - All five services emit OpenAPI specs at `/openapi/v1.json` and `/openapi/v1.yaml` in Development; Catalog, Order, Payment and Shipping serve them in DemoMode too. Built on `Microsoft.AspNetCore.OpenApi`'s extension-driven format selection — same `MapOpenApi(pattern)` call, different file extension. **Interactive API documentation UI** at `/scalar/v1` via `Scalar.AspNetCore` — reads the same OpenAPI doc and renders it as a polished, searchable reference with try-it-out support. Gated on `IsDevelopment()` or `DemoMode` in those four services — the deployed demo exposes them at `https://{catalog,order,payment}-api.emeraldleaf.dev/scalar/v1`; NotificationService and SellerPortal remain dev-only.
-- **Storefront (React SPA)** - Deployed at [shop.emeraldleaf.dev](https://shop.emeraldleaf.dev): catalog browse and search, cart, checkout, order list, order detail with live saga canvas and kill switch, Keycloak sign-in. See [docs/deployed-demo.md](deployed-demo.md).
+- **Storefront (React SPA)** - Catalog browse and search, cart, checkout, order list, order detail with live saga canvas and kill switch, Keycloak sign-in. See [docs/deployed-demo.md](deployed-demo.md).
 
-### Not Yet Implemented
-- **API Gateway** - Centralized routing, rate limiting, auth
-- **Saga Compensation** - Rollback logic for failed payments/shipments
-- **SellerPortal Implementation** - SellerPortal business logic (still a static placeholder)
-- **Cross-service integration tests over the real wire** - Single-service slices exist for all four DB-touching services (`tests/{CatalogService,OrderService,PaymentService,ShippingService}.Tests.Integration` — Testcontainers Postgres+Redis for Catalog, SQL Server for Order + Payment, Postgres for Shipping, Wolverine transports stubbed in each). The remaining gap is an end-to-end `OrderPlacedEvent → PaymentService → PaymentCompletedEvent` test over a real RabbitMQ Testcontainer — wire-level cross-service coverage is still pending (the saga is verified manually end-to-end on the live RabbitMQ stack). See [docs/dev-loop.md Gap 1](dev-loop.md) + issue #68.
-- **Order Cancellation Flow** - Cancel event and compensation logic
-- **Production migration deployment step** - In dev, `MigrateDatabaseAsync<T>()` runs at startup; production should run migrations as a separate deploy step (not in-process) to avoid races between replicas. Tooling exists; deploy automation does not.
+
+### Not yet implemented
+
+Open work is state, not architecture: the current list lives in [docs/STATUS.md](STATUS.md) and GitHub Issues.
 
 ---
 

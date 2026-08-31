@@ -1140,7 +1140,7 @@ A condensed walkthrough of the key decisions, each mapped to a section above. Us
 
 ### "What's your testing strategy?"
 
-> xUnit + AwesomeAssertions + NSubstitute for unit tests on domain logic and handlers — those mock the repository and bus. Integration tests use `Microsoft.AspNetCore.Mvc.Testing`'s `WebApplicationFactory<Program>` to boot the real API in-process against Testcontainers — real Postgres, real Redis, real SQL Server. That's the only way to verify EF migrations, real concurrency tokens, and real cache behavior. Four integration slices today — Catalog, Order, Payment, and Shipping — each running as its own CI step. The remaining gap is the cross-service saga round-trip over the real RabbitMQ wire ([dev-loop.md](dev-loop.md) Gap 1).
+> xUnit + AwesomeAssertions + NSubstitute for unit tests on domain logic and validators — mocks are reserved for real ports (payment gateway, catalog client); handlers take DbContext directly, so IO-shaped behavior is covered by the integration slices instead. Integration tests use `Microsoft.AspNetCore.Mvc.Testing`'s `WebApplicationFactory<Program>` to boot the real API in-process against Testcontainers — real Postgres, real Redis, real SQL Server. That's the only way to verify EF migrations, real concurrency tokens, and real cache behavior. Four integration slices today — Catalog, Order, Payment, and Shipping — each running as its own CI step. The remaining gap is the cross-service saga round-trip over the real RabbitMQ wire ([dev-loop.md](dev-loop.md) Gap 1).
 
 ### "How does observability work?"
 

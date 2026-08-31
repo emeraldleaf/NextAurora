@@ -611,7 +611,7 @@ services.AddHealthChecks()
 
 ## 10. Testing Strategy
 
-All tests are unit tests organized per service under `tests/`. Each test project mirrors the service's Application and Domain layers.
+Tests are organized per service under `tests/`: unit projects for pure domain logic and validators, four Testcontainers integration projects for IO-touching handlers (Docker required), and `NextAurora.ArchitectureTests`.
 
 ### Naming Convention
 
@@ -640,7 +640,7 @@ var order = new OrderBuilder().WithStatus(OrderStatus.Paid).Build();
 | Application handlers | Happy path, error paths, idempotency guards |
 | Validators | Required fields, value ranges, format checks |
 
-Integration tests (Testcontainers-based) are listed as a future item in the BRD.
+The four DB-touching services each have a Testcontainers integration slice (see "Running Tests" below); the remaining gap is the cross-service round-trip over the real wire.
 
 ### Running Tests
 

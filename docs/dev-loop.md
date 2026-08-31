@@ -401,10 +401,10 @@ different cadence, different lens.**
 | Tool | Role |
 |---|---|
 | **.NET Aspire** | Local dev orchestration. `dotnet run --project NextAurora.AppHost` brings up all services + Postgres + SQL Server + RabbitMQ + Redis + Keycloak in one command. Aspire dashboard at https://localhost:17222. |
-| **OpenTelemetry** | Traces + metrics + logs throughout. Aspire ingests in dev. The deployed demo has no telemetry backend (container logs only) — App Insights wiring exists but only activates in Aspire publish mode, which is not used. |
+| **OpenTelemetry** | Traces + metrics + logs throughout. Aspire ingests in dev; the deployed demo's telemetry posture is recorded in [docs/deployed-demo.md](deployed-demo.md). |
 | **Wolverine** | In-process message bus + transactional outbox. RabbitMQ transport for cross-service events. |
-| **Scalar UI** | Interactive API docs at `/scalar/v1` per service — mapped in Development *or* DemoMode, so they are public on the live demo. |
-| **Fly.io** | CatalogService demo at https://catalog-api-demo.fly.dev. Single Machine, auto-stops when idle. |
+| **Scalar UI** | Interactive API docs at `/scalar/v1` per service — mapped in Development *or* DemoMode (current exposure: [docs/deployed-demo.md](deployed-demo.md)). |
+| **Fly.io** | Legacy single-service Catalog demo — superseded by the VPS deploy ([docs/deployed-demo.md](deployed-demo.md)). |
 | **CorrelationId middleware** (in [NextAurora.ServiceDefaults](../NextAurora.ServiceDefaults/)) | Correlation/User/Session ID propagation across HTTP + RabbitMQ boundaries. |
 
 ---
@@ -538,10 +538,9 @@ any hit. Both appear in the Stage 4 workflow table.
 ### Gap 8 — Production migration deploy step not automated
 
 **What's missing:** `MigrateDatabaseAsync` runs under `Development` *or*
-`DemoMode` — and the deployed demo runs with `DemoMode=true`, so the live
-demo migrates in-process at startup. A non-demo production deploy would
-still need a separate `dotnet ef database update` step, and that step is
-not automated.
+`DemoMode` (deployment posture: [docs/deployed-demo.md](deployed-demo.md)).
+A non-demo production deploy would still need a separate
+`dotnet ef database update` step, and that step is not automated.
 
 **Pragmatic solution:** This is the *right* design — auto-migrating on prod
 startup is dangerous (one bad migration takes down all replicas
@@ -557,9 +556,8 @@ with required reviewers). Solves the automation gap without losing safety.
 `AddFixedWindowLimiter`. Once any service runs 2+ instances, the effective
 rate is N× the limit.
 
-**Pragmatic solution:** NextAurora runs single-replica everywhere today
-(all five services plus the storefront share one VPS via compose), so the
-in-memory limiter is correct
+**Pragmatic solution:** NextAurora is single-replica (deployment shape:
+[docs/deployed-demo.md](deployed-demo.md)), so the in-memory limiter is correct
 *for now*. When the saga-deployed services scale out, swap affected
 endpoints to a Redis-backed limiter using the project's existing Redis
 (present for HybridCache). Critical: use a Lua `EVAL` for the

@@ -131,7 +131,7 @@ sequenceDiagram
 
 ## Flow 3 — gRPC ReserveLines (called by OrderService)
 
-This is the synchronous server-side of the cross-service path you saw in OrderService's `PlaceOrderHandler`. OrderService calls the batch `ReserveLines` once per order (atomic all-or-nothing across every line); the per-product `ReserveStock` RPC shares the same concurrency story and remains on the contract. The diagram below traces the simpler per-product `ReserveStock`; `ReserveLinesHandler` runs the same load → check → `AdjustStock` → save shape across all lines in one transaction.
+This is the synchronous server-side of the cross-service path you saw in OrderService's `PlaceOrderHandler`. OrderService calls the batch `ReserveLines` (`Features/ReserveLines.cs`, all-or-nothing) once per order; the diagram below traces the **legacy per-product `ReserveStock` RPC** (still exposed), which has the same per-line shape — tracked load, aggregate guard, save under `xmin` (atomic all-or-nothing across every line); the per-product `ReserveStock` RPC shares the same concurrency story and remains on the contract. The diagram below traces the simpler per-product `ReserveStock`; `ReserveLinesHandler` runs the same load → check → `AdjustStock` → save shape across all lines in one transaction.
 
 ```mermaid
 sequenceDiagram
@@ -139,7 +139,7 @@ sequenceDiagram
     participant Order as OrderService<br/>(GrpcCatalogClient)
     participant gRPC as CatalogGrpcService<br/>Grpc/CatalogGrpcService.cs
     participant Bus as IMessageBus
-    participant H as ReserveStockHandler<br/>Features/ReserveStock.cs
+    participant H as ReserveStockHandler<br/>Features/ReserveStock.cs<br/>(legacy per-product path)
     participant Ctx as CatalogDbContext
     participant Agg as Product aggregate
     participant Cache as IProductCache

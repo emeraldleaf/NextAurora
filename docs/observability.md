@@ -33,13 +33,14 @@ envelope.Headers["X-Session-Id"] = sessionId;   // only when present
 When a message arrives, `ContextPropagationMiddleware` (Wolverine incoming middleware) reads the envelope headers back into `Activity` baggage (for correlation it falls back to `envelope.CorrelationId`, then the active trace ID) and opens a logging scope before the handler runs:
 
 ```csharp
-using var scope = logger.BeginScope(new Dictionary<string, object?>(StringComparer.Ordinal)
+var scopeKeys = new Dictionary<string, object?>(StringComparer.Ordinal)
 {
     ["CorrelationId"] = correlationId,
     ["MessageId"]     = envelope.Id.ToString(),
-    ["UserId"]        = userId,      // added only when present
-    ["SessionId"]     = sessionId    // added only when present
-});
+};
+if (userId    is not null) scopeKeys["UserId"]    = userId;
+if (sessionId is not null) scopeKeys["SessionId"] = sessionId;
+using var scope = logger.BeginScope(scopeKeys);
 ```
 
 Every log line written by the handler (and anything it calls transitively) will carry those fields.

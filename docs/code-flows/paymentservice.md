@@ -215,7 +215,7 @@ stateDiagram-v2
 |---|---|
 | [Endpoints/PaymentEndpoints.cs](../../PaymentService/Endpoints/PaymentEndpoints.cs) | HTTP admin path: `POST /api/v1/payments/process` |
 | [Features/OrderPlacedHandler.cs](../../PaymentService/Features/OrderPlacedHandler.cs) | Static event translator (Wolverine cascading message) |
-| [Features/ProcessPayment.cs](../../PaymentService/Features/ProcessPayment.cs) | Command + validator + handler (idempotency + gateway + state + publish) |
+| [Features/ProcessPayment.cs](../../PaymentService/Features/ProcessPayment.cs) | Command + validator + two co-located handlers: `ProcessPaymentHandler` (Acceptor: idempotency, `Payment(Pending)`, internal `PaymentProcessingRequested`) and `PaymentProcessingRequestedHandler` (gateway call, state transition, outcome event) |
 | [Domain/Payment.cs](../../PaymentService/Domain/Payment.cs) | Aggregate root + state guards (throw on bad transition) |
 | [Domain/PaymentStatus.cs](../../PaymentService/Domain/PaymentStatus.cs) | Enum: Pending / Completed / Failed / Refunded (Refunded is reserved — no transition drives it yet) |
 | [Domain/IPaymentGateway.cs](../../PaymentService/Domain/IPaymentGateway.cs) | Anti-corruption layer port — substituted in tests |

@@ -63,8 +63,8 @@ app.MapScalarApiReference();                        // /scalar/v1 — interactiv
 **What it is**: `[]` literal syntax that works for any collection type the compiler can target — arrays, `List<T>`, `IEnumerable<T>`, `ImmutableArray<T>`, `Span<T>`, custom types with the right marker. Plus the `..spread` operator.
 
 **Where**:
-- [CatalogService.Domain/Entities/Category.cs:20](../CatalogService/Domain/Category.cs#L20) — `public List<Product> Products { get; private set; } = [];`
-- [ShippingService.Domain/Entities/Shipment.cs:43](../ShippingService/Domain/Shipment.cs#L43) — `public List<TrackingEvent> TrackingEvents { get; private set; } = [];`
+- [CatalogService/Domain/Category.cs:20](../CatalogService/Domain/Category.cs#L20) — `public List<Product> Products { get; private set; } = [];`
+- [ShippingService/Domain/Shipment.cs:43](../ShippingService/Domain/Shipment.cs#L43) — `public List<TrackingEvent> TrackingEvents { get; private set; } = [];`
 - [NextAurora.Contracts/Events/OrderPlacedEvent.cs:10](../NextAurora.Contracts/Events/OrderPlacedEvent.cs#L10) — `public List<OrderLineContract> Lines { get; init; } = [];`
 - Tests pass empty collections via `Lines = []`
 

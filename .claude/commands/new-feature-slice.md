@@ -26,7 +26,7 @@ $ARGUMENTS — expected as two words: `<ServiceName> <FeatureName>` (e.g. `Order
 3. **Create the file** at `{ServiceName}/Features/{FeatureName}.cs` with a minimally-filled stub:
    - Empty command/query record with a TODO comment naming the inputs to gather from the user
    - Validator with one placeholder rule + a TODO
-   - Handler that takes a repository (look up the repo interface in `{ServiceName}/Domain/`) + ILogger + any other ports it'll need, and throws `NotImplementedException` with a one-line TODO
+   - Handler that takes the service's DbContext (e.g. `OrderDbContext`) + ILogger + any real ports it'll need (gateway, gRPC client), and throws `NotImplementedException` with a one-line TODO
 
 4. **Do NOT** register endpoints, add migrations, or modify other files. This command is *scaffold only* — the user wires it up after reviewing.
 

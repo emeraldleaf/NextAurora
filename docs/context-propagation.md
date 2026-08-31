@@ -78,7 +78,9 @@ Browser / App Client
       │
       │  Reads baggage, writes onto envelope headers
       │  (RabbitMQ message headers on the wire):
-      │    X-Correlation-Id, X-User-Id, X-Session-Id
+      │    X-User-Id, X-Session-Id — each only when present.
+      │  Correlation is NOT a custom header: it rides
+      │  Wolverine's envelope CorrelationId / W3C traceparent
       │
       ▼
    Next Service's Wolverine Handler (incoming async message)
