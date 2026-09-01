@@ -28,7 +28,7 @@
          Microsoft.AspNetCore.OpenApi (same mechanism as the MessagePack pin above — no
          CentralPackageTransitivePinningEnabled in this repo). Remove when
          Microsoft.AspNetCore.OpenApi declares Microsoft.OpenApi >= 2.7.5. See CLAUDE.md. -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="3.10.2" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.14.11" />
     <PackageVersion Include="Asp.Versioning.Http" Version="10.0.0" />
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.0.0" />
