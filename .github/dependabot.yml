@@ -6,8 +6,11 @@ updates:
   - package-ecosystem: nuget
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      # Monthly, not weekly — batches a month of bumps into one wave instead of four,
+      # so the PR volume (one per group) lands 12×/year not 52×. Patch/minor auto-merge
+      # (see .github/workflows/dependabot-auto-merge.yml) clears the routine ones without
+      # a human; only majors wait for a person.
+      interval: monthly
     open-pull-requests-limit: 5
     labels:
       - dependencies
@@ -62,6 +65,16 @@ updates:
     # paths still behave. Add majors back to the ignore list as they ship
     # breaking changes; remove when a dedicated migration PR has landed.
     ignore:
+      # Aspire minor/patch bumps can't land as a lone dependabot PR: dependabot updates the
+      # Aspire.Hosting.* PackageVersions but CANNOT touch the Aspire.AppHost.Sdk pin in
+      # NextAurora.AppHost.csproj (an MSBuild SDK ref, not a NuGet PackageReference), so the
+      # SDK/runtime skew fails at build/startup (CLAUDE.md "Aspire SDK and runtime packages
+      # must match"). Aspire bumps also drag MessagePack (via StreamJsonRpc), colliding with
+      # the security pin. So Aspire is a DELIBERATE, coordinated bump (Hosting packages + SDK +
+      # MessagePack, build-verified), not a weekly auto-PR. Ignore minor/patch; a major still
+      # shows up (it needs a migration PR anyway). Precedent: #189 closed for exactly this.
+      - dependency-name: "Aspire.*"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
       # WolverineFx majors are deferred pending a dedicated migration PR — a
       # major can break host startup or the saga/outbox/concurrency paths, and
       # shouldn't land as an unreviewed weekly bump. The 5→6 migration already
@@ -69,6 +82,11 @@ updates:
       # this now defers 7.0+. Dependabot still bumps 6.x patches/minors (the
       # `wolverine` group above keeps the whole family in step).
       - dependency-name: "WolverineFx*"
+        update-types: ["version-update:semver-major"]
+      # NSubstitute 6.0 tightened Arg.Is<T> predicate nullability (CS8602 under
+      # TreatWarningsAsErrors); a test-mock major isn't worth a code change on a weekly
+      # bump. 5.x is stable. Take 6.x deliberately if there's a reason. #192 closed for this.
+      - dependency-name: "NSubstitute"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
